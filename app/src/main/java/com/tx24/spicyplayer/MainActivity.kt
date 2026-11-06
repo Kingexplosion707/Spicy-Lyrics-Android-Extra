@@ -40,6 +40,7 @@ import com.tx24.spicyplayer.haptics.HapticBeatOptions
 import com.tx24.spicyplayer.haptics.HapticPlayer
 import com.tx24.spicyplayer.haptics.ProvideTouchHaptics
 import com.tx24.spicyplayer.haptics.playMusicHaptics
+import com.tx24.spicyplayer.haptics.LyricHapticTimes
 import com.tx24.spicyplayer.ui.components.SpicyButton
 import com.tx24.spicyplayer.ui.components.SpicyButtonStyle
 import com.tx24.spicyplayer.ui.components.SpicyModal
@@ -977,10 +978,10 @@ private fun LyricsApp(
             playMusicHaptics(
                 hapticPlayer,
                 score = {
-                    val ready = state.lyrics as? LyricsState.Ready
-                    val words = ready?.lines?.flatMap { line -> line.words }?.map { it.startMs }.orEmpty()
-                    val lines = ready?.lines?.map { it.startMs }.orEmpty()
-                    viewModel.musicHaptics(settings.musicHapticsStyle, beatOptions, words, lines)
+                    // Sung words and lead lines only, whole-timed lines laid out word by word;
+                    // built once per lyrics object, not before every pulse.
+                    val times = LyricHapticTimes.of(state.lyrics as? LyricsState.Ready)
+                    viewModel.musicHaptics(settings.musicHapticsStyle, beatOptions, times.wordTimes, times.lineTimes, times.wordsEstimated)
                 },
                 positionMs = { viewModel.currentLyricPositionMs() + settings.hapticBeatRemoteOffset },
                 strength = { settings.musicHapticsStrength / 100f },

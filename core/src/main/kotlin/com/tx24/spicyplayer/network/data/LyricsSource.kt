@@ -13,6 +13,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 private val STAMPS = Regex("""\[[^\]]*]""")
+/** LRCLIB lengths are whole seconds and players round differently: this close is the same recording. */
+private const val SAME_LENGTH_SECONDS = 2
 
 @Singleton
 class LyricsSource @Inject constructor(
@@ -134,7 +136,12 @@ class LyricsSource @Inject constructor(
             .filter { it.duration != null && request.durationSeconds > 0 && kotlin.math.abs(it.duration - request.durationSeconds) <= 8 }
             .filter { !it.syncedLyrics.isNullOrBlank() || !it.plainLyrics.isNullOrBlank() }
             .filterNot { thin(it.plainLyrics, it.syncedLyrics, request.durationSeconds) }
-            .sortedWith(compareByDescending<LrclibSearchEntry> {
+            // A copy within SAME_LENGTH_SECONDS of the track is the same recording, ahead of one
+            // from the same album further off (a radio edit, a live take): the timing follows the
+            // recording, not the album. Then the album, then the closest length.
+            .sortedWith(compareBy<LrclibSearchEntry> {
+                kotlin.math.abs(requireNotNull(it.duration) - request.durationSeconds) > SAME_LENGTH_SECONDS
+            }.thenByDescending {
                 SpotifyTrackMatcher.normalize(it.albumName.orEmpty()) == SpotifyTrackMatcher.normalize(request.album)
             }.thenBy { kotlin.math.abs(requireNotNull(it.duration) - request.durationSeconds) })
             .firstOrNull()

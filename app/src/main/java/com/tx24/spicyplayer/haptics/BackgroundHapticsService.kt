@@ -136,8 +136,7 @@ class BackgroundHapticsService : Service() {
                 runCatching { SharedSpotify.extras(cacheDir).audioAnalysis(it) }.getOrNull()
             }
             // The lyrics' word and line times, when the timing or detection fuses them in.
-            var wordTimes = emptyList<Long>()
-            var lineTimes = emptyList<Long>()
+            var times = LyricHapticTimes.NONE
             val needsLyrics = beat.timing != HapticBeatTiming.Spotify ||
                 beat.detection == HapticBeatDetection.Combined ||
                 beat.detection == HapticBeatDetection.AllInOne
@@ -147,10 +146,11 @@ class BackgroundHapticsService : Service() {
                         .lookUp(track.request, romanize = false, track.spotifyId)
                 }.getOrNull()
                 val ready = (found as? BackgroundLyrics.Result.Found)?.lyrics
-                wordTimes = ready?.lines?.flatMap { line -> line.words }?.map { it.startMs }.orEmpty()
-                lineTimes = ready?.lines?.map { it.startMs }.orEmpty()
+                times = ready?.let { LyricHapticTimes.build(it) } ?: LyricHapticTimes.NONE
             }
-            val built = analysis?.let { MusicHapticScore.buildWithBeat(it, style, beat, wordTimes, lineTimes) }
+            val built = analysis?.let {
+                MusicHapticScore.buildWithBeat(it, style, beat, times.wordTimes, times.lineTimes, times.wordsEstimated)
+            }
             withContext(Dispatchers.Main) {
                 if (session.track?.key != key) return@withContext
                 score = built

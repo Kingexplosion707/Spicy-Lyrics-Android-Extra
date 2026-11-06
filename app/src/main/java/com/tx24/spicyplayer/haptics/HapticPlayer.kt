@@ -69,7 +69,12 @@ class HapticPlayer(context: Context) {
             MusicPulse.Beat -> composed(Part(s * 0.8f, Primitive.QuickFall)) ?: composed(Part(s, Primitive.LowTick))
             MusicPulse.Downbeat -> composed(Part(s, Primitive.Click))
             MusicPulse.Accent -> composed(Part(s, Primitive.Click), Part(s, Primitive.Thud)) ?: composed(Part(s, Primitive.Click))
-            MusicPulse.Drop -> composed(Part(s * 0.5f, Primitive.SlowRise), Part(s, Primitive.Thud))
+            // The thud lands DROP_RISE_MS after the start, where the score put the drop: the
+            // swell's own length differs by phone, so it waits out the difference first.
+            MusicPulse.Drop -> composed(
+                Part(s * 0.5f, Primitive.SlowRise, (DROP_RISE_MS - primitiveMs(Primitive.SlowRise)).coerceIn(0L, DROP_RISE_MS).toInt()),
+                Part(s, Primitive.Thud),
+            )
         }
         val waveformEffect = when (pulse) {
             MusicPulse.Kick -> VibrationEffect.createOneShot(30, amplitude(s * 0.8f))
@@ -104,6 +109,18 @@ class HapticPlayer(context: Context) {
     fun stop() {
         vibrator?.cancel()
     }
+
+    /** How long [primitive] plays on this phone (Android 12+), else a typical length. */
+    private fun primitiveMs(primitive: Primitive): Long {
+        primitiveLengths[primitive]?.let { return it }
+        val measured = if (vibrator != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            runCatching { vibrator.getPrimitiveDurations(primitive.id).firstOrNull()?.toLong() }.getOrNull()
+                ?.takeIf { it > 0L }
+        } else null
+        return (measured ?: TYPICAL_SLOW_RISE_MS).also { primitiveLengths[primitive] = it }
+    }
+
+    private val primitiveLengths = java.util.concurrent.ConcurrentHashMap<Primitive, Long>()
 
     /** A building block at [scale], [delayMs] after the one before. */
     private class Part(val scale: Float, val primitive: Primitive, val delayMs: Int = 0)
@@ -160,5 +177,7 @@ class HapticPlayer(context: Context) {
         /** A snare rattles only with this much quiet after it, its ticks this far apart. */
         const val SNARE_RATTLE_ROOM_MS = 120L
         const val RATTLE_GAP_MS = 18
+        /** A slow rise's length where the phone can't say (Android 11): about what Pixels report. */
+        const val TYPICAL_SLOW_RISE_MS = 300L
     }
 }

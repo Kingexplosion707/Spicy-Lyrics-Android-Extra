@@ -24,6 +24,7 @@ import androidx.media3.common.util.UnstableApi
 import com.tx24.spicyplayer.lyrics.LyricsState
 import com.tx24.spicyplayer.lyrics.TimedLine
 import com.tx24.spicyplayer.lyrics.TimedWord
+import com.tx24.spicyplayer.lyrics.WordTiming
 import com.tx24.spicyplayer.lyrics.spicy.canvas.StackBlur
 import com.tx24.spicyplayer.lyrics.spicy.models.LineRole
 import com.tx24.spicyplayer.lyrics.spicy.models.LyricsType
@@ -110,9 +111,28 @@ class SpicyWallpaperService : WallpaperService() {
         private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         private val coverPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
 
+        /**
+         * When the next word starts, in song ms (set by each draw of the lyrics), so the next draw
+         * can land on it instead of up to [DRAW_INTERVAL_MS] after it.
+         */
+        private var nextWordAtMs = Long.MAX_VALUE
+        /**
+         * The redraw step while a word is being wiped (set by each draw): a quarter of the word,
+         * so a short word fills in a few steps instead of jumping, never under [MIN_WIPE_STEP_MS].
+         */
+        private var wipeStepMs = DRAW_INTERVAL_MS
+
         private val drawRunnable: Runnable = Runnable {
+            nextWordAtMs = Long.MAX_VALUE
+            wipeStepMs = DRAW_INTERVAL_MS
             drawFrame()
-            if (visible && session.isPlaying) main.postDelayed(drawRunnable, DRAW_INTERVAL_MS)
+            if (visible && session.isPlaying) main.postDelayed(drawRunnable, nextDrawDelayMs())
+        }
+
+        /** The usual redraw interval, cut short so a word starting sooner lights on time. */
+        private fun nextDrawDelayMs(): Long {
+            val untilWord = nextWordAtMs - session.positionMs()
+            return minOf(untilWord, wipeStepMs).coerceIn(MIN_DRAW_INTERVAL_MS, DRAW_INTERVAL_MS)
         }
 
         override fun onCreate(holder: SurfaceHolder) {
@@ -206,7 +226,11 @@ class SpicyWallpaperService : WallpaperService() {
                 if (currentKey != track.key) return@launch
                 when (result) {
                     is BackgroundLyrics.Result.Found -> {
-                        lyrics = result.lyrics
+                        // Lines timed only as a whole (LRC) get their words laid out one after
+                        // another, so each word lights as it is sung, not all at once over the
+                        // whole span to the next line. The words and their text are unchanged.
+                        val found = result.lyrics
+                        lyrics = found.copy(lines = WordTiming.spread(found.lines, found.lyricsType))
                         lyricsNotice = null
                     }
                     BackgroundLyrics.Result.None -> {
@@ -550,7 +574,10 @@ class SpicyWallpaperService : WallpaperService() {
             val maxWidth = w * 0.88f
             val centreY = (top + (h - top) * 0.42f).toFloat()
             val activeIdx = if (synced) {
-                lines.indexOfLast { it.startMs <= pos }.coerceAtLeast(0)
+                // The lead line being sung, not a backing vocal that started after it: those sit
+                // under their lead line and are lit by their own times below.
+                lines.indexOfLast { it.startMs <= pos && it.role != LineRole.BACKGROUND }
+                    .takeIf { it >= 0 } ?: lines.indexOfLast { it.startMs <= pos }.coerceAtLeast(0)
             } else {
                 val duration = session.track?.durationMs ?: 0L
                 val at = if (duration > 0) (pos.toFloat() / duration * lines.size).toInt() else 0
@@ -649,10 +676,17 @@ class SpicyWallpaperService : WallpaperService() {
                     textPaint.color = Color.WHITE
                     textPaint.alpha = alpha
                     canvas.drawText(word.text, x, baseline, textPaint)
+                    // Every synced line is lit by its own times, so a line still being sung beside
+                    // the current one (a backing vocal, an overlap) fills as it is sung; done
+                    // lines come out full and lines not reached yet empty, as before.
                     val fraction = when {
-                        !synced || !active -> if (past) 1f else 0f
+                        !synced -> if (past) 1f else 0f
                         line.lineTimed || line.untimed -> if (pos >= line.startMs) 1f else 0f
                         else -> ((pos - word.startMs).toFloat() / (word.endMs - word.startMs).coerceAtLeast(1)).coerceIn(0f, 1f)
+                    }
+                    if (synced && word.startMs > pos && word.startMs < nextWordAtMs) nextWordAtMs = word.startMs
+                    if (fraction > 0f && fraction < 1f) {
+                        wipeStepMs = minOf(wipeStepMs, ((word.endMs - word.startMs) / 4).coerceAtLeast(MIN_WIPE_STEP_MS))
                     }
                     if (fraction > 0f) {
                         textPaint.typeface = Typeface.DEFAULT_BOLD
@@ -679,6 +713,10 @@ class SpicyWallpaperService : WallpaperService() {
         private const val LOOKUP_FAILED = "Couldn't load lyrics"
         /** How often the wallpaper redraws while the music plays. */
         private const val DRAW_INTERVAL_MS = 100L
+        /** The soonest the next redraw comes, when it is pulled in to land on a word's start: a frame. */
+        private const val MIN_DRAW_INTERVAL_MS = 16L
+        /** The shortest step while a word is wiped: about two frames. */
+        private const val MIN_WIPE_STEP_MS = 33L
         /** Lines on either side of the one being sung. */
         private const val LINES_AROUND = 2
         /** A wrapped row's height, in lyric text sizes. */
