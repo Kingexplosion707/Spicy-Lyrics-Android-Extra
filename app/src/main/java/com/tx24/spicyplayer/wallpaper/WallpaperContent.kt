@@ -128,7 +128,12 @@ internal fun WallpaperContent(
         StillBackground(ui, w, h, shiftPx, animate = backgroundUrl == null)
         if (backgroundUrl != null) {
             val blurDp = with(density) { BG_BLUR_PX.toDp() }
-            val bgModifier = Modifier.fillMaxSize().graphicsLayer { translationX = shiftPx }
+            // Grown by the drift's reach, so sliding between pages never shows its edge.
+            val bgModifier = Modifier.fillMaxSize().graphicsLayer {
+                scaleX = PARALLAX_OVERSCAN
+                scaleY = PARALLAX_OVERSCAN
+                translationX = shiftPx
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 MotionCoverVideo(
                     url = backgroundUrl,
@@ -328,7 +333,7 @@ private fun StillBackground(ui: WallpaperUi, w: Int, h: Int, shiftPx: Float, ani
             val canvas = c.nativeCanvas
             if (blurred != null) {
                 val breathe = 1.05f + 0.03f * sin(nowMs / 12_000.0).toFloat()
-                val scale = max(w.toFloat() / blurred.width, h.toFloat() / blurred.height) * breathe
+                val scale = max(w.toFloat() / blurred.width, h.toFloat() / blurred.height) * breathe * PARALLAX_OVERSCAN
                 val drawnW = blurred.width * scale
                 val drawnH = blurred.height * scale
                 val left = (w - drawnW) / 2f + shiftPx
@@ -392,6 +397,8 @@ private const val COVER_WIDTH_FRACTION = 0.65f
 private const val COVER_CORNER_RADIUS_DP = 24
 /** How far the background drifts as the home screen slides between pages. */
 private const val PARALLAX_FRACTION = 0.08f
+/** The background drawn this much bigger than the screen: the drift's full reach, both sides. */
+private const val PARALLAX_OVERSCAN = 1f + PARALLAX_FRACTION
 /** The veil over the moving picture: heavier under the words. */
 private const val VEIL_LYRICS = 100
 private const val VEIL_PLAIN = 70
