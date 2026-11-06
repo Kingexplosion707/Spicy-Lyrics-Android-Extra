@@ -52,6 +52,11 @@ internal class LiveLyrics(context: Context) {
 
     fun positionMs(): Long = session.positionMs()
 
+    /** The followed player's controls. */
+    fun playPause() = session.playPause()
+    fun skipNext() = session.skipNext()
+    fun skipPrevious() = session.skipPrevious()
+
     fun start() {
         session.onTrack = { onTrack(it) }
         session.onPlayingChanged = {

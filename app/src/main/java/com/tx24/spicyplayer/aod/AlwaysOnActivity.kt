@@ -16,6 +16,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -83,7 +95,8 @@ class AlwaysOnActivity : ComponentActivity() {
         live = LiveLyrics(this)
         live.start()
         val canvas = prefs.getBoolean(PREF_CANVAS, false)
-        setContent { AlwaysOnContent(live, AppSettings(prefs), canvas) }
+        controls = prefs.getBoolean(PREF_CONTROLS, false)
+        setContent { AlwaysOnContent(live, AppSettings(prefs), canvas, controls, onDismiss = ::finish) }
     }
 
     override fun onResume() {
@@ -102,7 +115,11 @@ class AlwaysOnActivity : ComponentActivity() {
         super.onDestroy()
     }
 
+    /** With the controls shown, touches reach them (and the rest of the screen dismisses it). */
+    private var controls = false
+
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (controls) return super.dispatchTouchEvent(ev)
         if (ev.actionMasked == MotionEvent.ACTION_UP) finish()
         return true
     }
@@ -117,6 +134,8 @@ class AlwaysOnActivity : ComponentActivity() {
         const val DEFAULT_BRIGHTNESS = 1
         /** The song's Spotify Canvas behind it, blurred and darkened. */
         const val PREF_CANVAS = "aodCanvas"
+        /** Play/pause, previous and next under the lyrics. */
+        const val PREF_CONTROLS = "aodControls"
 
         fun dismissAll() {
             current?.get()?.finish()
@@ -126,7 +145,7 @@ class AlwaysOnActivity : ComponentActivity() {
 }
 
 @Composable
-private fun AlwaysOnContent(live: LiveLyrics, settings: AppSettings, canvas: Boolean) {
+private fun AlwaysOnContent(live: LiveLyrics, settings: AppSettings, canvas: Boolean, controls: Boolean, onDismiss: () -> Unit) {
     LyricsFontSetup(settings)
     val context = androidx.compose.ui.platform.LocalContext.current
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -160,7 +179,16 @@ private fun AlwaysOnContent(live: LiveLyrics, settings: AppSettings, canvas: Boo
     }
     val timeFormat = remember { DateFormat.getTimeInstance(DateFormat.SHORT) }
     val dateFormat = remember { DateFormat.getDateInstance(DateFormat.FULL) }
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null,
+                onClick = onDismiss,
+            ),
+    ) {
         // The Canvas, blurred and darkened under everything, drifting with the same shift.
         canvasUrl?.let { url ->
             val blur = with(density) { CANVAS_BLUR_PX.toDp() }
@@ -208,10 +236,40 @@ private fun AlwaysOnContent(live: LiveLyrics, settings: AppSettings, canvas: Boo
                     modifier = Modifier.fillMaxWidth().weight(1f).graphicsLayer { alpha = LYRICS_ALPHA },
                     focusAnchorFraction = 0.35f,
                 )
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
+            if (controls && track != null) {
+                Row(
+                    Modifier.padding(top = 12.dp, bottom = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(28.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ControlButton(Icons.Rounded.SkipPrevious, "Previous", 30.dp) { live.skipPrevious() }
+                    ControlButton(if (live.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (live.playing) "Pause" else "Play", 40.dp) { live.playPause() }
+                    ControlButton(Icons.Rounded.SkipNext, "Next", 30.dp) { live.skipNext() }
+                }
             }
         }
     }
 }
+
+/** One control: a dim white glyph in a round touch target. */
+@Composable
+private fun ControlButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, size: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(size + 28.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = label, tint = Color.White.copy(alpha = CONTROL_ALPHA), modifier = Modifier.size(size))
+    }
+}
+
+/** The controls as dim as the lyrics around them. */
+private const val CONTROL_ALPHA = 0.8f
 
 /** The Canvas behind the always-on display: blurred, and under a heavy veil to keep it dim. */
 private const val CANVAS_BLUR_PX = 18f

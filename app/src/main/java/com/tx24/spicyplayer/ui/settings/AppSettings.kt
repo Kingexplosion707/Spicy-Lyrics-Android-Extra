@@ -200,6 +200,8 @@ class AppSettings(private val prefs: SharedPreferences) {
     var aodBrightness by int("aodBrightness", 1, 1..100)
     /** The song's Canvas behind the always-on display, blurred and darkened. */
     var aodCanvas by boolean("aodCanvas", false)
+    /** Play/pause, previous and next on the always-on display. */
+    var aodControls by boolean("aodControls", false)
     /** Which of the phone's bars stay on screen. */
     var systemBars by enum("systemBars", SystemBarsMode.HideBoth)
     /** Leaving the app with a song playing shrinks the lyrics into a small floating window. */

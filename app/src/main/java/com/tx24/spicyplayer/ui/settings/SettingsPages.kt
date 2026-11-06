@@ -141,6 +141,7 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Nightlight
 import androidx.compose.material.icons.rounded.BrightnessLow
+import androidx.compose.material.icons.rounded.SmartDisplay
 import androidx.compose.material.icons.rounded.Movie
 import androidx.compose.material.icons.rounded.CallMerge
 import androidx.compose.material.icons.rounded.RecordVoiceOver
@@ -1195,6 +1196,14 @@ internal fun DeviceContent(settings: AppSettings) {
             onChange = { settings.aodBrightness = it.toInt() },
         )
     }
+    ToggleRow(
+        label = "Controls on always-on",
+        checked = settings.aodControls,
+        onCheckedChange = { settings.aodControls = it },
+        description = "Play/pause, previous and next under the always-on lyrics. A tap anywhere else still goes to the lock screen.",
+        icon = Icons.Rounded.SmartDisplay,
+        enabled = settings.ambientAsAod,
+    )
     ToggleRow(
         label = "Canvas on always-on",
         checked = settings.aodCanvas,
