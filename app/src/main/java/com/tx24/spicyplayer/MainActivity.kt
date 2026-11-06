@@ -993,6 +993,7 @@ private fun LyricsApp(
     // rests while this screen is up, and stops when either haptics switch is off.
     LaunchedEffect(settings.musicHaptics, settings.backgroundMusicHaptics) {
         BackgroundHapticsService.sync(context)
+        com.tx24.spicyplayer.playback.LyricsNotificationService.sync(context)
     }
     LaunchedEffect(Unit) { updater.checkOnLaunch(settings.includePrereleases) }
     val update by updater.state.collectAsState()

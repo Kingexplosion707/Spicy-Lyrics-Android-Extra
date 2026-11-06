@@ -1186,6 +1186,7 @@ internal fun DeviceContent(settings: AppSettings) {
         )
     }
     WallpaperSection(settings)
+    LyricsNotificationSection(settings)
     HapticsSection(settings)
     MoreOptions("Keeping the screen on, system bars, low performance mode, interface animations") {
         ToggleRow(

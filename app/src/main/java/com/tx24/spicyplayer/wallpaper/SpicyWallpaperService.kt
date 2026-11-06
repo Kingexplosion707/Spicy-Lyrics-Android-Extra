@@ -31,6 +31,7 @@ import com.tx24.spicyplayer.lyrics.spicy.models.LyricsType
 import com.tx24.spicyplayer.network.data.spotify.LocalTrackMetadata
 import com.tx24.spicyplayer.network.data.spotify.SharedSpotify
 import com.tx24.spicyplayer.playback.BackgroundSession
+import com.tx24.spicyplayer.playback.BackgroundTranslation
 import com.tx24.spicyplayer.ui.nowplaying.MotionCoverStream
 import com.tx24.spicyplayer.ui.nowplaying.MotionCovers
 import com.tx24.spicyplayer.ui.nowplaying.leadArtist
@@ -77,6 +78,7 @@ class SpicyWallpaperService : WallpaperService() {
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
         private val session = BackgroundSession(app)
         private val lookup = BackgroundLyrics(app)
+        private val translations = BackgroundTranslation(app)
         private val prefs = app.getSharedPreferences("ui", Context.MODE_PRIVATE)
         private var visible = false
         private var surfaceWidth = 0
@@ -222,6 +224,7 @@ class SpicyWallpaperService : WallpaperService() {
                 lyrics = null
                 lyricsNotice = null
                 ui.lyrics = null
+                ui.translation = null
                 ui.notice = null
                 ui.canvasUrl = null
                 ui.appleUrl = null
@@ -250,8 +253,10 @@ class SpicyWallpaperService : WallpaperService() {
 
         private fun lookupLyrics(track: BackgroundSession.Track) {
             scope.launch {
+                // Romanized on the device when the app romanizes, as the lyrics screen does.
+                val romanize = prefs.getBoolean("romanize", false)
                 val result = withContext(Dispatchers.IO) {
-                    runCatching { lookup.lookUp(track.request, romanize = false, track.spotifyId) }.getOrNull()
+                    runCatching { lookup.lookUp(track.request, romanize = romanize, track.spotifyId) }.getOrNull()
                 }
                 if (currentKey != track.key) return@launch
                 when (result) {
@@ -274,8 +279,19 @@ class SpicyWallpaperService : WallpaperService() {
                 }
                 // The Compose wallpaper draws them as the lyrics screen does, timings as they came.
                 ui.lyrics = (result as? BackgroundLyrics.Result.Found)?.lyrics
+                ui.translation = null
                 ui.notice = lyricsNotice
                 requestDraw()
+                // Translated as the lyrics screen would (Translate automatically), from its cache
+                // when it has translated the song already.
+                if (result is BackgroundLyrics.Result.Found) {
+                    val translated = withContext(Dispatchers.IO) {
+                        translations.translate(result.lyrics, track.title, track.artist, result.sourceId) { target ->
+                            runCatching { lookup.humanTranslation(track.title, track.artist, target) }.getOrNull()
+                        }
+                    }
+                    if (currentKey == track.key && ui.lyrics === result.lyrics) ui.translation = translated
+                }
             }
         }
 

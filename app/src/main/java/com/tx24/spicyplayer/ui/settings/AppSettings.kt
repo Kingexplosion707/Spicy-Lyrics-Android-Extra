@@ -271,6 +271,8 @@ class AppSettings(private val prefs: SharedPreferences) {
     var hapticBeatVocalsOnly by boolean("hapticBeatVocalsOnly", false)
     /** The live wallpaper draws the word-synced lyrics over the moving picture. */
     var wallpaperShowLyrics by boolean("wallpaperShowLyrics", true)
+    /** The line being sung in an ongoing notification, for islands and Live Updates. */
+    var lyricsNotification by boolean("lyricsNotification", false)
     /** A floating button that opens the quick settings (the song's and the output's delay). */
     var quickSettingsButton by boolean("quickSettingsButton", true)
     /**

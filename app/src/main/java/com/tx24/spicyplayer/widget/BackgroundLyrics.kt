@@ -29,7 +29,8 @@ import java.util.concurrent.ConcurrentHashMap
  */
 internal class BackgroundLyrics(context: Context) {
     sealed interface Result {
-        data class Found(val lyrics: LyricsState.Ready) : Result
+        /** [sourceId]: the source that answered, as the lyrics screen keys its translations on it. */
+        data class Found(val lyrics: LyricsState.Ready, val sourceId: String = "") : Result
         data object None : Result
         data object Failed : Result
     }
@@ -68,8 +69,12 @@ internal class BackgroundLyrics(context: Context) {
     }
 
     private fun rendered(selection: RemoteLyricsSelection, request: LyricsLookupRequest, splitBackgroundVocals: Boolean, romanize: Boolean): Result =
-        runCatching<Result> { Result.Found(RemoteLyricsAdapter.render(selection, request.durationSeconds * 1_000L, splitBackgroundVocals, romanize)) }
+        runCatching<Result> { Result.Found(RemoteLyricsAdapter.render(selection, request.durationSeconds * 1_000L, splitBackgroundVocals, romanize), selection.source.id) }
             .getOrElse { Result.Failed }
+
+    /** Genius's human translation of the song into [target], for the translations. */
+    suspend fun humanTranslation(title: String, artist: String, target: String) =
+        backend().humanTranslation(title, artist, target)
 
     private fun backend(): NextLyricsBackend {
         val key = context.getSharedPreferences("spicy_lyrics_key", 0).getString("key", null).orEmpty()

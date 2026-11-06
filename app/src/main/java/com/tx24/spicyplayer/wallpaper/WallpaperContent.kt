@@ -64,6 +64,11 @@ import com.tx24.spicyplayer.ui.settings.AppSettings
 import com.tx24.spicyplayer.ui.settings.LyricsFont
 import com.tx24.spicyplayer.ui.settings.LyricsFontFile
 import com.tx24.spicyplayer.ui.settings.LyricsStyle
+import com.tx24.spicyplayer.translation.TranslationPresentation
+import com.tx24.spicyplayer.translation.TranslationResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -72,6 +77,8 @@ import kotlin.math.sin
 internal class WallpaperUi {
     var track by mutableStateOf<BackgroundSession.Track?>(null)
     var lyrics by mutableStateOf<LyricsState.Ready?>(null)
+    /** The lyrics' translation, as the lyrics screen would show it; null while there's none. */
+    var translation by mutableStateOf<TranslationResult?>(null)
     /** Said in place of the lyrics: none found, the lookup failed. */
     var notice by mutableStateOf<String?>(null)
     var canvasUrl by mutableStateOf<String?>(null)
@@ -115,6 +122,16 @@ internal fun WallpaperContent(
         val h = constraints.maxHeight
         if (w <= 0 || h <= 0) return@BoxWithConstraints
         val track = ui.track
+        // Nothing playing (no song, or paused a moment): the picture picked for that, if any.
+        val idlePicture = rememberIdlePicture(prefs, settingsVersion, w, h)
+        var paused by remember { mutableStateOf(!ui.playing) }
+        LaunchedEffect(ui.playing) {
+            if (ui.playing) paused = false else { delay(IDLE_AFTER_MS); paused = true }
+        }
+        if (idlePicture != null && (track == null || paused)) {
+            Image(idlePicture.asImageBitmap(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            return@BoxWithConstraints
+        }
         val titleSize = (w * 0.045f).coerceIn(30f, 64f)
         val coverSize = (minOf(w, h) * COVER_WIDTH_FRACTION).roundToInt()
         val coverTop = if (showLyrics) (h * 0.055f).toInt() else (h * 0.16f).toInt()
@@ -196,6 +213,7 @@ internal fun WallpaperContent(
             val heightDp = with(density) { (h - lyricsTop).coerceAtLeast(1).toDp() }
             WallpaperLyrics(
                 lyrics = ready,
+                translation = ui.translation,
                 settings = settings,
                 positionMs = positionMs,
                 isPlaying = ui.playing,
@@ -211,6 +229,7 @@ internal fun WallpaperContent(
 @Composable
 private fun WallpaperLyrics(
     lyrics: LyricsState.Ready,
+    translation: TranslationResult?,
     settings: AppSettings,
     positionMs: () -> Long,
     isPlaying: Boolean,
@@ -265,11 +284,20 @@ private fun WallpaperLyrics(
             else -> false
         })
     }
+    val translationMode = settings.translationMode
+    val presentation = remember(rendererLines, originalLines, translation, translationMode) {
+        translation?.let { TranslationPresentation.forTimeline(originalLines, rendererLines, it, translationMode) }
+    }
+    // Romanized as on the lyrics screen: with Romanize on, where the lyrics have it.
+    val romanize = settings.romanize && remember(lyrics) { lyrics.lines.any { line -> line.words.any { it.romanized != null } } }
+    val textCredits = settings.textCredits
     LyricsView(
         lines = rendererLines,
         documentId = remember(lyrics.lines) { lyrics.lines.hashCode().toString() },
         currentTimeMs = positionMs,
         onSeekWord = {},
+        romanize = romanize,
+        translation = presentation,
         isPlaying = isPlaying,
         visible = visible,
         focusAnchorFraction = LYRICS_FOCUS_FRACTION,
@@ -277,9 +305,10 @@ private fun WallpaperLyrics(
         config = config,
         fontSizeScale = settings.lyricsScale(false),
         romanizationMode = settings.romanizationMode,
-        footer = remember(lyrics) {
+        footer = remember(lyrics, translation, textCredits) {
             LyricsFooter(
                 songwriters = lyrics.songwriters,
+                translationCredit = translation?.credit()?.takeIf { textCredits },
                 provenance = LyricsProvenance(lyrics.source ?: lyrics.provider),
                 maker = lyrics.maker?.let { LyricsCredit(it.username, it.profileUrl, it.avatarUrl) },
                 uploader = lyrics.uploader?.let { LyricsCredit(it.username, it.profileUrl, it.avatarUrl) },
@@ -287,6 +316,18 @@ private fun WallpaperLyrics(
         },
         modifier = modifier,
     )
+}
+
+/** The picture for when nothing plays, loaded at about the screen's size, or null with none. */
+@Composable
+private fun rememberIdlePicture(prefs: SharedPreferences, settingsVersion: Int, w: Int, h: Int): Bitmap? {
+    val context = LocalContext.current
+    val stamp = remember(settingsVersion) { prefs.getLong(WallpaperIdlePicture.PREF_STAMP, 0L) }
+    var picture by remember { mutableStateOf<Bitmap?>(null) }
+    LaunchedEffect(stamp, w, h) {
+        picture = if (stamp == 0L) null else withContext(Dispatchers.IO) { WallpaperIdlePicture.load(context, w, h) }
+    }
+    return picture
 }
 
 /** The lyrics font chosen in the app, as the lyrics screen sets it. */
@@ -389,6 +430,8 @@ private fun drawCentred(canvas: android.graphics.Canvas, paint: Paint, text: Str
     canvas.drawText(text, cx - paint.measureText(text) / 2f, y, paint)
 }
 
+/** Paused this long, the wallpaper shows the picture for when nothing plays. */
+private const val IDLE_AFTER_MS = 3_000L
 private const val WAITING = "Play something to see its lyrics here"
 private const val NO_LYRICS = "No lyrics for this song"
 /** The cover's width as a fraction of the screen's short side (its width in portrait). */
