@@ -4,12 +4,12 @@
 
 **Word-synced lyrics for whatever is playing on your phone — in the app, on your home screen, floating over your apps, on your always-on display, and in your hands.**
 
-[![Latest release](https://img.shields.io/github/v/release/Kingexplosion707/spicy?include_prereleases&style=for-the-badge&color=8b5cf6&label=release)](https://github.com/Kingexplosion707/spicy/releases)
-[![Build](https://img.shields.io/github/actions/workflow/status/Kingexplosion707/spicy/android-ci.yml?branch=main&style=for-the-badge&label=build)](https://github.com/Kingexplosion707/spicy/actions/workflows/android-ci.yml)
-[![Android 6+](https://img.shields.io/badge/Android-6%2B-3ddc84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Kingexplosion707/spicy/releases)
+[![Latest release](https://img.shields.io/github/v/release/Kingexplosion707/Spicy-Lyrics-Android-Extra?include_prereleases&style=for-the-badge&color=8b5cf6&label=release)](https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/releases)
+[![Build](https://img.shields.io/github/actions/workflow/status/Kingexplosion707/Spicy-Lyrics-Android-Extra/android-ci.yml?branch=main&style=for-the-badge&label=build)](https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/actions/workflows/android-ci.yml)
+[![Android 6+](https://img.shields.io/badge/Android-6%2B-3ddc84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/releases)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue?style=for-the-badge)](LICENSE)
 
-[Download](https://github.com/Kingexplosion707/spicy/releases) · [What's new](#whats-new-in-plus) · [Get started](#get-started) · [Permissions](#permissions) · [Privacy](#privacy) · [Report a bug](https://github.com/Kingexplosion707/spicy/issues/new/choose)
+[Download](https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/releases) · [What's new](#whats-new-in-plus) · [Get started](#get-started) · [Permissions](#permissions) · [Privacy](#privacy) · [Report a bug](https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/issues/new/choose)
 
 </div>
 
@@ -37,7 +37,7 @@ Everything else is the original app: many lyric sources, TTML word timing kept a
 
 ## Get started
 
-1. **Install.** Download the newest `spicy-lyrics-plus-vX.Y.Z.apk` from [Releases](https://github.com/Kingexplosion707/spicy/releases). The app offers new versions itself afterwards. If Play Protect blocks the browser install, [add Spicy Lyrics Plus to Obtainium](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.behnoud.spicylyrics%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2FKingexplosion707%2Fspicy%22%2C%22author%22%3A%22Behnoud%22%2C%22name%22%3A%22Spicy%20Lyrics%20Plus%22%2C%22preferredApkIndex%22%3A0%2C%22additionalSettings%22%3A%22%7B%5C%22includePrereleases%5C%22%3A%20true%7D%22%7D) instead. The [install guide](docs/install.md) covers each step.
+1. **Install.** Download the newest `spicy-lyrics-plus-vX.Y.Z.apk` from [Releases](https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/releases). The app offers new versions itself afterwards. If Play Protect blocks the browser install, [add Spicy Lyrics Plus to Obtainium](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.behnoud.spicylyrics%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2FKingexplosion707%2FSpicy-Lyrics-Android-Extra%22%2C%22author%22%3A%22Behnoud%22%2C%22name%22%3A%22Spicy%20Lyrics%20Plus%22%2C%22preferredApkIndex%22%3A0%2C%22additionalSettings%22%3A%22%7B%5C%22includePrereleases%5C%22%3A%20true%7D%22%7D) instead. The [install guide](docs/install.md) covers each step.
 2. **Grant notification access** when asked. Android uses it to find the music app that's playing; you can revoke it any time.
 3. **Play something** in another app. The lyrics follow it.
 4. **Turn on the extras** in Settings → Device: Live wallpaper, Lyrics overlay, Always-on display, Lyrics notification and Haptics.
@@ -105,7 +105,7 @@ Plus follows [spicylyrics/mobile](https://github.com/spicylyrics/mobile). New up
 
 ## Contributing
 
-Bugs and ideas: [open an issue](https://github.com/Kingexplosion707/spicy/issues/new/choose) with your app version, phone, Android version and music app (Settings → Advanced → Debug info → Copy fills these in). Code: see [CONTRIBUTING.md](CONTRIBUTING.md). Security problems: report them privately, see [SECURITY.md](SECURITY.md).
+Bugs and ideas: [open an issue](https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/issues/new/choose) with your app version, phone, Android version and music app (Settings → Advanced → Debug info → Copy fills these in). Code: see [CONTRIBUTING.md](CONTRIBUTING.md). Security problems: report them privately, see [SECURITY.md](SECURITY.md).
 
 ## Credits and license
 

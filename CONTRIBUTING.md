@@ -6,7 +6,7 @@ A problem that also happens in the official Spicy Lyrics Mobile, and isn't in a 
 
 ## Bugs and ideas
 
-Search [existing issues](https://github.com/Kingexplosion707/spicy/issues) first, then [report a bug or suggest a feature](https://github.com/Kingexplosion707/spicy/issues/new/choose). You don't need to write code to help.
+Search [existing issues](https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/issues) first, then [report a bug or suggest a feature](https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/issues/new/choose). You don't need to write code to help.
 
 For bugs, include the app version from Settings, phone and Android version, music app, what happened, and steps to reproduce it. For lyrics problems, a song link helps. "Report a bug" in the app's Settings fills in your versions and debug info for you; you can also use Copy in Settings → Advanced → Debug info. Screenshots or short recordings are useful, but optional. Remove keys, account details, and private information before sharing diagnostics.
 

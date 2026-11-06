@@ -276,8 +276,8 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
     private companion object {
         const val TAG = "SpicyUpdate"
         // Spicy Lyrics Plus's own releases: the official app's are a different app (another ID).
-        const val RELEASES_URL = "https://api.github.com/repos/Kingexplosion707/spicy/releases?per_page=20"
-        const val CHANGELOG_URL = "https://api.github.com/repos/Kingexplosion707/spicy/releases?per_page=100"
+        const val RELEASES_URL = "https://api.github.com/repos/Kingexplosion707/Spicy-Lyrics-Android-Extra/releases?per_page=20"
+        const val CHANGELOG_URL = "https://api.github.com/repos/Kingexplosion707/Spicy-Lyrics-Android-Extra/releases?per_page=100"
         const val KEY_LAST_CHECK = "lastCheckMs"
         const val KEY_SKIPPED = "skippedTag"
         const val AUTO_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L

@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Search existing issues first. A short, reproducible report is enough.
-        For security vulnerabilities, [report privately](https://github.com/Kingexplosion707/spicy/security/advisories/new).
+        For security vulnerabilities, [report privately](https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/security/advisories/new).
         Don't include keys, account details, or unedited private logs.
   - type: dropdown
     id: area

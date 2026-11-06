@@ -1041,7 +1041,7 @@ private const val PAGES_AWAY_PX = 100_000
 /** The plate a dragged slider's row sits on while the rest of the settings are cleared away. */
 private val PEEK_PLATE = Color(0xE0141414)
 
-internal const val PROJECT_URL = "https://github.com/Kingexplosion707/spicy"
+internal const val PROJECT_URL = "https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra"
 // Keeps the prefilled form link well under the length GitHub accepts.
 private const val MAX_PREFILLED_DEBUG = 3000
 

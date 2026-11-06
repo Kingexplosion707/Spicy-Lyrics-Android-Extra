@@ -145,4 +145,4 @@ internal fun changeCounts(notes: ReleaseNotes): String =
         }
         .joinToString(" · ")
 
-private const val RELEASES_PAGE = "https://github.com/Kingexplosion707/spicy/releases"
+private const val RELEASES_PAGE = "https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/releases"

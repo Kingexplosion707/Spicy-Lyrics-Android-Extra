@@ -1,7 +1,7 @@
 blank_issues_enabled: true
 contact_links:
   - name: Report a security vulnerability privately
-    url: https://github.com/Kingexplosion707/spicy/security/advisories/new
+    url: https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/security/advisories/new
     about: Use private vulnerability reporting instead of a public issue.
   - name: A problem in the official Spicy Lyrics Mobile
     url: https://github.com/spicylyrics/mobile/issues/new/choose

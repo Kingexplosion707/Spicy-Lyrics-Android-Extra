@@ -2,9 +2,9 @@
 
 ## Report a vulnerability privately
 
-Use [GitHub private vulnerability reporting](https://github.com/Kingexplosion707/spicy/security/advisories/new). Don't publish exploit details in a public issue.
+Use [GitHub private vulnerability reporting](https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/security/advisories/new). Don't publish exploit details in a public issue.
 
-Include the affected version, steps to reproduce, expected impact, and any minimal proof of concept. Remove real credentials and other people's data. For ordinary bugs and feature ideas, use [GitHub Issues](https://github.com/Kingexplosion707/spicy/issues/new/choose).
+Include the affected version, steps to reproduce, expected impact, and any minimal proof of concept. Remove real credentials and other people's data. For ordinary bugs and feature ideas, use [GitHub Issues](https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/issues/new/choose).
 
 Spicy Lyrics Plus is a fork of Spicy Lyrics Mobile and in early development. A problem that also affects the official app should be reported to [it](https://github.com/spicylyrics/mobile/security) too. Reports should identify whether the problem also affects the latest prerelease; older builds may remain vulnerable until updated. There is no guaranteed response or fix timeline.
 

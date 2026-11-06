@@ -10,12 +10,12 @@ If you'd rather build the app yourself, see [Build from source](../README.md#bui
 
 There are two ways. Both install the same signed app, so you can switch between them later.
 
-- **GitHub Releases.** Download the APK from the [Releases page](https://github.com/Kingexplosion707/spicy/releases). The app is still in early development (version 0.x), so every release is marked as a pre-release.
-- **Obtainium.** [Obtainium](https://obtainium.imranr.dev) is an app that installs and updates apps straight from their GitHub releases. [Add Spicy Lyrics Plus to Obtainium](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.behnoud.spicylyrics%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2FKingexplosion707%2Fspicy%22%2C%22author%22%3A%22Behnoud%22%2C%22name%22%3A%22Spicy%20Lyrics%20Plus%22%2C%22preferredApkIndex%22%3A0%2C%22additionalSettings%22%3A%22%7B%5C%22includePrereleases%5C%22%3A%20true%7D%22%7D) with this link, which already has the right settings (pre-releases included). Try this if Play Protect blocks the browser install.
+- **GitHub Releases.** Download the APK from the [Releases page](https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/releases). The app is still in early development (version 0.x), so every release is marked as a pre-release.
+- **Obtainium.** [Obtainium](https://obtainium.imranr.dev) is an app that installs and updates apps straight from their GitHub releases. [Add Spicy Lyrics Plus to Obtainium](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.behnoud.spicylyrics%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2FKingexplosion707%2FSpicy-Lyrics-Android-Extra%22%2C%22author%22%3A%22Behnoud%22%2C%22name%22%3A%22Spicy%20Lyrics%20Plus%22%2C%22preferredApkIndex%22%3A0%2C%22additionalSettings%22%3A%22%7B%5C%22includePrereleases%5C%22%3A%20true%7D%22%7D) with this link, which already has the right settings (pre-releases included). Try this if Play Protect blocks the browser install.
 
 ## Install from GitHub Releases
 
-1. On your phone, open the [Releases page](https://github.com/Kingexplosion707/spicy/releases).
+1. On your phone, open the [Releases page](https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/releases).
 2. Under the newest release, open **Assets** and tap `spicy-lyrics-plus-vX.Y.Z.apk`. You don't need the `.sha256` file.
 3. When the download finishes, tap it to open it.
 4. If Android says your browser isn't allowed to install unknown apps, tap **Settings**, turn on **Allow from this source**, then go back. See [Allowing unknown apps](#allowing-unknown-apps).
@@ -40,7 +40,7 @@ Play Protect may warn about or block the APK. This happens because the app asks 
 - If Play Protect offers to send the app for scanning, either answer is fine.
 - If it blocks the install with no way to continue, install through [Obtainium](#where-to-get-it) instead.
 
-You don't need to turn Play Protect off. Only make an exception for this app, and only for an APK from the official [Releases page](https://github.com/Kingexplosion707/spicy/releases) or Obtainium.
+You don't need to turn Play Protect off. Only make an exception for this app, and only for an APK from the official [Releases page](https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/releases) or Obtainium.
 
 ## First launch
 
@@ -130,13 +130,13 @@ Try to turn on notification access once first, so Android shows the **Restricted
 
 Android only replaces an app with one signed by the same key. The release APKs from GitHub and Obtainium share one key. An APK from somewhere else, or a release build you made yourself, is signed with a different key and can't replace it (or be replaced by it). The in-app updater says so: "Android refused the update: it's signed differently from the installed app."
 
-To fix it, uninstall the app you have (back up your settings first, see [Uninstalling](#uninstalling)), then install the APK from the [Releases page](https://github.com/Kingexplosion707/spicy/releases).
+To fix it, uninstall the app you have (back up your settings first, see [Uninstalling](#uninstalling)), then install the APK from the [Releases page](https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/releases).
 
 Android also refuses to install an older version over a newer one. Uninstall first if you really want to go back.
 
 ### The update check says "Couldn't check"
 
-The app couldn't reach GitHub. Check your connection and tap **Check for updates** at the bottom of Settings later. You can always download the newest APK from the [Releases page](https://github.com/Kingexplosion707/spicy/releases) and install it over the current one.
+The app couldn't reach GitHub. Check your connection and tap **Check for updates** at the bottom of Settings later. You can always download the newest APK from the [Releases page](https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/releases) and install it over the current one.
 
 ### Battery optimisation
 
@@ -144,4 +144,4 @@ You don't need to exempt the app from battery optimisation. It reads the music a
 
 ### Still stuck
 
-[Open an issue](https://github.com/Kingexplosion707/spicy/issues/new/choose). Include your phone, Android version and how you installed the app. If the app opens, paste its debug info from Settings → Advanced → Debug info → Copy.
+[Open an issue](https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/issues/new/choose). Include your phone, Android version and how you installed the app. If the app opens, paste its debug info from Settings → Advanced → Debug info → Copy.
