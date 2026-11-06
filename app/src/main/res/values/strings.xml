@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Spicy Lyrics Mobile</string>
+    <string name="app_name">Spicy Lyrics Plus</string>
     <string name="widget_name">Lyrics</string>
     <string name="widget_settings">Lyrics widget</string>
     <string name="widget_description">The line being sung, over the cover\'s colours</string>

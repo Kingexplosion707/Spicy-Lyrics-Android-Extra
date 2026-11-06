@@ -1,13 +1,28 @@
 name: Report a bug
-description: Something in Spicy Lyrics Mobile isn't working as expected.
+description: Something in Spicy Lyrics Plus isn't working as expected.
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
         Search existing issues first. A short, reproducible report is enough.
-        For security vulnerabilities, [report privately](https://github.com/spicylyrics/mobile/security/advisories/new).
+        For security vulnerabilities, [report privately](https://github.com/Kingexplosion707/spicy/security/advisories/new).
         Don't include keys, account details, or unedited private logs.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of the app?
+      options:
+        - Lyrics screen
+        - Live wallpaper
+        - Lyrics overlay
+        - Always-on display
+        - Haptics
+        - Lyrics notification
+        - Settings
+        - Something else
+    validations:
+      required: true
   - type: textarea
     id: problem
     attributes:
@@ -22,14 +37,14 @@ body:
       description: Include steps and a song link if it affects a specific track. If you can't reproduce it, say so.
       placeholder: |
         1. Play a song in...
-        2. Open Spicy Lyrics Mobile...
+        2. Open Spicy Lyrics Plus...
         3. ...
     validations:
       required: true
   - type: input
     id: version
     attributes:
-      label: Spicy Lyrics Mobile version
+      label: Spicy Lyrics Plus version
       description: Find it at the bottom of Settings. Include the debug suffix if shown.
       placeholder: e.g. 0.6.0
     validations:

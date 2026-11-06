@@ -70,7 +70,7 @@ import com.tx24.spicyplayer.haptics.withHaptic
 import com.tx24.spicyplayer.lyrics.LyricsState
 import com.tx24.spicyplayer.lyrics.NoticeKind
 import com.tx24.spicyplayer.ui.components.LocalUiAnimations
-import com.tx24.spicyplayer.ui.settings.DISCORD_URL
+import com.tx24.spicyplayer.ui.settings.HELP_URL
 import com.tx24.spicyplayer.ui.settings.openUrl
 import com.tx24.spicyplayer.ui.theme.SpicyColors
 import com.tx24.spicyplayer.ui.theme.SpicyMotion
@@ -269,11 +269,11 @@ private fun NoticeButtons(
                 }.trimEnd()
                 val copied = runCatching {
                     val clipboard = context.getSystemService(ClipboardManager::class.java) ?: error("no clipboard")
-                    clipboard.setPrimaryClip(ClipData.newPlainText("Spicy Lyrics Mobile debug info", text))
+                    clipboard.setPrimaryClip(ClipData.newPlainText("Spicy Lyrics Plus debug info", text))
                 }.isSuccess
                 copy = if (copied) CopyState.Copied else CopyState.Failed
             }, primary = !kind.retry, bodySp)
-            NoticeButton("Get help on Discord", Icons.Rounded.Forum, { openUrl(context, DISCORD_URL) }, primary = false, bodySp)
+            NoticeButton("Get help", Icons.Rounded.Forum, { openUrl(context, HELP_URL) }, primary = false, bodySp)
         }
         if (spotify) {
             NoticeButton("Find on Spotify", Icons.Rounded.Search, actions.onSearchSpotify, primary = false, bodySp)

@@ -851,7 +851,7 @@ private fun AboutCard(state: PlayerUiState, updater: UpdateViewModel, settings: 
     }
     val changelog by updater.changelog.collectAsState()
     // Found or hidden as one card; inside it, everything shows.
-    Searchable("About", "Version", "GitHub", "Star", "Spicy Lyrics Mobile", "Spicy Player", "Updates", "Check for updates", "Feedback", "Bug", "Report", "Feature", "Suggest", "Discord", "Changelog", "What's new", "Release notes") {
+    Searchable("About", "Version", "GitHub", "Star", "Spicy Lyrics Plus", "Spicy Lyrics Mobile", "Spicy Player", "Updates", "Check for updates", "Feedback", "Bug", "Report", "Feature", "Suggest", "Original app", "Changelog", "What's new", "Release notes") {
         CompositionLocalProvider(LocalSettingsQuery provides "") {
             Column(Modifier.fillMaxWidth().outlinedCard()) {
                 // The app as the launcher shows it: its icon, name and version.
@@ -866,7 +866,7 @@ private fun AboutCard(state: PlayerUiState, updater: UpdateViewModel, settings: 
                         modifier = Modifier.size(48.dp).clip(RoundedCornerShape(SpicyRadii.Md)),
                     )
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("Spicy Lyrics Mobile", style = SpicyType.Headline)
+                        Text("Spicy Lyrics Plus", style = SpicyType.Headline)
                         Text(versionLine(update.status, updater.enabled), style = SpicyType.Footnote.copy(color = SpicyColors.TextSecondary))
                     }
                     if (updater.enabled) UpdateButton(update.status, onUpdate = updater::show) { updater.check(settings.includePrereleases) }
@@ -878,7 +878,7 @@ private fun AboutCard(state: PlayerUiState, updater: UpdateViewModel, settings: 
                 Column(Modifier.padding(SpicySpacing.S4), verticalArrangement = Arrangement.spacedBy(SpicySpacing.S2)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(SpicySpacing.S2)) {
                         FooterLink("Star on GitHub", Modifier.weight(1f)) { openUrl(context, PROJECT_URL) }
-                        FooterLink("Discord", Modifier.weight(1f), DISCORD_BLURPLE) { openUrl(context, DISCORD_URL) }
+                        FooterLink("Original app", Modifier.weight(1f)) { openUrl(context, ORIGINAL_URL) }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(SpicySpacing.S2)) {
                         // Fills in the form's version and debug info; the reporter sees both before sending.
@@ -947,7 +947,6 @@ private fun buildChannel(): String = when {
     else -> "stable"
 }
 
-private val DISCORD_BLURPLE = Color(88, 101, 242)
 private val BUG_PINK = Color(255, 94, 138)
 
 /** Every page's rows at once, each hiding unless it matches the search. */
@@ -976,7 +975,7 @@ private fun SearchResults(query: String, state: PlayerUiState, viewModel: Extern
 
 @Composable
 private fun AboutCardSpacer(state: PlayerUiState, updater: UpdateViewModel, settings: AppSettings) {
-    Searchable("About", "Version", "GitHub", "Star", "Spicy Lyrics Mobile", "Spicy Player", "Updates", "Check for updates", "Feedback", "Bug", "Report", "Feature", "Suggest", "Discord", "Changelog", "What's new", "Release notes") { Spacer(Modifier.height(SpicySpacing.S4)) }
+    Searchable("About", "Version", "GitHub", "Star", "Spicy Lyrics Plus", "Spicy Lyrics Mobile", "Spicy Player", "Updates", "Check for updates", "Feedback", "Bug", "Report", "Feature", "Suggest", "Original app", "Changelog", "What's new", "Release notes") { Spacer(Modifier.height(SpicySpacing.S4)) }
     AboutCard(state, updater, settings)
 }
 
@@ -1042,12 +1041,14 @@ private const val PAGES_AWAY_PX = 100_000
 /** The plate a dragged slider's row sits on while the rest of the settings are cleared away. */
 private val PEEK_PLATE = Color(0xE0141414)
 
-private const val PROJECT_URL = "https://github.com/spicylyrics/mobile"
+internal const val PROJECT_URL = "https://github.com/Kingexplosion707/spicy"
 // Keeps the prefilled form link well under the length GitHub accepts.
 private const val MAX_PREFILLED_DEBUG = 3000
 
-// The server invite, not the thread link: a thread link only opens for people already in the server.
-internal const val DISCORD_URL = "https://discord.com/invite/uqgXU5wh8j"
+/** The official Spicy Lyrics Mobile, which Spicy Lyrics Plus is built on. */
+private const val ORIGINAL_URL = "https://github.com/spicylyrics/mobile"
+/** Where to get help with Spicy Lyrics Plus: its own issues. */
+internal const val HELP_URL = "$PROJECT_URL/issues/new/choose"
 
 internal fun openUrl(context: Context, url: String) {
     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }

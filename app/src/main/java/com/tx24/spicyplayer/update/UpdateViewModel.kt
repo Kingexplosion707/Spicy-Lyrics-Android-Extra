@@ -263,7 +263,7 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
     private fun fetch(url: String) = http.newCall(
         Request.Builder()
             .url(url)
-            .header("User-Agent", "Spicy Lyrics Mobile ${BuildConfig.VERSION_NAME}")
+            .header("User-Agent", "Spicy Lyrics Plus ${BuildConfig.VERSION_NAME}")
             .header("Accept", "application/vnd.github+json")
             .build(),
     ).execute().also { response ->
@@ -275,8 +275,9 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
 
     private companion object {
         const val TAG = "SpicyUpdate"
-        const val RELEASES_URL = "https://api.github.com/repos/spicylyrics/mobile/releases?per_page=20"
-        const val CHANGELOG_URL = "https://api.github.com/repos/spicylyrics/mobile/releases?per_page=100"
+        // Spicy Lyrics Plus's own releases: the official app's are a different app (another ID).
+        const val RELEASES_URL = "https://api.github.com/repos/Kingexplosion707/spicy/releases?per_page=20"
+        const val CHANGELOG_URL = "https://api.github.com/repos/Kingexplosion707/spicy/releases?per_page=100"
         const val KEY_LAST_CHECK = "lastCheckMs"
         const val KEY_SKIPPED = "skippedTag"
         const val AUTO_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L

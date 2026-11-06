@@ -2010,7 +2010,7 @@ private fun ScrollToActiveButton(
 private fun NotificationAccessMessage(openNotificationAccess: () -> Unit) {
     SpicyModalMessage(
         title = "Allow notification access",
-        description = "Spicy Lyrics Mobile reads the song playing in your music app, and controls it, through its media " +
+        description = "Spicy Lyrics Plus reads the song playing in your music app, and controls it, through its media " +
             "notification. Android files that under notification access. You can turn it off again in system settings.",
         icon = {
             Icon(Icons.Rounded.NotificationsActive, null, Modifier.size(24.dp), tint = SpicyColors.TextPrimary)
@@ -2025,7 +2025,7 @@ private fun NotificationAccessMessage(openNotificationAccess: () -> Unit) {
 private fun UsageStatsMessage(onAnswer: (keepOn: Boolean) -> Unit) {
     SpicyModalMessage(
         title = "Anonymous usage stats",
-        description = "Spicy Lyrics Mobile sends a small anonymous report a few times a day: the app and Android version, " +
+        description = "Spicy Lyrics Plus sends a small anonymous report a few times a day: the app and Android version, " +
             "your phone model and country, and which features you use. Never what you listen to. It shows what's " +
             "worth working on. You can change this in Settings → Advanced.",
         icon = { Icon(Icons.Rounded.Insights, null, Modifier.size(24.dp), tint = SpicyColors.TextPrimary) },

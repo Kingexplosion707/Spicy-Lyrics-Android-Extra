@@ -22,7 +22,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.tx24.spicyplayer.next"
+        // Spicy Lyrics Plus has its own ID, so it installs beside the official Spicy Lyrics Mobile.
+        applicationId = "com.behnoud.spicylyrics"
         minSdk = 23
         targetSdk = 36
         // CI debug builds count up by run: see androidComponents below.
@@ -44,12 +45,14 @@ android {
         buildConfigField("boolean", "USAGE_STATS", "false")
     }
 
-    // CI debug builds share one fixed debug key (app/ci-debug.keystore, the standard "android"
-    // passwords), so each new build installs over the last instead of needing an uninstall.
-    // Local builds keep the machine's own debug key.
-    if (System.getenv("CI") != null) {
+    // CI debug builds share one fixed debug key, kept as the DEBUG_KEYSTORE_BASE64 repository
+    // secret (the workflow writes it to DEBUG_KEYSTORE_FILE; standard "android" passwords), so
+    // each new build installs over the last instead of needing an uninstall. Without the secret,
+    // and on local builds, the machine's own debug key signs.
+    val ciDebugStore = System.getenv("DEBUG_KEYSTORE_FILE")?.takeIf { it.isNotBlank() && file(it).isFile }
+    if (ciDebugStore != null) {
         signingConfigs.getByName("debug") {
-            storeFile = rootProject.file("app/ci-debug.keystore")
+            storeFile = file(ciDebugStore)
             storePassword = "android"
             keyAlias = "androiddebugkey"
             keyPassword = "android"
@@ -62,7 +65,7 @@ android {
             applicationIdSuffix = ".debug"
             // Each CI build a higher version than the last, so it installs as an update.
             versionNameSuffix = System.getenv("GITHUB_RUN_NUMBER")?.let { "-debug.$it" } ?: "-debug"
-            resValue("string", "app_name", "Spicy Lyrics Mobile Debug")
+            resValue("string", "app_name", "Spicy Lyrics Plus Debug")
         }
         getByName("release") {
             // Shrunk and optimised: Compose runs noticeably slower unoptimised (debug builds are
@@ -73,7 +76,8 @@ android {
             // Without the release keystore (a local build), sign with the debug key so it installs
             // over an earlier local release build. Never on CI: a release must fail unsigned.
             if (System.getenv("CI") == null) signingConfig = signingConfigs.getByName("debug")
-            buildConfigField("boolean", "USAGE_STATS", "true")
+            // Off in this fork: the usage statistics went to the original app's own server.
+            buildConfigField("boolean", "USAGE_STATS", "false")
         }
         // The release build as its own app, for measuring performance next to the installed release.
         create("profile") {
@@ -83,7 +87,7 @@ android {
             buildConfigField("boolean", "USAGE_STATS", "false")
             signingConfig = signingConfigs.getByName("debug")
             matchingFallbacks += "release"
-            resValue("string", "app_name", "Spicy Lyrics Mobile Profile")
+            resValue("string", "app_name", "Spicy Lyrics Plus Profile")
         }
     }
 
