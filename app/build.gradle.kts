@@ -40,6 +40,18 @@ android {
         buildConfigField("boolean", "USAGE_STATS", "false")
     }
 
+    // CI debug builds share one fixed debug key (app/ci-debug.keystore, the standard "android"
+    // passwords), so each new build installs over the last instead of needing an uninstall.
+    // Local builds keep the machine's own debug key.
+    if (System.getenv("CI") != null) {
+        signingConfigs.getByName("debug") {
+            storeFile = rootProject.file("app/ci-debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         getByName("debug") {
             // Its own app next to the release one, so testing never touches the installed release.
