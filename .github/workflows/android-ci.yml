@@ -20,6 +20,9 @@ jobs:
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v6
       - name: Build, test, and lint
+        env:
+          # The publishable Spicy Lyrics key (sl_pk_), from the repository variable; blank builds without it.
+          SPICY_LYRICS_CLIENT_KEY: ${{ vars.SPICY_LYRICS_CLIENT_KEY }}
         run: ./gradlew --no-daemon assembleDebug testDebugUnitTest :core:test lintDebug
       - name: Upload debug APK
         uses: actions/upload-artifact@v7
