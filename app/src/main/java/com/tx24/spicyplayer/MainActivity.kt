@@ -998,6 +998,8 @@ private fun LyricsApp(
     LaunchedEffect(settings.musicHaptics, settings.backgroundMusicHaptics) {
         BackgroundHapticsService.sync(context)
         com.tx24.spicyplayer.playback.LyricsNotificationService.sync(context)
+        com.tx24.spicyplayer.overlay.LyricsOverlayService.sync(context)
+        com.tx24.spicyplayer.aod.AlwaysOnService.sync(context)
     }
     LaunchedEffect(Unit) { updater.checkOnLaunch(settings.includePrereleases) }
     val update by updater.state.collectAsState()

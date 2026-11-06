@@ -22,4 +22,14 @@
     <string name="lyrics_notification_channel">Lyrics notification</string>
     <string name="lyrics_notification_channel_description">The line being sung, for dynamic islands and Live Updates.</string>
     <string name="lyrics_notification_nothing">Play something to see its lyrics here</string>
+    <string name="lyrics_overlay_title">Lyrics overlay</string>
+    <string name="lyrics_overlay_showing">Floating over your apps</string>
+    <string name="lyrics_overlay_waiting">Hidden until music with lyrics plays</string>
+    <string name="lyrics_overlay_hide">Hide</string>
+    <string name="lyrics_overlay_show">Show</string>
+    <string name="lyrics_overlay_lock">Lock</string>
+    <string name="lyrics_overlay_unlock">Unlock</string>
+    <string name="always_on_title">Always-on lyrics</string>
+    <string name="always_on_text">The lyrics show when the screen turns off</string>
+    <string name="always_on_launch_channel">Always-on display</string>
 </resources>

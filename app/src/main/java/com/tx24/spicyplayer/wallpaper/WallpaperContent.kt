@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -133,9 +135,19 @@ internal fun WallpaperContent(
             return@BoxWithConstraints
         }
         val titleSize = (w * 0.045f).coerceIn(30f, 64f)
-        val coverSize = (minOf(w, h) * COVER_WIDTH_FRACTION).roundToInt()
-        val coverTop = if (showLyrics) (h * 0.055f).toInt() else (h * 0.16f).toInt()
         val hasCover = ui.appleUrl != null || ui.cover != null
+        // A song with no lyrics: the cover grows and the cover and song's name sit centred.
+        val noLyrics = showLyrics && track != null && hasCover &&
+            ((ui.lyrics == null && ui.notice != null) || ui.lyrics?.lines?.isEmpty() == true)
+        val bigCover = minOf(w, h) * BIG_COVER_WIDTH_FRACTION
+        val coverTarget = if (noLyrics) bigCover else minOf(w, h) * COVER_WIDTH_FRACTION
+        val topTarget = when {
+            noLyrics -> (h - (bigCover + titleSize * 2.6f)) / 2f
+            showLyrics -> h * 0.055f
+            else -> h * 0.16f
+        }
+        val coverSize = animateFloatAsState(coverTarget, tween(COVER_MOVE_MS), label = "coverSize").value.roundToInt()
+        val coverTop = animateFloatAsState(topTarget, tween(COVER_MOVE_MS), label = "coverTop").value.roundToInt()
         val songTop = if (hasCover) coverTop + coverSize else coverTop
         val lyricsTop = (songTop + titleSize * 3.1f).roundToInt()
         val shiftPx = (0.5f - ui.xOffset) * w * PARALLAX_FRACTION
@@ -200,6 +212,7 @@ internal fun WallpaperContent(
                 if (!showLyrics) return@drawIntoCanvas
                 val message = when {
                     track == null -> WAITING
+                    noLyrics -> null
                     ready == null -> ui.notice
                     ready.lines.isEmpty() -> NO_LYRICS
                     else -> null
@@ -225,9 +238,12 @@ internal fun WallpaperContent(
     }
 }
 
-/** The lyrics as the lyrics screen draws them, with its settings ([RenderConfig] built the same way). */
+/**
+ * The lyrics as the lyrics screen draws them, with its settings ([RenderConfig] built the same
+ * way): for what shows the lyrics outside it, the wallpaper and the overlay.
+ */
 @Composable
-private fun WallpaperLyrics(
+internal fun WallpaperLyrics(
     lyrics: LyricsState.Ready,
     translation: TranslationResult?,
     settings: AppSettings,
@@ -236,6 +252,8 @@ private fun WallpaperLyrics(
     visible: () -> Boolean,
     durationMs: Long,
     modifier: Modifier,
+    focusAnchorFraction: Float = LYRICS_FOCUS_FRACTION,
+    fontSizeScale: Float = settings.lyricsScale(false),
 ) {
     val appleMusicStyle = settings.lyricsStyle == LyricsStyle.AppleMusic
     val config = RenderConfig(
@@ -300,10 +318,10 @@ private fun WallpaperLyrics(
         translation = presentation,
         isPlaying = isPlaying,
         visible = visible,
-        focusAnchorFraction = LYRICS_FOCUS_FRACTION,
+        focusAnchorFraction = focusAnchorFraction,
         lyricsType = lyrics.lyricsType,
         config = config,
-        fontSizeScale = settings.lyricsScale(false),
+        fontSizeScale = fontSizeScale,
         romanizationMode = settings.romanizationMode,
         footer = remember(lyrics, translation, textCredits) {
             LyricsFooter(
@@ -332,7 +350,7 @@ private fun rememberIdlePicture(prefs: SharedPreferences, settingsVersion: Int, 
 
 /** The lyrics font chosen in the app, as the lyrics screen sets it. */
 @Composable
-private fun LyricsFontSetup(settings: AppSettings) {
+internal fun LyricsFontSetup(settings: AppSettings) {
     val context = LocalContext.current
     val lyricsFont = settings.lyricsFont
     val customFontFile = settings.customFontFile
@@ -436,6 +454,10 @@ private const val WAITING = "Play something to see its lyrics here"
 private const val NO_LYRICS = "No lyrics for this song"
 /** The cover's width as a fraction of the screen's short side (its width in portrait). */
 private const val COVER_WIDTH_FRACTION = 0.65f
+/** With no lyrics for the song, the cover at this share of the screen's width, centred. */
+private const val BIG_COVER_WIDTH_FRACTION = 0.85f
+/** How long the cover takes to grow or settle back. */
+private const val COVER_MOVE_MS = 600
 /** The cover's corner radius, in dp — the same for the animated and the still cover. */
 private const val COVER_CORNER_RADIUS_DP = 24
 /** How far the background drifts as the home screen slides between pages. */

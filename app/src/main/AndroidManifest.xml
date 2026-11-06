@@ -14,6 +14,11 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Android 16's Live Updates, for the lyrics notification's status-bar chip. -->
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+    <!-- The lyrics overlay floats over other apps; the always-on display also needs it to come up when the screen turns off. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- The always-on display's fallback without the overlay permission: a full-screen notification. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <!-- Runs on TVs too (Google TV's launcher, driven by a remote or a gamepad); a touchscreen isn't needed. -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
@@ -108,6 +113,31 @@
             <meta-data
                 android:name="android.service.wallpaper"
                 android:resource="@xml/spicy_wallpaper" />
+        </service>
+
+        <!-- The always-on display: dim lyrics on black over the lock screen. -->
+        <activity
+            android:name="com.tx24.spicyplayer.aod.AlwaysOnActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:taskAffinity=".aod"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@style/Theme.SpicyLyricsMobile" />
+
+        <service
+            android:name="com.tx24.spicyplayer.overlay.LyricsOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <service
+            android:name="com.tx24.spicyplayer.aod.AlwaysOnService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Shows the lyrics as an always-on display when the screen turns off" />
         </service>
 
         <activity

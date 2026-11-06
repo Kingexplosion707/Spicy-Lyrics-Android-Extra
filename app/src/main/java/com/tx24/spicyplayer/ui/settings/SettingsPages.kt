@@ -1129,6 +1129,7 @@ internal fun ThemeContent(settings: AppSettings) {
 
 @Composable
 internal fun DeviceContent(settings: AppSettings) {
+    val context = LocalContext.current
     ToggleRow(
         label = "Smoother motion",
         checked = settings.highRefreshRate,
@@ -1168,7 +1169,12 @@ internal fun DeviceContent(settings: AppSettings) {
     ToggleRow(
         label = "Always-on display",
         checked = settings.ambientAsAod,
-        onCheckedChange = { settings.ambientAsAod = it },
+        onCheckedChange = { on ->
+            settings.ambientAsAod = on
+            // Coming back on when the screen turns off needs "Display over other apps".
+            if (on && !android.provider.Settings.canDrawOverlays(context)) askOverlayPermission(context)
+            com.tx24.spicyplayer.aod.AlwaysOnService.sync(context)
+        },
         description = "Keep the lyrics on as the always-on display at the lowest brightness, playing or paused, instead of the screen turning off. Uses some battery.",
         searchDescription = "Once dimmed, keep the lyrics on as the always-on display at the lowest brightness, instead of the screen turning off.",
         icon = Icons.Rounded.Nightlight,
@@ -1187,6 +1193,7 @@ internal fun DeviceContent(settings: AppSettings) {
     }
     WallpaperSection(settings)
     LyricsNotificationSection(settings)
+    LyricsOverlaySection(settings)
     HapticsSection(settings)
     MoreOptions("Keeping the screen on, system bars, low performance mode, interface animations") {
         ToggleRow(

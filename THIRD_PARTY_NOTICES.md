@@ -20,6 +20,7 @@ Spicy Lyrics Mobile is licensed under the [GNU Affero General Public License, ve
 | [am-lyrics](https://github.com/binimum/am-lyrics) by binimum | The Apple Music style's line fades, blur, soft wipe edge and staggered scroll | MPL-2.0 |
 | [YouLy+](https://github.com/ibratabian17/YouLyPlus), Copyright (c) 2025 Ibra Al Tabian | The Apple Music style's line fades and blur | MIT |
 | [accompanist-lyrics-ui](https://github.com/6xingyv/accompanist-lyrics-ui) by 6xingyv | The Apple Music style's interlude dots | Apache-2.0 |
+| [AirLyrics](https://github.com/AirLyrics/AirLyrics), Copyright (c) 2026 AndSi-327 | The lyrics overlay's window: dragging, locking, touches passing through, keeping its place as a share of the screen, hiding when paused, and its notification controls | MIT |
 
 ## Libraries
 

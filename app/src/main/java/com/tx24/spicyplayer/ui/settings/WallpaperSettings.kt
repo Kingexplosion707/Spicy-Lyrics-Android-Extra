@@ -19,6 +19,16 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import com.tx24.spicyplayer.wallpaper.WallpaperIdlePicture
 import com.tx24.spicyplayer.playback.LyricsNotificationService
+import com.tx24.spicyplayer.overlay.LyricsOverlayService
+import com.tx24.spicyplayer.overlay.OverlaySize
+import com.tx24.spicyplayer.aod.AlwaysOnService
+import androidx.compose.material.icons.rounded.PictureInPictureAlt
+import androidx.compose.material.icons.rounded.FormatSize
+import androidx.compose.material.icons.rounded.SwapHoriz
+import androidx.compose.material.icons.rounded.PauseCircle
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.TouchApp
+import androidx.compose.material.icons.rounded.Rectangle
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -31,6 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.tx24.spicyplayer.ui.components.SettingRow
 import com.tx24.spicyplayer.ui.components.SettingsSection
 import com.tx24.spicyplayer.ui.components.SpicyButton
+import com.tx24.spicyplayer.ui.components.SpicySelect
 import com.tx24.spicyplayer.ui.components.ToggleRow
 import com.tx24.spicyplayer.wallpaper.SpicyWallpaperService
 
@@ -99,6 +110,117 @@ internal fun LyricsNotificationSection(settings: AppSettings) {
             description = "The line being sung, live, for dynamic islands like Essentials and Live Updates.",
             icon = Icons.Rounded.Notifications,
         )
+    }
+}
+
+/**
+ * Device → Lyrics overlay: the lyrics floating over other apps, drawn as on the lyrics screen.
+ * Turning it on asks for "Display over other apps" first when it's missing.
+ */
+@Composable
+internal fun LyricsOverlaySection(settings: AppSettings) {
+    val context = LocalContext.current
+    ResyncOnResume()
+    SettingsSection("Lyrics overlay") {
+        ToggleRow(
+            label = "Lyrics overlay",
+            checked = settings.lyricsOverlay,
+            onCheckedChange = { on ->
+                settings.lyricsOverlay = on
+                if (on && !android.provider.Settings.canDrawOverlays(context)) askOverlayPermission(context)
+                LyricsOverlayService.sync(context)
+            },
+            description = "The lyrics float over your other apps, word by word, in your lyrics style. Drag to move.",
+            icon = Icons.Rounded.PictureInPictureAlt,
+        )
+        SettingRow(
+            label = "Overlay size",
+            description = "How tall the overlay is and how big its lyrics are.",
+            icon = Icons.Rounded.FormatSize,
+            enabled = settings.lyricsOverlay,
+        ) {
+            SpicySelect(
+                value = settings.overlaySize.name,
+                options = OverlaySize.entries.map { it.name },
+                labels = OverlaySize.entries.map { it.label },
+                onChange = { settings.overlaySize = OverlaySize.valueOf(it) },
+            )
+        }
+        SettingRow(
+            label = "Overlay width",
+            description = "How much of the screen's width it takes.",
+            icon = Icons.Rounded.SwapHoriz,
+            enabled = settings.lyricsOverlay,
+        ) {
+            val widths = listOf(60, 75, 85, 94, 100)
+            SpicySelect(
+                value = (widths.minByOrNull { kotlin.math.abs(it - settings.overlayWidth) } ?: 94).toString(),
+                options = widths.map { it.toString() },
+                labels = widths.map { "$it%" },
+                onChange = { settings.overlayWidth = it.toInt() },
+            )
+        }
+        ToggleRow(
+            label = "Hide when paused",
+            checked = settings.overlayHideWhenPaused,
+            onCheckedChange = { settings.overlayHideWhenPaused = it },
+            description = "Goes away a moment after the music pauses, and comes back when it plays.",
+            icon = Icons.Rounded.PauseCircle,
+            enabled = settings.lyricsOverlay,
+        )
+        ToggleRow(
+            label = "Lock in place",
+            checked = settings.overlayLocked,
+            onCheckedChange = { settings.overlayLocked = it },
+            description = "It can't be dragged by accident.",
+            icon = Icons.Rounded.Lock,
+            enabled = settings.lyricsOverlay,
+        )
+        ToggleRow(
+            label = "Touches pass through",
+            checked = settings.overlayClickThrough,
+            onCheckedChange = { settings.overlayClickThrough = it },
+            description = "Taps reach the app under it. It can't be moved then, and shows slightly see-through, as Android requires.",
+            icon = Icons.Rounded.TouchApp,
+            enabled = settings.lyricsOverlay,
+        )
+        ToggleRow(
+            label = "Backdrop",
+            checked = settings.overlayBackdrop,
+            onCheckedChange = { settings.overlayBackdrop = it },
+            description = "A dark rounded panel behind the lyrics, so they read over anything.",
+            icon = Icons.Rounded.Rectangle,
+            enabled = settings.lyricsOverlay,
+        )
+    }
+}
+
+/** Opens Android's "Display over other apps" page for this app. */
+internal fun askOverlayPermission(context: android.content.Context) {
+    runCatching {
+        context.startActivity(
+            android.content.Intent(
+                android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                android.net.Uri.parse("package:" + context.packageName),
+            ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    }
+}
+
+/** Back from a permission page: the overlay and the always-on display start (or stop) to match. */
+@Composable
+internal fun ResyncOnResume() {
+    val context = LocalContext.current
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    androidx.compose.runtime.DisposableEffect(lifecycle) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                LyricsOverlayService.sync(context)
+                AlwaysOnService.sync(context)
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
     }
 }
 

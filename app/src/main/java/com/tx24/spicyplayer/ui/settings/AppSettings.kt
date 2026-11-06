@@ -273,6 +273,14 @@ class AppSettings(private val prefs: SharedPreferences) {
     var wallpaperShowLyrics by boolean("wallpaperShowLyrics", true)
     /** The line being sung in an ongoing notification, for islands and Live Updates. */
     var lyricsNotification by boolean("lyricsNotification", false)
+    /** The lyrics floating over other apps while music plays. */
+    var lyricsOverlay by boolean("overlayLyrics", false)
+    var overlayHideWhenPaused by boolean("overlayHideWhenPaused", true)
+    var overlayLocked by boolean("overlayLocked", false)
+    var overlayClickThrough by boolean("overlayClickThrough", false)
+    var overlayBackdrop by boolean("overlayBackdrop", true)
+    internal var overlaySize by enum("overlaySize", com.tx24.spicyplayer.overlay.OverlaySize.Medium)
+    var overlayWidth by int("overlayWidth", 94, 45..100)
     /** A floating button that opens the quick settings (the song's and the output's delay). */
     var quickSettingsButton by boolean("quickSettingsButton", true)
     /**
