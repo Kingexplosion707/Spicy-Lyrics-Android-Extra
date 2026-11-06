@@ -254,6 +254,8 @@ internal fun WallpaperLyrics(
     modifier: Modifier,
     focusAnchorFraction: Float = LYRICS_FOCUS_FRACTION,
     fontSizeScale: Float = settings.lyricsScale(false),
+    /** Glow on or off here whatever the app's Glow setting; null follows it. */
+    glow: Boolean? = null,
 ) {
     val appleMusicStyle = settings.lyricsStyle == LyricsStyle.AppleMusic
     val config = RenderConfig(
@@ -270,7 +272,7 @@ internal fun WallpaperLyrics(
         syllableMerge = settings.syllableMerge,
         syllablePace = settings.syllablePace,
         distanceBlurEnabled = settings.distanceBlur && !settings.lowPerformance,
-        glowEnabled = settings.glow && !settings.lowPerformance,
+        glowEnabled = (glow ?: settings.glow) && !settings.lowPerformance,
         scroll = ScrollConfig(
             leadMs = if (settings.scrollLeadEnabled) settings.scrollLeadMs.coerceAtLeast(0).toLong() else 0L,
             smooth = settings.smoothScrolling,

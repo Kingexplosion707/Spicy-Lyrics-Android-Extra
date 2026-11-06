@@ -16,6 +16,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.toArgb
+import android.os.Build
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -43,14 +47,25 @@ internal fun OverlayContent(live: LiveLyrics, prefs: SharedPreferences, visible:
     val settings = remember(settingsVersion) { AppSettings(prefs) }
     val size = remember(settingsVersion) { OverlaySize.from(prefs) }
     val backdrop = remember(settingsVersion) { prefs.getBoolean(PREF_BACKDROP, true) }
+    val backdropAlpha = remember(settingsVersion) { prefs.getInt(PREF_BACKDROP_OPACITY, DEFAULT_BACKDROP_OPACITY).coerceIn(0, 100) / 100f }
+    val lyricsAlpha = remember(settingsVersion) { prefs.getInt(PREF_LYRICS_OPACITY, 100).coerceIn(10, 100) / 100f }
+    val style = remember(settingsVersion) { OverlayStyle.from(prefs) }
+    val glow = remember(settingsVersion) { prefs.getBoolean(PREF_GLOW, true) }
+    val colorChoice = remember(settingsVersion) { OverlayColor.from(prefs) }
+    val cover = live.track?.cover
+    val color = remember(colorChoice, cover) { colorChoice.resolve(cover) }
     LyricsFontSetup(settings)
+    if (style == OverlayStyle.StatusBar) {
+        StatusBarLyrics(live, visible, Modifier.fillMaxSize().graphicsLayer { alpha = lyricsAlpha }, color, glow)
+        return
+    }
 
     val shape = RoundedCornerShape(BACKDROP_CORNER_DP.dp)
     Box(
         Modifier
             .fillMaxSize()
             .clip(shape)
-            .then(if (backdrop) Modifier.background(Color.Black.copy(alpha = BACKDROP_ALPHA), shape) else Modifier),
+            .then(if (backdrop && backdropAlpha > 0f) Modifier.background(Color.Black.copy(alpha = backdropAlpha), shape) else Modifier),
     ) {
         val track = live.track
         val lyrics = live.lyrics
@@ -63,14 +78,15 @@ internal fun OverlayContent(live: LiveLyrics, prefs: SharedPreferences, visible:
                 isPlaying = live.playing,
                 visible = visible,
                 durationMs = track.durationMs,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().tinted(color).graphicsLayer { alpha = lyricsAlpha },
                 focusAnchorFraction = FOCUS_FRACTION,
                 fontSizeScale = settings.lyricsScale(false) * size.fontScale,
+                glow = glow,
             )
         } else if (track != null) {
             Text(
                 text = "${track.title} — ${track.artist}",
-                color = Color.White.copy(alpha = 0.85f),
+                color = color.copy(alpha = 0.85f * lyricsAlpha),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
@@ -82,8 +98,23 @@ internal fun OverlayContent(live: LiveLyrics, prefs: SharedPreferences, visible:
     }
 }
 
+/**
+ * The lyrics in [color]: the renderer draws them white, so they're multiplied by it on the GPU
+ * (Android 12 and later; white before), keeping each word's own brightness and fill.
+ */
+private fun Modifier.tinted(color: Color): Modifier {
+    if (color == Color.White || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return this
+    val effect = android.graphics.RenderEffect.createColorFilterEffect(
+        android.graphics.BlendModeColorFilter(color.toArgb(), android.graphics.BlendMode.MODULATE),
+    ).asComposeRenderEffect()
+    return graphicsLayer { renderEffect = effect }
+}
+
+internal const val PREF_GLOW = "overlayGlow"
 internal const val PREF_BACKDROP = "overlayBackdrop"
+internal const val PREF_BACKDROP_OPACITY = "overlayBackdropOpacity"
+internal const val PREF_LYRICS_OPACITY = "overlayLyricsOpacity"
+internal const val DEFAULT_BACKDROP_OPACITY = 45
 private const val BACKDROP_CORNER_DP = 24
-private const val BACKDROP_ALPHA = 0.45f
 /** The line being sung sits a little above the middle, so the next line shows under it. */
 private const val FOCUS_FRACTION = 0.38f

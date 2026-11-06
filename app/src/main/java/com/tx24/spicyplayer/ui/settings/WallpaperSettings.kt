@@ -21,6 +21,16 @@ import com.tx24.spicyplayer.wallpaper.WallpaperIdlePicture
 import com.tx24.spicyplayer.playback.LyricsNotificationService
 import com.tx24.spicyplayer.overlay.LyricsOverlayService
 import com.tx24.spicyplayer.overlay.OverlaySize
+import com.tx24.spicyplayer.overlay.OverlayStyle
+import com.tx24.spicyplayer.overlay.OverlayColor
+import com.tx24.spicyplayer.overlay.StatusBarClock
+import androidx.compose.material.icons.rounded.ViewDay
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Opacity
+import androidx.compose.material.icons.rounded.Gradient
+import androidx.compose.material.icons.rounded.ScreenRotation
+import androidx.compose.material.icons.rounded.Schedule
 import com.tx24.spicyplayer.aod.AlwaysOnService
 import androidx.compose.material.icons.rounded.PictureInPictureAlt
 import androidx.compose.material.icons.rounded.FormatSize
@@ -134,6 +144,56 @@ internal fun LyricsOverlaySection(settings: AppSettings) {
             icon = Icons.Rounded.PictureInPictureAlt,
         )
         SettingRow(
+            label = "Overlay style",
+            description = if (settings.overlayStyle == OverlayStyle.StatusBar) "One line in the status bar, filling word by word."
+                else "The lyrics as on the lyrics screen, in a floating panel you can drag anywhere, up to the top of the screen.",
+            icon = Icons.Rounded.ViewDay,
+            enabled = settings.lyricsOverlay,
+        ) {
+            SpicySelect(
+                value = settings.overlayStyle.name,
+                options = OverlayStyle.entries.map { it.name },
+                labels = OverlayStyle.entries.map { it.label },
+                onChange = { settings.overlayStyle = OverlayStyle.valueOf(it) },
+            )
+        }
+        if (settings.overlayStyle == OverlayStyle.StatusBar) HideClockRow(settings)
+        SettingRow(
+            label = "Lyrics colour",
+            description = "The lyrics' colour in the overlay. From the cover takes it from the song's art.",
+            icon = Icons.Rounded.Palette,
+            enabled = settings.lyricsOverlay,
+        ) {
+            SpicySelect(
+                value = settings.overlayColor.name,
+                options = OverlayColor.entries.map { it.name },
+                labels = OverlayColor.entries.map { it.label },
+                onChange = { settings.overlayColor = OverlayColor.valueOf(it) },
+            )
+        }
+        ToggleRow(
+            label = "Glow",
+            checked = settings.overlayGlow,
+            onCheckedChange = { settings.overlayGlow = it },
+            description = "A soft glow around the words being sung.",
+            icon = Icons.Rounded.AutoAwesome,
+            enabled = settings.lyricsOverlay,
+        )
+        SettingRow(
+            label = "Lyrics opacity",
+            description = "How solid the overlay's lyrics are.",
+            icon = Icons.Rounded.Opacity,
+            enabled = settings.lyricsOverlay,
+        ) {
+            val steps = listOf(100, 85, 70, 55, 40, 25)
+            SpicySelect(
+                value = (steps.minByOrNull { kotlin.math.abs(it - settings.overlayLyricsOpacity) } ?: 100).toString(),
+                options = steps.map { it.toString() },
+                labels = steps.map { "$it%" },
+                onChange = { settings.overlayLyricsOpacity = it.toInt() },
+            )
+        }
+        SettingRow(
             label = "Overlay size",
             description = "How tall the overlay is and how big its lyrics are.",
             icon = Icons.Rounded.FormatSize,
@@ -190,8 +250,68 @@ internal fun LyricsOverlaySection(settings: AppSettings) {
             onCheckedChange = { settings.overlayBackdrop = it },
             description = "A dark rounded panel behind the lyrics, so they read over anything.",
             icon = Icons.Rounded.Rectangle,
+            enabled = settings.lyricsOverlay && settings.overlayStyle == OverlayStyle.Full,
+        )
+        SettingRow(
+            label = "Backdrop opacity",
+            description = "How dark the panel behind the lyrics is.",
+            icon = Icons.Rounded.Gradient,
+            enabled = settings.lyricsOverlay && settings.overlayBackdrop && settings.overlayStyle == OverlayStyle.Full,
+        ) {
+            val steps = listOf(15, 30, 45, 60, 75, 90)
+            SpicySelect(
+                value = (steps.minByOrNull { kotlin.math.abs(it - settings.overlayBackdropOpacity) } ?: 45).toString(),
+                options = steps.map { it.toString() },
+                labels = steps.map { "$it%" },
+                onChange = { settings.overlayBackdropOpacity = it.toInt() },
+            )
+        }
+        ToggleRow(
+            label = "Hide in landscape",
+            checked = settings.overlayHideInLandscape,
+            onCheckedChange = { settings.overlayHideInLandscape = it },
+            description = "Out of the way of videos and games turned sideways.",
+            icon = Icons.Rounded.ScreenRotation,
             enabled = settings.lyricsOverlay,
         )
+    }
+}
+
+/**
+ * Status bar style: hide the system clock while the lyrics show, so they sit in its place. The
+ * permission it needs is granted once through Shizuku.
+ */
+@Composable
+private fun HideClockRow(settings: AppSettings) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var canWrite by remember { mutableStateOf(StatusBarClock.canWrite(context)) }
+    var message by remember { mutableStateOf<String?>(null) }
+    if (canWrite) {
+        ToggleRow(
+            label = "Replace the clock",
+            checked = settings.overlayHideClock,
+            onCheckedChange = { settings.overlayHideClock = it },
+            description = "The status bar clock hides while the lyrics show, so they take its place. It comes back when they stop.",
+            icon = Icons.Rounded.Schedule,
+            enabled = settings.lyricsOverlay,
+        )
+    } else {
+        SettingRow(
+            label = "Replace the clock",
+            description = message ?: "With Shizuku running, hide the status bar clock while the lyrics show so they take its place.",
+            icon = Icons.Rounded.Schedule,
+            enabled = settings.lyricsOverlay,
+        ) {
+            SpicyButton("Set up", onClick = {
+                scope.launch {
+                    val result = StatusBarClock.grantWithShizuku(context)
+                    message = result.message
+                    canWrite = StatusBarClock.canWrite(context)
+                    if (canWrite) settings.overlayHideClock = true
+                }
+            })
+        }
     }
 }
 

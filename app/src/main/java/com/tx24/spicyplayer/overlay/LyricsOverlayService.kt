@@ -109,6 +109,7 @@ class LyricsOverlayService : Service() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         window.applyBehaviour()
+        update()
     }
 
     override fun onDestroy() {
@@ -116,6 +117,7 @@ class LyricsOverlayService : Service() {
         prefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
         (application as Application).unregisterActivityLifecycleCallbacks(activityCallbacks)
         window.hide()
+        StatusBarClock.restore(this)
         live.stop()
         super.onDestroy()
     }
@@ -136,8 +138,10 @@ class LyricsOverlayService : Service() {
         }
         val hideWhenPaused = prefs.getBoolean(PREF_HIDE_WHEN_PAUSED, true)
         val noLyrics = live.settled && live.lyrics?.lines.isNullOrEmpty()
+        val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         val show = track != null && !lyricsResumed && !userHidden && !noLyrics &&
-            !(hideWhenPaused && !live.playing && pausedLongEnough)
+            !(hideWhenPaused && !live.playing && pausedLongEnough) &&
+            !(landscape && prefs.getBoolean(PREF_HIDE_IN_LANDSCAPE, false))
         if (show) {
             if (!window.show() && !Settings.canDrawOverlays(this)) {
                 // The permission was taken back: off until it's given again.
@@ -149,6 +153,12 @@ class LyricsOverlayService : Service() {
             window.hide()
         }
         val shown = window.isShown
+        // The status bar lyrics in the clock's place: hidden while they show, back after.
+        if (shown && OverlayStyle.from(prefs) == OverlayStyle.StatusBar && prefs.getBoolean(StatusBarClock.PREF_HIDE, false)) {
+            StatusBarClock.hide(this)
+        } else {
+            StatusBarClock.restore(this)
+        }
         if (shownInNotification != shown) {
             shownInNotification = shown
             runCatching { getSystemService(NotificationManager::class.java)?.notify(NOTIFICATION_ID, notification()) }
@@ -196,6 +206,7 @@ class LyricsOverlayService : Service() {
     companion object {
         const val PREF_ENABLED = "overlayLyrics"
         const val PREF_HIDE_WHEN_PAUSED = "overlayHideWhenPaused"
+        const val PREF_HIDE_IN_LANDSCAPE = "overlayHideInLandscape"
         private const val CHANNEL_ID = "lyrics_overlay"
         private const val NOTIFICATION_ID = 4203
         private const val ACTION_STOP = "com.tx24.spicyplayer.overlay.STOP"

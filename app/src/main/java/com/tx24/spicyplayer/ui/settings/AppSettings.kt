@@ -281,6 +281,14 @@ class AppSettings(private val prefs: SharedPreferences) {
     var overlayBackdrop by boolean("overlayBackdrop", true)
     internal var overlaySize by enum("overlaySize", com.tx24.spicyplayer.overlay.OverlaySize.Medium)
     var overlayWidth by int("overlayWidth", 94, 45..100)
+    internal var overlayStyle by enum("overlayStyle", com.tx24.spicyplayer.overlay.OverlayStyle.Full)
+    internal var overlayColor by enum("overlayColor", com.tx24.spicyplayer.overlay.OverlayColor.White)
+    var overlayGlow by boolean("overlayGlow", true)
+    var overlayLyricsOpacity by int("overlayLyricsOpacity", 100, 10..100)
+    var overlayBackdropOpacity by int("overlayBackdropOpacity", 45, 0..100)
+    var overlayHideInLandscape by boolean("overlayHideInLandscape", false)
+    /** Hide the status bar clock while the status bar lyrics show (needs Shizuku once). */
+    var overlayHideClock by boolean("overlayHideClock", false)
     /** A floating button that opens the quick settings (the song's and the output's delay). */
     var quickSettingsButton by boolean("quickSettingsButton", true)
     /**

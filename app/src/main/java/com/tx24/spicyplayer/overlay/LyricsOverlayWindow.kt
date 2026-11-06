@@ -69,9 +69,14 @@ internal class LyricsOverlayWindow(
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                setFitInsetsTypes(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-                setFitInsetsIgnoringVisibility(true)
+            // The whole screen is its room, the status bar too, so it can sit right at the top.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) setFitInsetsTypes(0)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                layoutInDisplayCutoutMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                } else {
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                }
             }
         }
         return runCatching {
@@ -113,6 +118,10 @@ internal class LyricsOverlayWindow(
     private fun place(p: WindowManager.LayoutParams) {
         val (availableW, availableH) = availableSize()
         val density = windowContext.resources.displayMetrics.density
+        if (OverlayStyle.from(prefs) == OverlayStyle.StatusBar) {
+            placeInStatusBar(p, availableW, density)
+            return
+        }
         val widthPercent = prefs.getInt(PREF_WIDTH, DEFAULT_WIDTH_PERCENT).coerceIn(45, 100)
         p.width = (availableW * widthPercent / 100f).roundToInt().coerceAtLeast(1)
         p.height = (OverlaySize.from(prefs).heightDp * density).roundToInt().coerceAtMost(availableH)
@@ -121,6 +130,41 @@ internal class LyricsOverlayWindow(
         p.x = (prefs.getFloat(PREF_X, 0.5f).coerceIn(0f, 1f) * travelX).roundToInt()
         p.y = (prefs.getFloat(PREF_Y, DEFAULT_Y).coerceIn(0f, 1f) * travelY).roundToInt()
         p.alpha = if (clickThrough()) CLICK_THROUGH_ALPHA else 1f
+    }
+
+    /**
+     * The status bar style: one line in the status bar, from where the clock starts to just
+     * before the camera cutout (or across [PREF_WIDTH] of the screen with none in the way).
+     */
+    private fun placeInStatusBar(p: WindowManager.LayoutParams, availableW: Int, density: Float) {
+        val bar = statusBarArea()
+        val start = (bar.startPx).coerceAtLeast((STATUS_BAR_START_DP * density).roundToInt())
+        val end = bar.cutoutLeftPx?.let { it - (CUTOUT_GAP_DP * density).roundToInt() }
+            ?: (availableW * prefs.getInt(PREF_WIDTH, DEFAULT_WIDTH_PERCENT).coerceIn(45, 100) / 100f).roundToInt()
+        p.x = start
+        p.y = 0
+        p.width = (end - start).coerceAtLeast((48 * density).roundToInt())
+        p.height = bar.heightPx.coerceAtLeast((24 * density).roundToInt())
+        p.alpha = if (clickThrough()) CLICK_THROUGH_ALPHA else 1f
+    }
+
+    private class StatusBarArea(val heightPx: Int, val startPx: Int, val cutoutLeftPx: Int?)
+
+    /** The status bar's height, its left inset, and where a top cutout in its middle starts. */
+    @Suppress("DEPRECATION")
+    private fun statusBarArea(): StatusBarArea {
+        val density = windowContext.resources.displayMetrics.density
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val metrics = windowManager.currentWindowMetrics
+            val insets = metrics.windowInsets
+            val bar = insets.getInsetsIgnoringVisibility(WindowInsets.Type.statusBars())
+            val width = metrics.bounds.width()
+            val cutout = insets.displayCutout?.boundingRectTop?.takeIf { !it.isEmpty && it.left > width / 4 }
+            return StatusBarArea(bar.top, bar.left, cutout?.left)
+        }
+        val id = windowContext.resources.getIdentifier("status_bar_height", "dimen", "android")
+        val height = if (id != 0) windowContext.resources.getDimensionPixelSize(id) else (24 * density).roundToInt()
+        return StatusBarArea(height, 0, null)
     }
 
     private fun savePlace(p: WindowManager.LayoutParams) {
@@ -133,16 +177,12 @@ internal class LyricsOverlayWindow(
             .apply()
     }
 
-    /** The room inside the system bars and cutout, where the window's coordinates live. */
+    /** The whole screen, where the window's coordinates live. */
     @Suppress("DEPRECATION")
     private fun availableSize(): Pair<Int, Int> {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val metrics = windowManager.currentWindowMetrics
-            val insets = metrics.windowInsets.getInsetsIgnoringVisibility(
-                WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout(),
-            )
-            return (metrics.bounds.width() - insets.left - insets.right).coerceAtLeast(1) to
-                (metrics.bounds.height() - insets.top - insets.bottom).coerceAtLeast(1)
+            val bounds = windowManager.currentWindowMetrics.bounds
+            return bounds.width().coerceAtLeast(1) to bounds.height().coerceAtLeast(1)
         }
         val size = Point()
         windowManager.defaultDisplay.getSize(size)
@@ -180,7 +220,7 @@ internal class LyricsOverlayWindow(
                     downY = event.rawY
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    if (locked()) return true
+                    if (locked() || OverlayStyle.from(prefs) == OverlayStyle.StatusBar) return true
                     val dx = event.rawX - downX
                     val dy = event.rawY - downY
                     if (!dragging && abs(dx) <= touchSlop && abs(dy) <= touchSlop) return true
@@ -209,11 +249,27 @@ internal class LyricsOverlayWindow(
         const val DEFAULT_WIDTH_PERCENT = 94
         /** Near the top by default, under the status bar. */
         private const val DEFAULT_Y = 0.06f
+        /** The status bar style starts where a status bar's clock does, at least this far in. */
+        private const val STATUS_BAR_START_DP = 20
+        /** ...and stops this short of a camera cutout. */
+        private const val CUTOUT_GAP_DP = 8
         /**
          * Android 12+ blocks touches that pass through another app's window more opaque than
          * this, so a click-through overlay is drawn at it.
          */
         private const val CLICK_THROUGH_ALPHA = 0.8f
+    }
+}
+
+/** What the overlay looks like: the lyrics as on the lyrics screen, or one line in the status bar. */
+internal enum class OverlayStyle(val label: String) {
+    Full("Lyrics"),
+    StatusBar("Status bar");
+
+    companion object {
+        const val PREF = "overlayStyle"
+        fun from(prefs: android.content.SharedPreferences): OverlayStyle =
+            runCatching { valueOf(prefs.getString(PREF, Full.name)!!) }.getOrDefault(Full)
     }
 }
 

@@ -19,6 +19,10 @@
     <!-- The always-on display's fallback without the overlay permission: a full-screen notification. -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- Granted only through Shizuku (a shell grant): hides the status bar clock behind the status bar lyrics. -->
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
     <!-- Runs on TVs too (Google TV's launcher, driven by a remote or a gamepad); a touchscreen isn't needed. -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
@@ -114,6 +118,15 @@
                 android:name="android.service.wallpaper"
                 android:resource="@xml/spicy_wallpaper" />
         </service>
+
+        <!-- Shizuku's binder arrives through this provider once the user allows the app in Shizuku. -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:multiprocess="false"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
 
         <!-- The always-on display: dim lyrics on black over the lock screen. -->
         <activity

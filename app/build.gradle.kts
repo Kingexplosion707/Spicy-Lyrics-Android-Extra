@@ -22,6 +22,7 @@ android {
         applicationId = "com.tx24.spicyplayer.next"
         minSdk = 23
         targetSdk = 36
+        // CI debug builds count up by run: see androidComponents below.
         versionCode = 31
         versionName = "0.19.0"
         // A publishable (sl_pk_) key, made to ship in clients: SL rate-limits it per viewer IP.
@@ -56,7 +57,8 @@ android {
         getByName("debug") {
             // Its own app next to the release one, so testing never touches the installed release.
             applicationIdSuffix = ".debug"
-            versionNameSuffix = "-debug"
+            // Each CI build a higher version than the last, so it installs as an update.
+            versionNameSuffix = System.getenv("GITHUB_RUN_NUMBER")?.let { "-debug.$it" } ?: "-debug"
             resValue("string", "app_name", "Spicy Lyrics Mobile Debug")
         }
         getByName("release") {
@@ -125,6 +127,9 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.activity:activity-compose:1.13.0")
+    // Shizuku: grants the permission that hides the status bar clock behind the status bar lyrics.
+    implementation("dev.rikka.shizuku:api:13.1.5")
+    implementation("dev.rikka.shizuku:provider:13.1.5")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
@@ -151,4 +156,15 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
     testImplementation("net.sf.kxml:kxml2:2.3.0")
+}
+
+// CI debug builds: this release's version code times 10,000 plus the run number, so every
+// GitHub build is newer than the last and Android's installer offers it as an update.
+androidComponents {
+    onVariants(selector().withBuildType("debug")) { variant ->
+        val run = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: return@onVariants
+        variant.outputs.forEach { output ->
+            output.versionCode.set(output.versionCode.map { it * 10_000 + run })
+        }
+    }
 }
