@@ -113,8 +113,9 @@ class HapticPlayer(context: Context) {
     /** How long [primitive] plays on this phone (Android 12+), else a typical length. */
     private fun primitiveMs(primitive: Primitive): Long {
         primitiveLengths[primitive]?.let { return it }
-        val measured = if (vibrator != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            runCatching { vibrator.getPrimitiveDurations(primitive.id).firstOrNull()?.toLong() }.getOrNull()
+        val v = vibrator
+        val measured = if (v != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            runCatching { v.getPrimitiveDurations(primitive.id).firstOrNull()?.toLong() }.getOrNull()
                 ?.takeIf { it > 0L }
         } else null
         return (measured ?: TYPICAL_SLOW_RISE_MS).also { primitiveLengths[primitive] = it }
