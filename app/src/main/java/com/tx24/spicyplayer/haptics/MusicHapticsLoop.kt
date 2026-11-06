@@ -55,7 +55,7 @@ suspend fun playMusicHaptics(
         // meanwhile counts, and the final few ms are slept precisely rather than on the
         // dispatcher's coarser timer, which can overshoot by several ms.
         if (!closeIn(event.atMs, positionMs)) continue
-        player.play(event.pulse, (event.strength * strength()).coerceAtMost(1f), event.roomMs)
+        player.play(event.pulse, (event.strength * strength()).coerceAtMost(1f), event.roomMs, event.sharpness)
         lastAt = event.atMs
     }
 }
