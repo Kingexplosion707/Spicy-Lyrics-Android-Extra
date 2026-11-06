@@ -1,0 +1,22 @@
+.gradle/
+.kotlin/
+.idea/
+**/build/
+local.properties
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p12
+*.iml
+.DS_Store
+captures/
+
+# Local development notes and tools that need the private reference checkouts.
+CLAUDE.local.md
+docs/upstream-notes.md
+PUBLICATION_CHECKLIST.md
+tools/make_blend_fixtures.py
+tools/make_synthetic_blend_fixture.py
+app/src/test/java/com/tx24/spicyplayer/network/data/blend/BlendParityTest.kt

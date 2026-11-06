@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Spicy Lyrics Mobile</string>
+    <string name="widget_name">Lyrics</string>
+    <string name="widget_settings">Lyrics widget</string>
+    <string name="widget_description">The line being sung, over the cover\'s colours</string>
+    <string name="widget_waiting">Play something to see its lyrics here</string>
+    <string name="widget_play_pause">Play or pause</string>
+    <string name="widget_previous">Previous</string>
+    <string name="widget_next">Next</string>
+    <string name="update_channel">Updates</string>
+    <string name="update_ready_title">Update downloaded</string>
+    <string name="update_ready_text">Tap to install it</string>
+    <string name="wallpaper_name">Spicy Lyrics Live Wallpaper</string>
+    <string name="wallpaper_description">The song playing, its video and its word-synced lyrics, as your wallpaper.</string>
+    <string name="background_haptics_channel">Background haptics</string>
+    <string name="background_haptics_channel_description">Keeps the music haptics going while the app is not in front.</string>
+    <string name="background_haptics_title">Spicy Lyrics haptics</string>
+    <string name="background_haptics_nothing">Play something to feel it</string>
+    <string name="background_haptics_paused">Paused — waiting for music</string>
+    <string name="background_haptics_stop">Stop</string>
+</resources>

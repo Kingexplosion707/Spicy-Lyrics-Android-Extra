@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The logo's note and sparkles, cropped to their bounds; tinted where it's drawn. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="58.17dp" android:height="54.92dp"
+    android:viewportWidth="581.72" android:viewportHeight="549.21">
+<group android:translateX="-154.84" android:translateY="-160.83">
+<group android:scaleX="1" android:scaleY="1" android:translateX="438" android:translateY="438">
+<group android:scaleX="0.82" android:scaleY="0.82" android:translateX="0" android:translateY="0">
+<group android:scaleX="1" android:scaleY="1" android:translateX="-438" android:translateY="-438">
+<group android:scaleX="1" android:scaleY="1" android:translateX="-10" android:translateY="-5">
+<group android:scaleX="1" android:scaleY="1" android:translateX="0" android:translateY="0">
+<group android:scaleX="4.01715" android:scaleY="4.1287" android:translateX="85.2059" android:translateY="30.0285">
+<path android:fillColor="#FFFFFFFF" android:pathData="M157.026,124.797C157.074,124.666 157.259,124.666 157.307,124.797L163.58,141.748C163.595,141.789 163.627,141.822 163.668,141.837L180.62,148.109C180.75,148.158 180.75,148.343 180.62,148.391L163.668,154.663C163.627,154.679 163.595,154.711 163.58,154.752L157.307,171.703C157.259,171.834 157.074,171.834 157.026,171.703L150.753,154.752C150.738,154.711 150.706,154.679 150.665,154.663L133.713,148.391C133.583,148.343 133.583,148.158 133.713,148.109L150.665,141.837C150.706,141.822 150.738,141.789 150.753,141.748L157.026,124.797Z" />
+</group>
+<group android:scaleX="3.59667" android:scaleY="3.71656" android:translateX="118.889" android:translateY="113.73">
+<path android:fillColor="#FFFFFFFF" android:pathData="M118.297,148.63C118.345,148.5 118.53,148.5 118.579,148.63L122.437,159.058C122.452,159.099 122.485,159.132 122.526,159.147L132.954,163.005C133.084,163.054 133.084,163.238 132.954,163.287L122.526,167.145C122.485,167.16 122.452,167.193 122.437,167.234L118.579,177.662C118.53,177.792 118.345,177.792 118.297,177.662L114.439,167.234C114.423,167.193 114.391,167.16 114.35,167.145L103.922,163.287C103.792,163.238 103.792,163.054 103.922,163.005L114.35,159.147C114.391,159.132 114.423,159.099 114.439,159.058L118.297,148.63Z" />
+</group>
+<group android:scaleX="3.97993" android:scaleY="4.09152" android:translateX="-48.9928" android:translateY="-17.7873">
+<path android:fillColor="#FFFFFFFF" android:pathData="M61.693,59.255C61.741,59.125 61.926,59.125 61.974,59.255L68.247,76.207C68.262,76.248 68.294,76.28 68.335,76.295L85.287,82.568C85.417,82.616 85.417,82.801 85.287,82.849L68.335,89.122C68.294,89.137 68.262,89.169 68.247,89.21L61.974,106.162C61.926,106.292 61.741,106.292 61.693,106.162L55.42,89.21C55.405,89.169 55.373,89.137 55.331,89.122L38.38,82.849C38.25,82.801 38.25,82.616 38.38,82.568L55.331,76.295C55.373,76.28 55.405,76.248 55.42,76.207L61.693,59.255Z" />
+</group>
+<group android:scaleX="3.47675" android:scaleY="3.77648" android:translateX="26.432" android:translateY="-50.7817">
+<path android:fillColor="#FFFFFFFF" android:pathData="M88.505,41.38C88.553,41.25 88.738,41.25 88.787,41.38L92.645,51.808C92.66,51.849 92.693,51.881 92.734,51.897L103.162,55.755C103.292,55.803 103.292,55.988 103.162,56.036L92.734,59.895C92.693,59.91 92.66,59.943 92.645,59.984L88.787,70.412C88.738,70.542 88.553,70.542 88.505,70.412L84.647,59.984C84.631,59.943 84.599,59.91 84.558,59.895L74.13,56.036C74,55.988 74,55.803 74.13,55.755L84.558,51.897C84.599,51.881 84.631,51.849 84.647,51.808L88.505,41.38Z" />
+</group>
+<group android:scaleX="0.834245" android:scaleY="0.831652" android:translateX="371.713" android:translateY="397.097">
+<group android:scaleX="1" android:scaleY="1" android:translateX="-325" android:translateY="-358.333">
+<group android:scaleX="4.16667" android:scaleY="4.16667" android:translateX="0" android:translateY="0">
+<path android:fillColor="#FFFFFFFF" android:pathData="M64,52L156,23L156,64L76,87L76,148L64,148L64,52ZM144,56L156,56L156,132L144,132L144,56ZM76,148C76,161.166 65.166,172 52,172C38.834,172 28,161.166 28,148C28,134.834 38.834,124 52,124C65.166,124 76,134.834 76,148ZM156,132C156,145.166 145.166,156 132,156C118.834,156 108,145.166 108,132C108,118.834 118.834,108 132,108C145.166,108 156,118.834 156,132Z" />
+</group>
+</group>
+</group>
+</group>
+</group>
+</group>
+</group>
+</group>
+</group>
+</vector>

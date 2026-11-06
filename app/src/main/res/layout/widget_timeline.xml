@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_timeline"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <ProgressBar
+        android:id="@+id/widget_progress"
+        style="@android:style/Widget.ProgressBar.Horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:max="1000"
+        android:progressDrawable="@drawable/widget_progress" />
+
+    <LinearLayout
+        android:id="@+id/widget_times"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <Chronometer
+            android:id="@+id/widget_elapsed"
+            style="@style/WidgetTime" />
+
+        <TextView
+            android:id="@+id/widget_credit"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:gravity="center_horizontal"
+            android:maxLines="1"
+            android:textColor="#99FFFFFF"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/widget_duration"
+            style="@style/WidgetTime" />
+    </LinearLayout>
+</LinearLayout>

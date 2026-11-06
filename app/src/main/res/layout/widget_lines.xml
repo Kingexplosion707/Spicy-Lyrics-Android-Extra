@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The lyrics, drawn as one picture (WidgetLyricsPainter) so they can use the lyrics font. The
+     include reaches past the widget's padding by WidgetLyricsPainter.BLEED_DP each side, for the glow. -->
+<ImageView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_lyrics_image"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:importantForAccessibility="yes"
+    android:scaleType="fitCenter" />

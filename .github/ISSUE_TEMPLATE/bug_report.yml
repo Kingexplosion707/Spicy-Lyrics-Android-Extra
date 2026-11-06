@@ -1,0 +1,60 @@
+name: Report a bug
+description: Something in Spicy Lyrics Mobile isn't working as expected.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues first. A short, reproducible report is enough.
+        For security vulnerabilities, [report privately](https://github.com/spicylyrics/mobile/security/advisories/new).
+        Don't include keys, account details, or unedited private logs.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: What went wrong, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How can we reproduce it?
+      description: Include steps and a song link if it affects a specific track. If you can't reproduce it, say so.
+      placeholder: |
+        1. Play a song in...
+        2. Open Spicy Lyrics Mobile...
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Spicy Lyrics Mobile version
+      description: Find it at the bottom of Settings. Include the debug suffix if shown.
+      placeholder: e.g. 0.6.0
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Phone and Android version
+      placeholder: e.g. Pixel 7, Android 16
+    validations:
+      required: true
+  - type: input
+    id: player
+    attributes:
+      label: Music app and version
+      description: Include the account tier if playback controls are affected, or say not applicable.
+      placeholder: e.g. Spotify, version ..., Free / Premium
+  - type: textarea
+    id: debug
+    attributes:
+      label: Debug info
+      description: Filled in when you use "Report a bug" in the app's Settings. Otherwise, tap Copy in Settings → Advanced → Debug info and paste it here.
+      render: text
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots or extra details (optional)
+      description: Attach a screenshot or recording. Remove private information first.

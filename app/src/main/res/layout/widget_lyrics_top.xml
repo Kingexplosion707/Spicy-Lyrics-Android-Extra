@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:clipToOutline="true">
+
+    <ImageView
+        android:id="@+id/widget_backdrop"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="fitXY" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:clipToPadding="false"
+        android:padding="16dp">
+        <!-- Song info at the top, like the lyrics screen's header. -->
+        <include
+            layout="@layout/widget_song_row"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp" />
+
+        <include
+            layout="@layout/widget_lines"
+            android:layout_width="match_parent"
+            android:layout_marginStart="-8dp"
+            android:layout_marginEnd="-8dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <include
+            layout="@layout/widget_timeline"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp" />
+    </LinearLayout>
+</FrameLayout>

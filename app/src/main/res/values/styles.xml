@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.SpicyLyricsMobile" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:navigationBarColor">@android:color/black</item>
+        <item name="android:statusBarColor">@android:color/black</item>
+    </style>
+
+    <!-- The home screen widget's buttons and times. -->
+    <style name="WidgetButton">
+        <item name="android:layout_width">34dp</item>
+        <item name="android:layout_height">34dp</item>
+        <item name="android:layout_marginStart">6dp</item>
+        <item name="android:background">@drawable/widget_button</item>
+        <item name="android:padding">7dp</item>
+    </style>
+
+    <style name="WidgetTime">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">#B3FFFFFF</item>
+        <item name="android:textSize">11sp</item>
+        <item name="android:fontFamily">@font/lyrics_medium</item>
+    </style>
+</resources>

@@ -1,0 +1,17 @@
+name = "spicy-lyrics-canvas"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+# Served only on its own domain; a fork swaps in a domain on its own Cloudflare account.
+routes = [{ pattern = "canvas.tx24.dev", custom_domain = true }]
+workers_dev = false
+
+# Remembers found canvases globally so they keep working while the lookup services are down.
+# Created with `npx wrangler kv namespace create CANVAS`; a fork makes its own and puts its id
+# here. Without the binding the Worker still runs, with only the per-data-centre cache.
+[[kv_namespaces]]
+binding = "CANVAS"
+id = "d01d592a039f45e88b22f91f5b70a89f"
+
+# [vars]
+# UPSTREAMS = "https://regional.canvasstore.slnode.spicylyrics.org/provider/canvaslist"

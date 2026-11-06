@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_song_row"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <ImageView
+        android:id="@+id/widget_cover"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginEnd="10dp"
+        android:importantForAccessibility="no"
+        android:scaleType="centerCrop" />
+
+    <LinearLayout
+        android:id="@+id/widget_song"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/widget_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#FFFFFFFF"
+            android:fontFamily="@font/lyrics_bold"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/widget_artist"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:fontFamily="@font/lyrics_medium"
+            android:textColor="#B3FFFFFF"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/widget_previous"
+        style="@style/WidgetButton"
+        android:contentDescription="@string/widget_previous"
+        android:src="@android:drawable/ic_media_previous" />
+
+    <ImageView
+        android:id="@+id/widget_play_pause"
+        style="@style/WidgetButton"
+        android:layout_width="38dp"
+        android:layout_height="38dp"
+        android:contentDescription="@string/widget_play_pause"
+        android:src="@android:drawable/ic_media_play" />
+
+    <ImageView
+        android:id="@+id/widget_next"
+        style="@style/WidgetButton"
+        android:contentDescription="@string/widget_next"
+        android:src="@android:drawable/ic_media_next" />
+</LinearLayout>

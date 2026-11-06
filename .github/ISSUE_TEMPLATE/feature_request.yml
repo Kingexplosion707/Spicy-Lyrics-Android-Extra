@@ -1,0 +1,26 @@
+name: Suggest a feature
+description: An idea to make Spicy Lyrics Mobile better.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: Search existing issues first; add to an existing suggestion if it matches yours.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to improve?
+      description: Describe what you want to do and what's getting in the way.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: How should it work? Examples or screenshots are welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or extra context (optional)
+      description: Any workarounds you've tried, or other ways to solve the same problem.
