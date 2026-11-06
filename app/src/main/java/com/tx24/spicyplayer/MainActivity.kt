@@ -587,7 +587,8 @@ private fun LyricsApp(
     // Awake while the music plays, so the lyrics can be followed without touching the phone.
     // The always-on display needs the same: its dim lyrics stay up while the music plays.
     val view = LocalView.current
-    val keepAwake = (settings.keepScreenOn || (settings.ambientAsAod && settings.ambientMode)) && state.isPlaying
+    // As the always-on display it stays up whatever plays, paused or not.
+    val keepAwake = (settings.keepScreenOn && state.isPlaying) || settings.ambientAsAod
     DisposableEffect(view, keepAwake) {
         view.keepScreenOn = keepAwake
         onDispose { view.keepScreenOn = false }
@@ -805,7 +806,7 @@ private fun LyricsApp(
     // over them asks to unlock first and opens once unlocked; whatever was open when the phone
     // locked is closed before the lock screen shows it. The always-on display shows over the
     // lock screen too, so its dim lyrics are the display the power button brings back.
-    val showOverLock = settings.showOverLockScreen || (settings.ambientAsAod && settings.ambientMode)
+    val showOverLock = settings.showOverLockScreen || settings.ambientAsAod
     LaunchedEffect(activity, showOverLock) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) activity?.setShowWhenLocked(showOverLock)
     }
@@ -909,7 +910,10 @@ private fun LyricsApp(
     // lyrics on it. Any touch or key brings it back (and does nothing else). Over the big cover in
     // portrait too: the cover fades with the header, leaving only the docked song, and comes back as it was.
     var ambient by remember { mutableStateOf(false) }
-    val ambientAllowed = settings.ambientMode && state.isPlaying && !inPip && !overlayOpen && !(headerExpanded && landscape)
+    // The always-on display dims on its own, with or without ambient mode and whether or not
+    // the music plays; ambient mode alone dims only while it plays.
+    val ambientAllowed = (settings.ambientAsAod || (settings.ambientMode && state.isPlaying)) &&
+        !inPip && !overlayOpen && !(headerExpanded && landscape)
     LaunchedEffect(ambientAllowed, settings.ambientDelay) {
         if (!ambientAllowed) {
             ambient = false
@@ -927,7 +931,7 @@ private fun LyricsApp(
     val ambientOpaque by remember { derivedStateOf { ambientFade.value >= 1f } }
     // Never brighter than the phone already is. As the always-on display, lower still: the
     // lowest brightness, so the dim lyrics stay up without using much battery.
-    val aodOn = settings.ambientAsAod && settings.ambientMode
+    val aodOn = settings.ambientAsAod
     DisposableEffect(activity, ambient, aodOn) {
         val window = activity?.window
         if (ambient && window != null) {

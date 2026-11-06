@@ -1153,9 +1153,10 @@ internal fun DeviceContent(settings: AppSettings) {
     )
     SettingRow(
         label = "Dim After",
-        description = "How long ambient mode waits after the last touch.",
+        description = "How long ambient mode and the always-on display wait after the last touch.",
+        searchDescription = "How long ambient mode waits after the last touch.",
         icon = Icons.Rounded.Timer,
-        enabled = settings.ambientMode,
+        enabled = settings.ambientMode || settings.ambientAsAod,
     ) {
         SpicySelect(
             value = settings.ambientDelay.name,
@@ -1168,10 +1169,9 @@ internal fun DeviceContent(settings: AppSettings) {
         label = "Always-on display",
         checked = settings.ambientAsAod,
         onCheckedChange = { settings.ambientAsAod = it },
-        description = "Once dimmed, keep the lyrics on as the always-on display at the lowest brightness, instead of the screen turning off. Uses a little battery while music plays.",
-        searchDescription = "Keep the dimmed lyrics on as the always-on display at the lowest brightness.",
+        description = "Keep the lyrics on as the always-on display at the lowest brightness, playing or paused, instead of the screen turning off. Uses some battery.",
+        searchDescription = "Once dimmed, keep the lyrics on as the always-on display at the lowest brightness, instead of the screen turning off.",
         icon = Icons.Rounded.Nightlight,
-        enabled = settings.ambientMode,
     )
     SubPageCard {
         val supported = PictureInPicture.supported(LocalContext.current)

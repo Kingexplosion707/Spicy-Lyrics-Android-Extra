@@ -194,7 +194,7 @@ class AppSettings(private val prefs: SharedPreferences) {
     var ambientMode by boolean("ambientMode", false)
     /** How long the lyrics screen waits after the last touch before [ambientMode] dims it. */
     var ambientDelay by enum("ambientDelay", AmbientDelay.Default)
-    /** Ambient mode as the always-on display: once dimmed, the lyrics stay on at the lowest brightness instead of the screen turning off. */
+    /** The lyrics screen as the always-on display: it stays on over the lock screen and dims to the lyrics at the lowest brightness, with or without [ambientMode], playing or paused. */
     var ambientAsAod by boolean("ambientAsAod", false)
     /** Which of the phone's bars stay on screen. */
     var systemBars by enum("systemBars", SystemBarsMode.HideBoth)
