@@ -75,6 +75,7 @@ internal object StatusBarClock {
      */
     suspend fun grantWithShizuku(context: Context): Grant {
         if (canWrite(context)) return Grant.Ok
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.N) return Grant.NotRunning
         val running = runCatching { Shizuku.pingBinder() }.getOrDefault(false)
         if (!running) return Grant.NotRunning
         if (runCatching { Shizuku.isPreV11() }.getOrDefault(true)) return Grant.Failed
