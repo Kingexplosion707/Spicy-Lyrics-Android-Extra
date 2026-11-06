@@ -21,6 +21,7 @@ import androidx.core.content.ContextCompat
 import com.tx24.spicyplayer.LyricsActivity
 import com.tx24.spicyplayer.R
 import com.tx24.spicyplayer.playback.LiveLyrics
+import com.tx24.spicyplayer.wallpaper.WallpaperPresence
 
 /**
  * Keeps the lyrics overlay ([LyricsOverlayWindow]) floating over other apps while music plays:
@@ -41,6 +42,8 @@ class LyricsOverlayService : Service() {
     private var hiddenFor: String? = null
     private var pausedLongEnough = false
     private var shownInNotification: Boolean? = null
+
+    private val wallpaperListener: (Boolean) -> Unit = { update() }
 
     private val pauseTimeout = Runnable {
         pausedLongEnough = true
@@ -80,6 +83,7 @@ class LyricsOverlayService : Service() {
         }
         prefs.registerOnSharedPreferenceChangeListener(prefsListener)
         (application as Application).registerActivityLifecycleCallbacks(activityCallbacks)
+        WallpaperPresence.addListener(wallpaperListener)
         live.start()
     }
 
@@ -116,6 +120,7 @@ class LyricsOverlayService : Service() {
         main.removeCallbacks(pauseTimeout)
         prefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
         (application as Application).unregisterActivityLifecycleCallbacks(activityCallbacks)
+        WallpaperPresence.removeListener(wallpaperListener)
         window.hide()
         StatusBarClock.restore(this)
         live.stop()
@@ -139,7 +144,9 @@ class LyricsOverlayService : Service() {
         val hideWhenPaused = prefs.getBoolean(PREF_HIDE_WHEN_PAUSED, true)
         val noLyrics = live.settled && live.lyrics?.lines.isNullOrEmpty()
         val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        val show = track != null && !lyricsResumed && !userHidden && !noLyrics &&
+        // On the home screen the live wallpaper shows the lyrics already.
+        val onWallpaper = WallpaperPresence.visible && prefs.getBoolean(PREF_HIDE_ON_WALLPAPER, true)
+        val show = track != null && !lyricsResumed && !userHidden && !noLyrics && !onWallpaper &&
             !(hideWhenPaused && !live.playing && pausedLongEnough) &&
             !(landscape && prefs.getBoolean(PREF_HIDE_IN_LANDSCAPE, false))
         if (show) {
@@ -207,6 +214,7 @@ class LyricsOverlayService : Service() {
         const val PREF_ENABLED = "overlayLyrics"
         const val PREF_HIDE_WHEN_PAUSED = "overlayHideWhenPaused"
         const val PREF_HIDE_IN_LANDSCAPE = "overlayHideInLandscape"
+        const val PREF_HIDE_ON_WALLPAPER = "overlayHideOnWallpaper"
         private const val CHANNEL_ID = "lyrics_overlay"
         private const val NOTIFICATION_ID = 4203
         private const val ACTION_STOP = "com.tx24.spicyplayer.overlay.STOP"

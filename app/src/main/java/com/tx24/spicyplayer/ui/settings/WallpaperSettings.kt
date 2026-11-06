@@ -267,6 +267,14 @@ internal fun LyricsOverlaySection(settings: AppSettings) {
             )
         }
         ToggleRow(
+            label = "Hide on the home screen",
+            checked = settings.overlayHideOnWallpaper,
+            onCheckedChange = { settings.overlayHideOnWallpaper = it },
+            description = "Steps aside while the Spicy live wallpaper is showing, since it has the lyrics already.",
+            icon = Icons.Rounded.Wallpaper,
+            enabled = settings.lyricsOverlay,
+        )
+        ToggleRow(
             label = "Hide in landscape",
             checked = settings.overlayHideInLandscape,
             onCheckedChange = { settings.overlayHideInLandscape = it },

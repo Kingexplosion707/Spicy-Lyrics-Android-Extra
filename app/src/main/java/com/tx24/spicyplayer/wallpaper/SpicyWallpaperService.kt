@@ -158,6 +158,7 @@ class SpicyWallpaperService : WallpaperService() {
         }
 
         override fun onDestroy() {
+            if (visible && !isPreview) WallpaperPresence.engineVisible(false)
             main.removeCallbacks(drawRunnable)
             releaseHost()
             releaseVisuals()
@@ -167,6 +168,7 @@ class SpicyWallpaperService : WallpaperService() {
         }
 
         override fun onVisibilityChanged(visible: Boolean) {
+            if (visible != this.visible && !isPreview) WallpaperPresence.engineVisible(visible)
             this.visible = visible
             ui.visible = visible
             host?.let {
