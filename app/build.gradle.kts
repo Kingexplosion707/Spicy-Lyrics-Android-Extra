@@ -3,6 +3,9 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+/** This release's version code; CI debug builds build on it (see androidComponents). */
+val BASE_VERSION_CODE = 31
+
 android {
     namespace = "com.tx24.spicyplayer"
     compileSdk = 37
@@ -23,7 +26,7 @@ android {
         minSdk = 23
         targetSdk = 36
         // CI debug builds count up by run: see androidComponents below.
-        versionCode = 31
+        versionCode = BASE_VERSION_CODE
         versionName = "0.19.0"
         // A publishable (sl_pk_) key, made to ship in clients: SL rate-limits it per viewer IP.
         val clientKey = localEnv("SPICY_LYRICS_CLIENT_KEY")
@@ -164,7 +167,7 @@ androidComponents {
     onVariants(selector().withBuildType("debug")) { variant ->
         val run = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: return@onVariants
         variant.outputs.forEach { output ->
-            output.versionCode.set(output.versionCode.map { it * 10_000 + run })
+            output.versionCode.set(BASE_VERSION_CODE * 10_000 + run)
         }
     }
 }
