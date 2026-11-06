@@ -37,6 +37,11 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.tx24.spicyplayer.playback.LiveLyrics
+import com.tx24.spicyplayer.network.data.spotify.LocalTrackMetadata
+import com.tx24.spicyplayer.network.data.spotify.SharedSpotify
+import com.tx24.spicyplayer.ui.nowplaying.MotionCoverVideo
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
 import com.tx24.spicyplayer.ui.settings.AppSettings
 import com.tx24.spicyplayer.wallpaper.LyricsFontSetup
 import com.tx24.spicyplayer.wallpaper.WallpaperLyrics
@@ -66,7 +71,10 @@ class AlwaysOnActivity : ComponentActivity() {
             window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        window.attributes = window.attributes.apply { screenBrightness = BRIGHTNESS }
+        val prefs = getSharedPreferences("ui", MODE_PRIVATE)
+        // As dim as asked (Settings → Device → Always-on dim), the lowest by default.
+        val brightness = prefs.getInt(PREF_BRIGHTNESS, DEFAULT_BRIGHTNESS).coerceIn(1, 100) / 100f
+        window.attributes = window.attributes.apply { screenBrightness = brightness }
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
@@ -74,8 +82,8 @@ class AlwaysOnActivity : ComponentActivity() {
         }
         live = LiveLyrics(this)
         live.start()
-        val prefs = getSharedPreferences("ui", MODE_PRIVATE)
-        setContent { AlwaysOnContent(live, AppSettings(prefs)) }
+        val canvas = prefs.getBoolean(PREF_CANVAS, false)
+        setContent { AlwaysOnContent(live, AppSettings(prefs), canvas) }
     }
 
     override fun onResume() {
@@ -104,8 +112,11 @@ class AlwaysOnActivity : ComponentActivity() {
         @Volatile var showing = false
             private set
         private var current: WeakReference<AlwaysOnActivity>? = null
-        /** The lowest brightness the screen allows. */
-        private const val BRIGHTNESS = 0.01f
+        /** The screen's brightness on it, in percent: 1 is the lowest the screen allows. */
+        const val PREF_BRIGHTNESS = "aodBrightness"
+        const val DEFAULT_BRIGHTNESS = 1
+        /** The song's Spotify Canvas behind it, blurred and darkened. */
+        const val PREF_CANVAS = "aodCanvas"
 
         fun dismissAll() {
             current?.get()?.finish()
@@ -115,8 +126,24 @@ class AlwaysOnActivity : ComponentActivity() {
 }
 
 @Composable
-private fun AlwaysOnContent(live: LiveLyrics, settings: AppSettings) {
+private fun AlwaysOnContent(live: LiveLyrics, settings: AppSettings, canvas: Boolean) {
     LyricsFontSetup(settings)
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    var canvasUrl by remember { mutableStateOf<String?>(null) }
+    val track0 = live.track
+    LaunchedEffect(canvas, track0?.key) {
+        canvasUrl = null
+        val track = track0 ?: return@LaunchedEffect
+        if (!canvas) return@LaunchedEffect
+        canvasUrl = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val meta = LocalTrackMetadata(track.title, track.artist, track.album, track.durationMs)
+                val ids = SharedSpotify.extras(context.cacheDir).trackIds(meta, track.request.spotifyTrackId)
+                ids.firstNotNullOfOrNull { SharedSpotify.canvas(context.cacheDir).find(it) }
+            }.getOrNull()
+        }
+    }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var shift by remember { mutableStateOf(IntOffset.Zero) }
     LaunchedEffect(Unit) {
@@ -134,6 +161,19 @@ private fun AlwaysOnContent(live: LiveLyrics, settings: AppSettings) {
     val timeFormat = remember { DateFormat.getTimeInstance(DateFormat.SHORT) }
     val dateFormat = remember { DateFormat.getDateInstance(DateFormat.FULL) }
     Box(Modifier.fillMaxSize().background(Color.Black)) {
+        // The Canvas, blurred and darkened under everything, drifting with the same shift.
+        canvasUrl?.let { url ->
+            val blur = with(density) { CANVAS_BLUR_PX.toDp() }
+            val bg = Modifier.fillMaxSize().offset { shift }.graphicsLayer { scaleX = 1.06f; scaleY = 1.06f }
+            MotionCoverVideo(
+                url = url,
+                visible = true,
+                onFailed = { canvasUrl = null },
+                modifier = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) bg.blur(blur, BlurredEdgeTreatment.Rectangle) else bg,
+                cropFromTop = 0.5f,
+            )
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = CANVAS_VEIL)))
+        }
         Column(
             Modifier.fillMaxSize().offset { shift }.padding(top = 72.dp, bottom = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -173,6 +213,9 @@ private fun AlwaysOnContent(live: LiveLyrics, settings: AppSettings) {
     }
 }
 
+/** The Canvas behind the always-on display: blurred, and under a heavy veil to keep it dim. */
+private const val CANVAS_BLUR_PX = 18f
+private const val CANVAS_VEIL = 0.55f
 /** How far everything wanders each minute, in px, against burn-in. */
 private const val SHIFT_PX = 18
 /** The lyrics a touch dimmer than on the lyrics screen, as an always-on display should be. */

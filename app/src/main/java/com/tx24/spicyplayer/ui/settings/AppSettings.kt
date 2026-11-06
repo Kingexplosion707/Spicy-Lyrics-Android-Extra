@@ -196,6 +196,10 @@ class AppSettings(private val prefs: SharedPreferences) {
     var ambientDelay by enum("ambientDelay", AmbientDelay.Default)
     /** The lyrics screen as the always-on display: it stays on over the lock screen and dims to the lyrics at the lowest brightness, with or without [ambientMode], playing or paused. */
     var ambientAsAod by boolean("ambientAsAod", false)
+    /** The always-on display's screen brightness, in percent (1 is the lowest the screen allows). */
+    var aodBrightness by int("aodBrightness", 1, 1..100)
+    /** The song's Canvas behind the always-on display, blurred and darkened. */
+    var aodCanvas by boolean("aodCanvas", false)
     /** Which of the phone's bars stay on screen. */
     var systemBars by enum("systemBars", SystemBarsMode.HideBoth)
     /** Leaving the app with a song playing shrinks the lyrics into a small floating window. */

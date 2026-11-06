@@ -140,6 +140,8 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Nightlight
+import androidx.compose.material.icons.rounded.BrightnessLow
+import androidx.compose.material.icons.rounded.Movie
 import androidx.compose.material.icons.rounded.CallMerge
 import androidx.compose.material.icons.rounded.RecordVoiceOver
 import androidx.compose.material.icons.rounded.Key
@@ -1178,6 +1180,28 @@ internal fun DeviceContent(settings: AppSettings) {
         description = "Keep the lyrics on as the always-on display at the lowest brightness, playing or paused, instead of the screen turning off. Uses some battery.",
         searchDescription = "Once dimmed, keep the lyrics on as the always-on display at the lowest brightness, instead of the screen turning off.",
         icon = Icons.Rounded.Nightlight,
+    )
+    SettingRow(
+        label = "Always-on dim",
+        description = "How bright the always-on display is. Brighter reads better in daylight and uses more battery.",
+        icon = Icons.Rounded.BrightnessLow,
+        enabled = settings.ambientAsAod,
+    ) {
+        val levels = listOf(1 to "Dimmest", 5 to "Dim", 12 to "Medium", 25 to "Bright", 45 to "Brightest")
+        SpicySelect(
+            value = (levels.minByOrNull { kotlin.math.abs(it.first - settings.aodBrightness) } ?: levels.first()).first.toString(),
+            options = levels.map { it.first.toString() },
+            labels = levels.map { it.second },
+            onChange = { settings.aodBrightness = it.toInt() },
+        )
+    }
+    ToggleRow(
+        label = "Canvas on always-on",
+        checked = settings.aodCanvas,
+        onCheckedChange = { settings.aodCanvas = it },
+        description = "The song's Spotify Canvas moves behind the always-on lyrics, blurred and darkened. Uses more battery.",
+        icon = Icons.Rounded.Movie,
+        enabled = settings.ambientAsAod,
     )
     SubPageCard {
         val supported = PictureInPicture.supported(LocalContext.current)
