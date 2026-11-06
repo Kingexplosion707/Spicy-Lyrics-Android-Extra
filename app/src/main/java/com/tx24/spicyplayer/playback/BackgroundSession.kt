@@ -63,6 +63,16 @@ internal class BackgroundSession(context: Context) {
 
     val playerPackage: String? get() = controller?.packageName
 
+    /** Play or pause the followed player. */
+    fun playPause() {
+        val session = controller ?: return
+        val controls = session.transportControls
+        if (session.playbackState?.state == android.media.session.PlaybackState.STATE_PLAYING) controls.pause() else controls.play()
+    }
+
+    fun skipNext() { controller?.transportControls?.skipToNext() }
+    fun skipPrevious() { controller?.transportControls?.skipToPrevious() }
+
     /** The player's position, held back by every delay, as the lyrics screen reads it. */
     fun positionMs(): Long {
         val now = SystemClock.elapsedRealtime()

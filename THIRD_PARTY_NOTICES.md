@@ -1,11 +1,12 @@
 # Third-party notices
 
-Spicy Lyrics Mobile is licensed under the [GNU Affero General Public License, version 3](LICENSE). It adapts code and data from the projects below and bundles the fonts listed at the end. Each keeps its own license and copyright.
+Spicy Lyrics Plus is licensed under the [GNU Affero General Public License, version 3](LICENSE). It is a modified version of Spicy Lyrics Mobile (changes listed in [CHANGES.md](CHANGES.md)), adapts code and data from the projects below, and bundles the fonts listed at the end. Each keeps its own license and copyright.
 
 ## Adapted code
 
-| Project | What Spicy Lyrics Mobile adapts | License |
+| Project | What Spicy Lyrics Plus adapts | License |
 | --- | --- | --- |
+| [Spicy Lyrics Mobile](https://github.com/spicylyrics/mobile) by TheX24 and contributors | The whole app this fork is built on | AGPL-3.0 |
 | [Spicy Lyrics](https://github.com/Spikerko/spicy-lyrics) by Spikerko and contributors | The lyrics renderer: layout, word and line animation, scrolling, interludes, the song header, controls and settings styling, TTML parsing and romanization rules, and SLObjPack (the API's lyrics encoding, Kotlin port by Spikerko) | AGPL-3.0 |
 | [Spicy Lyrics fork](https://github.com/iPixelGalaxy/spicy-lyrics) by iPixelGalaxy | Settings layout, source cards, the legacy background and pop-up styling | AGPL-3.0 |
 | [mild-lyrics](https://github.com/gcoolL/mild-lyrics) by gcoolL | Source fetching order, lyric blends and Genius romanization alignment | N/A |
@@ -20,10 +21,11 @@ Spicy Lyrics Mobile is licensed under the [GNU Affero General Public License, ve
 | [am-lyrics](https://github.com/binimum/am-lyrics) by binimum | The Apple Music style's line fades, blur, soft wipe edge and staggered scroll | MPL-2.0 |
 | [YouLy+](https://github.com/ibratabian17/YouLyPlus), Copyright (c) 2025 Ibra Al Tabian | The Apple Music style's line fades and blur | MIT |
 | [accompanist-lyrics-ui](https://github.com/6xingyv/accompanist-lyrics-ui) by 6xingyv | The Apple Music style's interlude dots | Apache-2.0 |
+| [AirLyrics](https://github.com/AirLyrics/AirLyrics), Copyright (c) 2026 AndSi-327 | The lyrics overlay's window: dragging, locking, touches passing through, keeping its place as a share of the screen, hiding when paused, and its notification controls | MIT |
 
 ## Libraries
 
-Kuromoji (Apache-2.0), OkHttp and Retrofit (Apache-2.0), Gson (Apache-2.0), Coil (Apache-2.0), Haze (Apache-2.0), Timber (Apache-2.0), Kotlin and kotlinx.coroutines (Apache-2.0) AndroidX (Apache-2.0) and ML Kit GenAI (Google's ML Kit terms) are used as dependencies under their own licenses.
+Kuromoji (Apache-2.0), OkHttp and Retrofit (Apache-2.0), Gson (Apache-2.0), Coil (Apache-2.0), Haze (Apache-2.0), Timber (Apache-2.0), Kotlin and kotlinx.coroutines (Apache-2.0), Shizuku API (Apache-2.0), AndroidX (Apache-2.0) and ML Kit GenAI (Google's ML Kit terms) are used as dependencies under their own licenses.
 
 ## Fonts
 

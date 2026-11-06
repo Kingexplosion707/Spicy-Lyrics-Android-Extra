@@ -2,15 +2,15 @@
 
 ## Report a vulnerability privately
 
-Use [GitHub private vulnerability reporting](https://github.com/spicylyrics/mobile/security/advisories/new). Don't publish exploit details in a public issue or Discord thread.
+Use [GitHub private vulnerability reporting](https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/security/advisories/new). Don't publish exploit details in a public issue.
 
-Include the affected version, steps to reproduce, expected impact, and any minimal proof of concept. Remove real credentials and other people's data. For ordinary bugs and feature ideas, use [GitHub Issues](https://github.com/spicylyrics/mobile/issues/new/choose).
+Include the affected version, steps to reproduce, expected impact, and any minimal proof of concept. Remove real credentials and other people's data. For ordinary bugs and feature ideas, use [GitHub Issues](https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/issues/new/choose).
 
-Spicy Lyrics Mobile is in early development. Reports should identify whether the problem also affects the latest prerelease; older builds may remain vulnerable until updated. There is no guaranteed response or fix timeline.
+Spicy Lyrics Plus is a fork of Spicy Lyrics Mobile and in early development. A problem that also affects the official app should be reported to [it](https://github.com/spicylyrics/mobile/security) too. Reports should identify whether the problem also affects the latest prerelease; older builds may remain vulnerable until updated. There is no guaranteed response or fix timeline.
 
 ## Scope and security expectations
 
-This repository contains the Android app and its build/release workflows. The app reads Android media sessions after the user grants notification access, fetches lyrics and metadata from external services, accepts imported lyrics and settings, and downloads app updates. External media metadata, network responses, and imported files are untrusted inputs.
+This repository contains the Android app and its build/release workflows. The app reads Android media sessions after the user grants notification access, can draw over other apps and show over the lock screen when the user allows it, can hide the status bar clock through a Shizuku-granted permission, fetches lyrics and metadata from external services, accepts imported lyrics and settings, and downloads app updates. External media metadata, network responses, and imported files are untrusted inputs.
 
 - Untrusted input must not enable arbitrary code execution, access to unrelated private data, or unintended file writes.
 - Notification access must remain under Android's permission controls.

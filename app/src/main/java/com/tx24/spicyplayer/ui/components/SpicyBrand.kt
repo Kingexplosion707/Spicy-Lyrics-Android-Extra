@@ -99,7 +99,7 @@ fun DrawScope.drawBrandMark(
 fun SpicyBrandLine(modifier: Modifier = Modifier) {
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(ImageVector.vectorResource(R.drawable.app_glyph), null, Modifier.size(16.dp), tint = SpicyColors.TextSecondary)
-        Text("Spicy Lyrics Mobile", style = SpicyType.Caption.copy(fontSize = 13.12.sp, fontWeight = FontWeight.SemiBold, color = SpicyColors.TextSecondary))
+        Text("Spicy Lyrics Plus", style = SpicyType.Caption.copy(fontSize = 13.12.sp, fontWeight = FontWeight.SemiBold, color = SpicyColors.TextSecondary))
     }
 }
 

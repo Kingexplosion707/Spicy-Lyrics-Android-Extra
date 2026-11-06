@@ -1,18 +1,18 @@
 # Contributing
 
-Bug reports, feature ideas, documentation fixes, and code contributions are welcome. Spicy Lyrics Mobile is in early development, so discuss substantial changes before spending days building them.
+Bug reports, feature ideas, documentation fixes, and code contributions are welcome. Spicy Lyrics Plus is a fork of [Spicy Lyrics Mobile](https://github.com/spicylyrics/mobile); discuss substantial changes in an issue before spending days building them.
+
+A problem that also happens in the official Spicy Lyrics Mobile, and isn't in a Plus feature (wallpaper, overlay, always-on display, haptics, lyrics notification), is best reported to the original project too, so everyone gets the fix.
 
 ## Bugs and ideas
 
-Search [existing issues](https://github.com/spicylyrics/mobile/issues) first, then [report a bug or suggest a feature](https://github.com/spicylyrics/mobile/issues/new/choose). You don't need to write code to help.
+Search [existing issues](https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/issues) first, then [report a bug or suggest a feature](https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/issues/new/choose). You don't need to write code to help.
 
-For bugs, include the app version from Settings, phone and Android version, music app, what happened, and steps to reproduce it. For lyrics problems, a song link helps. "Report a bug" in the app's Settings fills in your versions and debug info for you; on Discord, use Copy in Settings → Advanced → Debug info. Screenshots or short recordings are useful, but optional. Remove keys, account details, and private information before sharing diagnostics.
+For bugs, include the app version from Settings, phone and Android version, music app, what happened, and steps to reproduce it. For lyrics problems, a song link helps. "Report a bug" in the app's Settings fills in your versions and debug info for you; you can also use Copy in Settings → Advanced → Debug info. Screenshots or short recordings are useful, but optional. Remove keys, account details, and private information before sharing diagnostics.
 
 For ideas, explain what you want to do and how the change would help. A concrete example beats a giant specification.
 
-You can also report bugs and discuss ideas in the [#mobile-support](https://discord.com/channels/1369992682214264993/1558259688741543967) forum on the [Spicy Lyrics Discord](https://discord.com/invite/uqgXU5wh8j), one post per problem. Join the server first; the channel link only opens for members. Use the same details there; avoid posting the same report in both places unless you link them.
-
-Security vulnerabilities go through [private reporting](SECURITY.md), rather than public issues or Discord.
+Security vulnerabilities go through [private reporting](SECURITY.md), rather than public issues.
 
 ## Code and documentation
 

@@ -66,7 +66,12 @@ class NetEaseLyricsProvider @Inject constructor(private val client: OkHttpClient
             (CatalogueTitles.sameTitle(name, request.title) || CatalogueTitles.sameReading(name, request.title)) &&
                 CatalogueTitles.sameArtist(artists, request.artist, name, request.title, duration.toInt(), request.durationSeconds) &&
                 request.lengthMatches(duration.toInt())
-        }.take(TRIES)
+        }
+            // The copies closest in length first (search order breaks ties): another edit or
+            // version of a song within the length tolerance has the same words at other times.
+            // Still TRIES lyric requests, as before.
+            .sortedBy { item -> lengthGap(item, request) }
+            .take(TRIES)
         if (songs.isEmpty()) return ProviderResult.Miss
         // Word timing belongs to a release, not a song, and the search's favourite is often an
         // untimed or credits-only copy: take the first word-timed candidate, else the first with
@@ -93,6 +98,12 @@ class NetEaseLyricsProvider @Inject constructor(private val client: OkHttpClient
                 .takeIf { it.isNotEmpty() }?.joinToString("\n")
         }
         return if (plain != null) ProviderResult.Hit(RemoteLyricsPayload(plainLyrics = plain)) else ProviderResult.Miss
+    }
+
+    /** How far [item]'s length is from the request's, in seconds; 0 when either is unknown. */
+    private fun lengthGap(item: JsonObject, request: LyricsLookupRequest): Int {
+        val duration = ((item.get("dt") ?: item.get("duration"))?.asLong?.div(1000) ?: 0L).toInt()
+        return if (duration <= 0 || request.durationSeconds <= 0) 0 else kotlin.math.abs(duration - request.durationSeconds)
     }
 
     private suspend fun lyrics(id: String): JsonObject = getJson("$BASE/song/lyric".toHttpUrl().newBuilder()

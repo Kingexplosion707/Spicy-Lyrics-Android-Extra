@@ -3,6 +3,7 @@ package com.tx24.spicyplayer.haptics
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import java.util.concurrent.locks.LockSupport
 
 /** Vibrate this much ahead of the beat: the motor takes about as long to spin up. */
 private const val LEAD_MS = 15L
@@ -12,6 +13,8 @@ private const val LATE_MS = 40L
 private const val STEP_MS = 200L
 /** Continuous rumble: a low burst this often, as in HapticBeat. */
 private const val CONTINUOUS_MS = 150L
+/** Waits this short are slept precisely, not on the coroutine timer. */
+private const val FINE_MS = 6L
 
 /**
  * Plays the song's [score] against the lyric clock ([positionMs]) until cancelled: waits for each
@@ -48,9 +51,32 @@ suspend fun playMusicHaptics(
         if (event == null) { delay(STEP_MS); continue }
         val wait = event.atMs - now
         if (wait > STEP_MS / 4) { delay(minOf(wait - 10, STEP_MS)); continue }
-        if (wait > 0) delay(wait)
-        player.play(event.pulse, (event.strength * strength()).coerceAtMost(1f), event.roomMs)
+        // The last stretch: the clock is read again as it closes in, so a correction that came in
+        // meanwhile counts, and the final few ms are slept precisely rather than on the
+        // dispatcher's coarser timer, which can overshoot by several ms.
+        if (!closeIn(event.atMs, positionMs)) continue
+        player.play(event.pulse, (event.strength * strength()).coerceAtMost(1f), event.roomMs, event.sharpness)
         lastAt = event.atMs
+    }
+}
+
+/**
+ * Waits until the clock ([positionMs] plus the motor's lead) reaches [atMs]. False when the clock
+ * moved away (a seek) and the pulse should be looked up again.
+ */
+private suspend fun closeIn(atMs: Long, positionMs: () -> Long): Boolean {
+    while (true) {
+        val remaining = atMs - (positionMs() + LEAD_MS)
+        when {
+            remaining < -LATE_MS -> return false
+            remaining <= 0L -> return true
+            remaining > STEP_MS / 2 -> return false
+            remaining > FINE_MS -> delay(remaining - FINE_MS / 2)
+            else -> {
+                LockSupport.parkNanos(remaining * 1_000_000L)
+                return true
+            }
+        }
     }
 }
 

@@ -40,6 +40,7 @@ import com.tx24.spicyplayer.haptics.HapticBeatOptions
 import com.tx24.spicyplayer.haptics.HapticPlayer
 import com.tx24.spicyplayer.haptics.ProvideTouchHaptics
 import com.tx24.spicyplayer.haptics.playMusicHaptics
+import com.tx24.spicyplayer.haptics.LyricHapticTimes
 import com.tx24.spicyplayer.ui.components.SpicyButton
 import com.tx24.spicyplayer.ui.components.SpicyButtonStyle
 import com.tx24.spicyplayer.ui.components.SpicyModal
@@ -586,7 +587,8 @@ private fun LyricsApp(
     // Awake while the music plays, so the lyrics can be followed without touching the phone.
     // The always-on display needs the same: its dim lyrics stay up while the music plays.
     val view = LocalView.current
-    val keepAwake = (settings.keepScreenOn || (settings.ambientAsAod && settings.ambientMode)) && state.isPlaying
+    // As the always-on display it stays up whatever plays, paused or not.
+    val keepAwake = (settings.keepScreenOn && state.isPlaying) || settings.ambientAsAod
     DisposableEffect(view, keepAwake) {
         view.keepScreenOn = keepAwake
         onDispose { view.keepScreenOn = false }
@@ -804,7 +806,7 @@ private fun LyricsApp(
     // over them asks to unlock first and opens once unlocked; whatever was open when the phone
     // locked is closed before the lock screen shows it. The always-on display shows over the
     // lock screen too, so its dim lyrics are the display the power button brings back.
-    val showOverLock = settings.showOverLockScreen || (settings.ambientAsAod && settings.ambientMode)
+    val showOverLock = settings.showOverLockScreen || settings.ambientAsAod
     LaunchedEffect(activity, showOverLock) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) activity?.setShowWhenLocked(showOverLock)
     }
@@ -908,7 +910,10 @@ private fun LyricsApp(
     // lyrics on it. Any touch or key brings it back (and does nothing else). Over the big cover in
     // portrait too: the cover fades with the header, leaving only the docked song, and comes back as it was.
     var ambient by remember { mutableStateOf(false) }
-    val ambientAllowed = settings.ambientMode && state.isPlaying && !inPip && !overlayOpen && !(headerExpanded && landscape)
+    // The always-on display dims on its own, with or without ambient mode and whether or not
+    // the music plays; ambient mode alone dims only while it plays.
+    val ambientAllowed = (settings.ambientAsAod || (settings.ambientMode && state.isPlaying)) &&
+        !inPip && !overlayOpen && !(headerExpanded && landscape)
     LaunchedEffect(ambientAllowed, settings.ambientDelay) {
         if (!ambientAllowed) {
             ambient = false
@@ -926,7 +931,7 @@ private fun LyricsApp(
     val ambientOpaque by remember { derivedStateOf { ambientFade.value >= 1f } }
     // Never brighter than the phone already is. As the always-on display, lower still: the
     // lowest brightness, so the dim lyrics stay up without using much battery.
-    val aodOn = settings.ambientAsAod && settings.ambientMode
+    val aodOn = settings.ambientAsAod
     DisposableEffect(activity, ambient, aodOn) {
         val window = activity?.window
         if (ambient && window != null) {
@@ -977,10 +982,10 @@ private fun LyricsApp(
             playMusicHaptics(
                 hapticPlayer,
                 score = {
-                    val ready = state.lyrics as? LyricsState.Ready
-                    val words = ready?.lines?.flatMap { line -> line.words }?.map { it.startMs }.orEmpty()
-                    val lines = ready?.lines?.map { it.startMs }.orEmpty()
-                    viewModel.musicHaptics(settings.musicHapticsStyle, beatOptions, words, lines)
+                    // Sung words and lead lines only, whole-timed lines laid out word by word;
+                    // built once per lyrics object, not before every pulse.
+                    val times = LyricHapticTimes.of(state.lyrics as? LyricsState.Ready)
+                    viewModel.musicHaptics(settings.musicHapticsStyle, beatOptions, times.wordTimes, times.lineTimes, times.wordsEstimated)
                 },
                 positionMs = { viewModel.currentLyricPositionMs() + settings.hapticBeatRemoteOffset },
                 strength = { settings.musicHapticsStrength / 100f },
@@ -992,6 +997,9 @@ private fun LyricsApp(
     // rests while this screen is up, and stops when either haptics switch is off.
     LaunchedEffect(settings.musicHaptics, settings.backgroundMusicHaptics) {
         BackgroundHapticsService.sync(context)
+        com.tx24.spicyplayer.playback.LyricsNotificationService.sync(context)
+        com.tx24.spicyplayer.overlay.LyricsOverlayService.sync(context)
+        com.tx24.spicyplayer.aod.AlwaysOnService.sync(context)
     }
     LaunchedEffect(Unit) { updater.checkOnLaunch(settings.includePrereleases) }
     val update by updater.state.collectAsState()
@@ -2002,7 +2010,7 @@ private fun ScrollToActiveButton(
 private fun NotificationAccessMessage(openNotificationAccess: () -> Unit) {
     SpicyModalMessage(
         title = "Allow notification access",
-        description = "Spicy Lyrics Mobile reads the song playing in your music app, and controls it, through its media " +
+        description = "Spicy Lyrics Plus reads the song playing in your music app, and controls it, through its media " +
             "notification. Android files that under notification access. You can turn it off again in system settings.",
         icon = {
             Icon(Icons.Rounded.NotificationsActive, null, Modifier.size(24.dp), tint = SpicyColors.TextPrimary)
@@ -2017,7 +2025,7 @@ private fun NotificationAccessMessage(openNotificationAccess: () -> Unit) {
 private fun UsageStatsMessage(onAnswer: (keepOn: Boolean) -> Unit) {
     SpicyModalMessage(
         title = "Anonymous usage stats",
-        description = "Spicy Lyrics Mobile sends a small anonymous report a few times a day: the app and Android version, " +
+        description = "Spicy Lyrics Plus sends a small anonymous report a few times a day: the app and Android version, " +
             "your phone model and country, and which features you use. Never what you listen to. It shows what's " +
             "worth working on. You can change this in Settings → Advanced.",
         icon = { Icon(Icons.Rounded.Insights, null, Modifier.size(24.dp), tint = SpicyColors.TextPrimary) },

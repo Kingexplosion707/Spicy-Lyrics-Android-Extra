@@ -56,6 +56,13 @@ class LrclibFallbackSelectionTest {
         assertEquals(true, busy(emptyList()).fetch(request) is ProviderResult.Queued)
     }
 
+    @Test fun theSameRecordingBeatsTheSameAlbumFurtherOff() {
+        val request = LyricsLookupRequest("Creepy Nuts", "Bling-Bang-Bang-Born", "LEGION", 169)
+        val albumEdit = entry("Bling-Bang-Bang-Born", "Creepy Nuts", "LEGION", 176.0)
+        val sameLength = entry("Bling-Bang-Bang-Born", "Creepy Nuts", "Single", 170.0)
+        assertEquals(sameLength, source.chooseSearchResult(request, listOf(albumEdit, sameLength)))
+    }
+
     private fun entry(title: String, artist: String, album: String, duration: Double) =
         LrclibSearchEntry(title, artist, album, duration, "We're no strangers to love\nYou know the rules and so do I\nA full commitment's what I'm thinking of", null)
 }

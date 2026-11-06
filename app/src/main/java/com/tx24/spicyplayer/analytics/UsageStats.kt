@@ -38,7 +38,8 @@ object UsageStats {
     private const val ENDPOINT = "https://umami.tx24.dev/api/send"
 
     /** Whether the notice and setting show: any build with a website id, so debug builds can test them. */
-    val available: Boolean get() = BuildConfig.UMAMI_WEBSITE_ID.isNotBlank()
+    // Off in Spicy Lyrics Plus (USAGE_STATS is false in every build): nothing is asked or sent.
+    val available: Boolean get() = BuildConfig.USAGE_STATS && BuildConfig.UMAMI_WEBSITE_ID.isNotBlank()
 
     /** Whether this build actually sends: release builds only. */
     private val sends: Boolean get() = available && BuildConfig.USAGE_STATS

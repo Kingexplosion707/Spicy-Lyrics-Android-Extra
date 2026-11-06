@@ -24,12 +24,14 @@ import androidx.media3.common.util.UnstableApi
 import com.tx24.spicyplayer.lyrics.LyricsState
 import com.tx24.spicyplayer.lyrics.TimedLine
 import com.tx24.spicyplayer.lyrics.TimedWord
+import com.tx24.spicyplayer.lyrics.WordTiming
 import com.tx24.spicyplayer.lyrics.spicy.canvas.StackBlur
 import com.tx24.spicyplayer.lyrics.spicy.models.LineRole
 import com.tx24.spicyplayer.lyrics.spicy.models.LyricsType
 import com.tx24.spicyplayer.network.data.spotify.LocalTrackMetadata
 import com.tx24.spicyplayer.network.data.spotify.SharedSpotify
 import com.tx24.spicyplayer.playback.BackgroundSession
+import com.tx24.spicyplayer.playback.BackgroundTranslation
 import com.tx24.spicyplayer.ui.nowplaying.MotionCoverStream
 import com.tx24.spicyplayer.ui.nowplaying.MotionCovers
 import com.tx24.spicyplayer.ui.nowplaying.leadArtist
@@ -55,6 +57,11 @@ import kotlin.math.sin
  *
  * The picture moves only while the home screen is visible and the music plays; paused, it holds
  * its frame. Drawing rests with the screen off or the home screen hidden.
+ *
+ * It is drawn with Compose ([WallpaperHost], [WallpaperContent]): the lyrics by the lyrics
+ * screen's own renderer, with the style, size, font and effects chosen in the app, and the loops
+ * in the app's own video views at their full frame rate, blurred on the GPU. The frame drawn by
+ * hand here is the fallback for a phone that can't host Compose on a wallpaper.
  */
 
 /** A Canvas lookup's answer, with the IDs it was asked under. */
@@ -71,6 +78,7 @@ class SpicyWallpaperService : WallpaperService() {
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
         private val session = BackgroundSession(app)
         private val lookup = BackgroundLyrics(app)
+        private val translations = BackgroundTranslation(app)
         private val prefs = app.getSharedPreferences("ui", Context.MODE_PRIVATE)
         private var visible = false
         private var surfaceWidth = 0
@@ -104,15 +112,42 @@ class SpicyWallpaperService : WallpaperService() {
         private var xOffset = 0.5f
         private var gradient: LinearGradient? = null
         private var gradientHeight = 0
+        /**
+         * What the Compose wallpaper shows ([WallpaperContent]), and the host drawing it into the
+         * surface. While the host is up it draws everything, smoothly, with the app's own lyrics
+         * renderer and video views; the hand-drawn frame below is only the fallback for a phone
+         * that can't host it.
+         */
+        private val ui = WallpaperUi()
+        private var host: WallpaperHost? = null
 
         private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.LEFT }
         private val veilPaint = Paint()
         private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         private val coverPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
 
+        /**
+         * When the next word starts, in song ms (set by each draw of the lyrics), so the next draw
+         * can land on it instead of up to [DRAW_INTERVAL_MS] after it.
+         */
+        private var nextWordAtMs = Long.MAX_VALUE
+        /**
+         * The redraw step while a word is being wiped (set by each draw): a quarter of the word,
+         * so a short word fills in a few steps instead of jumping, never under [MIN_WIPE_STEP_MS].
+         */
+        private var wipeStepMs = DRAW_INTERVAL_MS
+
         private val drawRunnable: Runnable = Runnable {
+            nextWordAtMs = Long.MAX_VALUE
+            wipeStepMs = DRAW_INTERVAL_MS
             drawFrame()
-            if (visible && session.isPlaying) main.postDelayed(drawRunnable, DRAW_INTERVAL_MS)
+            if (visible && session.isPlaying) main.postDelayed(drawRunnable, nextDrawDelayMs())
+        }
+
+        /** The usual redraw interval, cut short so a word starting sooner lights on time. */
+        private fun nextDrawDelayMs(): Long {
+            val untilWord = nextWordAtMs - session.positionMs()
+            return minOf(untilWord, wipeStepMs).coerceIn(MIN_DRAW_INTERVAL_MS, DRAW_INTERVAL_MS)
         }
 
         override fun onCreate(holder: SurfaceHolder) {
@@ -123,7 +158,9 @@ class SpicyWallpaperService : WallpaperService() {
         }
 
         override fun onDestroy() {
+            if (visible && !isPreview) WallpaperPresence.engineVisible(false)
             main.removeCallbacks(drawRunnable)
+            releaseHost()
             releaseVisuals()
             session.stop()
             scope.cancel()
@@ -131,7 +168,13 @@ class SpicyWallpaperService : WallpaperService() {
         }
 
         override fun onVisibilityChanged(visible: Boolean) {
+            if (visible != this.visible && !isPreview) WallpaperPresence.engineVisible(visible)
             this.visible = visible
+            ui.visible = visible
+            host?.let {
+                it.setActive(visible && session.isPlaying)
+                return
+            }
             if (visible) {
                 setStreamsOnScreen(session.isPlaying)
                 requestDraw()
@@ -152,11 +195,13 @@ class SpicyWallpaperService : WallpaperService() {
             surfaceWidth = width
             surfaceHeight = height
             gradient = null
+            host?.resize(width, height) ?: createHost(holder, width, height)
             requestDraw()
         }
 
         override fun onSurfaceDestroyed(holder: SurfaceHolder) {
             main.removeCallbacks(drawRunnable)
+            releaseHost()
             setStreamsOnScreen(false)
             super.onSurfaceDestroyed(holder)
         }
@@ -167,16 +212,24 @@ class SpicyWallpaperService : WallpaperService() {
         ) {
             // The home screen sliding between pages: the picture drifts with it.
             this.xOffset = xOffset
+            ui.xOffset = xOffset
             requestDraw()
         }
 
         /** A new song (or its cover): new lyrics and new loops, the old ones dropped. */
         private fun onTrack(track: BackgroundSession.Track?) {
             val newKey = track?.key
+            ui.track = track
+            ui.cover = track?.cover
             if (newKey != currentKey) {
                 currentKey = newKey
                 lyrics = null
                 lyricsNotice = null
+                ui.lyrics = null
+                ui.translation = null
+                ui.notice = null
+                ui.canvasUrl = null
+                ui.appleUrl = null
                 releaseVisuals()
                 blurredBg = null
                 cover = track?.cover
@@ -193,6 +246,8 @@ class SpicyWallpaperService : WallpaperService() {
         }
 
         private fun onPlayingChanged(playing: Boolean) {
+            ui.playing = playing
+            host?.setActive(visible && playing)
             setStreamsOnScreen(visible && playing)
             // Paused, one frozen frame is drawn; playing, the draw loop restarts.
             requestDraw()
@@ -200,13 +255,19 @@ class SpicyWallpaperService : WallpaperService() {
 
         private fun lookupLyrics(track: BackgroundSession.Track) {
             scope.launch {
+                // Romanized on the device when the app romanizes, as the lyrics screen does.
+                val romanize = prefs.getBoolean("romanize", false)
                 val result = withContext(Dispatchers.IO) {
-                    runCatching { lookup.lookUp(track.request, romanize = false, track.spotifyId) }.getOrNull()
+                    runCatching { lookup.lookUp(track.request, romanize = romanize, track.spotifyId) }.getOrNull()
                 }
                 if (currentKey != track.key) return@launch
                 when (result) {
                     is BackgroundLyrics.Result.Found -> {
-                        lyrics = result.lyrics
+                        // Lines timed only as a whole (LRC) get their words laid out one after
+                        // another, so each word lights as it is sung, not all at once over the
+                        // whole span to the next line. The words and their text are unchanged.
+                        val found = result.lyrics
+                        lyrics = found.copy(lines = WordTiming.spread(found.lines, found.lyricsType))
                         lyricsNotice = null
                     }
                     BackgroundLyrics.Result.None -> {
@@ -218,7 +279,21 @@ class SpicyWallpaperService : WallpaperService() {
                         lyricsNotice = LOOKUP_FAILED
                     }
                 }
+                // The Compose wallpaper draws them as the lyrics screen does, timings as they came.
+                ui.lyrics = (result as? BackgroundLyrics.Result.Found)?.lyrics
+                ui.translation = null
+                ui.notice = lyricsNotice
                 requestDraw()
+                // Translated as the lyrics screen would (Translate automatically), from its cache
+                // when it has translated the song already.
+                if (result is BackgroundLyrics.Result.Found) {
+                    val translated = withContext(Dispatchers.IO) {
+                        translations.translate(result.lyrics, track.title, track.artist, result.sourceId) { target ->
+                            runCatching { lookup.humanTranslation(track.title, track.artist, target) }.getOrNull()
+                        }
+                    }
+                    if (currentKey == track.key && ui.lyrics === result.lyrics) ui.translation = translated
+                }
             }
         }
 
@@ -290,6 +365,10 @@ class SpicyWallpaperService : WallpaperService() {
          * still cover is. A loop that fails to play drops to the next layer down.
          */
         private fun attachVisuals(canvasUrl: String?, appleUrl: String?) {
+            ui.canvasUrl = canvasUrl
+            ui.appleUrl = appleUrl
+            // The Compose wallpaper plays them in its own views, at the video's frame rate.
+            if (host != null) return
             releaseVisuals()
             val bgUrl = canvasUrl ?: appleUrl
             if (bgUrl != null) attachStream(bgUrl, isBackground = true)
@@ -400,8 +479,55 @@ class SpicyWallpaperService : WallpaperService() {
             releaseStream(isBackground = false)
         }
 
+        /**
+         * Puts the Compose wallpaper on [holder]'s surface. Should the phone refuse it, the
+         * hand-drawn frame carries on, with its sampled loops.
+         */
+        private fun createHost(holder: SurfaceHolder, width: Int, height: Int) {
+            if (width <= 0 || height <= 0) return
+            val created = runCatching {
+                WallpaperHost(app, holder.surface, width, height, app.resources.displayMetrics.densityDpi) {
+                    WallpaperContent(
+                        ui = ui,
+                        prefs = prefs,
+                        positionMs = session::positionMs,
+                        onBackgroundFailed = ::backgroundFailed,
+                        onCoverFailed = ::coverFailed,
+                    )
+                }
+            }.onFailure { android.util.Log.w(TAG, "No Compose host for the wallpaper; drawing by hand", it) }.getOrNull()
+            if (created == null) {
+                if (bgStream == null && coverStream == null && (ui.canvasUrl != null || ui.appleUrl != null)) {
+                    attachVisuals(ui.canvasUrl, ui.appleUrl)
+                }
+                return
+            }
+            main.removeCallbacks(drawRunnable)
+            // Its own views play the loops now: the sampled copies go.
+            releaseVisuals()
+            host = created
+            ui.playing = session.isPlaying
+            ui.visible = visible
+            created.setActive(visible && session.isPlaying)
+        }
+
+        private fun releaseHost() {
+            host?.release()
+            host = null
+        }
+
+        /** The background loop won't play: the next layer down shows. */
+        private fun backgroundFailed(url: String) {
+            if (ui.canvasUrl == url) ui.canvasUrl = null else if (ui.appleUrl == url) ui.appleUrl = null
+        }
+
+        /** The animated cover won't play: the still cover shows. */
+        private fun coverFailed(url: String) {
+            if (ui.appleUrl == url) ui.appleUrl = null
+        }
+
         private fun requestDraw() {
-            if (!visible) return
+            if (!visible || host != null) return
             main.removeCallbacks(drawRunnable)
             main.post(drawRunnable)
         }
@@ -550,7 +676,10 @@ class SpicyWallpaperService : WallpaperService() {
             val maxWidth = w * 0.88f
             val centreY = (top + (h - top) * 0.42f).toFloat()
             val activeIdx = if (synced) {
-                lines.indexOfLast { it.startMs <= pos }.coerceAtLeast(0)
+                // The lead line being sung, not a backing vocal that started after it: those sit
+                // under their lead line and are lit by their own times below.
+                lines.indexOfLast { it.startMs <= pos && it.role != LineRole.BACKGROUND }
+                    .takeIf { it >= 0 } ?: lines.indexOfLast { it.startMs <= pos }.coerceAtLeast(0)
             } else {
                 val duration = session.track?.durationMs ?: 0L
                 val at = if (duration > 0) (pos.toFloat() / duration * lines.size).toInt() else 0
@@ -649,10 +778,17 @@ class SpicyWallpaperService : WallpaperService() {
                     textPaint.color = Color.WHITE
                     textPaint.alpha = alpha
                     canvas.drawText(word.text, x, baseline, textPaint)
+                    // Every synced line is lit by its own times, so a line still being sung beside
+                    // the current one (a backing vocal, an overlap) fills as it is sung; done
+                    // lines come out full and lines not reached yet empty, as before.
                     val fraction = when {
-                        !synced || !active -> if (past) 1f else 0f
+                        !synced -> if (past) 1f else 0f
                         line.lineTimed || line.untimed -> if (pos >= line.startMs) 1f else 0f
                         else -> ((pos - word.startMs).toFloat() / (word.endMs - word.startMs).coerceAtLeast(1)).coerceIn(0f, 1f)
+                    }
+                    if (synced && word.startMs > pos && word.startMs < nextWordAtMs) nextWordAtMs = word.startMs
+                    if (fraction > 0f && fraction < 1f) {
+                        wipeStepMs = minOf(wipeStepMs, ((word.endMs - word.startMs) / 4).coerceAtLeast(MIN_WIPE_STEP_MS))
                     }
                     if (fraction > 0f) {
                         textPaint.typeface = Typeface.DEFAULT_BOLD
@@ -674,11 +810,16 @@ class SpicyWallpaperService : WallpaperService() {
     }
 
     companion object {
+        private const val TAG = "SpicyWallpaper"
         private const val WAITING = "Play something to see its lyrics here"
         private const val NO_LYRICS = "No lyrics for this song"
         private const val LOOKUP_FAILED = "Couldn't load lyrics"
         /** How often the wallpaper redraws while the music plays. */
         private const val DRAW_INTERVAL_MS = 100L
+        /** The soonest the next redraw comes, when it is pulled in to land on a word's start: a frame. */
+        private const val MIN_DRAW_INTERVAL_MS = 16L
+        /** The shortest step while a word is wiped: about two frames. */
+        private const val MIN_WIPE_STEP_MS = 33L
         /** Lines on either side of the one being sung. */
         private const val LINES_AROUND = 2
         /** A wrapped row's height, in lyric text sizes. */

@@ -1,0 +1,57 @@
+package com.tx24.spicyplayer.overlay
+
+import android.content.SharedPreferences
+import android.graphics.Bitmap
+import androidx.compose.ui.graphics.Color
+
+/** The overlay lyrics' colour: white as on the lyrics screen, a fixed colour, or the song's own. */
+internal enum class OverlayColor(val label: String, val argb: Long?) {
+    White("White", 0xFFFFFFFF),
+    Song("From the cover", null),
+    Pink("Pink", 0xFFFF7EB6),
+    Red("Red", 0xFFFF6B6B),
+    Orange("Orange", 0xFFFFA94D),
+    Yellow("Yellow", 0xFFFFE066),
+    Green("Green", 0xFF8CE99A),
+    Teal("Teal", 0xFF8BE3D7),
+    Blue("Blue", 0xFF74C0FC),
+    Purple("Purple", 0xFFB197FC);
+
+    /** The colour to draw with: [cover]'s for [Song] (white without one). */
+    fun resolve(cover: Bitmap?): Color = argb?.let { Color(it) } ?: cover?.let(::songColor) ?: Color.White
+
+    companion object {
+        const val PREF = "overlayColor"
+        fun from(prefs: SharedPreferences): OverlayColor =
+            runCatching { valueOf(prefs.getString(PREF, White.name)!!) }.getOrDefault(White)
+    }
+}
+
+/**
+ * The cover's most colourful tone, brightened so it reads on dark backgrounds: the average of
+ * its saturated pixels, at a light, vivid lightness. White for a grey cover.
+ */
+internal fun songColor(cover: Bitmap): Color {
+    val small = runCatching { Bitmap.createScaledBitmap(cover, 24, 24, true) }.getOrNull() ?: return Color.White
+    var r = 0.0
+    var g = 0.0
+    var b = 0.0
+    var weight = 0.0
+    val hsv = FloatArray(3)
+    for (y in 0 until small.height) for (x in 0 until small.width) {
+        val p = small.getPixel(x, y)
+        android.graphics.Color.colorToHSV(p, hsv)
+        val w = (hsv[1] * hsv[2]).toDouble()
+        if (w < 0.15) continue
+        r += android.graphics.Color.red(p) * w
+        g += android.graphics.Color.green(p) * w
+        b += android.graphics.Color.blue(p) * w
+        weight += w
+    }
+    if (small !== cover) small.recycle()
+    if (weight <= 0.0) return Color.White
+    android.graphics.Color.RGBToHSV((r / weight).toInt(), (g / weight).toInt(), (b / weight).toInt(), hsv)
+    hsv[1] = hsv[1].coerceIn(0.35f, 0.65f)
+    hsv[2] = 1f
+    return Color(android.graphics.Color.HSVToColor(hsv))
+}

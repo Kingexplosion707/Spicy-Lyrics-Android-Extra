@@ -3,6 +3,9 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+/** This release's version code; CI debug builds build on it (see androidComponents). */
+val BASE_VERSION_CODE = 31
+
 android {
     namespace = "com.tx24.spicyplayer"
     compileSdk = 37
@@ -19,10 +22,12 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.tx24.spicyplayer.next"
+        // Spicy Lyrics Plus has its own ID, so it installs beside the official Spicy Lyrics Mobile.
+        applicationId = "com.behnoud.spicylyrics"
         minSdk = 23
         targetSdk = 36
-        versionCode = 31
+        // CI debug builds count up by run: see androidComponents below.
+        versionCode = BASE_VERSION_CODE
         versionName = "0.19.0"
         // A publishable (sl_pk_) key, made to ship in clients: SL rate-limits it per viewer IP.
         val clientKey = localEnv("SPICY_LYRICS_CLIENT_KEY")
@@ -40,12 +45,27 @@ android {
         buildConfigField("boolean", "USAGE_STATS", "false")
     }
 
+    // CI debug builds share one fixed debug key, kept as the DEBUG_KEYSTORE_BASE64 repository
+    // secret (the workflow writes it to DEBUG_KEYSTORE_FILE; standard "android" passwords), so
+    // each new build installs over the last instead of needing an uninstall. Without the secret,
+    // and on local builds, the machine's own debug key signs.
+    val ciDebugStore = System.getenv("DEBUG_KEYSTORE_FILE")?.takeIf { it.isNotBlank() && file(it).isFile }
+    if (ciDebugStore != null) {
+        signingConfigs.getByName("debug") {
+            storeFile = file(ciDebugStore)
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         getByName("debug") {
             // Its own app next to the release one, so testing never touches the installed release.
             applicationIdSuffix = ".debug"
-            versionNameSuffix = "-debug"
-            resValue("string", "app_name", "Spicy Lyrics Mobile Debug")
+            // Each CI build a higher version than the last, so it installs as an update.
+            versionNameSuffix = System.getenv("GITHUB_RUN_NUMBER")?.let { "-debug.$it" } ?: "-debug"
+            resValue("string", "app_name", "Spicy Lyrics Plus Debug")
         }
         getByName("release") {
             // Shrunk and optimised: Compose runs noticeably slower unoptimised (debug builds are
@@ -56,7 +76,8 @@ android {
             // Without the release keystore (a local build), sign with the debug key so it installs
             // over an earlier local release build. Never on CI: a release must fail unsigned.
             if (System.getenv("CI") == null) signingConfig = signingConfigs.getByName("debug")
-            buildConfigField("boolean", "USAGE_STATS", "true")
+            // Off in this fork: the usage statistics went to the original app's own server.
+            buildConfigField("boolean", "USAGE_STATS", "false")
         }
         // The release build as its own app, for measuring performance next to the installed release.
         create("profile") {
@@ -66,7 +87,7 @@ android {
             buildConfigField("boolean", "USAGE_STATS", "false")
             signingConfig = signingConfigs.getByName("debug")
             matchingFallbacks += "release"
-            resValue("string", "app_name", "Spicy Lyrics Mobile Profile")
+            resValue("string", "app_name", "Spicy Lyrics Plus Profile")
         }
     }
 
@@ -113,6 +134,9 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.activity:activity-compose:1.13.0")
+    // Shizuku: grants the permission that hides the status bar clock behind the status bar lyrics.
+    implementation("dev.rikka.shizuku:api:13.1.5")
+    implementation("dev.rikka.shizuku:provider:13.1.5")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
@@ -139,4 +163,15 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
     testImplementation("net.sf.kxml:kxml2:2.3.0")
+}
+
+// CI debug builds: this release's version code times 10,000 plus the run number, so every
+// GitHub build is newer than the last and Android's installer offers it as an update.
+androidComponents {
+    onVariants(selector().withBuildType("debug")) { variant ->
+        val run = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: return@onVariants
+        variant.outputs.forEach { output ->
+            output.versionCode.set(BASE_VERSION_CODE * 10_000 + run)
+        }
+    }
 }

@@ -18,9 +18,16 @@ enum class MusicHapticsStyle(val label: String) { Drums("The drums"), Beat("The 
 /**
  * One vibration in a song, at [atMs] into it, [strength] 0..1, with [roomMs] of quiet before the
  * next one (a long effect only fits where there is room for it). A [MusicPulse.Drop] starts its
- * swell at [atMs] and lands [DROP_RISE_MS] later.
+ * swell at [atMs] and lands [DROP_RISE_MS] later. [sharpness] 0..1 is how bright the sound under
+ * it is (a snare or hi-hat high, a kick or 808 low), from the song's timbre; NaN when unknown.
  */
-class MusicHaptic(val atMs: Long, val pulse: MusicPulse, val strength: Float, val roomMs: Long = Long.MAX_VALUE)
+class MusicHaptic(
+    val atMs: Long,
+    val pulse: MusicPulse,
+    val strength: Float,
+    val roomMs: Long = Long.MAX_VALUE,
+    val sharpness: Float = Float.NaN,
+)
 
 /** How long a [MusicPulse.Drop]'s swell runs before it lands. */
 const val DROP_RISE_MS = 500L
@@ -130,8 +137,30 @@ object MusicHapticScore {
     private const val LINE_STRENGTH = 0.95f
     private const val GRID_BEAT_STRENGTH = 0.6f
     private const val GRID_DOWNBEAT_STRENGTH = 0.9f
+    /** A pulse's sharpness moves this much per standard deviation of the sound's brightness. */
+    private const val SHARPNESS_PER_SD = 0.18f
+
     /** Precision keeps only onsets at least this strong. */
     private const val PRECISION_MIN_STRENGTH = 0.30f
+
+    /**
+     * A beat-tracker beat lands on the drum or bass onset within this much of it, in seconds: the
+     * analysis's beats are a smoothed grid that can sit a few tens of ms off the hit itself, and
+     * the onsets ([Rhythm]) are measured to ~3 ms.
+     */
+    private const val BEAT_SNAP = 0.05f
+    /** An onset a beat snaps to reaches the lowest band (a kick, the bass) or this many bands. */
+    private const val BEAT_ONSET_BANDS = 3
+    /** A section's loudness change lands on the downbeat within this much of it, in seconds. */
+    private const val SECTION_SNAP = 0.4f
+    /** A segment rising this many dB as it starts is a sung (or played) onset a lyric may land on. */
+    private const val VOCAL_ONSET_DB = 6f
+    /** A word timed by its source lands on the onset within this much of it, in seconds... */
+    private const val WORD_SNAP = 0.035f
+    /** ...a word laid out over a whole-timed line within this much ([LyricHapticTimes.wordsEstimated])... */
+    private const val ESTIMATED_WORD_SNAP = 0.15f
+    /** ...and a line's start within this much: line stamps are tapped by hand, often a little off. */
+    private const val LINE_SNAP = 0.09f
 
     fun build(analysis: AudioAnalysis, style: MusicHapticsStyle = MusicHapticsStyle.Drums): List<MusicHaptic> {
         val song = Song(analysis)
@@ -139,7 +168,7 @@ object MusicHapticScore {
             MusicHapticsStyle.Drums -> drums(song)
             MusicHapticsStyle.Beat -> steadyBeat(song)
         }
-        return finish(withAccents(pulses, song, style))
+        return finish(withAccents(pulses, song, style), song)
     }
 
     /**
@@ -155,6 +184,11 @@ object MusicHapticScore {
      *
      * A steady rumble ([HapticBeatMode.Continuous]) has no score: it is empty here, and the
      * loop plays it instead.
+     *
+     * The lyric times land on the sung onsets the analysis hears near them (a segment rising
+     * [VOCAL_ONSET_DB]): within [WORD_SNAP] for words the source timed, [ESTIMATED_WORD_SNAP]
+     * when [wordsEstimated] (laid out over a whole-timed line), and [LINE_SNAP] for line starts.
+     * The beat grid lands on the drum or bass onset under each beat ([BEAT_SNAP]).
      */
     fun buildWithBeat(
         analysis: AudioAnalysis,
@@ -162,9 +196,11 @@ object MusicHapticScore {
         options: HapticBeatOptions = HapticBeatOptions(),
         wordTimes: List<Long> = emptyList(),
         lineTimes: List<Long> = emptyList(),
+        wordsEstimated: Boolean = false,
     ): List<MusicHaptic> {
         if (options.mode == HapticBeatMode.Continuous) return emptyList()
         val mode = options.mode
+        val song = Song(analysis)
         var score = build(analysis, style)
         if (options.detection == HapticBeatDetection.Precision) {
             score = score.filter {
@@ -173,10 +209,11 @@ object MusicHapticScore {
                     it.pulse == MusicPulse.Drop) && it.strength >= PRECISION_MIN_STRENGTH
             }
         }
-        val words = wordTimes.map { MusicHaptic(it, MusicPulse.Note, WORD_STRENGTH) }
-        val lines = lineTimes.map { MusicHaptic(it, MusicPulse.Accent, LINE_STRENGTH) }
+        val wordSnap = if (wordsEstimated) ESTIMATED_WORD_SNAP else WORD_SNAP
+        val words = wordTimes.map { MusicHaptic(song.snapVocal(it, wordSnap), MusicPulse.Note, WORD_STRENGTH) }
+        val lines = lineTimes.map { MusicHaptic(song.snapVocal(it, LINE_SNAP), MusicPulse.Accent, LINE_STRENGTH) }
         val grid = analysis.beats.filter { it.confidence >= MIN_BEAT_CONFIDENCE }.map { beat ->
-            val atMs = (beat.start * 1000f).toLong()
+            val atMs = ms(song.snapBeat(beat.start))
             val downbeat = analysis.bars.any { kotlin.math.abs(it - beat.start) <= DOWNBEAT_WINDOW }
             if (downbeat) MusicHaptic(atMs, MusicPulse.Downbeat, GRID_DOWNBEAT_STRENGTH)
             else MusicHaptic(atMs, MusicPulse.Beat, GRID_BEAT_STRENGTH)
@@ -206,7 +243,7 @@ object MusicHapticScore {
         if (includeGrid && !vocalsOnly) {
             out += grid.filter { mode.allowsScore(it.pulse) && it.strength >= cutoff }
         }
-        return finish(out.distinctBy { it.atMs to it.pulse }.toMutableList())
+        return finish(out.distinctBy { it.atMs to it.pulse }.toMutableList(), song)
     }
 
     // Drums
@@ -363,10 +400,12 @@ object MusicHapticScore {
             val level = song.levelAt(beat.start)
             if (level < MIN_STRENGTH) continue
             val sure = 0.7f + 0.3f * beat.confidence.coerceIn(0f, 1f)
+            // On the hit itself, not the tracker's smoothed grid.
+            val at = ms(song.snapBeat(beat.start))
             out += if (song.isDownbeat(beat.start)) {
-                MusicHaptic(ms(beat.start), MusicPulse.Downbeat, (0.45f + 0.55f * level) * sure)
+                MusicHaptic(at, MusicPulse.Downbeat, (0.45f + 0.55f * level) * sure)
             } else {
-                MusicHaptic(ms(beat.start), MusicPulse.Beat, (0.25f + 0.45f * level) * sure)
+                MusicHaptic(at, MusicPulse.Beat, (0.25f + 0.45f * level) * sure)
             }
         }
         return out
@@ -378,7 +417,8 @@ object MusicHapticScore {
         val candidates = ArrayList<Accent>()
         song.a.sections.zipWithNext { before, section ->
             val jump = section.loudness - before.loudness
-            if (jump >= DROP_DB) candidates += Accent(section.start, (0.7f + jump / 20f).coerceAtMost(1f), rise = jump >= RISE_DB)
+            // Section bounds are coarse; the change itself comes in on a downbeat.
+            if (jump >= DROP_DB) candidates += Accent(song.nearestBar(section.start, SECTION_SNAP) ?: section.start, (0.7f + jump / 20f).coerceAtMost(1f), rise = jump >= RISE_DB)
         }
         var quietSince = 0f
         song.segments.forEachIndexed { i, seg ->
@@ -416,7 +456,7 @@ object MusicHapticScore {
     private class Accent(val at: Float, val strength: Float, val rise: Boolean)
 
     /** In time order, too-close pulses thinned (the stronger stays), each told how much room it has. */
-    private fun finish(pulses: MutableList<MusicHaptic>): List<MusicHaptic> {
+    private fun finish(pulses: MutableList<MusicHaptic>, song: Song): List<MusicHaptic> {
         pulses.sortBy { it.atMs }
         val thinned = ArrayList<MusicHaptic>(pulses.size)
         for (p in pulses) {
@@ -431,7 +471,7 @@ object MusicHapticScore {
         }
         return thinned.mapIndexed { i, p ->
             val next = thinned.getOrNull(i + 1)
-            MusicHaptic(p.atMs, p.pulse, p.strength, next?.let { it.atMs - p.atMs } ?: Long.MAX_VALUE)
+            MusicHaptic(p.atMs, p.pulse, p.strength, next?.let { it.atMs - p.atMs } ?: Long.MAX_VALUE, song.sharpnessAt(p.atMs / 1000f))
         }
     }
 
@@ -451,6 +491,23 @@ object MusicHapticScore {
         val beats = a.beats.filter { it.confidence >= MIN_BEAT_CONFIDENCE }
         private val bars = a.bars.sorted().toFloatArray()
         private val sectionStarts = a.sections.map { it.start }.toFloatArray()
+        /** Where a beat's hit can start: onsets reaching the lowest band or [BEAT_ONSET_BANDS] bands. */
+        private val beatOnsets = a.rhythm?.hits.orEmpty()
+            .filter { it.bands and 1 != 0 || it.bandCount >= BEAT_ONSET_BANDS }
+            .map { it.at }.toFloatArray()
+        /** Where a sung word can start: segments rising at least [VOCAL_ONSET_DB]. */
+        private val vocalOnsets = segments.filter { it.loudnessMax - it.loudnessStart >= VOCAL_ONSET_DB }
+            .map { it.start }.toFloatArray()
+
+        /** [t] moved onto the beat onset nearest it within [BEAT_SNAP], or [t] with none. */
+        fun snapBeat(t: Float): Float = nearest(beatOnsets, t, BEAT_SNAP) ?: t
+
+        /** [atMs] moved onto the sung onset nearest it within [window] seconds, or [atMs] with none. */
+        fun snapVocal(atMs: Long, window: Float): Long =
+            nearest(vocalOnsets, atMs / 1000f, window)?.let(::ms) ?: atMs
+
+        /** The downbeat nearest [t] within [window], if any. */
+        fun nearestBar(t: Float, window: Float): Float? = nearest(bars, t, window)
 
         /**
          * How much each segment sounds like a snare rather than a kick, in track standard
@@ -480,6 +537,21 @@ object MusicHapticScore {
             val i = lastAtOrBefore(sorted, t + window)
             return i >= 0 && sorted[i] >= t - window
         }
+
+        /**
+         * How bright the sound at [t] is, 0..1, for a pulse's sharpness: the segment's snare-like
+         * tone ([snareTone], in track standard deviations) around a middle 0.5. NaN when the
+         * analysis has no timbre (an old cached copy) or nothing sounds there.
+         */
+        fun sharpnessAt(t: Float): Float {
+            if (!hasTimbre) return Float.NaN
+            val i = soundAt(t) ?: segmentAt(t) ?: return Float.NaN
+            val z = snareTone[i]
+            if (z.isNaN()) return Float.NaN
+            return (0.5f + SHARPNESS_PER_SD * z).coerceIn(0.05f, 0.95f)
+        }
+
+        private val hasTimbre = segments.any { it.brightness != 0f }
 
         /** The segment playing at [t], or null before the first. */
         fun segmentAt(t: Float): Int? = lastAtOrBefore(starts, t).takeIf { it >= 0 }

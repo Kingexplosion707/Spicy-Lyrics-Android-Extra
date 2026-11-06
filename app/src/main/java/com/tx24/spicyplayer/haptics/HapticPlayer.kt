@@ -28,8 +28,10 @@ class HapticPlayer(context: Context) {
     val canPlayMusic get() = vibrator != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
 
     /**
-     * Which rendering the pulses use: HapticBeat's engine choice. Auto is the old behaviour
-     * (composed primitives where the phone has them, a one-shot or waveform where it hasn't);
+     * Which rendering the pulses use: HapticBeat's engine choice. Auto takes the best the phone
+     * has: Android 16's envelopes (strength and sharpness shaped over time, as on Pixel 9 and
+     * later), else composed primitives, else a one-shot or waveform; Envelope keeps only the
+     * envelopes (falling back to Auto's next choice on a phone without them);
      * Apple keeps only the composed primitives (a pulse the phone cannot compose stays silent);
      * Waveform keeps only the one-shot and waveform fallbacks.
      */
@@ -49,11 +51,19 @@ class HapticPlayer(context: Context) {
      * Below about a third of their scale the building blocks can't be felt, so strength is mapped
      * above that: a quiet pulse is light, never missing.
      */
-    fun play(pulse: MusicPulse, strength: Float, roomMs: Long = Long.MAX_VALUE) {
+    fun play(pulse: MusicPulse, strength: Float, roomMs: Long = Long.MAX_VALUE, sharpness: Float = Float.NaN) {
         val v = vibrator ?: return
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (strength <= 0f) return
         val s = FELT + (1f - FELT) * strength.coerceIn(0f, 1f)
+        if ((renderEngine == HapticBeatEngine.Auto || renderEngine == HapticBeatEngine.Envelope) && envelopesSupported) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+                envelope(pulse, s, roomMs, sharpness)?.let {
+                    vibrate(v, it, media = true)
+                    return
+                }
+            }
+        }
         // The composed form first, then the one-shot or waveform it falls back to; the engine
         // picks which of the two actually plays.
         val composedEffect = when (pulse) {
@@ -69,7 +79,12 @@ class HapticPlayer(context: Context) {
             MusicPulse.Beat -> composed(Part(s * 0.8f, Primitive.QuickFall)) ?: composed(Part(s, Primitive.LowTick))
             MusicPulse.Downbeat -> composed(Part(s, Primitive.Click))
             MusicPulse.Accent -> composed(Part(s, Primitive.Click), Part(s, Primitive.Thud)) ?: composed(Part(s, Primitive.Click))
-            MusicPulse.Drop -> composed(Part(s * 0.5f, Primitive.SlowRise), Part(s, Primitive.Thud))
+            // The thud lands DROP_RISE_MS after the start, where the score put the drop: the
+            // swell's own length differs by phone, so it waits out the difference first.
+            MusicPulse.Drop -> composed(
+                Part(s * 0.5f, Primitive.SlowRise, (DROP_RISE_MS - primitiveMs(Primitive.SlowRise)).coerceIn(0L, DROP_RISE_MS).toInt()),
+                Part(s, Primitive.Thud),
+            )
         }
         val waveformEffect = when (pulse) {
             MusicPulse.Kick -> VibrationEffect.createOneShot(30, amplitude(s * 0.8f))
@@ -87,10 +102,74 @@ class HapticPlayer(context: Context) {
         val effect = when (renderEngine) {
             HapticBeatEngine.Apple -> composedEffect ?: return
             HapticBeatEngine.Waveform -> waveformEffect
-            HapticBeatEngine.Auto -> composedEffect ?: waveformEffect
+            HapticBeatEngine.Auto, HapticBeatEngine.Envelope -> composedEffect ?: waveformEffect
         }
         vibrate(v, effect, media = true)
     }
+
+    /** Whether the motor takes Android 16's envelopes (strength and sharpness over time). */
+    private val envelopesSupported: Boolean by lazy {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA &&
+            runCatching { vibrator?.areEnvelopeEffectsSupported() == true }.getOrDefault(false)
+    }
+
+    /** The shortest step between an envelope's points this motor takes. */
+    private val envelopeMinStepMs: Long by lazy {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+            runCatching { vibrator?.envelopeEffectInfo?.minControlPointDurationMillis }.getOrNull() ?: DEFAULT_MIN_STEP_MS
+        } else DEFAULT_MIN_STEP_MS
+    }
+
+    /**
+     * A pulse as an envelope: a fast attack to its strength, then a fall shaped for its sound,
+     * at a sharpness from the music ([sharpness], the sound's brightness) leaning toward the
+     * pulse's own (a kick deep and round, a snare crisp, a word in between). The fall is cut
+     * short to fit [roomMs], so a hit never smears into the next.
+     */
+    @RequiresApi(Build.VERSION_CODES.BAKLAVA)
+    private fun envelope(pulse: MusicPulse, s: Float, roomMs: Long, sharpness: Float): VibrationEffect? = runCatching {
+        val own = when (pulse) {
+            MusicPulse.Kick -> 0.12f
+            MusicPulse.Snare -> 0.8f
+            MusicPulse.Note -> 0.55f
+            MusicPulse.Beat -> 0.35f
+            MusicPulse.Downbeat -> 0.25f
+            MusicPulse.Accent -> 0.45f
+            MusicPulse.Drop -> 0.3f
+        }
+        val sharp = if (sharpness.isNaN()) own else (own * 0.55f + sharpness * 0.45f)
+        // (intensity, sharpness, ms to reach it) after the start at nothing.
+        val points: List<Triple<Float, Float, Long>> = when (pulse) {
+            MusicPulse.Kick -> listOf(Triple(s, sharp, 5L), Triple(s * 0.5f, sharp * 0.8f, 22L), Triple(0f, sharp * 0.6f, 60L))
+            MusicPulse.Snare -> listOf(Triple(s, sharp, 3L), Triple(s * 0.3f, sharp, 14L), Triple(0f, sharp, 26L))
+            MusicPulse.Note -> listOf(Triple(s * 0.65f, sharp, 4L), Triple(0f, sharp, 22L))
+            MusicPulse.Beat -> listOf(Triple(s * 0.8f, sharp, 4L), Triple(0f, sharp, 36L))
+            MusicPulse.Downbeat -> listOf(Triple(s, sharp, 4L), Triple(s * 0.4f, sharp, 22L), Triple(0f, sharp * 0.8f, 44L))
+            MusicPulse.Accent -> listOf(Triple(s, sharp, 4L), Triple(s * 0.6f, sharp, 36L), Triple(0f, sharp * 0.8f, 80L))
+            // The swell builds for DROP_RISE_MS and lands where the score put the drop.
+            MusicPulse.Drop -> listOf(
+                Triple(s * 0.15f, 0.1f, 60L), Triple(s * 0.6f, 0.5f, DROP_RISE_MS - 60L),
+                Triple(s, sharp, 5L), Triple(0f, sharp * 0.7f, 150L),
+            )
+        }
+        // Fits before the next pulse: the fall is shortened, never the attack.
+        val budget = (roomMs - ROOM_MARGIN_MS).coerceAtLeast(points.first().third + envelopeMinStepMs)
+        val builder = VibrationEffect.BasicEnvelopeBuilder().setInitialSharpness(sharp.coerceIn(0f, 1f))
+        var used = 0L
+        for ((i, point) in points.withIndex()) {
+            val last = i == points.lastIndex
+            var step = point.third.coerceAtLeast(envelopeMinStepMs)
+            if (pulse != MusicPulse.Drop && used + step > budget) step = (budget - used).coerceAtLeast(envelopeMinStepMs)
+            builder.addControlPoint(
+                if (last || used + step >= budget) 0f else point.first.coerceIn(0f, 1f),
+                point.second.coerceIn(0f, 1f),
+                step,
+            )
+            used += step
+            if (pulse != MusicPulse.Drop && used >= budget) break
+        }
+        builder.build()
+    }.getOrNull()
 
     /** A steady low rumble for the Continuous style: one short burst, re-issued by the loop. */
     fun playRumble(strength: Float) {
@@ -104,6 +183,19 @@ class HapticPlayer(context: Context) {
     fun stop() {
         vibrator?.cancel()
     }
+
+    /** How long [primitive] plays on this phone (Android 12+), else a typical length. */
+    private fun primitiveMs(primitive: Primitive): Long {
+        primitiveLengths[primitive]?.let { return it }
+        val v = vibrator
+        val measured = if (v != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            runCatching { v.getPrimitiveDurations(primitive.id).firstOrNull()?.toLong() }.getOrNull()
+                ?.takeIf { it > 0L }
+        } else null
+        return (measured ?: TYPICAL_SLOW_RISE_MS).also { primitiveLengths[primitive] = it }
+    }
+
+    private val primitiveLengths = java.util.concurrent.ConcurrentHashMap<Primitive, Long>()
 
     /** A building block at [scale], [delayMs] after the one before. */
     private class Part(val scale: Float, val primitive: Primitive, val delayMs: Int = 0)
@@ -160,5 +252,11 @@ class HapticPlayer(context: Context) {
         /** A snare rattles only with this much quiet after it, its ticks this far apart. */
         const val SNARE_RATTLE_ROOM_MS = 120L
         const val RATTLE_GAP_MS = 18
+        /** An envelope's shortest step where the motor doesn't say. */
+        const val DEFAULT_MIN_STEP_MS = 1L
+        /** An envelope ends this long before the next pulse. */
+        const val ROOM_MARGIN_MS = 12L
+        /** A slow rise's length where the phone can't say (Android 11): about what Pixels report. */
+        const val TYPICAL_SLOW_RISE_MS = 300L
     }
 }

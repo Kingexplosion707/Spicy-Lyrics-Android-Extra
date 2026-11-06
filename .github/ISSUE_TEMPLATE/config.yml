@@ -1,8 +1,8 @@
 blank_issues_enabled: true
 contact_links:
-  - name: Ask or chat on Discord
-    url: https://discord.com/invite/uqgXU5wh8j
-    about: Join the Spicy Lyrics Discord and post in #mobile-support, for questions and quick feedback.
   - name: Report a security vulnerability privately
-    url: https://github.com/spicylyrics/mobile/security/advisories/new
-    about: Use private vulnerability reporting instead of a public issue or Discord message.
+    url: https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/security/advisories/new
+    about: Use private vulnerability reporting instead of a public issue.
+  - name: A problem in the official Spicy Lyrics Mobile
+    url: https://github.com/spicylyrics/mobile/issues/new/choose
+    about: If it also happens in the official app and isn't a Plus feature, report it there too.

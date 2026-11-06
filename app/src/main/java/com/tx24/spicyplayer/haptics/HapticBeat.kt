@@ -29,6 +29,8 @@ enum class HapticBeatMode(val label: String) {
 /** How a pulse is rendered on the motor, from HapticBeat's engine spinner. */
 enum class HapticBeatEngine(val label: String) {
     Auto("Auto (best available)"),
+    /** Android 16's envelopes: each pulse shaped in strength and sharpness over time (Pixel 9 and later). */
+    Envelope("Sharpness envelopes (Android 16)"),
     Apple("Apple primitives"),
     Waveform("Waveform"),
 }

@@ -1,6 +1,6 @@
 # Widget regression checks
 
-Use the separate **Spicy Lyrics Mobile Debug** app, grant it notification access, and place a widget from that app. A locally built APK has no Spicy Lyrics client key unless supplied at build time or in Settings; other lyric sources still work. Imported TTML can provide repeatable timing cases.
+Use the separate **Spicy Lyrics Plus Debug** app, grant it notification access, and place a widget from that app. A locally built APK has no Spicy Lyrics client key unless supplied at build time or in Settings; other lyric sources still work. Imported TTML can provide repeatable timing cases.
 
 These checks require a real launcher and media player. JVM tests cover timeline selection, background row boundaries, punctuation protection and stable height fitting; they do not verify launcher rendering, PiP transitions or long-term background execution.
 

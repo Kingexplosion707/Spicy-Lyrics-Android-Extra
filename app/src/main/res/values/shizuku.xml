@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shizuku's library needs Android 7; its provider stays off before that. -->
+    <bool name="shizuku_supported">false</bool>
+</resources>

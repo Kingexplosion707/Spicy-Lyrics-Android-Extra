@@ -194,8 +194,14 @@ class AppSettings(private val prefs: SharedPreferences) {
     var ambientMode by boolean("ambientMode", false)
     /** How long the lyrics screen waits after the last touch before [ambientMode] dims it. */
     var ambientDelay by enum("ambientDelay", AmbientDelay.Default)
-    /** Ambient mode as the always-on display: once dimmed, the lyrics stay on at the lowest brightness instead of the screen turning off. */
+    /** The lyrics screen as the always-on display: it stays on over the lock screen and dims to the lyrics at the lowest brightness, with or without [ambientMode], playing or paused. */
     var ambientAsAod by boolean("ambientAsAod", false)
+    /** The always-on display's screen brightness, in percent (1 is the lowest the screen allows). */
+    var aodBrightness by int("aodBrightness", 1, 1..100)
+    /** The song's Canvas behind the always-on display, blurred and darkened. */
+    var aodCanvas by boolean("aodCanvas", false)
+    /** Play/pause, previous and next on the always-on display. */
+    var aodControls by boolean("aodControls", false)
     /** Which of the phone's bars stay on screen. */
     var systemBars by enum("systemBars", SystemBarsMode.HideBoth)
     /** Leaving the app with a song playing shrinks the lyrics into a small floating window. */
@@ -271,6 +277,26 @@ class AppSettings(private val prefs: SharedPreferences) {
     var hapticBeatVocalsOnly by boolean("hapticBeatVocalsOnly", false)
     /** The live wallpaper draws the word-synced lyrics over the moving picture. */
     var wallpaperShowLyrics by boolean("wallpaperShowLyrics", true)
+    /** The line being sung in an ongoing notification, for islands and Live Updates. */
+    var lyricsNotification by boolean("lyricsNotification", false)
+    /** The lyrics floating over other apps while music plays. */
+    var lyricsOverlay by boolean("overlayLyrics", false)
+    var overlayHideWhenPaused by boolean("overlayHideWhenPaused", true)
+    var overlayLocked by boolean("overlayLocked", false)
+    var overlayClickThrough by boolean("overlayClickThrough", false)
+    var overlayBackdrop by boolean("overlayBackdrop", true)
+    internal var overlaySize by enum("overlaySize", com.tx24.spicyplayer.overlay.OverlaySize.Medium)
+    var overlayWidth by int("overlayWidth", 94, 45..100)
+    internal var overlayStyle by enum("overlayStyle", com.tx24.spicyplayer.overlay.OverlayStyle.Full)
+    internal var overlayColor by enum("overlayColor", com.tx24.spicyplayer.overlay.OverlayColor.White)
+    var overlayGlow by boolean("overlayGlow", true)
+    var overlayLyricsOpacity by int("overlayLyricsOpacity", 100, 10..100)
+    var overlayBackdropOpacity by int("overlayBackdropOpacity", 45, 0..100)
+    var overlayHideInLandscape by boolean("overlayHideInLandscape", false)
+    /** The overlay steps aside while the Spicy live wallpaper shows (the home screen). */
+    var overlayHideOnWallpaper by boolean("overlayHideOnWallpaper", true)
+    /** Hide the status bar clock while the status bar lyrics show (needs Shizuku once). */
+    var overlayHideClock by boolean("overlayHideClock", false)
     /** A floating button that opens the quick settings (the song's and the output's delay). */
     var quickSettingsButton by boolean("quickSettingsButton", true)
     /**

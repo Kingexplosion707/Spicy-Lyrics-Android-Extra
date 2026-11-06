@@ -175,7 +175,7 @@ private fun CustomSourceEditor(
             if (saved) {
                 SpicyIconButton(onClick = {
                     context.getSystemService(ClipboardManager::class.java)
-                        ?.setPrimaryClip(ClipData.newPlainText("Spicy Lyrics Mobile source", CustomLyricsSource.share(draft())))
+                        ?.setPrimaryClip(ClipData.newPlainText("Spicy Lyrics Plus source", CustomLyricsSource.share(draft())))
                     viewModel.showMessage("Copied, without header values.")
                 }) {
                     Icon(Icons.Rounded.ContentCopy, "Copy to share", tint = SpicyColors.TextPrimary, modifier = Modifier.size(18.dp))

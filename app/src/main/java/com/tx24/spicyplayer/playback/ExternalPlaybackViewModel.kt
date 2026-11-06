@@ -737,6 +737,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         val beat: HapticBeatOptions,
         val wordTimes: List<Long>,
         val lineTimes: List<Long>,
+        val wordsEstimated: Boolean,
         val score: List<MusicHaptic>,
     )
 
@@ -1009,7 +1010,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
     /** Checks [input] and uses it as the person's own key; blank goes back to the built-in one. */
     fun useApiKey(input: String) {
         when (val check = SpicyLyricsKey.check(input)) {
-            SpicyLyricsKey.Check.Secret -> showMessage("That's a secret key. Spicy Lyrics Mobile needs the client key (sl_pk_…).")
+            SpicyLyricsKey.Check.Secret -> showMessage("That's a secret key. Spicy Lyrics Plus needs the client key (sl_pk_…).")
             SpicyLyricsKey.Check.Invalid -> showMessage("That isn't a Spicy Lyrics client key. It starts with sl_pk_.")
             SpicyLyricsKey.Check.Empty -> {
                 applyApiKey("")
@@ -2198,14 +2199,18 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         beat: HapticBeatOptions = HapticBeatOptions(),
         wordTimes: List<Long> = emptyList(),
         lineTimes: List<Long> = emptyList(),
+        wordsEstimated: Boolean = false,
     ): List<MusicHaptic>? {
         val analysis = audioAnalysis ?: return null
         musicHaptics?.takeIf {
             it.analysis === analysis && it.style == style && it.beat == beat &&
-                it.wordTimes == wordTimes && it.lineTimes == lineTimes
+                // The same lists (one lyrics object's times) skip comparing them element by element.
+                (it.wordTimes === wordTimes || it.wordTimes == wordTimes) &&
+                (it.lineTimes === lineTimes || it.lineTimes == lineTimes) &&
+                it.wordsEstimated == wordsEstimated
         }?.let { return it.score }
-        return MusicHapticScore.buildWithBeat(analysis, style, beat, wordTimes, lineTimes)
-            .also { musicHaptics = MusicHapticsCache(analysis, style, beat, wordTimes, lineTimes, it) }
+        return MusicHapticScore.buildWithBeat(analysis, style, beat, wordTimes, lineTimes, wordsEstimated)
+            .also { musicHaptics = MusicHapticsCache(analysis, style, beat, wordTimes, lineTimes, wordsEstimated, it) }
     }
 
     /**

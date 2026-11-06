@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Spicy Lyrics Mobile (called Spicy Player until 0.9.1; the package and repository still use the old name) is an Android (Kotlin + Jetpack Compose) lyrics app for music playing in *another* app. It has no library and no playback service of its own. It reads the other app's MediaSession through a notification-listener grant, fetches lyrics from many online sources, and draws them with a word-synced renderer and animated backgrounds. Application ID: `com.tx24.spicyplayer.next`. The app module is `:app` with namespace `com.tx24.spicyplayer`. `:core` is a plain JVM Kotlin module (no Android SDK) holding the sources, blends, Spotify matching, TTML/LRC parsing, lyric models, romanization, translation and the lyric clock, in the same packages; `:app` depends on it, and a desktop app can too. Code in `:core` logs through `platform/CoreLog`, which `NextLyricsBackend` sends to logcat.
+Spicy Lyrics Plus is a fork of Spicy Lyrics Mobile (called Spicy Player until 0.9.1; the code's package still uses the old name). It is an Android (Kotlin + Jetpack Compose) lyrics app for music playing in *another* app. It has no library and no playback service of its own. It reads the other app's MediaSession through a notification-listener grant, fetches lyrics from many online sources, and draws them with a word-synced renderer and animated backgrounds. Application ID: `com.behnoud.spicylyrics`. The app module is `:app` with namespace `com.tx24.spicyplayer`. `:core` is a plain JVM Kotlin module (no Android SDK) holding the sources, blends, Spotify matching, TTML/LRC parsing, lyric models, romanization, translation and the lyric clock, in the same packages; `:app` depends on it, and a desktop app can too. Code in `:core` logs through `platform/CoreLog`, which `NextLyricsBackend` sends to logcat.
 
 Code comments describe what the code does, not where it was ported from. Credits live in `THIRD_PARTY_NOTICES.md` and the README. Spicy Lyrics as a lyrics *source* (its API, provider, key) is fine to name. `PublicDocsTest` keeps `CLAUDE.md` and `docs/` free of provenance notes.
 
@@ -52,7 +52,7 @@ The design tokens and glass live in `ui/theme/SpicyTokens.kt` and `ui/components
 Rules that apply even without the detail doc:
 - Bump `CACHE_VERSION` whenever matching, conversion or TTML layout changes. Otherwise stale cached lyrics keep being served.
 - The Spotify matching heuristics are settled, so don't re-tune them without cause.
-- Judge smoothness on a release build (R8-minified; `assembleRelease` signs with the debug key locally). Debug builds are a separate app, `.next.debug` named "Spicy Lyrics Mobile Debug".
+- Judge smoothness on a release build (R8-minified; `assembleRelease` signs with the debug key locally). Debug builds are a separate app, `com.behnoud.spicylyrics.debug` named "Spicy Lyrics Plus Debug".
 - TTML is first-class: word timing never gets flattened to LRC.
 
 ## Renderer conventions learned the hard way

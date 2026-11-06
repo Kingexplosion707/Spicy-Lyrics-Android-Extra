@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Spicy Lyrics Mobile</string>
+    <string name="app_name">Spicy Lyrics Plus</string>
     <string name="widget_name">Lyrics</string>
     <string name="widget_settings">Lyrics widget</string>
     <string name="widget_description">The line being sung, over the cover\'s colours</string>
@@ -19,4 +19,17 @@
     <string name="background_haptics_nothing">Play something to feel it</string>
     <string name="background_haptics_paused">Paused — waiting for music</string>
     <string name="background_haptics_stop">Stop</string>
+    <string name="lyrics_notification_channel">Lyrics notification</string>
+    <string name="lyrics_notification_channel_description">The line being sung, for dynamic islands and Live Updates.</string>
+    <string name="lyrics_notification_nothing">Play something to see its lyrics here</string>
+    <string name="lyrics_overlay_title">Lyrics overlay</string>
+    <string name="lyrics_overlay_showing">Floating over your apps</string>
+    <string name="lyrics_overlay_waiting">Hidden until music with lyrics plays</string>
+    <string name="lyrics_overlay_hide">Hide</string>
+    <string name="lyrics_overlay_show">Show</string>
+    <string name="lyrics_overlay_lock">Lock</string>
+    <string name="lyrics_overlay_unlock">Unlock</string>
+    <string name="always_on_title">Always-on lyrics</string>
+    <string name="always_on_text">The lyrics show when the screen turns off</string>
+    <string name="always_on_launch_channel">Always-on display</string>
 </resources>
