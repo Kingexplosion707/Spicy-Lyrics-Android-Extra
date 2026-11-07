@@ -194,7 +194,9 @@ internal class LyricsOverlayWindow(
 
     private fun flags(): Int {
         val base = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-        return if (clickThrough()) base or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE else base
+        return if (clickThrough()) {
+            base or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+        } else base
     }
 
     /** Takes every touch for itself: a drag moves the window, unless it's locked. */
@@ -255,9 +257,9 @@ internal class LyricsOverlayWindow(
         private const val CUTOUT_GAP_DP = 8
         /**
          * Android 12+ blocks touches that pass through another app's window more opaque than
-         * this, so a click-through overlay is drawn at it.
+         * 0.8, so a click-through overlay is drawn a little under it (exactly 0.8 can round over).
          */
-        private const val CLICK_THROUGH_ALPHA = 0.8f
+        private const val CLICK_THROUGH_ALPHA = 0.75f
     }
 }
 
