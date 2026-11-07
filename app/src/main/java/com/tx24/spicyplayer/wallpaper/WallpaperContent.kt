@@ -112,7 +112,7 @@ internal fun WallpaperContent(
     // The settings as the app last wrote them: re-read whenever they change.
     var settingsVersion by remember { mutableIntStateOf(0) }
     DisposableEffect(prefs) {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> settingsVersion++ }
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key -> if (com.tx24.spicyplayer.wallpaper.changesLook(key)) settingsVersion++ }
         prefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
@@ -162,8 +162,12 @@ internal fun WallpaperContent(
 
         // The background: the Canvas (unless power saving stops it), else the animated cover
         // (likewise), else the blurred still cover.
-        val canvasUrl = ui.canvasUrl.takeUnless { saving.noCanvas || still }
-        val appleUrl = ui.appleUrl.takeUnless { saving.noAnimatedCover || still }
+        // The covers trading places on a song change: the new song's videos wait until they've
+        // settled, so starting a player doesn't land on the animation's frames.
+        val handoff = rememberCoverHandoff(track?.key, ui.cover)
+        val handing by remember(handoff) { androidx.compose.runtime.derivedStateOf { handoff.running } }
+        val canvasUrl = ui.canvasUrl.takeUnless { saving.noCanvas || still || handing }
+        val appleUrl = ui.appleUrl.takeUnless { saving.noAnimatedCover || still || handing }
         val backgroundUrl = canvasUrl ?: appleUrl
         // The still background blends into the next song's, as the covers trade places.
         androidx.compose.animation.Crossfade(targetState = ui.cover, animationSpec = tween(BACKGROUND_BLEND_MS), label = "background") { cover ->
@@ -209,10 +213,8 @@ internal fun WallpaperContent(
 
         // The cover: the animated one over the still one, both the same size and corners. On a
         // song change the covers trade places as Spotify's automix does (see CoverHandoff).
-        val handoff = rememberCoverHandoff(track?.key, ui.cover)
         val coverDp = with(density) { coverSize.toDp() }
         val handoffOld = handoff.old
-        val handing by remember(handoff) { androidx.compose.runtime.derivedStateOf { handoff.running } }
         if (handing && handoffOld != null) {
             CoverHandoffCovers(handoff, handoffOld, ui.cover, w, coverSize, coverTop, coverDp)
         } else if (hasCover) {
@@ -317,30 +319,18 @@ internal fun WallpaperLyrics(
             staticSongMs = if (settings.staticAutoScroll) durationMs else 0L,
         ),
     )
-    val originalLines = remember(lyrics.lines) {
-        lyrics.lines.map { line ->
-            Line(
-                words = line.words.map { word ->
-                    Word(word.text, word.startMs, word.endMs, isPartOfWord = word.attached, romanizedText = word.romanized)
-                },
-                startMs = line.startMs,
-                endMs = line.endMs,
-                agent = line.agent,
-                role = line.role,
-                groupId = line.groupId,
-                oppositeAligned = line.oppositeAligned,
-                lineTimed = line.lineTimed,
-                untimed = line.untimed,
-            )
+    // Prepared off the main thread: new lyrics arriving mid-transition don't stall its frames.
+    val prepared by androidx.compose.runtime.produceState<Pair<List<Line>, List<Line>>?>(null, lyrics.lines, config.isMinimal, config.isSimple, lyrics.lyricsType) {
+        value = withContext(Dispatchers.Default) {
+            val original = toRendererLines(lyrics)
+            original to buildDisplayTimeline(original, minimalMode = config.isMinimal, holdThroughShortGaps = when (lyrics.lyricsType) {
+                LyricsType.Syllable -> config.isMinimal
+                LyricsType.Line -> config.isSimple
+                else -> false
+            })
         }
     }
-    val rendererLines = remember(originalLines, config.isMinimal, config.isSimple) {
-        buildDisplayTimeline(originalLines, minimalMode = config.isMinimal, holdThroughShortGaps = when (lyrics.lyricsType) {
-            LyricsType.Syllable -> config.isMinimal
-            LyricsType.Line -> config.isSimple
-            else -> false
-        })
-    }
+    val (originalLines, rendererLines) = prepared ?: return
     val translationMode = settings.translationMode
     val presentation = remember(rendererLines, originalLines, translation, translationMode) {
         translation?.let { TranslationPresentation.forTimeline(originalLines, rendererLines, it, translationMode) }
@@ -421,25 +411,33 @@ private class SeenSong(var key: String?, var cover: Bitmap?)
 /** The two covers mid-handoff, laid out where the one cover sits and moved from there. */
 @Composable
 private fun CoverHandoffCovers(handoff: CoverHandoff, old: Bitmap, new: Bitmap?, w: Int, coverSize: Int, coverTop: Int, coverDp: androidx.compose.ui.unit.Dp) {
-    val t = handoff.progress.value
     val small = coverSize * HANDOFF_SMALL
     val gap = coverSize * HANDOFF_GAP
     val center = w / 2f
     val leftSlot = center - (small + gap) / 2f
     val rightSlot = center + (small + gap) / 2f
-    val inP = t.coerceIn(0f, 1f)
-    val outP = (t - 1f).coerceIn(0f, 1f)
-    val oldX = if (t <= 1f) lerpF(center, leftSlot, inP) else lerpF(leftSlot, -small, outP)
-    val oldScale = if (t <= 1f) lerpF(1f, HANDOFF_SMALL, inP) else HANDOFF_SMALL
-    val newX = if (t <= 1f) lerpF(w + small, rightSlot, inP) else lerpF(rightSlot, center, outP)
-    val newScale = if (t <= 1f) HANDOFF_SMALL else lerpF(HANDOFF_SMALL, 1f, outP)
+    // Where each cover is at the handoff's progress: read only while drawing, so each frame
+    // moves two layers and recomposes nothing.
+    fun oldAt(t: Float): Pair<Float, Float> {
+        val inP = t.coerceIn(0f, 1f)
+        val outP = (t - 1f).coerceIn(0f, 1f)
+        return if (t <= 1f) lerpF(center, leftSlot, inP) to lerpF(1f, HANDOFF_SMALL, inP) else lerpF(leftSlot, -small, outP) to HANDOFF_SMALL
+    }
+    fun newAt(t: Float): Pair<Float, Float> {
+        val inP = t.coerceIn(0f, 1f)
+        val outP = (t - 1f).coerceIn(0f, 1f)
+        return if (t <= 1f) lerpF(w + small, rightSlot, inP) to HANDOFF_SMALL else lerpF(rightSlot, center, outP) to lerpF(HANDOFF_SMALL, 1f, outP)
+    }
+    val oldImage = remember(old) { old.asImageBitmap() }
+    val newImage = remember(new) { new?.asImageBitmap() }
     @Composable
-    fun cover(bitmap: Bitmap, x: Float, scale: Float) {
+    fun cover(image: androidx.compose.ui.graphics.ImageBitmap, place: (Float) -> Pair<Float, Float>) {
         Box(
             Modifier
                 .offset { IntOffset((w - coverSize) / 2, coverTop) }
                 .size(coverDp)
                 .graphicsLayer {
+                    val (x, scale) = place(handoff.progress.value)
                     translationX = x - center
                     scaleX = scale
                     scaleY = scale
@@ -447,14 +445,40 @@ private fun CoverHandoffCovers(handoff: CoverHandoff, old: Bitmap, new: Bitmap?,
                     clip = true
                 },
         ) {
-            Image(bitmap.asImageBitmap(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            Image(image, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         }
     }
-    cover(old, oldX, oldScale)
-    new?.let { cover(it, newX, newScale) }
+    cover(oldImage, ::oldAt)
+    newImage?.let { cover(it, ::newAt) }
 }
 
 private fun lerpF(a: Float, b: Float, f: Float) = a + (b - a) * f
+
+/**
+ * Whether a written setting can change how the wallpaper or overlay look: not the bookkeeping
+ * written as songs play (lookup statuses, the overlay's dragged place, the clock-swap marker),
+ * which would otherwise rebuild them each time.
+ */
+internal fun changesLook(key: String?): Boolean = key == null || !(
+    key.endsWith("Status") || key == "overlayX" || key == "overlayY" || key == "overlayClockHiddenByUs"
+    )
+
+/** [lyrics]' lines as the renderer's models. */
+private fun toRendererLines(lyrics: LyricsState.Ready): List<Line> = lyrics.lines.map { line ->
+    Line(
+        words = line.words.map { word ->
+            Word(word.text, word.startMs, word.endMs, isPartOfWord = word.attached, romanizedText = word.romanized)
+        },
+        startMs = line.startMs,
+        endMs = line.endMs,
+        agent = line.agent,
+        role = line.role,
+        groupId = line.groupId,
+        oppositeAligned = line.oppositeAligned,
+        lineTimed = line.lineTimed,
+        untimed = line.untimed,
+    )
+}
 
 /** The picture for when nothing plays, loaded at about the screen's size, or null with none. */
 @Composable
@@ -489,17 +513,24 @@ internal fun LyricsFontSetup(settings: AppSettings) {
 /** The blurred still cover, breathing slowly while the music plays, or a dark gradient with no cover. */
 @Composable
 private fun StillBackground(ui: WallpaperUi, cover: Bitmap?, w: Int, h: Int, shiftPx: () -> Float, animate: Boolean) {
-    val blurred = remember(cover) {
-        cover?.let { art ->
-            val small = Bitmap.createScaledBitmap(art, COVER_BLUR_WIDTH, max(1, COVER_BLUR_WIDTH * art.height / art.width), true)
-            StackBlur.blur(small, COVER_BLUR_RADIUS)
+    // Blurred off the main thread, so a song change doesn't stall the frames animating it.
+    val blurred by androidx.compose.runtime.produceState<Bitmap?>(null, cover) {
+        value = cover?.let { art ->
+            withContext(Dispatchers.Default) {
+                runCatching {
+                    val small = Bitmap.createScaledBitmap(art, COVER_BLUR_WIDTH, max(1, COVER_BLUR_WIDTH * art.height / art.width), true)
+                    StackBlur.blur(small, COVER_BLUR_RADIUS)
+                }.getOrNull()
+            }
         }
     }
     var nowMs by remember { mutableLongStateOf(android.os.SystemClock.uptimeMillis()) }
     val running = animate && blurred != null && ui.playing && ui.visible
+    // The breathing is a 12-second drift: 20 steps a second are plenty, not every display frame.
     LaunchedEffect(running) {
         while (running) {
-            androidx.compose.runtime.withFrameMillis { nowMs = android.os.SystemClock.uptimeMillis() }
+            nowMs = android.os.SystemClock.uptimeMillis()
+            delay(BREATHE_STEP_MS)
         }
     }
     val paint = remember { Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG) }
@@ -594,6 +625,8 @@ private const val PARALLAX_OVERSCAN = 1f + PARALLAX_FRACTION
 /** The veil over the moving picture: heavier under the words. */
 private const val VEIL_LYRICS = 100
 private const val VEIL_PLAIN = 70
+/** How often the still background's slow breathing steps. */
+private const val BREATHE_STEP_MS = 50L
 /** The background video's blur: 6 px on the screen. */
 private const val BG_BLUR_PX = 6f
 /** The background video is blurred at this fraction of the screen's size, then stretched back. */

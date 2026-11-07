@@ -44,13 +44,14 @@ internal fun StatusBarLyrics(
 ) {
     val lyrics = live.lyrics
     val lines = remember(lyrics) { lyrics?.let(::leadLines).orEmpty() }
-    var now by remember { mutableLongStateOf(live.positionMs()) }
+    // The clock is read while drawing; only a change of line recomposes.
+    val nowState = remember { androidx.compose.runtime.mutableLongStateOf(live.positionMs()) }
     val running = live.playing
     LaunchedEffect(running, lines) {
-        now = live.positionMs()
-        while (running) withFrameMillis { if (visible()) now = live.positionMs() }
+        nowState.longValue = live.positionMs()
+        while (running) withFrameMillis { if (visible()) nowState.longValue = live.positionMs() }
     }
-    val index = currentLine(lines, now)
+    val index by remember(lines) { androidx.compose.runtime.derivedStateOf { currentLine(lines, nowState.longValue) } }
     val line = lines.getOrNull(index)
     val text = remember(line) { line?.let(::lineText) ?: LineText(INSTRUMENTAL, emptyList()) }
     val measurer = rememberTextMeasurer()
@@ -64,7 +65,7 @@ internal fun StatusBarLyrics(
             softWrap = false,
             maxLines = 1,
         )
-        val fillX = fillPosition(layout, text, now)
+        val fillX = fillPosition(layout, text, nowState.longValue)
         val overflow = (layout.size.width - size.width).coerceAtLeast(0f)
         val shift = if (overflow > 0f) (fillX - size.width * FOLLOW_AT).coerceIn(0f, overflow) else 0f
         val top = (size.height - layout.size.height) / 2f
