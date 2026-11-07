@@ -24,6 +24,7 @@ import com.tx24.spicyplayer.lyrics.LyricsState
 import com.tx24.spicyplayer.lyrics.TimedLine
 import com.tx24.spicyplayer.lyrics.WordTiming
 import com.tx24.spicyplayer.lyrics.spicy.canvas.LyricsLayoutCalculator
+import com.tx24.spicyplayer.lyrics.spicy.canvas.drawGlow
 import com.tx24.spicyplayer.lyrics.spicy.models.LineRole
 import com.tx24.spicyplayer.lyrics.spicy.models.LyricsType
 import com.tx24.spicyplayer.playback.LiveLyrics
@@ -76,7 +77,7 @@ internal fun StatusBarLyrics(
                 clipRect(right = fillX) {
                     // The glow as its own soft pass under the sung words.
                     if (glow) {
-                        com.tx24.spicyplayer.lyrics.spicy.canvas.drawGlow(
+                        drawGlow(
                             layout, Offset.Zero,
                             Shadow(color.copy(alpha = GLOW_ALPHA), Offset.Zero, layout.size.height * GLOW_BLUR_SHARE),
                             glowStrength,
