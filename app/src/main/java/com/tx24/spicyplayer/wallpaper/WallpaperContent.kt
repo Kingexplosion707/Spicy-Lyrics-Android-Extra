@@ -70,6 +70,7 @@ import com.tx24.spicyplayer.translation.TranslationPresentation
 import com.tx24.spicyplayer.translation.TranslationResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -141,7 +142,13 @@ internal fun WallpaperContent(
         // and the song's name), nothing moving.
         val still = saving.stopAll
         val titleSize = (w * 0.045f).coerceIn(30f, 64f)
-        val hasCover = ui.appleUrl != null || ui.cover != null
+        // The covers trading places on a song change (see CoverHandoff). Started in this same
+        // composition, so the first frame of a new song already shows the old cover in place.
+        val handoff = rememberCoverHandoff(track?.key, ui.cover)
+        val handing by remember(handoff) { androidx.compose.runtime.derivedStateOf { handoff.running } }
+        // A new song whose cover hasn't come yet keeps the layout it had: nothing jumps up into
+        // the cover's room and back.
+        val hasCover = ui.appleUrl != null || ui.cover != null || handing
         // A song with no lyrics: the cover grows and the cover and song's name sit centred.
         val noLyrics = showLyrics && track != null && hasCover &&
             ((ui.lyrics == null && ui.notice != null) || ui.lyrics?.lines?.isEmpty() == true)
@@ -162,20 +169,33 @@ internal fun WallpaperContent(
 
         // The background: the Canvas (unless power saving stops it), else the animated cover
         // (likewise), else the blurred still cover.
-        // The covers trading places on a song change: the new song's videos wait until they've
-        // settled, so starting a player doesn't land on the animation's frames.
-        val handoff = rememberCoverHandoff(track?.key, ui.cover)
-        val handing by remember(handoff) { androidx.compose.runtime.derivedStateOf { handoff.running } }
+        // The new song's videos wait until the covers have settled, so starting a player doesn't
+        // land on the animation's frames.
         val canvasUrl = ui.canvasUrl.takeUnless { saving.noCanvas || still || handing }
         val appleUrl = ui.appleUrl.takeUnless { saving.noAnimatedCover || still || handing }
         val backgroundUrl = canvasUrl ?: appleUrl
-        // The still background blends into the next song's, as the covers trade places.
-        androidx.compose.animation.Crossfade(targetState = ui.cover, animationSpec = tween(BACKGROUND_BLEND_MS), label = "background") { cover ->
-            StillBackground(ui, cover, w, h, shiftPx, animate = backgroundUrl == null && !still && !saving.active)
+        // The still background blends into the next song's, as the covers trade places. It blends
+        // from one blurred picture to the next, once the next is ready, never through a blank one.
+        val blurredCover = rememberBlurredCover(track?.key, ui.cover)
+        androidx.compose.animation.Crossfade(targetState = blurredCover, animationSpec = tween(BACKGROUND_BLEND_MS), label = "background") { blurred ->
+            StillBackground(ui, blurred, w, h, shiftPx, animate = backgroundUrl == null && !still && !saving.active)
         }
-        if (backgroundUrl != null) {
+        // A video leaving (the song changed) fades out over the still background instead of
+        // vanishing, and the next song's fades in.
+        val lastBackground = remember { arrayOfNulls<String>(1) }
+        if (backgroundUrl != null) lastBackground[0] = backgroundUrl
+        val bgAlpha = remember { androidx.compose.animation.core.Animatable(if (backgroundUrl != null) 1f else 0f) }
+        LaunchedEffect(backgroundUrl) {
+            if (backgroundUrl != null) bgAlpha.animateTo(1f, tween(VIDEO_FADE_IN_MS))
+            else bgAlpha.animateTo(0f, tween(VIDEO_FADE_OUT_MS))
+        }
+        val bgShowing by remember { androidx.compose.runtime.derivedStateOf { bgAlpha.value > 0.01f } }
+        val shownBackground = backgroundUrl ?: lastBackground[0]?.takeIf { bgShowing && !still }
+        if (shownBackground != null) {
+            val backgroundUrl = shownBackground
             // Grown by the drift's reach, so sliding between pages never shows its edge.
             val bgModifier = Modifier.fillMaxSize().graphicsLayer {
+                alpha = bgAlpha.value
                 scaleX = PARALLAX_OVERSCAN
                 scaleY = PARALLAX_OVERSCAN
                 translationX = shiftPx()
@@ -295,6 +315,8 @@ internal fun WallpaperLyrics(
     glow: Boolean? = null,
     /** Simpler motion to save power: no glow, distance blur, word lift or background pop. */
     reduced: Boolean = false,
+    /** The glow's strength here (1 is normal); null follows the app's Glow strength. */
+    glowStrength: Float? = null,
 ) {
     val appleMusicStyle = settings.lyricsStyle == LyricsStyle.AppleMusic
     val config = RenderConfig(
@@ -312,6 +334,7 @@ internal fun WallpaperLyrics(
         syllablePace = settings.syllablePace,
         distanceBlurEnabled = settings.distanceBlur && !settings.lowPerformance && !reduced,
         glowEnabled = (glow ?: settings.glow) && !settings.lowPerformance && !reduced,
+        glowStrength = glowStrength ?: (settings.glowStrength / 100f),
         scroll = ScrollConfig(
             leadMs = if (settings.scrollLeadEnabled) settings.scrollLeadMs.coerceAtLeast(0).toLong() else 0L,
             smooth = settings.smoothScrolling,
@@ -375,7 +398,11 @@ internal fun WallpaperLyrics(
 internal class CoverHandoff {
     var old by mutableStateOf<Bitmap?>(null)
     val progress = androidx.compose.animation.core.Animatable(2f)
-    val running: Boolean get() = progress.value < 2f
+    /** Begun this frame, before its animation has been set to the start. */
+    var fresh by mutableStateOf(false)
+    val running: Boolean get() = old != null
+    /** Where the handoff is; one just begun is at the start. */
+    fun at(): Float = if (fresh) 0f else progress.value
 }
 
 /** Starts a [CoverHandoff] whenever the song changes from one with a cover. */
@@ -386,11 +413,18 @@ private fun rememberCoverHandoff(key: String?, cover: Bitmap?): CoverHandoff {
     // caught before the new song's replaces it.
     val seen = remember { SeenSong(key, cover) }
     var start by remember { mutableStateOf<Pair<Bitmap, Long>?>(null) }
+    val incoming = androidx.compose.runtime.rememberUpdatedState(cover)
     if (key != seen.key) {
         val outgoing = seen.cover
-        if (key != null && seen.key != null && outgoing != null) start = outgoing to System.nanoTime()
+        if (key != null && seen.key != null && outgoing != null) {
+            start = outgoing to System.nanoTime()
+            // Shown from this frame on, so the old cover never blinks out before it moves.
+            handoff.old = outgoing
+            handoff.fresh = true
+        }
         seen.key = key
-        seen.cover = cover
+        // The player can report the new song before its art, still holding the old picture.
+        seen.cover = cover.takeUnless { it === outgoing }
     } else if (cover != null) {
         seen.cover = cover
     }
@@ -398,6 +432,12 @@ private fun rememberCoverHandoff(key: String?, cover: Bitmap?): CoverHandoff {
         val (outgoing, _) = start ?: return@LaunchedEffect
         handoff.old = outgoing
         handoff.progress.snapTo(0f)
+        handoff.fresh = false
+        // The new song's cover usually comes a moment after its name: wait a little for it, so it
+        // slides in rather than an empty space.
+        kotlinx.coroutines.withTimeoutOrNull(HANDOFF_WAIT_MS) {
+            androidx.compose.runtime.snapshotFlow { incoming.value }.first { it != null && it !== outgoing }
+        }
         handoff.progress.animateTo(1f, tween(HANDOFF_IN_MS, easing = androidx.compose.animation.core.FastOutSlowInEasing))
         delay(HANDOFF_HOLD_MS)
         handoff.progress.animateTo(2f, tween(HANDOFF_OUT_MS, easing = androidx.compose.animation.core.FastOutSlowInEasing))
@@ -429,7 +469,7 @@ private fun CoverHandoffCovers(handoff: CoverHandoff, old: Bitmap, new: Bitmap?,
         return if (t <= 1f) lerpF(w + small, rightSlot, inP) to HANDOFF_SMALL else lerpF(rightSlot, center, outP) to lerpF(HANDOFF_SMALL, 1f, outP)
     }
     val oldImage = remember(old) { old.asImageBitmap() }
-    val newImage = remember(new) { new?.asImageBitmap() }
+    val newImage = remember(new, old) { new?.takeUnless { it === old }?.asImageBitmap() }
     @Composable
     fun cover(image: androidx.compose.ui.graphics.ImageBitmap, place: (Float) -> Pair<Float, Float>) {
         Box(
@@ -437,7 +477,7 @@ private fun CoverHandoffCovers(handoff: CoverHandoff, old: Bitmap, new: Bitmap?,
                 .offset { IntOffset((w - coverSize) / 2, coverTop) }
                 .size(coverDp)
                 .graphicsLayer {
-                    val (x, scale) = place(handoff.progress.value)
+                    val (x, scale) = place(handoff.at())
                     translationX = x - center
                     scaleX = scale
                     scaleY = scale
@@ -510,20 +550,29 @@ internal fun LyricsFontSetup(settings: AppSettings) {
     }
 }
 
+/**
+ * The song's cover blurred for the background, made off the main thread so a song change doesn't
+ * stall the frames animating it. While a new song's cover is still on its way (or being blurred)
+ * the last one stays; with no song, none.
+ */
+@Composable
+private fun rememberBlurredCover(key: String?, cover: Bitmap?): Bitmap? {
+    val blurred = androidx.compose.runtime.produceState<Bitmap?>(null, key == null, cover) {
+        if (key == null) { value = null; return@produceState }
+        val art = cover ?: return@produceState
+        value = withContext(Dispatchers.Default) {
+            runCatching {
+                val small = Bitmap.createScaledBitmap(art, COVER_BLUR_WIDTH, max(1, COVER_BLUR_WIDTH * art.height / art.width), true)
+                StackBlur.blur(small, COVER_BLUR_RADIUS)
+            }.getOrNull()
+        } ?: value
+    }
+    return blurred.value
+}
+
 /** The blurred still cover, breathing slowly while the music plays, or a dark gradient with no cover. */
 @Composable
-private fun StillBackground(ui: WallpaperUi, cover: Bitmap?, w: Int, h: Int, shiftPx: () -> Float, animate: Boolean) {
-    // Blurred off the main thread, so a song change doesn't stall the frames animating it.
-    val blurred by androidx.compose.runtime.produceState<Bitmap?>(null, cover) {
-        value = cover?.let { art ->
-            withContext(Dispatchers.Default) {
-                runCatching {
-                    val small = Bitmap.createScaledBitmap(art, COVER_BLUR_WIDTH, max(1, COVER_BLUR_WIDTH * art.height / art.width), true)
-                    StackBlur.blur(small, COVER_BLUR_RADIUS)
-                }.getOrNull()
-            }
-        }
-    }
+private fun StillBackground(ui: WallpaperUi, blurred: Bitmap?, w: Int, h: Int, shiftPx: () -> Float, animate: Boolean) {
     var nowMs by remember { mutableLongStateOf(android.os.SystemClock.uptimeMillis()) }
     val running = animate && blurred != null && ui.playing && ui.visible
     // The breathing is a 12-second drift: 20 steps a second are plenty, not every display frame.
@@ -540,7 +589,6 @@ private fun StillBackground(ui: WallpaperUi, cover: Bitmap?, w: Int, h: Int, shi
     Canvas(Modifier.fillMaxSize()) {
         drawIntoCanvas { c ->
             val canvas = c.nativeCanvas
-            val blurred = blurred
             if (blurred != null) {
                 val breathe = 1.05f + 0.03f * sin(nowMs / 12_000.0).toFloat()
                 val scale = max(w.toFloat() / blurred.width, h.toFloat() / blurred.height) * breathe * PARALLAX_OVERSCAN
@@ -609,6 +657,10 @@ private const val COVER_WIDTH_FRACTION = 0.65f
 private const val BIG_COVER_WIDTH_FRACTION = 0.85f
 /** The automix handoff: in, resting side by side, out; the covers' size side by side, and their gap. */
 private const val HANDOFF_IN_MS = 650
+/** How long a handoff waits for the new song's cover before moving without it. */
+private const val HANDOFF_WAIT_MS = 1_500L
+private const val VIDEO_FADE_OUT_MS = 500
+private const val VIDEO_FADE_IN_MS = 700
 private const val HANDOFF_HOLD_MS = 2_500L
 private const val HANDOFF_OUT_MS = 750
 private const val HANDOFF_SMALL = 0.45f

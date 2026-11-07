@@ -694,6 +694,8 @@ fun LyricsView(
                     }
                 }
         ) {
+            // This view's glow strength, for the renderer's glow passes this frame.
+            glowStrength = config.glowStrength
             val viewScrollOffset = centerY + scrollManager.animScrollY
             // Where a line is drawn: with the view, or a little behind it while it catches up.
             val trailTime = trailNow

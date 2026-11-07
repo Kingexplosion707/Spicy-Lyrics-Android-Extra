@@ -403,7 +403,7 @@ class SpicyWallpaperService : WallpaperService() {
                         if (current == generation) releaseStream(isBackground)
                     }
                 }
-            }.also { stream.player.addListener(it) }
+            }.also { stream.addListener(it) }
             val stopSampler = stream.addSampler(
                 if (isBackground) BG_LONG_SIDE else COVER_LONG_SIDE,
                 VIDEO_INTERVAL_MS,
@@ -465,7 +465,7 @@ class SpicyWallpaperService : WallpaperService() {
                     bgStream?.onScreen(false)
                     bgStreamOnScreen = false
                 }
-                bgPlayerListener?.let { bgStream?.player?.removeListener(it) }
+                bgPlayerListener?.let { bgStream?.removeListener(it) }
                 bgPlayerListener = null
                 bgStream?.let { MotionCovers.release(it) }
                 bgStream = null
@@ -478,7 +478,7 @@ class SpicyWallpaperService : WallpaperService() {
                     coverStream?.onScreen(false)
                     coverStreamOnScreen = false
                 }
-                coverPlayerListener?.let { coverStream?.player?.removeListener(it) }
+                coverPlayerListener?.let { coverStream?.removeListener(it) }
                 coverPlayerListener = null
                 coverStream?.let { MotionCovers.release(it) }
                 coverStream = null

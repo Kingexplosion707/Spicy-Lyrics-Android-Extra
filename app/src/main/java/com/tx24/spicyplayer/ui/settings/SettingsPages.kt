@@ -475,6 +475,20 @@ internal fun LyricsContent(state: PlayerUiState, viewModel: ExternalPlaybackView
                 icon = Icons.Rounded.Flare,
                 enabled = !settings.lowPerformance,
             )
+            SettingRow(
+                label = "Glow strength",
+                description = "How bright and wide the glow is, here and on the live wallpaper.",
+                icon = Icons.Rounded.Flare,
+                enabled = settings.glow && !settings.lowPerformance,
+            ) {
+                val steps = listOf(50, 75, 100, 150, 200, 250, 300)
+                SpicySelect(
+                    value = (steps.minByOrNull { kotlin.math.abs(it - settings.glowStrength) } ?: 100).toString(),
+                    options = steps.map { it.toString() },
+                    labels = steps.map { if (it == 100) "Normal" else "$it%" },
+                    onChange = { settings.glowStrength = it.toInt() },
+                )
+            }
         }
     }
 }

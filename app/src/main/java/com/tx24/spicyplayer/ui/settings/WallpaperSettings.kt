@@ -186,6 +186,34 @@ internal fun LyricsOverlaySection(settings: AppSettings) {
             enabled = settings.lyricsOverlay,
         )
         SettingRow(
+            label = "Glow strength",
+            description = "How bright and wide the overlay's glow is.",
+            icon = Icons.Rounded.AutoAwesome,
+            enabled = settings.lyricsOverlay && settings.overlayGlow,
+        ) {
+            val steps = listOf(50, 75, 100, 150, 200, 250, 300)
+            SpicySelect(
+                value = (steps.minByOrNull { kotlin.math.abs(it - settings.overlayGlowStrength) } ?: 100).toString(),
+                options = steps.map { it.toString() },
+                labels = steps.map { if (it == 100) "Normal" else "$it%" },
+                onChange = { settings.overlayGlowStrength = it.toInt() },
+            )
+        }
+        SettingRow(
+            label = "Text brightness",
+            description = "Brighter lyrics, the words not yet sung included, for a busy screen behind them.",
+            icon = Icons.Rounded.Opacity,
+            enabled = settings.lyricsOverlay,
+        ) {
+            val steps = listOf(100, 125, 150, 175, 200)
+            SpicySelect(
+                value = (steps.minByOrNull { kotlin.math.abs(it - settings.overlayBrightness) } ?: 100).toString(),
+                options = steps.map { it.toString() },
+                labels = steps.map { if (it == 100) "Normal" else "$it%" },
+                onChange = { settings.overlayBrightness = it.toInt() },
+            )
+        }
+        SettingRow(
             label = "Lyrics opacity",
             description = "How solid the overlay's lyrics are.",
             icon = Icons.Rounded.Opacity,

@@ -788,6 +788,7 @@ private fun LyricsApp(
         syllablePace = settings.syllablePace,
         distanceBlurEnabled = settings.distanceBlur && !lowPerformance,
         glowEnabled = settings.glow && !lowPerformance,
+        glowStrength = settings.glowStrength / 100f,
         scroll = ScrollConfig(
             leadMs = if (settings.scrollLeadEnabled) settings.scrollLeadMs.coerceAtLeast(0).toLong() else 0L,
             smooth = settings.smoothScrolling,

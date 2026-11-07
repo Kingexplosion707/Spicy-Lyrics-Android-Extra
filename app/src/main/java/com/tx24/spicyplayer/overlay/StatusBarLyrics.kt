@@ -41,6 +41,7 @@ internal fun StatusBarLyrics(
     modifier: Modifier,
     color: Color = Color.White,
     glow: Boolean = true,
+    glowStrength: Float = 1f,
 ) {
     val lyrics = live.lyrics
     val lines = remember(lyrics) { lyrics?.let(::leadLines).orEmpty() }
@@ -75,9 +76,10 @@ internal fun StatusBarLyrics(
                 clipRect(right = fillX) {
                     // The glow as its own soft pass under the sung words.
                     if (glow) {
-                        drawText(
-                            layout, color = color.copy(alpha = GLOW_ALPHA), topLeft = Offset.Zero,
-                            shadow = Shadow(color.copy(alpha = GLOW_ALPHA), Offset.Zero, layout.size.height * GLOW_BLUR_SHARE),
+                        com.tx24.spicyplayer.lyrics.spicy.canvas.drawGlow(
+                            layout, Offset.Zero,
+                            Shadow(color.copy(alpha = GLOW_ALPHA), Offset.Zero, layout.size.height * GLOW_BLUR_SHARE),
+                            glowStrength,
                         )
                     }
                     drawText(layout, color = color, topLeft = Offset.Zero, shadow = Shadow.None)
