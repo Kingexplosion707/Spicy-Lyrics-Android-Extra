@@ -300,7 +300,7 @@ internal fun WallpaperLyrics(
         minimalLyricsMode = settings.minimalLyricsMode && !appleMusicStyle,
         appleMusic = appleMusicStyle,
         refreshedSimple = settings.refreshedSimpleLyrics && settings.simpleLyricsMode && !appleMusicStyle,
-        wordMotionBoost = settings.wordMotionBoost && !reduced,
+        wordMotionBoost = if (reduced) 0f else settings.wordMotionBoost,
         wideDuetPadding = settings.duetLinePadding,
         creditsFollowLastLine = settings.creditsFollowLastLine,
         refinedCredits = settings.refinedCredits,
