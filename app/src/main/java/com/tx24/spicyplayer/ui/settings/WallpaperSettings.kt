@@ -18,6 +18,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import com.tx24.spicyplayer.wallpaper.WallpaperIdlePicture
+import com.tx24.spicyplayer.wallpaper.PowerSaving
+import androidx.compose.material.icons.rounded.BatterySaver
+import androidx.compose.material.icons.rounded.Album
+import androidx.compose.material.icons.rounded.AutoAwesomeMotion
+import androidx.compose.material.icons.rounded.ViewHeadline
 import com.tx24.spicyplayer.playback.LyricsNotificationService
 import com.tx24.spicyplayer.overlay.LyricsOverlayService
 import com.tx24.spicyplayer.overlay.OverlaySize
@@ -80,6 +85,7 @@ internal fun WallpaperSection(settings: AppSettings, showPickerButton: Boolean =
             icon = Icons.Rounded.MusicNote,
         )
         IdlePictureRow()
+        PowerSavingRows(settings)
         SettingRow(
             label = "Canvas",
             description = canvasStatus ?: "No track has played yet with the wallpaper on.",
@@ -350,6 +356,71 @@ internal fun ResyncOnResume() {
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer) }
     }
+}
+
+/**
+ * Power saving for the wallpaper: when (never, with the phone's battery saver, always), and what
+ * goes then. Each cut is its own switch.
+ */
+@Composable
+private fun PowerSavingRows(settings: AppSettings) {
+    SettingRow(
+        label = "Power saving",
+        description = when (settings.wallpaperPowerSaving) {
+            PowerSaving.Off -> "The wallpaper always runs in full."
+            PowerSaving.BatterySaver -> "Cuts what you choose below while the phone's battery saver is on."
+            PowerSaving.Always -> "Always cuts what you choose below."
+        },
+        icon = Icons.Rounded.BatterySaver,
+    ) {
+        SpicySelect(
+            value = settings.wallpaperPowerSaving.name,
+            options = PowerSaving.entries.map { it.name },
+            labels = PowerSaving.entries.map { it.label },
+            onChange = { settings.wallpaperPowerSaving = PowerSaving.valueOf(it) },
+        )
+    }
+    val on = settings.wallpaperPowerSaving != PowerSaving.Off
+    ToggleRow(
+        label = "Stop the Canvas video",
+        checked = settings.wallpaperSaveNoCanvas,
+        onCheckedChange = { settings.wallpaperSaveNoCanvas = it },
+        description = "The blurred still cover shows behind instead.",
+        icon = Icons.Rounded.Movie,
+        enabled = on && !settings.wallpaperSaveStopAll,
+    )
+    ToggleRow(
+        label = "Stop the animated cover",
+        checked = settings.wallpaperSaveNoAnimatedCover,
+        onCheckedChange = { settings.wallpaperSaveNoAnimatedCover = it },
+        description = "The still album cover shows instead.",
+        icon = Icons.Rounded.Album,
+        enabled = on && !settings.wallpaperSaveStopAll,
+    )
+    ToggleRow(
+        label = "Simpler lyrics animation",
+        checked = settings.wallpaperSaveSimpler,
+        onCheckedChange = { settings.wallpaperSaveSimpler = it },
+        description = "No glow, distance blur or word lift on the lyrics.",
+        icon = Icons.Rounded.AutoAwesomeMotion,
+        enabled = on && !settings.wallpaperSaveStopAll,
+    )
+    ToggleRow(
+        label = "Line by line",
+        checked = settings.wallpaperSaveLineByLine,
+        onCheckedChange = { settings.wallpaperSaveLineByLine = it },
+        description = "Each line lights up whole instead of word by word.",
+        icon = Icons.Rounded.ViewHeadline,
+        enabled = on && !settings.wallpaperSaveStopAll,
+    )
+    ToggleRow(
+        label = "Stop everything",
+        checked = settings.wallpaperSaveStopAll,
+        onCheckedChange = { settings.wallpaperSaveStopAll = it },
+        description = "Shows your picture for when nothing plays (or a still frame without one), with nothing moving.",
+        icon = Icons.Rounded.Wallpaper,
+        enabled = on,
+    )
 }
 
 /** The picture the wallpaper shows while nothing plays: pick one, or remove it. */

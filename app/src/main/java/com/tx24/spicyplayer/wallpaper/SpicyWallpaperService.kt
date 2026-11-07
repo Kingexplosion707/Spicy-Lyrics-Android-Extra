@@ -155,6 +155,19 @@ class SpicyWallpaperService : WallpaperService() {
             session.onTrack = { onTrack(it) }
             session.onPlayingChanged = { playing -> onPlayingChanged(playing) }
             session.start()
+            // Power saving can follow the phone's battery saver.
+            ui.batterySaver = app.getSystemService(android.os.PowerManager::class.java)?.isPowerSaveMode == true
+            androidx.core.content.ContextCompat.registerReceiver(
+                app, batterySaverReceiver,
+                android.content.IntentFilter(android.os.PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
+            )
+        }
+
+        private val batterySaverReceiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
+                ui.batterySaver = app.getSystemService(android.os.PowerManager::class.java)?.isPowerSaveMode == true
+            }
         }
 
         override fun onDestroy() {
@@ -162,6 +175,7 @@ class SpicyWallpaperService : WallpaperService() {
             main.removeCallbacks(drawRunnable)
             releaseHost()
             releaseVisuals()
+            runCatching { app.unregisterReceiver(batterySaverReceiver) }
             session.stop()
             scope.cancel()
             super.onDestroy()

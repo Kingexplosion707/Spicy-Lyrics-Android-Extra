@@ -277,6 +277,13 @@ class AppSettings(private val prefs: SharedPreferences) {
     var hapticBeatVocalsOnly by boolean("hapticBeatVocalsOnly", false)
     /** The live wallpaper draws the word-synced lyrics over the moving picture. */
     var wallpaperShowLyrics by boolean("wallpaperShowLyrics", true)
+    /** When the wallpaper saves power, and what it cuts then. */
+    internal var wallpaperPowerSaving by enum("wallpaperPowerSaving", com.tx24.spicyplayer.wallpaper.PowerSaving.BatterySaver)
+    var wallpaperSaveNoCanvas by boolean("wallpaperSaveNoCanvas", true)
+    var wallpaperSaveNoAnimatedCover by boolean("wallpaperSaveNoAnimatedCover", true)
+    var wallpaperSaveSimpler by boolean("wallpaperSaveSimpler", true)
+    var wallpaperSaveLineByLine by boolean("wallpaperSaveLineByLine", false)
+    var wallpaperSaveStopAll by boolean("wallpaperSaveStopAll", false)
     /** The line being sung in an ongoing notification, for islands and Live Updates. */
     var lyricsNotification by boolean("lyricsNotification", false)
     /** The lyrics floating over other apps while music plays. */

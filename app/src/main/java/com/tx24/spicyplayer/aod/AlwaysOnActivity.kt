@@ -94,7 +94,9 @@ class AlwaysOnActivity : ComponentActivity() {
         }
         live = LiveLyrics(this)
         live.start()
-        val canvas = prefs.getBoolean(PREF_CANVAS, false)
+        // The Canvas stays off while the phone's battery saver is on.
+        val batterySaver = getSystemService(android.os.PowerManager::class.java)?.isPowerSaveMode == true
+        val canvas = prefs.getBoolean(PREF_CANVAS, false) && !batterySaver
         controls = prefs.getBoolean(PREF_CONTROLS, false)
         setContent { AlwaysOnContent(live, AppSettings(prefs), canvas, controls, onDismiss = ::finish) }
     }

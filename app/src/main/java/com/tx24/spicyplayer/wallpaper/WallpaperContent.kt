@@ -90,6 +90,8 @@ internal class WallpaperUi {
     var visible by mutableStateOf(false)
     /** The home screen's page position, 0..1, for the background's drift. */
     var xOffset by mutableStateOf(0.5f)
+    /** The phone's battery saver is on (for power saving set to follow it). */
+    var batterySaver by mutableStateOf(false)
 }
 
 /**
@@ -116,6 +118,7 @@ internal fun WallpaperContent(
     }
     val settings = remember(settingsVersion) { AppSettings(prefs) }
     val showLyrics = remember(settingsVersion) { prefs.getBoolean("wallpaperShowLyrics", true) }
+    val saving = remember(settingsVersion) { PowerSaving.from(prefs) }.let { it.cuts(prefs, ui.batterySaver) }
     LyricsFontSetup(settings)
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -130,10 +133,13 @@ internal fun WallpaperContent(
         LaunchedEffect(ui.playing) {
             if (ui.playing) paused = false else { delay(IDLE_AFTER_MS); paused = true }
         }
-        if (idlePicture != null && (track == null || paused)) {
+        if (idlePicture != null && (track == null || paused || saving.stopAll)) {
             Image(idlePicture.asImageBitmap(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             return@BoxWithConstraints
         }
+        // Saving power with nothing picked to show: a still frame (the blurred cover, the cover
+        // and the song's name), nothing moving.
+        val still = saving.stopAll
         val titleSize = (w * 0.045f).coerceIn(30f, 64f)
         val hasCover = ui.appleUrl != null || ui.cover != null
         // A song with no lyrics: the cover grows and the cover and song's name sit centred.
@@ -150,30 +156,48 @@ internal fun WallpaperContent(
         val coverTop = animateFloatAsState(topTarget, tween(COVER_MOVE_MS), label = "coverTop").value.roundToInt()
         val songTop = if (hasCover) coverTop + coverSize else coverTop
         val lyricsTop = (songTop + titleSize * 3.1f).roundToInt()
-        val shiftPx = (0.5f - ui.xOffset) * w * PARALLAX_FRACTION
+        // Read where it's drawn, not here: sliding between pages then moves the layers without
+        // recomposing (and redrawing) everything above them.
+        val shiftPx = { (0.5f - ui.xOffset) * w * PARALLAX_FRACTION }
 
-        // The background: the loop sharp-decoded and blurred on the GPU, every frame.
-        val backgroundUrl = ui.canvasUrl ?: ui.appleUrl
+        // The background: the Canvas (unless power saving stops it), else the animated cover
+        // (likewise), else the blurred still cover.
+        val canvasUrl = ui.canvasUrl.takeUnless { saving.noCanvas || still }
+        val appleUrl = ui.appleUrl.takeUnless { saving.noAnimatedCover || still }
+        val backgroundUrl = canvasUrl ?: appleUrl
         // The still background blends into the next song's, as the covers trade places.
         androidx.compose.animation.Crossfade(targetState = ui.cover, animationSpec = tween(BACKGROUND_BLEND_MS), label = "background") { cover ->
-            StillBackground(ui, cover, w, h, shiftPx, animate = backgroundUrl == null)
+            StillBackground(ui, cover, w, h, shiftPx, animate = backgroundUrl == null && !still && !saving.active)
         }
         if (backgroundUrl != null) {
-            val blurDp = with(density) { BG_BLUR_PX.toDp() }
             // Grown by the drift's reach, so sliding between pages never shows its edge.
             val bgModifier = Modifier.fillMaxSize().graphicsLayer {
                 scaleX = PARALLAX_OVERSCAN
                 scaleY = PARALLAX_OVERSCAN
-                translationX = shiftPx
+                translationX = shiftPx()
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                MotionCoverVideo(
-                    url = backgroundUrl,
-                    visible = true,
-                    onFailed = { onBackgroundFailed(backgroundUrl) },
-                    modifier = bgModifier.blur(blurDp, BlurredEdgeTreatment.Rectangle),
-                    cropFromTop = 0.5f,
-                )
+                // Blurred at a quarter of the screen's size and stretched back up: the same soft
+                // 6 px look for a sixteenth of the GPU work, every frame.
+                val smallW = with(density) { (w / BG_DOWNSCALE).toDp() }
+                val smallH = with(density) { (h / BG_DOWNSCALE).toDp() }
+                val blurDp = with(density) { (BG_BLUR_PX / BG_DOWNSCALE).coerceAtLeast(1f).toDp() }
+                Box(bgModifier) {
+                    MotionCoverVideo(
+                        url = backgroundUrl,
+                        visible = true,
+                        onFailed = { onBackgroundFailed(backgroundUrl) },
+                        modifier = Modifier
+                            .size(smallW, smallH)
+                            .graphicsLayer {
+                                scaleX = BG_DOWNSCALE.toFloat()
+                                scaleY = BG_DOWNSCALE.toFloat()
+                                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
+                            }
+                            .blur(blurDp, BlurredEdgeTreatment.Rectangle),
+                        cropFromTop = 0.5f,
+                    )
+                }
             } else {
                 SampledBlurredVideo(backgroundUrl, { onBackgroundFailed(backgroundUrl) }, bgModifier)
             }
@@ -188,7 +212,8 @@ internal fun WallpaperContent(
         val handoff = rememberCoverHandoff(track?.key, ui.cover)
         val coverDp = with(density) { coverSize.toDp() }
         val handoffOld = handoff.old
-        if (handoff.running && handoffOld != null) {
+        val handing by remember(handoff) { androidx.compose.runtime.derivedStateOf { handoff.running } }
+        if (handing && handoffOld != null) {
             CoverHandoffCovers(handoff, handoffOld, ui.cover, w, coverSize, coverTop, coverDp)
         } else if (hasCover) {
             Box(
@@ -200,7 +225,7 @@ internal fun WallpaperContent(
                 ui.cover?.let { still ->
                     Image(still.asImageBitmap(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 }
-                ui.appleUrl?.let { url ->
+                appleUrl?.let { url ->
                     MotionCoverVideo(url = url, visible = true, onFailed = { onCoverFailed(url) }, modifier = Modifier.fillMaxSize(), cropFromTop = 0.5f)
                 }
             }
@@ -230,10 +255,12 @@ internal fun WallpaperContent(
         }
 
         // The lyrics, by the lyrics screen's own renderer.
-        if (showLyrics && track != null && ready != null && ready.lines.isNotEmpty()) {
+        if (showLyrics && !still && track != null && ready != null && ready.lines.isNotEmpty()) {
             val heightDp = with(density) { (h - lyricsTop).coerceAtLeast(1).toDp() }
             WallpaperLyrics(
-                lyrics = ready,
+                // Line by line when power saving asks: each line lights as a whole.
+                lyrics = if (saving.lineByLine && ready.lyricsType == LyricsType.Syllable) ready.copy(lyricsType = LyricsType.Line) else ready,
+                reduced = saving.simplerAnimation,
                 translation = ui.translation,
                 settings = settings,
                 positionMs = positionMs,
@@ -264,6 +291,8 @@ internal fun WallpaperLyrics(
     fontSizeScale: Float = settings.lyricsScale(false),
     /** Glow on or off here whatever the app's Glow setting; null follows it. */
     glow: Boolean? = null,
+    /** Simpler motion to save power: no glow, distance blur, word lift or background pop. */
+    reduced: Boolean = false,
 ) {
     val appleMusicStyle = settings.lyricsStyle == LyricsStyle.AppleMusic
     val config = RenderConfig(
@@ -271,16 +300,16 @@ internal fun WallpaperLyrics(
         minimalLyricsMode = settings.minimalLyricsMode && !appleMusicStyle,
         appleMusic = appleMusicStyle,
         refreshedSimple = settings.refreshedSimpleLyrics && settings.simpleLyricsMode && !appleMusicStyle,
-        wordMotionBoost = settings.wordMotionBoost,
+        wordMotionBoost = settings.wordMotionBoost && !reduced,
         wideDuetPadding = settings.duetLinePadding,
         creditsFollowLastLine = settings.creditsFollowLastLine,
         refinedCredits = settings.refinedCredits,
-        backgroundPop = settings.backgroundPop && !appleMusicStyle,
+        backgroundPop = settings.backgroundPop && !appleMusicStyle && !reduced,
         keepOverlappingLines = settings.keepOverlappingLines,
         syllableMerge = settings.syllableMerge,
         syllablePace = settings.syllablePace,
-        distanceBlurEnabled = settings.distanceBlur && !settings.lowPerformance,
-        glowEnabled = (glow ?: settings.glow) && !settings.lowPerformance,
+        distanceBlurEnabled = settings.distanceBlur && !settings.lowPerformance && !reduced,
+        glowEnabled = (glow ?: settings.glow) && !settings.lowPerformance && !reduced,
         scroll = ScrollConfig(
             leadMs = if (settings.scrollLeadEnabled) settings.scrollLeadMs.coerceAtLeast(0).toLong() else 0L,
             smooth = settings.smoothScrolling,
@@ -459,7 +488,7 @@ internal fun LyricsFontSetup(settings: AppSettings) {
 
 /** The blurred still cover, breathing slowly while the music plays, or a dark gradient with no cover. */
 @Composable
-private fun StillBackground(ui: WallpaperUi, cover: Bitmap?, w: Int, h: Int, shiftPx: Float, animate: Boolean) {
+private fun StillBackground(ui: WallpaperUi, cover: Bitmap?, w: Int, h: Int, shiftPx: () -> Float, animate: Boolean) {
     val blurred = remember(cover) {
         cover?.let { art ->
             val small = Bitmap.createScaledBitmap(art, COVER_BLUR_WIDTH, max(1, COVER_BLUR_WIDTH * art.height / art.width), true)
@@ -485,7 +514,7 @@ private fun StillBackground(ui: WallpaperUi, cover: Bitmap?, w: Int, h: Int, shi
                 val scale = max(w.toFloat() / blurred.width, h.toFloat() / blurred.height) * breathe * PARALLAX_OVERSCAN
                 val drawnW = blurred.width * scale
                 val drawnH = blurred.height * scale
-                val left = (w - drawnW) / 2f + shiftPx
+                val left = (w - drawnW) / 2f + shiftPx()
                 val top = (h - drawnH) / 2f
                 canvas.drawBitmap(blurred, null, RectF(left, top, left + drawnW, top + drawnH), paint)
             } else {
@@ -567,6 +596,8 @@ private const val VEIL_LYRICS = 100
 private const val VEIL_PLAIN = 70
 /** The background video's blur: 6 px on the screen. */
 private const val BG_BLUR_PX = 6f
+/** The background video is blurred at this fraction of the screen's size, then stretched back. */
+private const val BG_DOWNSCALE = 4
 /** Where the line being sung sits in the lyrics' area, from its top, as before. */
 private const val LYRICS_FOCUS_FRACTION = 0.42f
 /** The still cover's blur, on a [COVER_BLUR_WIDTH] px copy: about 6 px once stretched over the screen. */
