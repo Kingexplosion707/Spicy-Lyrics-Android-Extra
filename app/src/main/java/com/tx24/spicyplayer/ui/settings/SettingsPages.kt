@@ -475,6 +475,20 @@ internal fun LyricsContent(state: PlayerUiState, viewModel: ExternalPlaybackView
                 icon = Icons.Rounded.Flare,
                 enabled = !settings.lowPerformance,
             )
+            SettingRow(
+                label = "Glow strength",
+                description = "How bright and wide the glow is, here and on the live wallpaper.",
+                icon = Icons.Rounded.Flare,
+                enabled = settings.glow && !settings.lowPerformance,
+            ) {
+                val steps = listOf(50, 75, 100, 150, 200, 250, 300)
+                SpicySelect(
+                    value = (steps.minByOrNull { kotlin.math.abs(it - settings.glowStrength) } ?: 100).toString(),
+                    options = steps.map { it.toString() },
+                    labels = steps.map { if (it == 100) "Normal" else "$it%" },
+                    onChange = { settings.glowStrength = it.toInt() },
+                )
+            }
         }
     }
 }
@@ -2093,6 +2107,12 @@ private fun SettingsBackupRows(viewModel: ExternalPlaybackViewModel, settings: A
                 UsageStats.count(UsageCounter.BACKUP_RESTORE)
                 settings.reload()
                 viewModel.reloadSavedSettings()
+                // The extras follow the restored switches: started, stopped, the clock put back.
+                com.tx24.spicyplayer.overlay.LyricsOverlayService.sync(context)
+                com.tx24.spicyplayer.aod.AlwaysOnService.sync(context)
+                com.tx24.spicyplayer.playback.LyricsNotificationService.sync(context)
+                com.tx24.spicyplayer.haptics.BackgroundHapticsService.sync(context)
+                if (!settings.overlayHideClock) com.tx24.spicyplayer.overlay.StatusBarClock.restore(context)
                 viewModel.showMessage("Settings restored.")
             } else {
                 viewModel.showMessage((error as? SettingsBackup.InvalidBackup)?.message ?: "Couldn't read that backup.")
@@ -2101,14 +2121,14 @@ private fun SettingsBackupRows(viewModel: ExternalPlaybackViewModel, settings: A
     }
     SettingRow(
         label = "Back up settings",
-        description = "Save your settings, source order, delays and Spotify links to a file. Your custom font and Spicy Lyrics key stay out.",
+        description = "Save your settings, source order, delays and Spotify links to a file, with the live wallpaper (and its picture for when nothing plays), overlay, always-on display, haptics and lyrics notification. Your custom font and Spicy Lyrics key stay out.",
         icon = Icons.Rounded.Save,
     ) {
-        SpicyButton("Save", onClick = { export.launch("spicy-lyrics-mobile-settings-${java.time.LocalDate.now()}.json") })
+        SpicyButton("Save", onClick = { export.launch("spicy-lyrics-plus-settings-${java.time.LocalDate.now()}.json") })
     }
     SettingRow(
         label = "Restore settings",
-        description = "Replace your settings with the ones in a backup file.",
+        description = "Replace your settings with the ones in a backup file (from Spicy Lyrics Plus or Spicy Lyrics Mobile).",
         icon = Icons.Rounded.SettingsBackupRestore,
     ) {
         // Some file managers label .json as plain text or as nothing in particular.

@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import com.tx24.spicyplayer.BuildConfig
 import com.tx24.spicyplayer.analytics.UsageStats
 import com.tx24.spicyplayer.ui.settings.AppSettings
+import com.tx24.spicyplayer.wallpaper.WallpaperIdlePicture
 import kotlin.reflect.KClass
 
 /** Reads [SettingsBackup.STORES] out of the app's SharedPreferences, and writes a backup back in. */
@@ -13,6 +14,9 @@ class SettingsBackupStore(private val context: Context) {
     fun export(): String = SettingsBackup.encode(
         SettingsBackup.STORES.associateWith { name -> prefs(name).all.filterKeys { it !in kept(name) } },
         BuildConfig.VERSION_NAME,
+        files = listOfNotNull(
+            WallpaperIdlePicture.bytes(context)?.let { FILE_IDLE_PICTURE to android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) },
+        ).toMap(),
     )
 
     /**
@@ -37,6 +41,15 @@ class SettingsBackupStore(private val context: Context) {
                 restored.forEach { (key, value) -> put(key, value) }
             }.commit()
         }
+        // The live wallpaper's picture for when nothing plays, if the backup carries one.
+        SettingsBackup.decodeFiles(text)[FILE_IDLE_PICTURE]?.let { data ->
+            runCatching { android.util.Base64.decode(data, android.util.Base64.DEFAULT) }.getOrNull()
+                ?.let { WallpaperIdlePicture.saveBytes(context, it) }
+        }
+    }
+
+    private companion object {
+        const val FILE_IDLE_PICTURE = "wallpaperIdlePicture"
     }
 
     /**
@@ -80,7 +93,12 @@ class SettingsBackupStore(private val context: Context) {
      */
     private fun kept(store: String): Set<String> =
         when (store) {
-            "ui" -> setOf("customFontFile", "customFontName", UsageStats.KEY_ENABLED, UsageStats.KEY_ASKED, "introDone")
+            // Also this device's own: whether the app has its clock hidden, and the wallpaper
+            // picture's version (the picture itself travels as a file in the backup).
+            "ui" -> setOf(
+                "customFontFile", "customFontName", UsageStats.KEY_ENABLED, UsageStats.KEY_ASKED, "introDone",
+                "overlayClockHiddenByUs", WallpaperIdlePicture.PREF_STAMP,
+            )
             "translation" -> setOf("disclosed")
             else -> emptySet()
         }

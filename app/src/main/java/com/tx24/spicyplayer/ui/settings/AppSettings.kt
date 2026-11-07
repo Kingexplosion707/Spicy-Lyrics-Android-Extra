@@ -100,6 +100,8 @@ class AppSettings(private val prefs: SharedPreferences) {
 
     var distanceBlur by boolean("distanceBlur", true)
     var glow by boolean("glow", true)
+    /** How strong the glow is, in percent: 100 is the desktop amount. The lyrics screen and wallpaper. */
+    var glowStrength by int("glowStrength", 100, 50..300)
     /** Drops the costliest effects: the moving background, animated cover, glass blur, and lyric blur and glow. */
     var lowPerformance by boolean("lowPerformance", false)
     /** The playback buttons, the queue and pop-ups animate; off in [lowPerformance] too. */
@@ -277,6 +279,13 @@ class AppSettings(private val prefs: SharedPreferences) {
     var hapticBeatVocalsOnly by boolean("hapticBeatVocalsOnly", false)
     /** The live wallpaper draws the word-synced lyrics over the moving picture. */
     var wallpaperShowLyrics by boolean("wallpaperShowLyrics", true)
+    /** When the wallpaper saves power, and what it cuts then. */
+    internal var wallpaperPowerSaving by enum("wallpaperPowerSaving", com.tx24.spicyplayer.wallpaper.PowerSaving.BatterySaver)
+    var wallpaperSaveNoCanvas by boolean("wallpaperSaveNoCanvas", true)
+    var wallpaperSaveNoAnimatedCover by boolean("wallpaperSaveNoAnimatedCover", true)
+    var wallpaperSaveSimpler by boolean("wallpaperSaveSimpler", true)
+    var wallpaperSaveLineByLine by boolean("wallpaperSaveLineByLine", false)
+    var wallpaperSaveStopAll by boolean("wallpaperSaveStopAll", false)
     /** The line being sung in an ongoing notification, for islands and Live Updates. */
     var lyricsNotification by boolean("lyricsNotification", false)
     /** The lyrics floating over other apps while music plays. */
@@ -290,6 +299,9 @@ class AppSettings(private val prefs: SharedPreferences) {
     internal var overlayStyle by enum("overlayStyle", com.tx24.spicyplayer.overlay.OverlayStyle.Full)
     internal var overlayColor by enum("overlayColor", com.tx24.spicyplayer.overlay.OverlayColor.White)
     var overlayGlow by boolean("overlayGlow", true)
+    var overlayGlowStrength by int("overlayGlowStrength", 100, 50..300)
+    /** How bright the overlay's lyrics are drawn, in percent: 100 as the renderer draws them. */
+    var overlayBrightness by int("overlayBrightness", 100, 100..200)
     var overlayLyricsOpacity by int("overlayLyricsOpacity", 100, 10..100)
     var overlayBackdropOpacity by int("overlayBackdropOpacity", 45, 0..100)
     var overlayHideInLandscape by boolean("overlayHideInLandscape", false)

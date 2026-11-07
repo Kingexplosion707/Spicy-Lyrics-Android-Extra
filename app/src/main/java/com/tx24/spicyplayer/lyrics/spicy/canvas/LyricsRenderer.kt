@@ -158,9 +158,48 @@ private inline fun DrawScope.drawGlowThenText(
     shadow: Shadow?,
     drawBody: () -> Unit,
 ) {
-    if (shadow != null) drawText(layoutResult, color = Color.Transparent, shadow = shadow, topLeft = topLeft)
+    if (shadow != null) drawGlow(layoutResult, topLeft, shadow)
     drawBody()
 }
+
+/**
+ * How strong glows are drawn ([com.tx24.spicyplayer.lyrics.spicy.RenderConfig.glowStrength]): set
+ * by [LyricsView] before it draws a frame's lines. Main thread.
+ */
+internal var glowStrength = 1f
+
+/** [shadow] at the glow strength: wider, and its alpha scaled (capped at fully opaque). */
+internal fun strengthened(shadow: Shadow, strength: Float = glowStrength): Shadow =
+    if (strength == 1f) shadow else shadow.copy(
+        color = shadow.color.copy(alpha = (shadow.color.alpha * strength).coerceIn(0f, 1f)),
+        blurRadius = shadow.blurRadius * glowSpread(strength),
+    )
+
+/** How much wider a glow spreads at [strength]: half as fast as its brightness grows. */
+internal fun glowSpread(strength: Float) = 1f + (strength - 1f) * GLOW_SPREAD_SHARE
+
+/**
+ * The glow pass alone. Past fully opaque, a stronger glow is drawn again on top (up to three
+ * passes), which is what makes it brighter rather than only wider.
+ */
+internal fun DrawScope.drawGlow(layoutResult: TextLayoutResult, topLeft: Offset, shadow: Shadow, strength: Float = glowStrength) {
+    if (strength == 1f) {
+        drawText(layoutResult, color = Color.Transparent, shadow = shadow, topLeft = topLeft)
+        return
+    }
+    val blur = shadow.blurRadius * glowSpread(strength)
+    var left = shadow.color.alpha * strength
+    var passes = 0
+    while (left > 0.01f && passes < MAX_GLOW_PASSES) {
+        val alpha = left.coerceAtMost(1f)
+        drawText(layoutResult, color = Color.Transparent, shadow = Shadow(shadow.color.copy(alpha = alpha), shadow.offset, blur), topLeft = topLeft)
+        left -= alpha
+        passes++
+    }
+}
+
+private const val GLOW_SPREAD_SHARE = 0.5f
+private const val MAX_GLOW_PASSES = 3
 
 /**
  * Vertical (top→bottom) variant of [drawWipeText] for Line-mode lines: the `.line` element
@@ -289,7 +328,7 @@ internal fun DrawScope.drawInterludeGroup(
                 textLayoutResult = wLayout.textLayoutResult,
                 color = Color.White,
                 alpha = dotOpacity * lineAnim.opacity,
-                shadow = dotShadow ?: Shadow.None,
+                shadow = dotShadow?.let { strengthened(it) } ?: Shadow.None,
                 topLeft = Offset(xPos, baseYPos),
             )
         }

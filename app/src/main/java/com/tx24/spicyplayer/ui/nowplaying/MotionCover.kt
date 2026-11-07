@@ -236,14 +236,15 @@ internal fun rememberMotionCoverStream(url: String, onFailed: () -> Unit, held: 
     val stream = remember(url) { MotionCoverLease(MotionCovers.acquire(context, url)) }.stream
     val latestOnFailed by rememberUpdatedState(onFailed)
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val mainHandler = remember { Handler(Looper.getMainLooper()) }
     DisposableEffect(stream) {
         val listener = object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
-                latestOnFailed()
+                mainHandler.post { latestOnFailed() }
             }
         }
-        stream.player.addListener(listener)
-        onDispose { stream.player.removeListener(listener) }
+        stream.addListener(listener)
+        onDispose { stream.removeListener(listener) }
     }
     DisposableEffect(stream, lifecycle) {
         // Only loops while the app is on screen, and not held with the music ([MotionCovers.pausedNow]).
@@ -348,6 +349,11 @@ internal object MotionCovers {
     fun pausedNow(url: String): Boolean = musicPaused && LoopKind.of(url) in pausedKinds
     private val main = Handler(Looper.getMainLooper())
 
+    /** The thread every cover player runs on (its application thread), away from the frames. */
+    val playerHandler: Handler by lazy {
+        Handler(android.os.HandlerThread("MotionCoverPlayers").apply { start() }.looper)
+    }
+
     fun acquire(context: Context, url: String): MotionCoverStream =
         streams.getOrPut(url) { MotionCoverStream(url, player(context.applicationContext, url)) }.also { it.users++ }
 
@@ -374,10 +380,12 @@ internal object MotionCovers {
         // Apple's animated covers are HLS streams; a Spotify Canvas is a single MP4 file.
         val hls = isHls(url)
         val sources = if (hls) HlsMediaSource.Factory(source) else ProgressiveMediaSource.Factory(source)
-        return ExoPlayer.Builder(context)
+        val player = ExoPlayer.Builder(context)
             .setMediaSourceFactory(sources)
+            .setLooper(playerHandler.looper)
             .build()
-            .apply {
+        playerHandler.post {
+            player.apply {
                 // Never asks for audio focus (the default), so the music app is left alone.
                 volume = 0f
                 repeatMode = Player.REPEAT_MODE_ONE
@@ -398,6 +406,8 @@ internal object MotionCovers {
                 // Started once a view of it is on screen ([MotionCoverStream.sync]).
                 playWhenReady = false
             }
+        }
+        return player
     }
 
     internal fun isHls(url: String) = url.substringBefore('?').endsWith(".m3u8", ignoreCase = true)
