@@ -540,6 +540,7 @@ private fun StillBackground(ui: WallpaperUi, cover: Bitmap?, w: Int, h: Int, shi
     Canvas(Modifier.fillMaxSize()) {
         drawIntoCanvas { c ->
             val canvas = c.nativeCanvas
+            val blurred = blurred
             if (blurred != null) {
                 val breathe = 1.05f + 0.03f * sin(nowMs / 12_000.0).toFloat()
                 val scale = max(w.toFloat() / blurred.width, h.toFloat() / blurred.height) * breathe * PARALLAX_OVERSCAN
