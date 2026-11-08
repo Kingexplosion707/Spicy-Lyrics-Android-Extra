@@ -145,12 +145,14 @@ class AlwaysOnService : Service() {
         fun enabled(context: Context): Boolean =
             context.getSharedPreferences("ui", Context.MODE_PRIVATE).getBoolean(PREF_ENABLED, false)
 
-        fun sync(context: Context) {
+        /** Starts it while it's on, stops it otherwise; false when it should run but couldn't start. */
+        fun sync(context: Context): Boolean {
             val intent = Intent(context, AlwaysOnService::class.java)
-            if (enabled(context)) {
-                runCatching { ContextCompat.startForegroundService(context, intent) }
+            return if (enabled(context)) {
+                runCatching { ContextCompat.startForegroundService(context, intent) }.isSuccess
             } else {
                 context.stopService(intent)
+                true
             }
         }
     }

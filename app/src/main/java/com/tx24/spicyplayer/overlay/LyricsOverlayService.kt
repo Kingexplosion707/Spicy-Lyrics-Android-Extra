@@ -121,7 +121,7 @@ class LyricsOverlayService : Service() {
         prefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
         (application as Application).unregisterActivityLifecycleCallbacks(activityCallbacks)
         WallpaperPresence.removeListener(wallpaperListener)
-        window.hide()
+        window.destroy()
         StatusBarClock.restore(this)
         live.stop()
         super.onDestroy()
@@ -226,13 +226,17 @@ class LyricsOverlayService : Service() {
         fun enabled(context: Context): Boolean =
             context.getSharedPreferences("ui", Context.MODE_PRIVATE).getBoolean(PREF_ENABLED, false)
 
-        /** Starts it while it's on and allowed to draw over other apps, stops it otherwise. */
-        fun sync(context: Context) {
+        /**
+         * Starts it while it's on and allowed to draw over other apps, stops it otherwise; false
+         * when it should run but couldn't start.
+         */
+        fun sync(context: Context): Boolean {
             val intent = Intent(context, LyricsOverlayService::class.java)
-            if (enabled(context) && Settings.canDrawOverlays(context)) {
-                runCatching { ContextCompat.startForegroundService(context, intent) }
+            return if (enabled(context) && Settings.canDrawOverlays(context)) {
+                runCatching { ContextCompat.startForegroundService(context, intent) }.isSuccess
             } else {
                 context.stopService(intent)
+                true
             }
         }
     }

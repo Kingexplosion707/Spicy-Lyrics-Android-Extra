@@ -19,6 +19,8 @@
     <!-- The always-on display's fallback without the overlay permission: a full-screen notification. -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- To bring the overlay, always-on display and lyrics notification back after a restart. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Granted only through Shizuku (a shell grant): hides the status bar clock behind the status bar lyrics. -->
     <uses-permission
         android:name="android.permission.WRITE_SECURE_SETTINGS"
@@ -129,6 +131,17 @@
             android:multiprocess="false"
             android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
 
+        <!-- Lyrics cards handed to the share sheet (Share lyrics). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/share_paths" />
+        </provider>
+
         <!-- The always-on display: dim lyrics on black over the lock screen. -->
         <activity
             android:name="com.tx24.spicyplayer.aod.AlwaysOnActivity"
@@ -143,7 +156,11 @@
         <service
             android:name="com.tx24.spicyplayer.overlay.LyricsOverlayService"
             android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Floats the lyrics of the music playing over other apps" />
+        </service>
 
         <service
             android:name="com.tx24.spicyplayer.aod.AlwaysOnService"
@@ -170,7 +187,61 @@
         <service
             android:name="com.tx24.spicyplayer.playback.LyricsNotificationService"
             android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Shows the lyric line being sung as an ongoing notification" />
+        </service>
+
+        <!-- The sleep timer: pauses the player after a set time or at the end of the song. -->
+        <service
+            android:name="com.tx24.spicyplayer.playback.SleepTimerService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Pauses the music playing in another app when a sleep timer runs out" />
+        </service>
+
+        <!-- Quick Settings tiles for the overlay and the always-on display. -->
+        <service
+            android:name="com.tx24.spicyplayer.tiles.OverlayTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_overlay"
+            android:label="@string/tile_overlay"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            tools:targetApi="n">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.TOGGLEABLE_TILE"
+                android:value="true" />
+        </service>
+        <service
+            android:name="com.tx24.spicyplayer.tiles.AlwaysOnTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_aod"
+            android:label="@string/tile_aod"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            tools:targetApi="n">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.TOGGLEABLE_TILE"
+                android:value="true" />
+        </service>
+
+        <!-- Brings the overlay, always-on display and lyrics notification back after a restart or an update. -->
+        <receiver
+            android:name="com.tx24.spicyplayer.tiles.StartupReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <activity
             android:name="com.tx24.spicyplayer.widget.WidgetSettingsActivity"

@@ -47,6 +47,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.tx24.spicyplayer.lyrics.LyricsState
+import com.tx24.spicyplayer.lyrics.lyricsTint
+import com.tx24.spicyplayer.lyrics.rememberLyricsTint
 import com.tx24.spicyplayer.lyrics.spicy.RenderConfig
 import com.tx24.spicyplayer.lyrics.spicy.ScrollConfig
 import com.tx24.spicyplayer.lyrics.spicy.canvas.LyricsLayoutCalculator
@@ -290,6 +292,7 @@ internal fun WallpaperContent(
                 visible = { ui.visible },
                 durationMs = track.durationMs,
                 modifier = Modifier.offset { IntOffset(0, lyricsTop) }.fillMaxWidth().height(heightDp),
+                tint = rememberLyricsTint(settings.lyricsColor, ui.cover),
             )
         }
     }
@@ -317,6 +320,10 @@ internal fun WallpaperLyrics(
     reduced: Boolean = false,
     /** The glow's strength here (1 is normal); null follows the app's Glow strength. */
     glowStrength: Float? = null,
+    /** The lyrics' colour (Lyrics colour); white draws them as they are. */
+    tint: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.White,
+    /** The most frames a second the lyrics draw; 0 for every frame. */
+    maxFrameRate: Float = 0f,
 ) {
     val appleMusicStyle = settings.lyricsStyle == LyricsStyle.AppleMusic
     val config = RenderConfig(
@@ -370,6 +377,7 @@ internal fun WallpaperLyrics(
         translation = presentation,
         isPlaying = isPlaying,
         visible = visible,
+        maxFrameRate = maxFrameRate,
         focusAnchorFraction = focusAnchorFraction,
         lyricsType = lyrics.lyricsType,
         config = config,
@@ -384,7 +392,7 @@ internal fun WallpaperLyrics(
                 uploader = lyrics.uploader?.let { LyricsCredit(it.username, it.profileUrl, it.avatarUrl) },
             )
         },
-        modifier = modifier,
+        modifier = modifier.lyricsTint(tint),
     )
 }
 

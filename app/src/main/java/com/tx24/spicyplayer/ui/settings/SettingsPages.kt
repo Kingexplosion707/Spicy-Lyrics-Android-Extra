@@ -117,6 +117,8 @@ import androidx.compose.material.icons.rounded.Flare
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.IosShare
+import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.VideoLibrary
 import androidx.compose.material.icons.rounded.Panorama
 import androidx.compose.material.icons.rounded.AutoAwesome
@@ -487,6 +489,18 @@ internal fun LyricsContent(state: PlayerUiState, viewModel: ExternalPlaybackView
                     options = steps.map { it.toString() },
                     labels = steps.map { if (it == 100) "Normal" else "$it%" },
                     onChange = { settings.glowStrength = it.toInt() },
+                )
+            }
+            SettingRow(
+                label = "Lyrics colour",
+                description = "Here, on the live wallpaper and the always-on display. From the cover takes it from the song's art.",
+                icon = Icons.Rounded.Palette,
+            ) {
+                SpicySelect(
+                    value = settings.lyricsColor.name,
+                    options = com.tx24.spicyplayer.overlay.OverlayColor.entries.map { it.name },
+                    labels = com.tx24.spicyplayer.overlay.OverlayColor.entries.map { it.label },
+                    onChange = { settings.lyricsColor = com.tx24.spicyplayer.overlay.OverlayColor.valueOf(it) },
                 )
             }
         }
@@ -1090,6 +1104,20 @@ internal fun ControlsContent(settings: AppSettings) {
                 onCheckedChange = { settings.sourceButton = it },
                 description = "Show its own button for choosing this song's lyrics source. It's always in quick settings.",
                 icon = SpicyGlyphs.Source,
+            )
+            ToggleRow(
+                label = "Share lyrics button",
+                checked = settings.shareButton,
+                onCheckedChange = { settings.shareButton = it },
+                description = "Share a few lines as a picture with the cover, or copy them.",
+                icon = Icons.Rounded.IosShare,
+            )
+            ToggleRow(
+                label = "Sleep timer button",
+                checked = settings.sleepTimerButton,
+                onCheckedChange = { settings.sleepTimerButton = it },
+                description = "Pause the music after a while or at the end of the song, fading it out first.",
+                icon = Icons.Rounded.Bedtime,
             )
         }
     }

@@ -22,6 +22,14 @@
     <string name="lyrics_notification_channel">Lyrics notification</string>
     <string name="lyrics_notification_channel_description">The line being sung, for dynamic islands and Live Updates.</string>
     <string name="lyrics_notification_nothing">Play something to see its lyrics here</string>
+    <string name="sleep_timer_title">Sleep timer</string>
+    <string name="sleep_timer_cancel">Turn off</string>
+    <string name="sleep_timer_counting">Pausing the music in</string>
+    <string name="sleep_timer_end_of_song">Pausing the music when this song ends</string>
+    <string name="tile_overlay">Lyrics overlay</string>
+    <string name="tile_aod">Lyrics AOD</string>
+    <string name="tile_on">On</string>
+    <string name="tile_off">Off</string>
     <string name="lyrics_overlay_title">Lyrics overlay</string>
     <string name="lyrics_overlay_showing">Floating over your apps</string>
     <string name="lyrics_overlay_waiting">Hidden until music with lyrics plays</string>

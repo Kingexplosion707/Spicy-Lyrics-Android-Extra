@@ -30,8 +30,20 @@ Modified by Behnoud.
 - Precise last-millisecond timing in the haptics loop; drops land where the score puts them.
 - Android 16 sharpness envelopes, with each pulse's sharpness from the song's timbre.
 
+### Lyrics screen
+- **Share lyrics**: pick up to eight lines and share them as a 4:5 card (blurred cover, the song, the lines in large type), or copy them as text (`ui/share/`).
+- **Sleep timer**: pauses the player after a set time or at the end of the song, fading the music out first (`playback/SleepTimerService.kt`, `ui/sleep/`).
+- **Lyrics colour** for the lyrics screen, wallpaper and always-on display, and a **Glow strength** setting (50–300%).
+
+### Performance
+- The wallpaper, overlay, always-on display, notification and background haptics share one media-session follower instead of each running its own.
+- The lyric clock outside the app no longer asks the system for the audio output on every frame; the delays are looked up when the song or player changes, or once a second.
+- The overlay keeps its window (and its laid-out lyrics) for a while after hiding, draws at most 60 frames a second, and rests completely while hidden.
+- The always-on display asks for the screen's lowest refresh rate and wakes once a minute for its clock instead of every second.
+- Cover videos run their players on their own thread, so starting and stopping one never stalls a frame.
+
 ### Also
 - A lyrics notification (the line being sung) for dynamic-island apps and Live Updates.
-- A Glow strength setting for the lyrics screen and wallpaper (50–300%).
+- Quick Settings tiles for the overlay and the always-on display; both, and the lyrics notification, come back after a restart or an app update.
 - Version matching for LRCLIB and NetEase prefers the copy closest in length.
 - CI debug builds share one signing key (from a repository secret) and count their version up, so they install as updates.

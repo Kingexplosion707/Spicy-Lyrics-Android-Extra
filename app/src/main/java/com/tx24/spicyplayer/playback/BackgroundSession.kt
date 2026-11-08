@@ -15,12 +15,54 @@ import com.tx24.spicyplayer.lyrics.LocalLyricsStore
 import com.tx24.spicyplayer.network.data.LyricsLookupRequest
 
 /**
- * Follows the playing song outside the lyrics screen, for the live wallpaper and the background
- * haptics: the same session the screen follows ([bestSession]) on a [LyricClock] of its own.
- * Main thread only, mirroring [com.tx24.spicyplayer.widget.NowPlayingHolder]'s session handling
- * without its widget work.
+ * Follows the playing song outside the lyrics screen, for the live wallpaper, the overlay, the
+ * always-on display, the lyrics notification and the background haptics: the same session the
+ * screen follows ([bestSession]) on a [LyricClock] of its own.
+ *
+ * Every one of them shares one follower ([SessionCore]): one set of player callbacks and one
+ * clock however many are on, instead of each asking the system about every player change.
+ * [start] joins it (and hears the song playing now at once), [stop] leaves it; the last to leave
+ * ends it. Main thread only, apart from [positionMs].
  */
 internal class BackgroundSession(context: Context) {
+    /** A new song (or a new cover for it) to follow; null when nothing is playing. */
+    var onTrack: ((Track?) -> Unit)? = null
+    /** Playing or not, whenever it changes. */
+    var onPlayingChanged: ((Boolean) -> Unit)? = null
+
+    private val app = context.applicationContext
+    @Volatile private var core: SessionCore? = null
+
+    val isPlaying: Boolean get() = core?.isPlaying ?: false
+    val track: Track? get() = core?.track
+    val playerPackage: String? get() = core?.playerPackage
+
+    /** Play or pause the followed player. */
+    fun playPause() { core?.playPause() }
+    /** Pause the followed player (nothing when it isn't playing). */
+    fun pause() { core?.pause() }
+    fun skipNext() { core?.skipNext() }
+    fun skipPrevious() { core?.skipPrevious() }
+
+    /** The player's position, held back by every delay, as the lyrics screen reads it. Any thread. */
+    fun positionMs(): Long = core?.positionMs() ?: 0L
+
+    fun start() {
+        if (core != null) return
+        val shared = SessionCore.obtain(app)
+        core = shared
+        shared.join(this)
+    }
+
+    fun stop() {
+        val shared = core ?: return
+        core = null
+        shared.leave(this)
+    }
+
+    internal fun deliverTrack(track: Track?) { onTrack?.invoke(track) }
+    internal fun deliverPlaying(playing: Boolean) { onPlayingChanged?.invoke(playing) }
+
     /** The song being followed, with what a lookup needs and the player's cover art. */
     data class Track(
         /** What lyrics are keyed on: title + artist only ([lyricsKey]). */
@@ -33,13 +75,41 @@ internal class BackgroundSession(context: Context) {
         val spotifyId: String?,
         val cover: Bitmap?,
     )
+}
 
-    /** A new song (or a new cover for it) to follow; null when nothing is playing. */
-    var onTrack: ((Track?) -> Unit)? = null
-    /** Playing or not, whenever it changes. */
-    var onPlayingChanged: ((Boolean) -> Unit)? = null
+/**
+ * The one follower every [BackgroundSession] shares ([obtain]): it listens to the players while
+ * anyone has joined, and tells each of them about the song and playing.
+ */
+private class SessionCore(private val app: Context) {
+    private val listeners = ArrayList<BackgroundSession>()
 
-    private val app = context.applicationContext
+    /** Joins [listener]: the first starts following; a later one hears the song playing now. */
+    fun join(listener: BackgroundSession) {
+        if (listener in listeners) return
+        listeners += listener
+        // Not following (the first to join, or access was lost and may be back): connect, which
+        // tells everyone. Otherwise only the newcomer needs to hear what plays.
+        if (sessionManager == null) {
+            start()
+        } else {
+            track?.let(listener::deliverTrack)
+            listener.deliverPlaying(isPlaying)
+        }
+    }
+
+    /** [listener] leaves; the last one out stops following. */
+    fun leave(listener: BackgroundSession) {
+        listeners -= listener
+        if (listeners.isEmpty()) {
+            stop()
+            if (shared === this) shared = null
+        }
+    }
+
+    private fun onTrack(track: BackgroundSession.Track?) = listeners.toList().forEach { it.deliverTrack(track) }
+    private fun onPlayingChanged(playing: Boolean) = listeners.toList().forEach { it.deliverPlaying(playing) }
+
     private val main = Handler(Looper.getMainLooper())
     private val clock = LyricClock(SystemClock.elapsedRealtime())
     /** How long the followed session may stay stopped before another playing one takes over, as on the lyrics screen. */
@@ -58,7 +128,7 @@ internal class BackgroundSession(context: Context) {
 
     val isPlaying: Boolean get() = clock.isPlaying
 
-    var track: Track? = null
+    var track: BackgroundSession.Track? = null
         private set
 
     val playerPackage: String? get() = controller?.packageName
@@ -70,17 +140,38 @@ internal class BackgroundSession(context: Context) {
         if (session.playbackState?.state == android.media.session.PlaybackState.STATE_PLAYING) controls.pause() else controls.play()
     }
 
+    fun pause() { controller?.transportControls?.pause() }
     fun skipNext() { controller?.transportControls?.skipToNext() }
     fun skipPrevious() { controller?.transportControls?.skipToPrevious() }
 
-    /** The player's position, held back by every delay, as the lyrics screen reads it. */
+    /**
+     * The player's position, held back by every delay, as the lyrics screen reads it. Read every
+     * frame by what draws the lyrics, so the delays are looked up again only when the song or
+     * player changes, or every [DELAYS_FRESH_MS]: finding the audio output asks the system, too
+     * slow to do on every frame.
+     */
     fun positionMs(): Long {
         val now = SystemClock.elapsedRealtime()
-        val outputDelay = outputProfiles?.let { it.delayMs(it.currentRoute()) } ?: 0
-        val songDelay = songDelays?.delayMs(track?.let { LocalLyricsStore.keyOf(it.title, it.artist) }) ?: 0
-        val playerDelay = playerDelays?.delayMs(controller?.packageName) ?: 0
-        return lyricPositionMs(clock.positionAt(now), outputDelay, songDelay, playerDelay)
+        val song = track
+        val player = controller
+        if (song !== delaysTrack || player !== delaysPlayer || now - delaysAt >= DELAYS_FRESH_MS) {
+            delaysTrack = song
+            delaysPlayer = player
+            delaysAt = now
+            outputDelayMs = outputProfiles?.let { it.delayMs(it.currentRoute()) } ?: 0
+            songDelayMs = songDelays?.delayMs(song?.let { LocalLyricsStore.keyOf(it.title, it.artist) }) ?: 0
+            playerDelayMs = playerDelays?.delayMs(player?.packageName) ?: 0
+        }
+        return lyricPositionMs(clock.positionAt(now), outputDelayMs, songDelayMs, playerDelayMs)
     }
+
+    // The delays as last looked up, for whom and when (see positionMs).
+    @Volatile private var delaysTrack: BackgroundSession.Track? = null
+    @Volatile private var delaysPlayer: MediaController? = null
+    @Volatile private var delaysAt = Long.MIN_VALUE / 2
+    @Volatile private var outputDelayMs = 0
+    @Volatile private var songDelayMs = 0
+    @Volatile private var playerDelayMs = 0
 
     private val sessionsListener = MediaSessionManager.OnActiveSessionsChangedListener { follow(it.orEmpty()) }
 
@@ -123,7 +214,7 @@ internal class BackgroundSession(context: Context) {
         }.onFailure {
             // Access isn't granted: the app asks for it when opened.
             track = null
-            onTrack?.invoke(null)
+            onTrack(null)
         }
     }
 
@@ -147,8 +238,8 @@ internal class BackgroundSession(context: Context) {
         stickiness.reset()
         track = null
         clock.reset(SystemClock.elapsedRealtime())
-        onTrack?.invoke(null)
-        onPlayingChanged?.invoke(false)
+        onTrack(null)
+        onPlayingChanged(false)
     }
 
     private fun follow(sessions: List<MediaController>) {
@@ -193,10 +284,10 @@ internal class BackgroundSession(context: Context) {
         if (session == null || metadata == null || key == null) {
             if (track != null) {
                 track = null
-                onTrack?.invoke(null)
+                onTrack(null)
             }
             clock.reset(SystemClock.elapsedRealtime())
-            onPlayingChanged?.invoke(false)
+            onPlayingChanged(false)
             return
         }
         val newSong = key != track?.key
@@ -207,21 +298,21 @@ internal class BackgroundSession(context: Context) {
         val current = track
         if (current != null && reportedDuration > 0L && reportedDuration != current.durationMs) {
             track = current.copy(durationMs = reportedDuration)
-            onTrack?.invoke(track)
+            onTrack(track)
         }
         // With the screen off the cover waits: it's read again once the screen is on. Here the
         // cover is read on every update; a new bitmap only replaces the old one when its pixels differ.
         val wasPlaying = clock.isPlaying
         val coverChanged = refreshCover(metadata)
         report(session, newSong)
-        if (coverChanged) onTrack?.invoke(track)
-        if (wasPlaying != clock.isPlaying) onPlayingChanged?.invoke(clock.isPlaying)
+        if (coverChanged) onTrack(track)
+        if (wasPlaying != clock.isPlaying) onPlayingChanged(clock.isPlaying)
     }
 
     private fun startSong(key: String, metadata: MediaMetadata) {
         val manual = metadata.savedSpotifyId(app.getSharedPreferences("spotify_id_overrides", 0))
         val request = metadata.lookupRequest(manual ?: metadata.sessionSpotifyId())
-        track = Track(
+        track = BackgroundSession.Track(
             key = key,
             title = metadata.getString(MediaMetadata.METADATA_KEY_TITLE)
                 ?: metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE).orEmpty(),
@@ -233,7 +324,7 @@ internal class BackgroundSession(context: Context) {
             spotifyId = manual ?: metadata.sessionSpotifyId(),
             cover = null,
         )
-        onTrack?.invoke(track)
+        onTrack(track)
     }
 
     /** Rebuilds the track's cover when the player's cover changes; true when it did. */
@@ -275,7 +366,16 @@ internal class BackgroundSession(context: Context) {
     }
 
     companion object {
+        /** The follower while anyone has joined (it holds only the application context). Main thread. */
+        @android.annotation.SuppressLint("StaticFieldLeak")
+        private var shared: SessionCore? = null
+
+        fun obtain(context: Context): SessionCore =
+            shared ?: SessionCore(context.applicationContext).also { shared = it }
+
         /** How long the followed session may stay stopped before another playing one takes over. */
         private const val SESSION_SWITCH_GRACE_MS = 2_000L
+        /** How long a looked-up delay is used before it's looked up again (a new output, a changed setting). */
+        private const val DELAYS_FRESH_MS = 1_000L
     }
 }

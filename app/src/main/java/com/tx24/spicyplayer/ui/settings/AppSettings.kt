@@ -102,6 +102,12 @@ class AppSettings(private val prefs: SharedPreferences) {
     var glow by boolean("glow", true)
     /** How strong the glow is, in percent: 100 is the desktop amount. The lyrics screen and wallpaper. */
     var glowStrength by int("glowStrength", 100, 50..300)
+    /** The Share lyrics button among the floating buttons (or under More). */
+    var shareButton by boolean("shareButton", true)
+    /** The sleep timer's button among the floating buttons (or under More). */
+    var sleepTimerButton by boolean("sleepTimerButton", true)
+    /** The lyrics' colour on the lyrics screen, the live wallpaper and the always-on display. */
+    internal var lyricsColor by enum("lyricsColor", com.tx24.spicyplayer.overlay.OverlayColor.White)
     /** Drops the costliest effects: the moving background, animated cover, glass blur, and lyric blur and glow. */
     var lowPerformance by boolean("lowPerformance", false)
     /** The playback buttons, the queue and pop-ups animate; off in [lowPerformance] too. */
