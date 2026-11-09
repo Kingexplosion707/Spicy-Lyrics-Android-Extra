@@ -18,6 +18,7 @@
     <string name="background_haptics_title">Spicy Lyrics haptics</string>
     <string name="background_haptics_nothing">Play something to feel it</string>
     <string name="background_haptics_paused">Paused — waiting for music</string>
+    <string name="background_haptics_power_saving">Stopped while power saving is on</string>
     <string name="background_haptics_stop">Stop</string>
     <string name="lyrics_notification_channel">Lyrics notification</string>
     <string name="lyrics_notification_channel_description">The line being sung, for dynamic islands and Live Updates.</string>

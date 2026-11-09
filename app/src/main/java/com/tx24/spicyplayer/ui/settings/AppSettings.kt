@@ -292,6 +292,7 @@ class AppSettings(private val prefs: SharedPreferences) {
     var wallpaperSaveSimpler by boolean("wallpaperSaveSimpler", true)
     var wallpaperSaveLineByLine by boolean("wallpaperSaveLineByLine", false)
     var wallpaperSaveStopAll by boolean("wallpaperSaveStopAll", false)
+    var wallpaperSaveNoHaptics by boolean("wallpaperSaveNoHaptics", false)
     /** The line being sung in an ongoing notification, for islands and Live Updates. */
     var lyricsNotification by boolean("lyricsNotification", false)
     /** The lyrics floating over other apps while music plays. */

@@ -3,18 +3,21 @@ package com.tx24.spicyplayer.wallpaper
 import android.content.SharedPreferences
 
 /**
- * When the wallpaper saves power: never, while the phone's battery saver is on (the default),
- * or always. What it cuts then is chosen in Settings → Device → Live wallpaper ([PowerCuts]).
+ * When power saving is on: never, while the phone's battery saver is on (the default), or always.
+ * What it cuts then is chosen in Settings → Device → Live wallpaper: the wallpaper's extras
+ * ([PowerCuts]) and, if chosen, the music haptics ([PREF_NO_HAPTICS]).
  */
 internal enum class PowerSaving(val label: String) {
     Off("Off"),
     BatterySaver("With battery saver"),
     Always("Always");
 
+    /** Whether power saving is on now, with the phone's battery saver [batterySaver] on or off. */
+    fun active(batterySaver: Boolean): Boolean = this == Always || (this == BatterySaver && batterySaver)
+
     /** What to cut now, with the phone's battery saver [batterySaver] on or off. */
     fun cuts(prefs: SharedPreferences, batterySaver: Boolean): PowerCuts {
-        val active = this == Always || (this == BatterySaver && batterySaver)
-        if (!active) return PowerCuts.NONE
+        if (!active(batterySaver)) return PowerCuts.NONE
         return PowerCuts(
             active = true,
             noCanvas = prefs.getBoolean(PREF_NO_CANVAS, true),
@@ -32,6 +35,8 @@ internal enum class PowerSaving(val label: String) {
         const val PREF_SIMPLER = "wallpaperSaveSimpler"
         const val PREF_LINE_BY_LINE = "wallpaperSaveLineByLine"
         const val PREF_STOP_ALL = "wallpaperSaveStopAll"
+        /** Power saving also stops the music haptics, in the app and in the background. */
+        const val PREF_NO_HAPTICS = "wallpaperSaveNoHaptics"
 
         fun from(prefs: SharedPreferences): PowerSaving =
             runCatching { valueOf(prefs.getString(PREF, BatterySaver.name)!!) }.getOrDefault(BatterySaver)
