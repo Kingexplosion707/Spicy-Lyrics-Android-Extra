@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A crescent moon: the screen asleep, the lyrics still showing. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12.3,3.1A9,9 0,1 0,20.9 11.7A7,7 0,1 1,12.3 3.1z" />
+</vector>

@@ -85,6 +85,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.IosShare
+import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.BedtimeOff
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -197,6 +202,12 @@ class PlaybackControlsState(
     val rotated: Boolean = false,
     /** Where the lyrics come from, as one short line under the timeline; null shows none. */
     val credit: MiniCredit? = null,
+    /** Opens Share lyrics; null hides the button. */
+    val onShareLyrics: (() -> Unit)? = null,
+    /** Opens the sleep timer; null hides the button. */
+    val onSleepTimer: (() -> Unit)? = null,
+    /** A sleep timer is running: its button says so. */
+    val sleepTimerOn: Boolean = false,
 )
 
 /**
@@ -578,6 +589,16 @@ private fun floatingActions(
     if (onOpenQueue != null) add(FloatingAction("Queue", keep = 40, onOpenQueue) { icon ->
         QueueGlyph(Modifier.size(icon(23f)))
     })
+    controls.onShareLyrics?.let { share ->
+        add(FloatingAction("Share lyrics", keep = 15, share) { icon ->
+            Icon(Icons.Rounded.IosShare, null, Modifier.size(icon(22f)), tint = Color.White)
+        })
+    }
+    controls.onSleepTimer?.let { open ->
+        add(FloatingAction(if (controls.sleepTimerOn) "Sleep timer (on)" else "Sleep timer", keep = 12, open) { icon ->
+            Icon(if (controls.sleepTimerOn) Icons.Rounded.Bedtime else Icons.Rounded.BedtimeOff, null, Modifier.size(icon(22f)), tint = Color.White)
+        })
+    }
     controls.onRotate?.let { rotate ->
         add(FloatingAction(if (controls.rotated) "Back to portrait" else "Turn to landscape", keep = 25, rotate) { icon ->
             RotateGlyph(controls.rotated, Modifier.size(icon(23f)))

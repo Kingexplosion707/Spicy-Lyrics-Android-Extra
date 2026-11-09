@@ -25,6 +25,10 @@ import kotlin.math.roundToInt
  * locking it in place and letting touches pass through it. Its place is kept as a fraction of
  * the room it can move in, so it stays put across rotations and screen sizes.
  *
+ * Hiding it keeps the window (empty, letting every touch through) for [PARK_MS], so showing it
+ * again (leaving the home screen, the song playing again) doesn't lay every line out anew; only
+ * after that is it removed. [destroy] removes it at once.
+ *
  * [content] draws inside; [LyricsOverlayService] keeps the song and lyrics.
  */
 internal class LyricsOverlayWindow(
@@ -44,15 +48,25 @@ internal class LyricsOverlayWindow(
     private var root: DragFrame? = null
     private var owner: ComposeWindowOwner? = null
     private var params: WindowManager.LayoutParams? = null
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    private val release = Runnable { destroy() }
 
-    val isShown: Boolean get() = root != null
+    /** Showing: Compose state, so what draws inside rests while it's hidden. */
+    private val showing = androidx.compose.runtime.mutableStateOf(false)
+    val isShown: Boolean get() = showing.value
 
     /** Shows it; false without the "Display over other apps" permission or when the window can't be added. */
     fun show(): Boolean {
         if (!Settings.canDrawOverlays(context)) return false
-        if (root != null) {
+        val parked = root
+        if (parked != null) {
+            main.removeCallbacks(release)
+            if (!showing.value) {
+                showing.value = true
+                parked.visibility = View.VISIBLE
+            }
             applyBehaviour()
-            return true
+            return root != null
         }
         val windowOwner = ComposeWindowOwner()
         val frame = DragFrame(windowContext).apply {
@@ -83,20 +97,35 @@ internal class LyricsOverlayWindow(
             root = frame
             owner = windowOwner
             params = layout
+            showing.value = true
             place(layout)
             windowManager.addView(frame, layout)
             windowOwner.setActive(true)
             true
         }.getOrElse {
-            hide()
+            destroy()
             false
         }
     }
 
+    /** Hides it: the window stays, empty and letting touches through, until [PARK_MS] have passed. */
     fun hide() {
+        val frame = root ?: return
+        if (!showing.value) return
+        showing.value = false
+        frame.visibility = View.GONE
+        applyBehaviour()
+        main.removeCallbacks(release)
+        main.postDelayed(release, PARK_MS)
+    }
+
+    /** Removes the window and ends what draws in it. */
+    fun destroy() {
+        main.removeCallbacks(release)
         val frame = root
         root = null
         params = null
+        showing.value = false
         owner?.destroy()
         owner = null
         if (frame != null) runCatching { windowManager.removeView(frame) }
@@ -108,10 +137,10 @@ internal class LyricsOverlayWindow(
         val p = params ?: return
         runCatching {
             p.flags = flags()
-            p.alpha = if (clickThrough()) CLICK_THROUGH_ALPHA else 1f
+            p.alpha = windowAlpha()
             place(p)
             windowManager.updateViewLayout(frame, p)
-        }.onFailure { hide() }
+        }.onFailure { destroy() }
     }
 
     /** The window's size from the settings, and its place from the saved fraction. */
@@ -129,7 +158,7 @@ internal class LyricsOverlayWindow(
         val travelY = (availableH - p.height).coerceAtLeast(0)
         p.x = (prefs.getFloat(PREF_X, 0.5f).coerceIn(0f, 1f) * travelX).roundToInt()
         p.y = (prefs.getFloat(PREF_Y, DEFAULT_Y).coerceIn(0f, 1f) * travelY).roundToInt()
-        p.alpha = if (clickThrough()) CLICK_THROUGH_ALPHA else 1f
+        p.alpha = windowAlpha()
     }
 
     /**
@@ -145,7 +174,7 @@ internal class LyricsOverlayWindow(
         p.y = 0
         p.width = (end - start).coerceAtLeast((48 * density).roundToInt())
         p.height = bar.heightPx.coerceAtLeast((24 * density).roundToInt())
-        p.alpha = if (clickThrough()) CLICK_THROUGH_ALPHA else 1f
+        p.alpha = windowAlpha()
     }
 
     private class StatusBarArea(val heightPx: Int, val startPx: Int, val cutoutLeftPx: Int?)
@@ -192,9 +221,22 @@ internal class LyricsOverlayWindow(
     private fun locked() = prefs.getBoolean(PREF_LOCKED, false)
     private fun clickThrough() = prefs.getBoolean(PREF_CLICK_THROUGH, false)
 
+    /**
+     * Hidden (parked), fully see-through, so it can never stand between a touch and the app under
+     * it; letting touches through, just under what Android allows a touch to pass.
+     */
+    private fun windowAlpha(): Float = when {
+        !showing.value -> 0f
+        clickThrough() -> CLICK_THROUGH_ALPHA
+        else -> 1f
+    }
+
     private fun flags(): Int {
         val base = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-        return if (clickThrough()) base or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE else base
+        // Hidden (parked), it never takes a touch.
+        return if (clickThrough() || !showing.value) {
+            base or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+        } else base
     }
 
     /** Takes every touch for itself: a drag moves the window, unless it's locked. */
@@ -229,7 +271,7 @@ internal class LyricsOverlayWindow(
                     val rtl = layoutDirection == View.LAYOUT_DIRECTION_RTL
                     p.x = (startX + dx.toInt() * if (rtl) -1 else 1).coerceIn(0, (availableW - p.width).coerceAtLeast(0))
                     p.y = (startY + dy.toInt()).coerceIn(0, (availableH - p.height).coerceAtLeast(0))
-                    runCatching { windowManager.updateViewLayout(this, p) }.onFailure { hide() }
+                    runCatching { windowManager.updateViewLayout(this, p) }.onFailure { destroy() }
                 }
                 MotionEvent.ACTION_UP -> if (dragging) savePlace(p) else performClick()
                 MotionEvent.ACTION_CANCEL -> dragging = false
@@ -255,9 +297,11 @@ internal class LyricsOverlayWindow(
         private const val CUTOUT_GAP_DP = 8
         /**
          * Android 12+ blocks touches that pass through another app's window more opaque than
-         * this, so a click-through overlay is drawn at it.
+         * 0.8, so a click-through overlay is drawn a little under it (exactly 0.8 can round over).
          */
-        private const val CLICK_THROUGH_ALPHA = 0.8f
+        private const val CLICK_THROUGH_ALPHA = 0.75f
+        /** How long a hidden overlay keeps its window before it's removed. */
+        private const val PARK_MS = 90_000L
     }
 }
 

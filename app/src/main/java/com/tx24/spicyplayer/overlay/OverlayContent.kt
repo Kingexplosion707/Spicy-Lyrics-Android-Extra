@@ -17,15 +17,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.asComposeRenderEffect
-import androidx.compose.ui.graphics.toArgb
-import android.os.Build
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tx24.spicyplayer.lyrics.lyricsTint
 import com.tx24.spicyplayer.playback.LiveLyrics
 import com.tx24.spicyplayer.ui.settings.AppSettings
 import com.tx24.spicyplayer.wallpaper.LyricsFontSetup
@@ -40,7 +38,7 @@ import com.tx24.spicyplayer.wallpaper.WallpaperLyrics
 internal fun OverlayContent(live: LiveLyrics, prefs: SharedPreferences, visible: () -> Boolean) {
     var settingsVersion by remember { mutableIntStateOf(0) }
     DisposableEffect(prefs) {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> settingsVersion++ }
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key -> if (com.tx24.spicyplayer.wallpaper.changesLook(key)) settingsVersion++ }
         prefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
@@ -51,12 +49,14 @@ internal fun OverlayContent(live: LiveLyrics, prefs: SharedPreferences, visible:
     val lyricsAlpha = remember(settingsVersion) { prefs.getInt(PREF_LYRICS_OPACITY, 100).coerceIn(10, 100) / 100f }
     val style = remember(settingsVersion) { OverlayStyle.from(prefs) }
     val glow = remember(settingsVersion) { prefs.getBoolean(PREF_GLOW, true) }
+    val glowStrength = remember(settingsVersion) { prefs.getInt(PREF_GLOW_STRENGTH, 100).coerceIn(50, 300) / 100f }
+    val brightness = remember(settingsVersion) { prefs.getInt(PREF_BRIGHTNESS, 100).coerceIn(100, 200) / 100f }
     val colorChoice = remember(settingsVersion) { OverlayColor.from(prefs) }
     val cover = live.track?.cover
     val color = remember(colorChoice, cover) { colorChoice.resolve(cover) }
     LyricsFontSetup(settings)
     if (style == OverlayStyle.StatusBar) {
-        StatusBarLyrics(live, visible, Modifier.fillMaxSize().graphicsLayer { alpha = lyricsAlpha }, color, glow)
+        StatusBarLyrics(live, visible, Modifier.fillMaxSize().lyricsTint(Color.White, brightness).graphicsLayer { alpha = lyricsAlpha }, color, glow, glowStrength)
         return
     }
 
@@ -78,15 +78,18 @@ internal fun OverlayContent(live: LiveLyrics, prefs: SharedPreferences, visible:
                 isPlaying = live.playing,
                 visible = visible,
                 durationMs = track.durationMs,
-                modifier = Modifier.fillMaxSize().tinted(color).graphicsLayer { alpha = lyricsAlpha },
+                modifier = Modifier.fillMaxSize().lyricsTint(color, brightness).graphicsLayer { alpha = lyricsAlpha },
                 focusAnchorFraction = FOCUS_FRACTION,
                 fontSizeScale = settings.lyricsScale(false) * size.fontScale,
                 glow = glow,
+                glowStrength = glowStrength,
+                // Smooth enough floating over another app, at half a 120 Hz screen's work.
+                maxFrameRate = OVERLAY_MAX_FPS,
             )
         } else if (track != null) {
             Text(
                 text = "${track.title} — ${track.artist}",
-                color = color.copy(alpha = 0.85f * lyricsAlpha),
+                color = color.copy(alpha = (0.85f * brightness).coerceAtMost(1f) * lyricsAlpha),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
@@ -98,19 +101,10 @@ internal fun OverlayContent(live: LiveLyrics, prefs: SharedPreferences, visible:
     }
 }
 
-/**
- * The lyrics in [color]: the renderer draws them white, so they're multiplied by it on the GPU
- * (Android 12 and later; white before), keeping each word's own brightness and fill.
- */
-private fun Modifier.tinted(color: Color): Modifier {
-    if (color == Color.White || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return this
-    val effect = android.graphics.RenderEffect.createColorFilterEffect(
-        android.graphics.BlendModeColorFilter(color.toArgb(), android.graphics.BlendMode.MODULATE),
-    ).asComposeRenderEffect()
-    return graphicsLayer { renderEffect = effect }
-}
-
 internal const val PREF_GLOW = "overlayGlow"
+private const val OVERLAY_MAX_FPS = 60f
+internal const val PREF_GLOW_STRENGTH = "overlayGlowStrength"
+internal const val PREF_BRIGHTNESS = "overlayBrightness"
 internal const val PREF_BACKDROP = "overlayBackdrop"
 internal const val PREF_BACKDROP_OPACITY = "overlayBackdropOpacity"
 internal const val PREF_LYRICS_OPACITY = "overlayLyricsOpacity"

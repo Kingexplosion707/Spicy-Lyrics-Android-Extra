@@ -32,6 +32,11 @@ Plus takes those lyrics out of the app and onto the rest of your phone.
 | **Always-on display** | When the screen turns off, the lyrics come back as a black always-on screen over the lock screen: time, date, the song and dim lyrics, shifting a little each minute against burn-in. Optional Spotify Canvas behind it, play/pause/skip controls, and five dim levels. |
 | **Haptics** | Feel the music: pulses locked to the drum hits and sung words, timed to the millisecond. On Android 16 phones with envelope support (Pixel 9 and later), each pulse is shaped in strength *and* sharpness over time, with sharpness taken from the song's timbre — crisp snares, deep kicks — the way Apple Music's haptics feel. Runs in the background too. |
 | **Lyrics notification** | The line being sung, live, in a silent notification — for dynamic-island apps such as Essentials, and Android 16's Live Updates chip. |
+| **Share lyrics** | Pick a few lines and share them as a card with the song's cover, blurred behind big bold lyrics — or copy them as text. |
+| **Sleep timer** | Pause the music after 15 minutes to an hour and a half, or at the end of the song. It fades out first and puts the volume back after. |
+| **Lyrics colour and glow** | Colour the lyrics on the lyrics screen, wallpaper and always-on display (presets or taken from the cover), and turn the glow up to 300%. The overlay has its own colour, glow and text brightness. |
+| **Quick Settings tiles** | Turn the overlay and the always-on display on and off from the notification shade. They come back by themselves after a restart or an update. |
+| **Lighter on the phone** | Everything outside the app shares one connection to the music app and one set of lyrics lookups, the overlay draws at 60 fps over 120 Hz apps and keeps its lyrics ready while hidden, and the always-on display runs at the screen's lowest refresh rate. |
 
 Everything else is the original app: many lyric sources, TTML word timing kept all the way to the screen, Apple Music and Simple styles, romanization, translation, animated backgrounds, picture-in-picture, a widget and more.
 
@@ -40,7 +45,7 @@ Everything else is the original app: many lyric sources, TTML word timing kept a
 1. **Install.** Download the newest `spicy-lyrics-plus-vX.Y.Z.apk` from [Releases](https://github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra/releases). The app offers new versions itself afterwards. If Play Protect blocks the browser install, [add Spicy Lyrics Plus to Obtainium](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.behnoud.spicylyrics%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2FKingexplosion707%2FSpicy-Lyrics-Android-Extra%22%2C%22author%22%3A%22Behnoud%22%2C%22name%22%3A%22Spicy%20Lyrics%20Plus%22%2C%22preferredApkIndex%22%3A0%2C%22additionalSettings%22%3A%22%7B%5C%22includePrereleases%5C%22%3A%20true%7D%22%7D) instead. The [install guide](docs/install.md) covers each step.
 2. **Grant notification access** when asked. Android uses it to find the music app that's playing; you can revoke it any time.
 3. **Play something** in another app. The lyrics follow it.
-4. **Turn on the extras** in Settings → Device: Live wallpaper, Lyrics overlay, Always-on display, Lyrics notification and Haptics.
+4. **Turn on the extras** in Settings → Device: Live wallpaper, Lyrics overlay, Always-on display, Lyrics notification and Haptics. Share lyrics and the sleep timer are among the lyrics screen's buttons (under More).
 
 For the best word-by-word timing, add a publishable Spicy Lyrics key in Settings → Sources (from the [Spicy Lyrics catalog](https://developers.spicylyrics.org/catalog/spicy-player)). Without one, many songs fall back to line-timed sources.
 
@@ -55,6 +60,7 @@ Every extra is off until you turn it on, and each asks only for what it needs:
 | Notifications | The lyrics notification and the background services' status notifications |
 | Full-screen notifications (optional) | The always-on display's fallback if "Display over other apps" isn't given |
 | Write secure settings (via Shizuku, optional) | Hiding the status bar clock behind the status bar lyrics; granted once through Shizuku, never asked otherwise |
+| Run at startup | Bringing back the overlay, always-on display and lyrics notification you turned on after the phone restarts |
 
 ## Privacy
 

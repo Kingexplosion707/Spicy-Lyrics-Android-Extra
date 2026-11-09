@@ -86,7 +86,12 @@ class AlwaysOnActivity : ComponentActivity() {
         val prefs = getSharedPreferences("ui", MODE_PRIVATE)
         // As dim as asked (Settings → Device → Always-on dim), the lowest by default.
         val brightness = prefs.getInt(PREF_BRIGHTNESS, DEFAULT_BRIGHTNESS).coerceIn(1, 100) / 100f
-        window.attributes = window.attributes.apply { screenBrightness = brightness }
+        window.attributes = window.attributes.apply {
+            screenBrightness = brightness
+            // The lowest refresh rate the screen offers at its size: dim lyrics drifting by don't
+            // need 120 Hz, and an always-on screen runs for hours.
+            lowestRefreshRateMode()?.let { preferredDisplayModeId = it }
+        }
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
@@ -94,19 +99,33 @@ class AlwaysOnActivity : ComponentActivity() {
         }
         live = LiveLyrics(this)
         live.start()
-        val canvas = prefs.getBoolean(PREF_CANVAS, false)
+        // The Canvas stays off while the phone's battery saver is on.
+        val batterySaver = getSystemService(android.os.PowerManager::class.java)?.isPowerSaveMode == true
+        val canvas = prefs.getBoolean(PREF_CANVAS, false) && !batterySaver
         controls = prefs.getBoolean(PREF_CONTROLS, false)
         setContent { AlwaysOnContent(live, AppSettings(prefs), canvas, controls, onDismiss = ::finish) }
     }
 
+    /** The display mode with this one's size and the lowest refresh rate (not under 30 Hz), if there's a slower one. */
+    @Suppress("DEPRECATION")
+    private fun lowestRefreshRateMode(): Int? = runCatching {
+        val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display else windowManager.defaultDisplay
+        val current = display?.mode ?: return null
+        display.supportedModes
+            .filter { it.physicalWidth == current.physicalWidth && it.physicalHeight == current.physicalHeight && it.refreshRate >= MIN_REFRESH_HZ }
+            .minByOrNull { it.refreshRate }
+            ?.takeIf { it.refreshRate < current.refreshRate - 1f }
+            ?.modeId
+    }.getOrNull()
+
     override fun onResume() {
         super.onResume()
-        showing = true
+        shownState.value = true
     }
 
     override fun onPause() {
         super.onPause()
-        showing = false
+        shownState.value = false
     }
 
     override fun onDestroy() {
@@ -125,10 +144,12 @@ class AlwaysOnActivity : ComponentActivity() {
     }
 
     companion object {
+        /** Compose state, so the lyrics rest while it's paused and pick up when it's back. Main thread. */
+        private val shownState = mutableStateOf(false)
         /** Whether it's on screen now: the screen turning off then means the power button on it. */
-        @Volatile var showing = false
-            private set
+        val showing: Boolean get() = shownState.value
         private var current: WeakReference<AlwaysOnActivity>? = null
+        private const val MIN_REFRESH_HZ = 30f
         /** The screen's brightness on it, in percent: 1 is the lowest the screen allows. */
         const val PREF_BRIGHTNESS = "aodBrightness"
         const val DEFAULT_BRIGHTNESS = 1
@@ -139,7 +160,7 @@ class AlwaysOnActivity : ComponentActivity() {
 
         fun dismissAll() {
             current?.get()?.finish()
-            showing = false
+            shownState.value = false
         }
     }
 }
@@ -166,15 +187,12 @@ private fun AlwaysOnContent(live: LiveLyrics, settings: AppSettings, canvas: Boo
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var shift by remember { mutableStateOf(IntOffset.Zero) }
     LaunchedEffect(Unit) {
-        var lastMinute = -1L
+        // The clock shows minutes, so it wakes once a minute, on the minute (and moves everything
+        // a little against burn-in), not every second.
         while (true) {
             now = System.currentTimeMillis()
-            val minute = now / 60_000L
-            if (minute != lastMinute) {
-                lastMinute = minute
-                shift = IntOffset(Random.nextInt(-SHIFT_PX, SHIFT_PX + 1), Random.nextInt(-SHIFT_PX, SHIFT_PX + 1))
-            }
-            delay(1_000L - now % 1_000L)
+            shift = IntOffset(Random.nextInt(-SHIFT_PX, SHIFT_PX + 1), Random.nextInt(-SHIFT_PX, SHIFT_PX + 1))
+            delay(60_000L - now % 60_000L + 20L)
         }
     }
     val timeFormat = remember { DateFormat.getTimeInstance(DateFormat.SHORT) }
@@ -235,6 +253,7 @@ private fun AlwaysOnContent(live: LiveLyrics, settings: AppSettings, canvas: Boo
                     durationMs = track.durationMs,
                     modifier = Modifier.fillMaxWidth().weight(1f).graphicsLayer { alpha = LYRICS_ALPHA },
                     focusAnchorFraction = 0.35f,
+                    tint = com.tx24.spicyplayer.lyrics.rememberLyricsTint(settings.lyricsColor, track.cover),
                 )
             } else {
                 Spacer(Modifier.weight(1f))

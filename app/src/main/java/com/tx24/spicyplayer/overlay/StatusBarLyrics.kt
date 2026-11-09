@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
+import kotlinx.coroutines.flow.first
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -24,6 +25,7 @@ import com.tx24.spicyplayer.lyrics.LyricsState
 import com.tx24.spicyplayer.lyrics.TimedLine
 import com.tx24.spicyplayer.lyrics.WordTiming
 import com.tx24.spicyplayer.lyrics.spicy.canvas.LyricsLayoutCalculator
+import com.tx24.spicyplayer.lyrics.spicy.canvas.drawGlow
 import com.tx24.spicyplayer.lyrics.spicy.models.LineRole
 import com.tx24.spicyplayer.lyrics.spicy.models.LyricsType
 import com.tx24.spicyplayer.playback.LiveLyrics
@@ -41,30 +43,54 @@ internal fun StatusBarLyrics(
     modifier: Modifier,
     color: Color = Color.White,
     glow: Boolean = true,
+    glowStrength: Float = 1f,
 ) {
     val lyrics = live.lyrics
     val lines = remember(lyrics) { lyrics?.let(::leadLines).orEmpty() }
-    var now by remember { mutableLongStateOf(live.positionMs()) }
+    // The clock is read while drawing; only a change of line recomposes.
+    val nowState = remember { androidx.compose.runtime.mutableLongStateOf(live.positionMs()) }
     val running = live.playing
     LaunchedEffect(running, lines) {
-        now = live.positionMs()
-        while (running) withFrameMillis { if (visible()) now = live.positionMs() }
+        nowState.longValue = live.positionMs()
+        var drawnAt = 0L
+        while (running) {
+            // Hidden, it asks for no frames at all until it shows again.
+            if (!visible()) androidx.compose.runtime.snapshotFlow { visible() }.first { it }
+            withFrameMillis { at ->
+                // About 60 a second, even while the app under it runs the screen faster.
+                if (at - drawnAt >= MIN_FRAME_MS) {
+                    drawnAt = at
+                    nowState.longValue = live.positionMs()
+                }
+            }
+        }
     }
-    val index = currentLine(lines, now)
+    val index by remember(lines) { androidx.compose.runtime.derivedStateOf { currentLine(lines, nowState.longValue) } }
     val line = lines.getOrNull(index)
     val text = remember(line) { line?.let(::lineText) ?: LineText(INSTRUMENTAL, emptyList()) }
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
     val font = LyricsLayoutCalculator.fontOverride
+    // The line laid out once per line and size, not on every frame of its fill.
+    val laidOut = remember { arrayOfNulls<Any>(3) }
     Canvas(modifier) {
-        val fontSize = with(density) { (size.height * TEXT_HEIGHT_SHARE).toSp() }
-        val layout = measurer.measure(
-            text.text,
-            TextStyle(fontSize = fontSize, fontWeight = FontWeight.SemiBold, fontFamily = font),
-            softWrap = false,
-            maxLines = 1,
-        )
-        val fillX = fillPosition(layout, text, now)
+        val cached = laidOut[2] as TextLayoutResult?
+        val layout = if (cached != null && laidOut[0] === text && laidOut[1] == size.height && cached.layoutInput.style.fontFamily == font) {
+            cached
+        } else {
+            val fontSize = with(density) { (size.height * TEXT_HEIGHT_SHARE).toSp() }
+            measurer.measure(
+                text.text,
+                TextStyle(fontSize = fontSize, fontWeight = FontWeight.SemiBold, fontFamily = font),
+                softWrap = false,
+                maxLines = 1,
+            ).also {
+                laidOut[0] = text
+                laidOut[1] = size.height
+                laidOut[2] = it
+            }
+        }
+        val fillX = fillPosition(layout, text, nowState.longValue)
         val overflow = (layout.size.width - size.width).coerceAtLeast(0f)
         val shift = if (overflow > 0f) (fillX - size.width * FOLLOW_AT).coerceIn(0f, overflow) else 0f
         val top = (size.height - layout.size.height) / 2f
@@ -74,9 +100,10 @@ internal fun StatusBarLyrics(
                 clipRect(right = fillX) {
                     // The glow as its own soft pass under the sung words.
                     if (glow) {
-                        drawText(
-                            layout, color = color.copy(alpha = GLOW_ALPHA), topLeft = Offset.Zero,
-                            shadow = Shadow(color.copy(alpha = GLOW_ALPHA), Offset.Zero, layout.size.height * GLOW_BLUR_SHARE),
+                        drawGlow(
+                            layout, Offset.Zero,
+                            Shadow(color.copy(alpha = GLOW_ALPHA), Offset.Zero, layout.size.height * GLOW_BLUR_SHARE),
+                            glowStrength,
                         )
                     }
                     drawText(layout, color = color, topLeft = Offset.Zero, shadow = Shadow.None)
@@ -132,6 +159,7 @@ private fun fillPosition(layout: TextLayoutResult, text: LineText, now: Long): F
     return x
 }
 
+private const val MIN_FRAME_MS = 14L
 /** The glow's strength and spread against the text's height. */
 private const val GLOW_ALPHA = 0.85f
 private const val GLOW_BLUR_SHARE = 0.45f

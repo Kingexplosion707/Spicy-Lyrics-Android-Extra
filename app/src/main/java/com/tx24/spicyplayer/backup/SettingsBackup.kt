@@ -32,7 +32,11 @@ object SettingsBackup {
 
     class InvalidBackup(message: String) : Exception(message)
 
-    fun encode(stores: Map<String, Map<String, Any?>>, appVersion: String): String {
+    /**
+     * [files]: small files that belong with the settings (the live wallpaper's picture for when
+     * nothing plays), by name, base64; older versions of the app ignore them.
+     */
+    fun encode(stores: Map<String, Map<String, Any?>>, appVersion: String, files: Map<String, String> = emptyMap()): String {
         val root = JsonObject().apply {
             addProperty("format", FORMAT)
             addProperty("version", VERSION)
@@ -46,6 +50,9 @@ object SettingsBackup {
             storesJson.add(name, store)
         }
         root.add("stores", storesJson)
+        if (files.isNotEmpty()) {
+            root.add("files", JsonObject().apply { files.toSortedMap().forEach { (name, data) -> addProperty(name, data) } })
+        }
         return GsonBuilder().setPrettyPrinting().create().toJson(root)
     }
 
@@ -64,6 +71,13 @@ object SettingsBackup {
             name to store.entrySet().mapNotNull { (key, element) -> untyped(element)?.let { key to it } }.toMap()
         }.toMap()
     }
+
+    /** The files in a backup ([encode]'s [files]), by name, base64; none in older backups. */
+    fun decodeFiles(text: String): Map<String, String> = runCatching {
+        val files = JsonParser.parseString(text).asJsonObject.get("files")?.takeIf { it.isJsonObject }?.asJsonObject
+            ?: return emptyMap()
+        files.entrySet().mapNotNull { (name, value) -> value.takeIf { it.isJsonPrimitive }?.asString?.let { name to it } }.toMap()
+    }.getOrDefault(emptyMap())
 
     private fun typed(value: Any?): JsonObject? {
         val (type, json) = when (value) {

@@ -56,6 +56,8 @@ data class RenderConfig(
     val distanceBlurEnabled: Boolean = true,
     /** False drops every glow halo (the Glow setting, low performance mode). */
     val glowEnabled: Boolean = true,
+    /** How strong every glow is drawn: its brightness and spread. 1 is the desktop amount. */
+    val glowStrength: Float = 1f,
     /** Minimal is a line-visibility layer and does not disable word/letter motion. */
     val lettersEnabled: Boolean = true,
     val letterDurationThresholdMs: Long = if (simpleLyricsMode && !refreshedSimple) 1050L else 1000L,

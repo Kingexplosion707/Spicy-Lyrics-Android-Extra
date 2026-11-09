@@ -155,6 +155,19 @@ class SpicyWallpaperService : WallpaperService() {
             session.onTrack = { onTrack(it) }
             session.onPlayingChanged = { playing -> onPlayingChanged(playing) }
             session.start()
+            // Power saving can follow the phone's battery saver.
+            ui.batterySaver = app.getSystemService(android.os.PowerManager::class.java)?.isPowerSaveMode == true
+            androidx.core.content.ContextCompat.registerReceiver(
+                app, batterySaverReceiver,
+                android.content.IntentFilter(android.os.PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
+            )
+        }
+
+        private val batterySaverReceiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
+                ui.batterySaver = app.getSystemService(android.os.PowerManager::class.java)?.isPowerSaveMode == true
+            }
         }
 
         override fun onDestroy() {
@@ -162,6 +175,7 @@ class SpicyWallpaperService : WallpaperService() {
             main.removeCallbacks(drawRunnable)
             releaseHost()
             releaseVisuals()
+            runCatching { app.unregisterReceiver(batterySaverReceiver) }
             session.stop()
             scope.cancel()
             super.onDestroy()
@@ -389,7 +403,7 @@ class SpicyWallpaperService : WallpaperService() {
                         if (current == generation) releaseStream(isBackground)
                     }
                 }
-            }.also { stream.player.addListener(it) }
+            }.also { stream.addListener(it) }
             val stopSampler = stream.addSampler(
                 if (isBackground) BG_LONG_SIDE else COVER_LONG_SIDE,
                 VIDEO_INTERVAL_MS,
@@ -451,7 +465,7 @@ class SpicyWallpaperService : WallpaperService() {
                     bgStream?.onScreen(false)
                     bgStreamOnScreen = false
                 }
-                bgPlayerListener?.let { bgStream?.player?.removeListener(it) }
+                bgPlayerListener?.let { bgStream?.removeListener(it) }
                 bgPlayerListener = null
                 bgStream?.let { MotionCovers.release(it) }
                 bgStream = null
@@ -464,7 +478,7 @@ class SpicyWallpaperService : WallpaperService() {
                     coverStream?.onScreen(false)
                     coverStreamOnScreen = false
                 }
-                coverPlayerListener?.let { coverStream?.player?.removeListener(it) }
+                coverPlayerListener?.let { coverStream?.removeListener(it) }
                 coverPlayerListener = null
                 coverStream?.let { MotionCovers.release(it) }
                 coverStream = null

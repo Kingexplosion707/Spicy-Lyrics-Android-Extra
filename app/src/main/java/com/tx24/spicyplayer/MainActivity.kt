@@ -10,6 +10,11 @@ import com.tx24.spicyplayer.ui.components.LocalPopupPalette
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import com.tx24.spicyplayer.lyrics.NoticeKind
+import com.tx24.spicyplayer.lyrics.lyricsTint
+import com.tx24.spicyplayer.ui.share.ShareLyricsModal
+import com.tx24.spicyplayer.ui.sleep.SleepTimerModal
+import com.tx24.spicyplayer.playback.SleepTimerService
+import com.tx24.spicyplayer.lyrics.rememberLyricsTint
 import com.tx24.spicyplayer.ui.spotifysearch.SpotifySearchModal
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.drawBehind
@@ -788,6 +793,7 @@ private fun LyricsApp(
         syllablePace = settings.syllablePace,
         distanceBlurEnabled = settings.distanceBlur && !lowPerformance,
         glowEnabled = settings.glow && !lowPerformance,
+        glowStrength = settings.glowStrength / 100f,
         scroll = ScrollConfig(
             leadMs = if (settings.scrollLeadEnabled) settings.scrollLeadMs.coerceAtLeast(0).toLong() else 0L,
             smooth = settings.smoothScrolling,
@@ -802,6 +808,8 @@ private fun LyricsApp(
     var showQuickSettings by remember { mutableStateOf(false) }
     var quickStart by remember { mutableStateOf(QuickScreen.Main) }
     var showSpotifySearch by remember { mutableStateOf(false) }
+    var showShareLyrics by remember { mutableStateOf(false) }
+    var showSleepTimer by remember { mutableStateOf(false) }
     // Over the lock screen the lyrics can be read and played without unlocking. Anything opened
     // over them asks to unlock first and opens once unlocked; whatever was open when the phone
     // locked is closed before the lock screen shows it. The always-on display shows over the
@@ -830,6 +838,8 @@ private fun LyricsApp(
                 showLyricsManager = false
                 showQuickSettings = false
                 showSpotifySearch = false
+                showShareLyrics = false
+                showSleepTimer = false
             }
         }
         lockLifecycle.addObserver(observer)
@@ -853,6 +863,8 @@ private fun LyricsApp(
             showLyricsManager = false
             showQuickSettings = false
             showSpotifySearch = false
+            showShareLyrics = false
+            showSleepTimer = false
         }
     }
     CountUsage(
@@ -883,7 +895,7 @@ private fun LyricsApp(
     // While something is open over the lyrics screen, a remote's arrows stay in it: the screen
     // underneath takes no focus, and gives up what it had as the overlay opens.
     val overSettings = showSpotifySearch || showLyricsManager
-    val overlayOpen = showSettings || showQuickSettings || overSettings ||
+    val overlayOpen = showSettings || showQuickSettings || overSettings || showShareLyrics || showSleepTimer ||
         lyricsViewState.profileRequest != null || state.limitNotice != null
     // Whichever is on top: one opened from settings takes the focus from them too.
     val topOverlay = listOf(showSpotifySearch, showLyricsManager, showQuickSettings, showSettings, overlayOpen).indexOf(true)
@@ -1160,6 +1172,9 @@ private fun LyricsApp(
                 val controlsGone by remember { derivedStateOf { controlsShown == 0f } }
                 val playbackControls = PlaybackControlsState(
                     credit = lyricsViewState.shownFooter?.miniCredit()?.takeIf { pinnedFooter != PinnedFooterMode.Off },
+                    onShareLyrics = { whenUnlocked { showShareLyrics = true } }.takeIf { settings.shareButton && state.lyrics is LyricsState.Ready },
+                    onSleepTimer = { showSleepTimer = true }.takeIf { settings.sleepTimerButton && state.sourcePackage != null },
+                    sleepTimerOn = SleepTimerService.state.value != null,
                     hideSettings = settingsPeeking,
                     // Hidden on a screen that's landscape on its own: there's nothing to turn.
                     onRotate = { rotated = !rotated }.takeIf { settings.rotateButton && (rotated || !landscape) },
@@ -1389,6 +1404,7 @@ private fun LyricsApp(
                             modifier = Modifier.weight(1f),
                             // Under the fully expanded big cover they're drawn at alpha 0.
                             visible = { expansion < 1f },
+                            tint = rememberLyricsTint(settings.lyricsColor, state.artwork),
                         )
                     }
                     // Ambient mode: the lyrics sink into the black under the song docked at the bottom,
@@ -1699,6 +1715,19 @@ private fun LyricsApp(
             }
         }
 
+        SleepTimerModal(visible = showSleepTimer, backdrop = backdrop, onDismiss = { showSleepTimer = false })
+
+        ShareLyricsModal(
+            visible = showShareLyrics,
+            lyrics = state.lyrics as? LyricsState.Ready,
+            title = state.title,
+            artist = state.artist,
+            cover = state.artwork,
+            positionMs = viewModel::currentLyricPositionMs,
+            backdrop = backdrop,
+            onDismiss = { showShareLyrics = false },
+        )
+
         QuickSettingsModal(
             visible = showQuickSettings,
             state = state,
@@ -1896,6 +1925,7 @@ private fun PipLyrics(
             modifier = Modifier.fillMaxWidth().weight(1f),
             // The page's edge fade is 64dp deep: all of a window this small.
             maskScale = 0.25f,
+            tint = rememberLyricsTint(settings.lyricsColor, state.artwork),
         )
         if (dock) {
             PipDock(
@@ -2203,13 +2233,15 @@ private fun LyricsPanel(
     /** Whether the credits say who translated the lyrics; [romanizationCredit] is already null when they don't. */
     textCredits: Boolean = true,
     romanizationCredit: String? = null,
+    /** The lyrics' colour (Lyrics colour); white draws them as they are. */
+    tint: Color = Color.White,
 ) {
     // The loading skeleton: up as soon as the lookup starts, over whatever the panel
     // shows, fading in over 0.2s and out over 0.25s (ease-out).
     Box(modifier) {
         LyricsPanelContent(
             lyrics, currentTimeMs, onSeek, romanize, isPlaying, activeLineTopPx, centredLiftPx, noticeBottomPx,
-            viewState, pinnedFooter, maskBottomPx, config, fontSizeScale, noticeActions, Modifier.fillMaxSize(),
+            viewState, pinnedFooter, maskBottomPx, config, fontSizeScale, noticeActions, Modifier.fillMaxSize().lyricsTint(tint),
             maskScale = maskScale,
             translation = translation,
             translationMode = translationMode,

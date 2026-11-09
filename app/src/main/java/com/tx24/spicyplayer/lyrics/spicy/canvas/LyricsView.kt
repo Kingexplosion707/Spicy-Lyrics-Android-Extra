@@ -114,6 +114,11 @@ fun LyricsView(
     isPlaying: Boolean = true,
     /** False while none of the view shows (covered, or faded out): the frame loop rests until it does. */
     visible: () -> Boolean = { true },
+    /**
+     * The most frames a second it draws (0: every frame the screen shows). The overlay floats over
+     * apps that may run the screen at 120 Hz; its lyrics don't need to follow.
+     */
+    maxFrameRate: Float = 0f,
     /** Shared with the screen: the scroll-to-active button and the pinned credits. */
     viewState: LyricsViewState? = null,
     /** Credits drawn pinned by the screen instead of after the lyrics. */
@@ -319,7 +324,9 @@ fun LyricsView(
         val hostView = LocalView.current
         
         // The high-frequency animation loop, restarted with each new document's animator and scroll.
-        LaunchedEffect(shownId, ripple) {
+        // A little under the budget's interval, so a frame that comes a touch early still counts.
+        val minFrameNanos = if (maxFrameRate > 0f) (1_000_000_000f / maxFrameRate * 0.85f).toLong() else 0L
+        LaunchedEffect(shownId, ripple, minFrameNanos) {
             // Reused per-frame scratch for the dynamic Y offsets: filled every frame but only
             // published to state when its contents actually change, so a paused/idle screen stops
             // invalidating the Canvas (a fresh FloatArray each frame was forcing a redraw via array
@@ -349,6 +356,11 @@ fun LyricsView(
                     frameIntervalS = nominalFrameIntervalS(hostView.display?.refreshRate)
                 }
                 withFrameNanos { frameTimeNanos ->
+                    // Over the frame budget: this frame is skipped, and the next one steps the
+                    // animation over both (its delta covers the gap).
+                    if (minFrameNanos > 0L && !resumed && lastFrameTimeNanos != 0L &&
+                        frameTimeNanos - lastFrameTimeNanos < minFrameNanos
+                    ) return@withFrameNanos
                     val previousStates = animStates
                     val previousOffsets = dynamicYOffsets
                     val previousScroll = scrollManager.animScrollY
@@ -694,6 +706,8 @@ fun LyricsView(
                     }
                 }
         ) {
+            // This view's glow strength, for the renderer's glow passes this frame.
+            glowStrength = config.glowStrength
             val viewScrollOffset = centerY + scrollManager.animScrollY
             // Where a line is drawn: with the view, or a little behind it while it catches up.
             val trailTime = trailNow

@@ -42,6 +42,25 @@ internal object WallpaperIdlePicture {
         return copied
     }
 
+    /** The kept picture's bytes, for a settings backup; null with none (or one over 8 MB). */
+    fun bytes(context: Context): ByteArray? = file(context).takeIf { it.isFile && it.length() in 1..MAX_BACKUP_BYTES }
+        ?.let { runCatching { it.readBytes() }.getOrNull() }
+
+    /** Keeps [bytes] (from a backup) as the picture; false when they aren't a picture. */
+    fun saveBytes(context: Context, bytes: ByteArray): Boolean {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return false
+        val written = runCatching { file(context).writeBytes(bytes) }.isSuccess
+        if (written) {
+            context.getSharedPreferences("ui", Context.MODE_PRIVATE).edit()
+                .putLong(PREF_STAMP, System.currentTimeMillis()).apply()
+        }
+        return written
+    }
+
+    private const val MAX_BACKUP_BYTES = 8L * 1024 * 1024
+
     fun remove(context: Context) {
         file(context).delete()
         context.getSharedPreferences("ui", Context.MODE_PRIVATE).edit().remove(PREF_STAMP).apply()

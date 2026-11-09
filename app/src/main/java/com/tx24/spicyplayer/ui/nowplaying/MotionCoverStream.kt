@@ -33,10 +33,25 @@ import java.nio.FloatBuffer
  * ([addSampler]). A player can only feed one surface, so this is what lets the header and the
  * background show one decode.
  *
- * Main thread, apart from the sampler callbacks.
+ * Main thread, apart from the sampler callbacks. The player itself lives on a thread of its own
+ * ([MotionCovers.playerHandler]), so starting, stopping and releasing one (which waits for its
+ * decoder to shut down) never stalls a frame; every call to it goes through [onPlayer].
  */
 @OptIn(UnstableApi::class)
-internal class MotionCoverStream(val url: String, val player: ExoPlayer) {
+internal class MotionCoverStream(val url: String, private val player: ExoPlayer) {
+    private val main = Handler(Looper.getMainLooper())
+
+    /** Runs [block] with the player on its own thread, unless it has been released by then. */
+    private fun onPlayer(block: ExoPlayer.() -> Unit) {
+        MotionCovers.playerHandler.post { if (!playerReleased) player.block() }
+    }
+    /** Written and read on the player's thread only. */
+    private var playerReleased = false
+
+    /** Hears the player; its callbacks come on the player's thread. */
+    fun addListener(listener: Player.Listener) = onPlayer { addListener(listener) }
+    fun removeListener(listener: Player.Listener) = onPlayer { removeListener(listener) }
+
     /** How many hold it; [MotionCovers] releases it once none do. */
     var users = 0
     /** The video's width over its height once it's known, else 0. Compose state. */
@@ -69,28 +84,30 @@ internal class MotionCoverStream(val url: String, val player: ExoPlayer) {
     fun sync() {
         if (released) return
         val playing = onScreen > 0 && !drawn || onScreen - covered > 0 && !MotionCovers.pausedNow(url)
-        if (playing) player.play() else player.pause()
+        onPlayer { if (playing) play() else pause() }
     }
     private var released = false
     private val fanOut = VideoFanOut()
 
     init {
-        player.addListener(object : Player.Listener {
+        addListener(object : Player.Listener {
             override fun onRenderedFirstFrame() {
-                if (drawn) return
-                drawn = true
-                sync()
+                main.post {
+                    if (drawn) return@post
+                    drawn = true
+                    sync()
+                }
             }
 
             override fun onVideoSizeChanged(videoSize: VideoSize) {
                 fanOut.setVideoSize(videoSize.width, videoSize.height)
                 if (videoSize.width > 0 && videoSize.height > 0) {
-                    videoAspect = videoSize.width * videoSize.pixelWidthHeightRatio / videoSize.height
+                    val aspect = videoSize.width * videoSize.pixelWidthHeightRatio / videoSize.height
+                    main.post { videoAspect = aspect }
                 }
             }
         })
-        val main = Handler(Looper.getMainLooper())
-        fanOut.start { surface -> main.post { if (!released) player.setVideoSurface(surface) } }
+        fanOut.start { surface -> onPlayer { setVideoSurface(surface) } }
     }
 
     /**
@@ -116,8 +133,13 @@ internal class MotionCoverStream(val url: String, val player: ExoPlayer) {
     fun release() {
         if (released) return
         released = true
-        player.release()
-        fanOut.release()
+        // Off the main thread: a release waits for the decoder to shut down.
+        MotionCovers.playerHandler.post {
+            if (playerReleased) return@post
+            playerReleased = true
+            player.release()
+            fanOut.release()
+        }
     }
 }
 
