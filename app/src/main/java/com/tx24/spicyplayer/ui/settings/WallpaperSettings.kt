@@ -23,6 +23,7 @@ import androidx.compose.material.icons.rounded.BatterySaver
 import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.AutoAwesomeMotion
 import androidx.compose.material.icons.rounded.ViewHeadline
+import androidx.compose.material.icons.rounded.Vibration
 import com.tx24.spicyplayer.playback.LyricsNotificationService
 import com.tx24.spicyplayer.overlay.LyricsOverlayService
 import com.tx24.spicyplayer.overlay.OverlaySize
@@ -387,15 +388,15 @@ internal fun ResyncOnResume() {
 }
 
 /**
- * Power saving for the wallpaper: when (never, with the phone's battery saver, always), and what
- * goes then. Each cut is its own switch.
+ * Power saving for the wallpaper and the music haptics: when (never, with the phone's battery
+ * saver, always), and what goes then. Each cut is its own switch.
  */
 @Composable
 private fun PowerSavingRows(settings: AppSettings) {
     SettingRow(
         label = "Power saving",
         description = when (settings.wallpaperPowerSaving) {
-            PowerSaving.Off -> "The wallpaper always runs in full."
+            PowerSaving.Off -> "The wallpaper and haptics always run in full."
             PowerSaving.BatterySaver -> "Cuts what you choose below while the phone's battery saver is on."
             PowerSaving.Always -> "Always cuts what you choose below."
         },
@@ -447,6 +448,14 @@ private fun PowerSavingRows(settings: AppSettings) {
         onCheckedChange = { settings.wallpaperSaveStopAll = it },
         description = "Shows your picture for when nothing plays (or a still frame without one), with nothing moving.",
         icon = Icons.Rounded.Wallpaper,
+        enabled = on,
+    )
+    ToggleRow(
+        label = "Stop the haptics",
+        checked = settings.wallpaperSaveNoHaptics,
+        onCheckedChange = { settings.wallpaperSaveNoHaptics = it },
+        description = "No vibrations to the music, in the app or in the background.",
+        icon = Icons.Rounded.Vibration,
         enabled = on,
     )
 }

@@ -29,6 +29,7 @@ Modified by Behnoud.
 - Pulses snapped to measured drum onsets, downbeats and sung onsets; lyric pulses for line-timed lyrics laid out word by word; unsynced lyrics and interludes give none.
 - Precise last-millisecond timing in the haptics loop; drops land where the score puts them.
 - Android 16 sharpness envelopes, with each pulse's sharpness from the song's timbre.
+- Power saving can stop the haptics too (in the app and in the background), with the phone's battery saver or always; the background service then skips each song's analysis until they're back.
 
 ### Lyrics screen
 - **Share lyrics**: pick up to eight lines and share them as a 4:5 card (blurred cover, the song, the lines in large type), or copy them as text (`ui/share/`).

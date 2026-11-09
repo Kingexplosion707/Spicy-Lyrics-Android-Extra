@@ -45,6 +45,7 @@ import com.tx24.spicyplayer.haptics.HapticBeatOptions
 import com.tx24.spicyplayer.haptics.HapticPlayer
 import com.tx24.spicyplayer.haptics.ProvideTouchHaptics
 import com.tx24.spicyplayer.haptics.playMusicHaptics
+import com.tx24.spicyplayer.haptics.rememberHapticsStoppedBySaving
 import com.tx24.spicyplayer.haptics.LyricHapticTimes
 import com.tx24.spicyplayer.ui.components.SpicyButton
 import com.tx24.spicyplayer.ui.components.SpicyButtonStyle
@@ -966,7 +967,9 @@ private fun LyricsApp(
     val beatReactive = backgroundType == BackgroundType.Default && settings.beatReactiveBackground &&
         !settings.staticBackground && !lowPerformance && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
     val hapticPlayer = remember { HapticPlayer(context) }
-    val musicHapticsOn = settings.musicHaptics && hapticPlayer.canPlayMusic
+    // Power saving can stop them too (Settings → Device → Live wallpaper → Power saving).
+    val savingStopsHaptics = rememberHapticsStoppedBySaving(settings)
+    val musicHapticsOn = settings.musicHaptics && hapticPlayer.canPlayMusic && !savingStopsHaptics
     val extrasWanted = TrackExtrasWanted(
         releaseYear = settings.releaseYearPosition != ReleaseYearPosition.Off,
         artistHeader = backgroundType.usesArtistHeader,
