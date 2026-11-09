@@ -845,11 +845,12 @@ private fun LyricsApp(
         lockLifecycle.addObserver(observer)
         onDispose { lockLifecycle.removeObserver(observer) }
     }
-    val noticeActions = remember(viewModel, context) {
+    val noticeActions = remember(viewModel, context, state.liveCaptions) {
         NoticeActions(
             onRetry = { viewModel.loadLyrics(force = true) },
             report = { debugReport(context, viewModel.state.value) },
             onSearchSpotify = { whenUnlocked { showSpotifySearch = true } },
+            onLiveCaptions = { viewModel.setLiveCaptions(true) }.takeIf { !state.liveCaptions },
         )
     }
     // Leaving the app only shrinks the lyrics when nothing else is half done in front of them.

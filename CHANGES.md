@@ -35,6 +35,9 @@ Modified by Behnoud.
 - **Sleep timer**: pauses the player after a set time or at the end of the song, fading the music out first (`playback/SleepTimerService.kt`, `ui/sleep/`).
 - **Lyrics colour** for the lyrics screen, wallpaper and always-on display, and a **Glow strength** setting (50–300%).
 
+### Lyrics sources
+- **Live captions** (off by default): when no lyrics source has the song, the captions of its YouTube video, word-timed from YouTube's automatic captions and re-cut at sentence ends (`network/data/providers/YouTubeLiveCaptions.kt`). Turned on in Settings → Sources or from the no-lyrics notice, after a disclosure of what is sent.
+
 ### Performance
 - The wallpaper, overlay, always-on display, notification and background haptics share one media-session follower instead of each running its own.
 - The lyric clock outside the app no longer asks the system for the audio output on every frame; the delays are looked up when the song or player changes, or once a second.
@@ -47,3 +50,5 @@ Modified by Behnoud.
 - Quick Settings tiles for the overlay and the always-on display; both, and the lyrics notification, come back after a restart or an app update.
 - Version matching for LRCLIB and NetEase prefers the copy closest in length.
 - CI debug builds share one signing key (from a repository secret) and count their version up, so they install as updates.
+- Every change to main is also published as an optimised (R8) build, a prerelease the in-app updater offers (`android-ci.yml`).
+- New Spicy Lyrics Mobile releases are merged in by `tools/upstream_sync.sh`, run every six hours by `upstream-sync.yml`, which opens an issue when one needs a hand.

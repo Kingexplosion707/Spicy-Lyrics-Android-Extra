@@ -52,6 +52,7 @@ import kotlin.math.abs
 import com.tx24.spicyplayer.ui.background.LEGACY_BLUR_DP
 import com.tx24.spicyplayer.ui.components.ChromeTheme
 import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.ClosedCaption
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Notes
 import androidx.compose.material.icons.rounded.UnfoldMore
@@ -1435,6 +1436,15 @@ internal fun SourcesContent(state: PlayerUiState, viewModel: ExternalPlaybackVie
         )
     }
     SourceList(ranking, names, viewModel)
+    SettingsSection("When no source has the song") {
+        ToggleRow(
+            label = "Live captions",
+            description = "Shows the YouTube video's captions word by word: what YouTube heard, so some words may be wrong.",
+            checked = state.liveCaptions,
+            onCheckedChange = viewModel::setLiveCaptions,
+            icon = Icons.Rounded.ClosedCaption,
+        )
+    }
     MoreOptions("Custom sources, background vocals in brackets, your own Spicy Lyrics key") {
         CustomSourcesSection(state, viewModel)
         SettingsSection("Reading lyrics") {

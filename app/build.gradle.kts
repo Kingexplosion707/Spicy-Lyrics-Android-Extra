@@ -5,6 +5,8 @@ plugins {
 
 /** This release's version code; CI debug builds build on it (see androidComponents). */
 val BASE_VERSION_CODE = 31
+/** The run number of an optimised build from main (android-ci.yml), else null. */
+val plusBuild: Int? = System.getenv("PLUS_BUILD")?.toIntOrNull()
 
 android {
     namespace = "com.tx24.spicyplayer"
@@ -74,8 +76,12 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // Without the release keystore (a local build), sign with the debug key so it installs
-            // over an earlier local release build. Never on CI: a release must fail unsigned.
-            if (System.getenv("CI") == null) signingConfig = signingConfigs.getByName("debug")
+            // over an earlier local release build. On CI only for the builds from main (PLUS_BUILD
+            // set, with the shared debug key when the secret is there): a tagged release must
+            // still fail unsigned.
+            if (System.getenv("CI") == null || plusBuild != null) signingConfig = signingConfigs.getByName("debug")
+            // A build from main counts up by run, so the app offers each one as an update.
+            plusBuild?.let { versionNameSuffix = "-plus.$it" }
             // Off in this fork: the usage statistics went to the original app's own server.
             buildConfigField("boolean", "USAGE_STATS", "false")
         }
@@ -170,6 +176,13 @@ dependencies {
 androidComponents {
     onVariants(selector().withBuildType("debug")) { variant ->
         val run = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: return@onVariants
+        variant.outputs.forEach { output ->
+            output.versionCode.set(BASE_VERSION_CODE * 10_000 + run)
+        }
+    }
+    // Optimised builds from main, the same way, so each installs over the last.
+    onVariants(selector().withBuildType("release")) { variant ->
+        val run = plusBuild ?: return@onVariants
         variant.outputs.forEach { output ->
             output.versionCode.set(BASE_VERSION_CODE * 10_000 + run)
         }

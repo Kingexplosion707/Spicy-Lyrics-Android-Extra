@@ -54,6 +54,7 @@ Rules that apply even without the detail doc:
 - The Spotify matching heuristics are settled, so don't re-tune them without cause.
 - Judge smoothness on a release build (R8-minified; `assembleRelease` signs with the debug key locally). Debug builds are a separate app, `com.behnoud.spicylyrics.debug` named "Spicy Lyrics Plus Debug".
 - TTML is first-class: word timing never gets flattened to LRC.
+- New Spicy Lyrics Mobile releases come in through `tools/upstream_sync.sh` (see `docs/releases.md`), never by copying files over. Resolve its conflicts so that every Plus change stays.
 
 ## Renderer conventions learned the hard way
 

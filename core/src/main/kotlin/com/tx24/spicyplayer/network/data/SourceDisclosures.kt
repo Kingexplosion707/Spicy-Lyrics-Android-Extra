@@ -62,6 +62,8 @@ object SourceDisclosures {
     const val GENIUS_ROMANIZATION_ID = "genius_romanization"
     /** Stage art set to Spotify Canvas, which asks Spicy Lyrics' Canvas service. */
     const val SPOTIFY_CANVAS_ID = "spotify_canvas"
+    /** Live captions for songs no source has, from YouTube. */
+    const val LIVE_CAPTIONS_ID = "live_captions"
 
     private val byId = listOf(
         SourceDisclosure("rmm_revival", "RMM Revival", "Apple's iTunes search and RMM Revival (rmmreviv.al)"),
@@ -71,6 +73,11 @@ object SourceDisclosures {
         SourceDisclosure("netease", "NetEase", "NetEase Cloud Music's servers in China", note = ITUNES_NAMES),
         SourceDisclosure("genius", "Genius", "Genius (genius.com)"),
         SourceDisclosure("youtube_transcript", "YouTube transcripts", "YouTube's search (youtube.com)"),
+        SourceDisclosure(LIVE_CAPTIONS_ID, "Live captions", "YouTube (youtube.com)",
+            descriptionOverride = "When no lyrics source has a song, live captions send its title, artist and length to " +
+                "YouTube (youtube.com) and show the captions of the matching video, word by word. They're what YouTube's " +
+                "speech recognition heard, so some words can be wrong. No account or device details are sent. YouTube " +
+                "isn't run by Spicy Lyrics, so its own terms apply."),
         SourceDisclosure(GENIUS_ROMANIZATION_ID, "Human romanizations", "Genius (genius.com)",
             note = "It's only asked for songs in a script that gets romanized."),
         SourceDisclosure(SPOTIFY_CANVAS_ID, "Spotify Canvas", "Spicy Lyrics' Canvas service (spicylyrics.org)",

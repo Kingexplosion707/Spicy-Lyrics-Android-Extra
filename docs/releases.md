@@ -1,6 +1,6 @@
 # Releases and changelog
 
-GitHub Releases are the changelog. Releases are signed Android APK prereleases. GitHub Actions creates one only when a `v<versionName>` tag is pushed. CI artifacts from ordinary commits are debug APKs and are not releases.
+GitHub Releases are the changelog. Releases are signed Android APK prereleases. GitHub Actions creates one when a `v<versionName>` tag is pushed, and an optimised build for every change to main (below). CI artifacts from other branches and pull requests are debug APKs and are not releases.
 
 ## One-time setup
 
@@ -26,3 +26,31 @@ Also set the GitHub Actions repository **variable** `SPICY_LYRICS_CLIENT_KEY` to
 5. Verify the workflow succeeded, both assets download, the SHA-256 digest matches, and the APK installs and runs on a device. Test an update from the previous **release-signed** APK when applicable. A debug APK is a separate app (`.debug` ID) and does not interfere.
 
 Local builds read an optional publishable Spicy Lyrics key from `.env`. Release builds read the repository variable. Never add a secret `sl_sk_` key to either path.
+
+## Builds from main
+
+Every push to main, and every manual run of Android CI on main, also builds the optimised (R8) APK and publishes it as the prerelease `v<versionName>-plus.<run>` with `spicy-lyrics-plus-v<versionName>-plus.<run>.apk` and its `.sha256`. Its version code is `BASE_VERSION_CODE` times 10,000 plus the run number, and its notes list the commits since the previous build from main, so the app's updater offers each one with what changed. Only the three newest are kept.
+
+These builds are signed with the shared debug key from the `DEBUG_KEYSTORE_BASE64` repository secret, so each installs over the last. Without the secret each run signs with a throwaway key, and every build then needs the previous one uninstalled first. To make the key once:
+
+```
+keytool -genkeypair -v -keystore debug.keystore -storepass android -keypass android \
+  -alias androiddebugkey -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
+base64 -w0 debug.keystore   # the secret's value
+```
+
+Keep the keystore backed up like the release one: a build signed with another key can't update an install signed with this one.
+
+## Updates from Spicy Lyrics Mobile
+
+`.github/upstream.env` names the Spicy Lyrics Mobile release this code contains. `tools/upstream_sync.sh` merges a newer one in: three-way from that release, as `git merge` would, but as one ordinary commit, so this repository's history stays its own and upstream's commits (which touch workflow files the Actions token may not push) stay out. Upstream changes to `.github/workflows` are left out and named in the commit message. It takes upstream's `versionName`, moves `BASE_VERSION_CODE` past both sides' version codes, and adds a dated line to `CHANGES.md`. `tools/plus_version.py` does the version and changelog edits.
+
+The **Spicy Lyrics Mobile updates** workflow (`upstream-sync.yml`) runs it every six hours. When the newest `vX.Y.Z` release merges cleanly and the build, tests and lint pass, it pushes the commit to main and starts Android CI there, which publishes the optimised build. Otherwise it leaves main alone and opens an issue labelled `upstream-sync`: with the conflicting files, or, when a check failed, with the merge pushed to an `upstream-sync/<tag>` branch. Run it by hand from the Actions tab to retry, or with a tag (or `main`) to bring in something else.
+
+To finish one by hand, on an up-to-date main:
+
+1. `tools/upstream_sync.sh vX.Y.Z` stops at the conflicts.
+2. Resolve each one so that upstream's change **and** every Spicy Lyrics Plus change are kept, and `git add` the files. `--abort` goes back.
+3. `tools/upstream_sync.sh --continue` makes the commit. Open a pull request with it; merging it into main publishes the build.
+
+Never copy upstream files over by hand, and leave `.github/upstream.env` to the script: the next merge starts from the release it names.
