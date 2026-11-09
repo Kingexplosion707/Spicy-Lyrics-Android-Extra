@@ -33,6 +33,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.ClosedCaption
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Forum
@@ -83,6 +84,8 @@ internal class NoticeActions(
     /** The debug report for this song, which "Copy details" puts on the clipboard with the notice's code. */
     val report: () -> String,
     val onSearchSpotify: () -> Unit,
+    /** Switches live captions on; null while they're on already. */
+    val onLiveCaptions: (() -> Unit)? = null,
 )
 
 /** [error]'s notice; compact (title and a short detail, no buttons) without [actions]. */
@@ -244,7 +247,8 @@ private fun NoticeButtons(
         }
     }
     val spotify = kind == NoticeKind.NoLyrics || kind == NoticeKind.Unavailable
-    if (!kind.retry && !kind.report && !spotify) return
+    val captions = actions.onLiveCaptions.takeIf { kind == NoticeKind.NoLyrics }
+    if (!kind.retry && !kind.report && !spotify && captions == null) return
     FlowRow(
         Modifier.padding(top = em * 1.6f),
         horizontalArrangement = Arrangement.spacedBy(em * 0.6f, if (narrow) Alignment.Start else Alignment.CenterHorizontally),
@@ -277,6 +281,9 @@ private fun NoticeButtons(
         }
         if (spotify) {
             NoticeButton("Find on Spotify", Icons.Rounded.Search, actions.onSearchSpotify, primary = false, bodySp)
+        }
+        if (captions != null) {
+            NoticeButton("Live captions", Icons.Rounded.ClosedCaption, captions, primary = false, bodySp)
         }
     }
 }

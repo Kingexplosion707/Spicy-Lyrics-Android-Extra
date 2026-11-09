@@ -39,6 +39,8 @@ internal class NextLyricsBackend(context: Context, clientKey: String) {
     private val preferences = context.getSharedPreferences("lyrics_sources", Context.MODE_PRIVATE)
     private val client = lookupClient()
     private val gson = Gson()
+    /** YouTube's captions, asked only once every source came back empty ([resolve]). */
+    private val liveCaptions = YouTubeLiveCaptions(client, gson)
     /** Header values of custom sources: kept out of [preferences], which backups copy. */
     private val customHeaders = context.getSharedPreferences("custom_source_headers", Context.MODE_PRIVATE)
     // One set of Genius pages for its lyrics, romanization and translation lookups, so a song's
@@ -78,7 +80,36 @@ internal class NextLyricsBackend(context: Context, clientKey: String) {
         request: LyricsLookupRequest,
         known: MutableMap<String, ProviderResult>,
         onUpdate: suspend (RemoteLyricsResolution) -> Unit = {},
-    ): RemoteLyricsResolution = source.resolveLyrics(request, policy(), known = known, onUpdate = onUpdate)
+    ): RemoteLyricsResolution {
+        val resolution = source.resolveLyrics(request, policy(), known = known, onUpdate = onUpdate)
+        return if (resolution is RemoteLyricsResolution.NotFound && liveCaptionsEnabled) withLiveCaptions(request, resolution) else resolution
+    }
+
+    /**
+     * Live captions for a song every source had nothing for: YouTube's captions of the matching
+     * video, word by word. Outside the ranking, so they never stand in for real lyrics.
+     */
+    private suspend fun withLiveCaptions(request: LyricsLookupRequest, notFound: RemoteLyricsResolution.NotFound): RemoteLyricsResolution {
+        val result = try {
+            liveCaptions.fetch(request)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            return notFound
+        }
+        val hit = result as? ProviderResult.Hit ?: return notFound
+        val quality = hit.payload.measuredQuality()
+        if (quality == RemoteLyricsQuality.NONE) return notFound
+        return RemoteLyricsResolution.Found(
+            RemoteLyricsSelection(liveCaptions.descriptor, hit.payload, quality),
+            notFound.attempts + ProviderAttempt(liveCaptions.descriptor.id, ProviderAttemptOutcome.HIT, quality),
+        )
+    }
+
+    /** Live captions for songs no source has ([withLiveCaptions]); off until switched on, since it asks YouTube. */
+    var liveCaptionsEnabled: Boolean
+        get() = preferences.getBoolean(LIVE_CAPTIONS, false)
+        set(value) = preferences.edit().putBoolean(LIVE_CAPTIONS, value).apply()
 
     /**
      * [request]'s lyrics from provider [sourceId] alone (chosen for one song), asked now if it
@@ -142,7 +173,7 @@ internal class NextLyricsBackend(context: Context, clientKey: String) {
         if (stored.version != CACHE_VERSION || stored.expiresAt < System.currentTimeMillis() || stored.order != enabledOrder()) return null
         val attempts = stored.attempts.orEmpty().mapNotNull(StoredAttempt::restore)
         val payload = stored.payload ?: return CachedPick(RemoteLyricsResolution.NotFound(attempts), stored.settled)
-        val source = (descriptors + blendDescriptors).firstOrNull { it.id == stored.sourceId } ?: return null
+        val source = (descriptors + blendDescriptors + liveCaptions.descriptor).firstOrNull { it.id == stored.sourceId } ?: return null
         val quality = payload.measuredQuality()
         return CachedPick(
             RemoteLyricsResolution.Found(
@@ -190,7 +221,8 @@ internal class NextLyricsBackend(context: Context, clientKey: String) {
                 .map { id -> revisions[id]?.let { "$id@$it" } ?: id }
             val off = ranking.policy.syncTypesOff[origin.id].orEmpty().map { it.name }.sorted()
             "${origin.id}:${live.joinToString("+")}" + if (off.isEmpty()) "" else ":-${off.joinToString("+")}"
-        }
+        // A "no lyrics" stored before live captions were switched on would hide them.
+        } + if (liveCaptionsEnabled) listOf(YouTubeLiveCaptions.ID) else emptyList()
     }
 
     private fun cacheFile(request: LyricsLookupRequest, manualSpotifyId: String? = null): File =
@@ -351,6 +383,7 @@ internal class NextLyricsBackend(context: Context, clientKey: String) {
         internal const val LOOKUP_CALL_TIMEOUT_S = 20L
         /** Bump when payload conversion changes, so stale conversions are refetched. */
         private const val CACHE_VERSION = 37
+        private const val LIVE_CAPTIONS = "liveCaptions"
         /** Outcomes that are no answer at all: a later lookup may get one. */
         private val UNANSWERED = setOf(
             ProviderAttemptOutcome.UNAVAILABLE,

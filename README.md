@@ -36,6 +36,8 @@ Plus takes those lyrics out of the app and onto the rest of your phone.
 | **Sleep timer** | Pause the music after 15 minutes to an hour and a half, or at the end of the song. It fades out first and puts the volume back after. |
 | **Lyrics colour and glow** | Colour the lyrics on the lyrics screen, wallpaper and always-on display (presets or taken from the cover), and turn the glow up to 300%. The overlay has its own colour, glow and text brightness. |
 | **Quick Settings tiles** | Turn the overlay and the always-on display on and off from the notification shade. They come back by themselves after a restart or an update. |
+| **Live captions** | When no lyrics source has the song (or you're watching a video), the captions of its YouTube video, word by word as YouTube's speech recognition heard them, so a word can be off. Off until you turn it on in Settings → Sources, or tap Live captions on the "no lyrics" screen. |
+| **Always current** | New Spicy Lyrics Mobile releases are merged in automatically with every Plus feature kept, and each change ships as an optimised build that the app offers as an update. |
 | **Lighter on the phone** | Everything outside the app shares one connection to the music app and one set of lyrics lookups, the overlay draws at 60 fps over 120 Hz apps and keeps its lyrics ready while hidden, and the always-on display runs at the screen's lowest refresh rate. |
 
 Everything else is the original app: many lyric sources, TTML word timing kept all the way to the screen, Apple Music and Simple styles, romanization, translation, animated backgrounds, picture-in-picture, a widget and more.

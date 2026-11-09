@@ -234,6 +234,8 @@ data class PlayerUiState(
     val modelSyncing: Boolean = false,
     /** Brackets at a synced line's ends shown as background vocals. */
     val splitBackgroundVocals: Boolean = true,
+    /** Live captions: YouTube's captions, word by word, for songs no source has. */
+    val liveCaptions: Boolean = false,
     /** The user's own sources, in the order they were added; their place in the lookup is in [sourcePolicy]. */
     val customSources: List<CustomLyricsSource> = emptyList(),
     /** The player's queue, when it shares one; empty otherwise. */
@@ -333,6 +335,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         sourcePolicy = lyricsBackend.policy(),
         humanRomanizations = lyricsBackend.humanRomanizations,
         splitBackgroundVocals = lyricsBackend.splitBackgroundVocals,
+        liveCaptions = lyricsBackend.liveCaptionsEnabled,
         switchedOffSources = lyricsBackend.switchedOffSources,
         ownKeyHint = runtimeApiKey.takeIf { it.isNotBlank() }?.let(SpicyLyricsKey::hint),
     ))
@@ -1372,6 +1375,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
             songDelayMs = songDelays.delayMs(mutableState.value.localLyricsKey),
             humanRomanizations = lyricsBackend.humanRomanizations,
             splitBackgroundVocals = lyricsBackend.splitBackgroundVocals,
+            liveCaptions = lyricsBackend.liveCaptionsEnabled,
             switchedOffSources = lyricsBackend.switchedOffSources,
         )
         // The playing song's Spotify link may have come or gone: look it up again if so.
@@ -1827,6 +1831,20 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         }
     }
 
+    /**
+     * Switches live captions on (after saying what it sends to YouTube) or off. Switched on while
+     * the song on screen has no lyrics, the song is looked up again so its captions show.
+     */
+    fun setLiveCaptions(enabled: Boolean) {
+        if (enabled && askFirst(SourceDisclosures.forId(SourceDisclosures.LIVE_CAPTIONS_ID))) {
+            pendingSourceSwitch = { setLiveCaptions(true) }
+            return
+        }
+        lyricsBackend.liveCaptionsEnabled = enabled
+        mutableState.value = mutableState.value.copy(liveCaptions = enabled)
+        if (enabled && mutableState.value.lyrics !is LyricsState.Ready) loadLyrics()
+    }
+
     fun setSplitBackgroundVocals(enabled: Boolean) {
         lyricsBackend.splitBackgroundVocals = enabled
         mutableState.value = mutableState.value.copy(splitBackgroundVocals = enabled)
@@ -1945,6 +1963,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
                 onDeviceDownloadedBytes = kept.onDeviceDownloadedBytes,
                 humanRomanizations = kept.humanRomanizations,
                 splitBackgroundVocals = kept.splitBackgroundVocals,
+                liveCaptions = kept.liveCaptions,
                 sourceDisclosure = kept.sourceDisclosure,
                 switchedOffSources = kept.switchedOffSources,
                 ownKeyHint = kept.ownKeyHint,

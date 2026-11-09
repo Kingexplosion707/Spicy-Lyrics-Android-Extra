@@ -104,5 +104,5 @@ object Releases {
     private fun JsonObject.string(key: String): String? = get(key)?.takeIf { it.isJsonPrimitive }?.asString
     private fun JsonObject.bool(key: String): Boolean = get(key)?.takeIf { it.isJsonPrimitive }?.asBoolean == true
 
-    private val APK_PREFIXES = listOf("spicy-lyrics-mobile-", "spicy-player-")
+    private val APK_PREFIXES = listOf("spicy-lyrics-plus-", "spicy-lyrics-mobile-", "spicy-player-")
 }

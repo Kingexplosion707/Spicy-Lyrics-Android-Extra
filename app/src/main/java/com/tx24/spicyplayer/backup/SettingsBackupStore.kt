@@ -64,7 +64,7 @@ class SettingsBackupStore(private val context: Context) {
                 "disabled" to Set::class, "blends" to Set::class,
                 "sourceOrder" to String::class, "sourcesOff" to Set::class, "pairsOn" to Set::class,
                 "pairsOff" to Set::class, "syncTypesOff" to Set::class,
-                "humanRomanizations" to Boolean::class,
+                "humanRomanizations" to Boolean::class, "liveCaptions" to Boolean::class,
                 "disclosed" to Set::class, "switchedOff" to Set::class,
             )
             "translation" -> mapOf(

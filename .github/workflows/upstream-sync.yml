@@ -1,0 +1,141 @@
+name: Spicy Lyrics Mobile updates
+
+# Brings each new Spicy Lyrics Mobile release into main with every Plus change kept
+# (tools/upstream_sync.sh), checks it the way a pull request is checked, and starts the optimised
+# build. A release that needs a hand (conflicts, or a failing check) gets an issue labelled
+# upstream-sync instead, and main is left alone.
+
+on:
+  schedule:
+    - cron: '41 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Release tag to bring in, or "main" (blank for the newest release)
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  actions: write
+  issues: write
+
+concurrency:
+  group: upstream-sync
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Look for a new release
+        id: check
+        env:
+          TARGET: ${{ inputs.target }}
+        run: tools/upstream_sync.sh --check ${TARGET:+"$TARGET"}
+
+      # A scheduled run leaves a release that already has an issue to whoever picks the issue up.
+      - name: See whether it's waiting for a hand
+        id: waiting
+        if: steps.check.outputs.status == 'new' && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET: ${{ steps.check.outputs.target }}
+        run: |
+          open=$(gh issue list --repo "$GITHUB_REPOSITORY" --label upstream-sync --state open --json title \
+            --jq "[.[] | select(.title | contains(\"($TARGET)\"))] | length")
+          if [ "$open" != 0 ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; echo "$TARGET already has an open issue."; fi
+
+      - name: Merge it
+        id: merge
+        if: steps.check.outputs.status == 'new' && steps.waiting.outputs.skip != 'true'
+        env:
+          TARGET: ${{ steps.check.outputs.target }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          status=0
+          tools/upstream_sync.sh "$TARGET" || status=$?
+          # 3: stopped at conflicts, reported below.
+          [ "$status" = 0 ] || [ "$status" = 3 ]
+
+      - uses: actions/setup-java@v6
+        if: steps.merge.outputs.status == 'merged'
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v6
+        if: steps.merge.outputs.status == 'merged'
+      - name: Build, test, and lint
+        id: build
+        if: steps.merge.outputs.status == 'merged'
+        continue-on-error: true
+        env:
+          SPICY_LYRICS_CLIENT_KEY: ${{ vars.SPICY_LYRICS_CLIENT_KEY }}
+        run: ./gradlew --no-daemon assembleDebug testDebugUnitTest :core:test lintDebug
+
+      # Pushes made with this workflow's token start no workflows, so the optimised build is
+      # started by hand.
+      - name: Put it on main
+        if: steps.merge.outputs.status == 'merged' && steps.build.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET: ${{ steps.merge.outputs.target }}
+          VERSION: ${{ steps.merge.outputs.version }}
+        run: |
+          git push origin HEAD:main
+          gh workflow run android-ci.yml --repo "$GITHUB_REPOSITORY" --ref main
+          note="Spicy Lyrics Mobile $VERSION is on main now ($(git rev-parse --short HEAD)), with every Plus change kept."
+          for issue in $(gh issue list --repo "$GITHUB_REPOSITORY" --label upstream-sync --state open --json number,title \
+            --jq ".[] | select(.title | contains(\"($TARGET)\")) | .number"); do
+            gh issue close "$issue" --repo "$GITHUB_REPOSITORY" --comment "$note"
+          done
+          echo "$note The optimised build is on its way." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Ask for a hand
+        if: >-
+          steps.merge.outputs.status == 'conflicts' ||
+          (steps.merge.outputs.status == 'merged' && steps.build.outcome != 'success')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET: ${{ steps.merge.outputs.target }}
+          VERSION: ${{ steps.merge.outputs.version }}
+          STATUS: ${{ steps.merge.outputs.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh label create upstream-sync --repo "$GITHUB_REPOSITORY" --color FBCA04 \
+            --description "A Spicy Lyrics Mobile release to merge by hand" 2> /dev/null || true
+          if [ "$STATUS" = conflicts ]; then
+            # shellcheck disable=SC2016 # Markdown backticks, not a command.
+            files=$(sed 's/.*/- `&`/' upstream-conflicts.txt)
+            body="Merging Spicy Lyrics Mobile $VERSION into main ran into conflicts in:
+
+          $files
+
+          To finish it, on an up-to-date main:
+
+          1. Run \`tools/upstream_sync.sh $TARGET\`.
+          2. Resolve each conflict so that upstream's change **and** every Spicy Lyrics Plus change are kept, then \`git add\` the files.
+          3. Run \`tools/upstream_sync.sh --continue\` and open a pull request with the commit it makes.
+
+          ([Run]($RUN_URL))"
+          else
+            branch="upstream-sync/$TARGET"
+            git push --force origin "HEAD:refs/heads/$branch"
+            body="Spicy Lyrics Mobile $VERSION merged without conflicts, but the build, tests or lint then failed ([run]($RUN_URL)), so main was left as it was.
+
+          The merge is on the [\`$branch\`]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/tree/$branch) branch. Fix the check there, keeping every Spicy Lyrics Plus change, and open a pull request from it into main."
+          fi
+          title="Spicy Lyrics Mobile $VERSION ($TARGET) needs a hand"
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --label upstream-sync --state open --json number,title \
+            --jq ".[] | select(.title == \"$title\") | .number" | awk 'NR == 1')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --label upstream-sync --body "$body"
+          fi
+          printf '%s\n' "$body" >> "$GITHUB_STEP_SUMMARY"
