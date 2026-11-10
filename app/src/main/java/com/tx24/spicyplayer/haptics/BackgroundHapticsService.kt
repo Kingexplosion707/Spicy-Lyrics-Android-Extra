@@ -20,6 +20,7 @@ import com.tx24.spicyplayer.R
 import com.tx24.spicyplayer.network.data.spotify.LocalTrackMetadata
 import com.tx24.spicyplayer.network.data.spotify.SharedSpotify
 import com.tx24.spicyplayer.playback.BackgroundSession
+import com.tx24.spicyplayer.power.SaverRule
 import com.tx24.spicyplayer.wallpaper.PowerSaving
 import com.tx24.spicyplayer.widget.BackgroundLyrics
 import kotlinx.coroutines.CoroutineScope
@@ -56,7 +57,7 @@ class BackgroundHapticsService : Service() {
     /** Power saving can stop the haptics: they follow its setting and the phone's battery saver. */
     private val batterySaver = BatterySaverReceiver { updateHaptics() }
     private val savingSettings = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == PowerSaving.PREF || key == PowerSaving.PREF_NO_HAPTICS) updateHaptics()
+        if (key == PowerSaving.PREF || key == PowerSaving.PREF_NO_HAPTICS || key == SaverRule.BackgroundHaptics.pref) updateHaptics()
     }
 
     private val activityCallbacks = object : Application.ActivityLifecycleCallbacks {
@@ -127,13 +128,17 @@ class BackgroundHapticsService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    /** Power saving stops every haptic, or the battery saver stops the background ones (Settings → Device → Battery saver). */
+    private fun stoppedBySaving(): Boolean =
+        hapticsStoppedBySaving(this, prefs) || SaverRule.BackgroundHaptics.stopsNow(this, prefs)
+
     /** A new song: its vibrations are rebuilt from its audio analysis, as the screen does. */
     private fun onSong(track: BackgroundSession.Track?) {
         score = null
         scoreKey = null
         updateNotification()
         // While power saving stops the haptics, the song's analysis waits until they're back.
-        if (track == null || hapticsStoppedBySaving(this, prefs)) {
+        if (track == null || stoppedBySaving()) {
             updateHaptics()
             return
         }
@@ -187,7 +192,7 @@ class BackgroundHapticsService : Service() {
      */
     private fun updateHaptics() {
         player.renderEngine = hapticBeatEngine()
-        val saving = hapticsStoppedBySaving(this, prefs)
+        val saving = stoppedBySaving()
         val run = backgroundHapticsOn() && session.isPlaying && !lyricsResumed && player.canPlayMusic && !saving
         // Power saving ended mid-song: this song's vibrations weren't built yet.
         val track = session.track
@@ -262,7 +267,7 @@ class BackgroundHapticsService : Service() {
         val track = session.track
         val text = when {
             track == null -> getString(R.string.background_haptics_nothing)
-            hapticsStoppedBySaving(this, prefs) -> getString(R.string.background_haptics_power_saving)
+            stoppedBySaving() -> getString(R.string.background_haptics_power_saving)
             session.isPlaying -> "${track.title} — ${track.artist}"
             else -> getString(R.string.background_haptics_paused)
         }

@@ -5,21 +5,27 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.content.SharedPreferences
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.tx24.spicyplayer.LyricsActivity
 import com.tx24.spicyplayer.R
+import com.tx24.spicyplayer.haptics.BatterySaverReceiver
 import com.tx24.spicyplayer.lyrics.LyricsState
 import com.tx24.spicyplayer.lyrics.TimedLine
 import com.tx24.spicyplayer.lyrics.spicy.models.LineRole
 import com.tx24.spicyplayer.lyrics.spicy.models.LyricsType
+import com.tx24.spicyplayer.power.SaverRule
 import com.tx24.spicyplayer.widget.BackgroundLyrics
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,6 +42,10 @@ import kotlinx.coroutines.withContext
  *
  * Settings → Device → Lyrics notification turns it on. A foreground service, so it keeps up with
  * the screen off and the app closed, following the same session and lyrics as the wallpaper.
+ *
+ * With the screen off nobody sees the line change, so it changes then only when the song or
+ * playing does, and catches up when the screen comes back on. While the phone's battery saver is
+ * on it rests (Settings → Device → Battery saver): it stops following the player and says so.
  */
 class LyricsNotificationService : Service() {
     private lateinit var session: BackgroundSession
@@ -52,6 +62,23 @@ class LyricsNotificationService : Service() {
     private var foreground = false
 
     private val tick = Runnable { refresh() }
+    /** Whether the screen is on: with it off, the line isn't followed (see the class comment). */
+    private var screenOn = true
+    /** Resting for the battery saver: not following the player. */
+    private var resting = false
+
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            screenOn = intent.action != Intent.ACTION_SCREEN_OFF
+            if (screenOn) refresh() else main.removeCallbacks(tick)
+        }
+    }
+
+    private val batterySaver = BatterySaverReceiver { applySaver() }
+
+    private val saverSettings = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == SaverRule.Notification.pref) applySaver()
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -61,7 +88,13 @@ class LyricsNotificationService : Service() {
             onTrack = { onSong(it) }
             onPlayingChanged = { refresh() }
         }
-        session.start()
+        screenOn = getSystemService(PowerManager::class.java)?.isInteractive != false
+        val screen = IntentFilter(Intent.ACTION_SCREEN_OFF).apply { addAction(Intent.ACTION_SCREEN_ON) }
+        ContextCompat.registerReceiver(this, screenReceiver, screen, ContextCompat.RECEIVER_NOT_EXPORTED)
+        batterySaver.register(this)
+        getSharedPreferences("ui", MODE_PRIVATE).registerOnSharedPreferenceChangeListener(saverSettings)
+        resting = SaverRule.Notification.stopsNow(this)
+        if (!resting) session.start()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -72,7 +105,7 @@ class LyricsNotificationService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        startForeground(NOTIFICATION_ID, build(currentLine(), session.isPlaying))
+        startForeground(NOTIFICATION_ID, if (resting) restingNotification() else build(currentLine(), session.isPlaying))
         foreground = true
         refresh()
         return START_STICKY
@@ -80,6 +113,9 @@ class LyricsNotificationService : Service() {
 
     override fun onDestroy() {
         main.removeCallbacks(tick)
+        runCatching { unregisterReceiver(screenReceiver) }
+        batterySaver.unregister(this)
+        getSharedPreferences("ui", MODE_PRIVATE).unregisterOnSharedPreferenceChangeListener(saverSettings)
         session.stop()
         scope.cancel()
         super.onDestroy()
@@ -124,10 +160,28 @@ class LyricsNotificationService : Service() {
         return if (pos >= line.endMs + GAP_GRACE_MS && (next == null || pos < next.startMs)) -1 else i
     }
 
+    /** Follows the battery saver: stops following the player while it's on, and starts again after. */
+    private fun applySaver() {
+        val rest = SaverRule.Notification.stopsNow(this)
+        if (rest == resting) return
+        resting = rest
+        main.removeCallbacks(tick)
+        if (rest) {
+            session.stop()
+            if (foreground) runCatching { getSystemService(NotificationManager::class.java)?.notify(NOTIFICATION_ID, restingNotification()) }
+        } else {
+            shownLine = Int.MIN_VALUE
+            shownPlaying = null
+            shownTrack = null
+            session.start()
+            refresh()
+        }
+    }
+
     /** Updates the notification if the line (or playing) changed, then waits for the next line. */
     private fun refresh() {
         main.removeCallbacks(tick)
-        if (!foreground) return
+        if (!foreground || resting) return
         val line = currentLine()
         val playing = session.isPlaying
         val title = session.track?.key
@@ -137,7 +191,7 @@ class LyricsNotificationService : Service() {
             shownTrack = title
             runCatching { getSystemService(NotificationManager::class.java)?.notify(NOTIFICATION_ID, build(line, playing)) }
         }
-        if (!playing || sung.isEmpty()) return
+        if (!playing || sung.isEmpty() || !screenOn) return
         // Woken at the next line's start (or its end, for a gap), never sooner than a frame.
         val pos = session.positionMs()
         val nextStart = sung.firstOrNull { it.startMs > pos }?.startMs
@@ -145,6 +199,25 @@ class LyricsNotificationService : Service() {
         val wake = listOfNotNull(nextStart, currentEnd).minOrNull() ?: return
         main.postDelayed(tick, (wake - pos).coerceIn(MIN_WAIT_MS, MAX_WAIT_MS))
     }
+
+    /** What shows while it rests for the battery saver. */
+    private fun restingNotification(): Notification = NotificationCompat.Builder(this, CHANNEL_ID)
+        .setSmallIcon(R.drawable.app_glyph)
+        .setContentTitle(getString(R.string.lyrics_notification_channel))
+        .setContentText(getString(R.string.battery_saver_resting))
+        .setContentIntent(
+            PendingIntent.getActivity(
+                this, 0,
+                Intent(this, LyricsActivity::class.java).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP },
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            ),
+        )
+        .setCategory(NotificationCompat.CATEGORY_STATUS)
+        .setOngoing(true)
+        .setOnlyAlertOnce(true)
+        .setSilent(true)
+        .setShowWhen(false)
+        .build()
 
     private fun build(line: Int, playing: Boolean): Notification {
         val track = session.track

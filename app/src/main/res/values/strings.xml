@@ -40,5 +40,6 @@
     <string name="lyrics_overlay_unlock">Unlock</string>
     <string name="always_on_title">Always-on lyrics</string>
     <string name="always_on_text">The lyrics show when the screen turns off</string>
+    <string name="battery_saver_resting">Resting while battery saver is on</string>
     <string name="always_on_launch_channel">Always-on display</string>
 </resources>

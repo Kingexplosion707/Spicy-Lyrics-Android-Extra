@@ -41,7 +41,7 @@ Plus takes those lyrics out of the app and onto the rest of your phone.
 | **Listening stats** | Your top songs and artists, counted on your phone from any player once you switch it on. Nothing is sent anywhere. |
 | **Little things** | Copy the lyrics or save them as an .lrc file, hold a line to copy it, the volume in quick settings, and a landscape layout for the live wallpaper. |
 | **Always current** | New Spicy Lyrics Mobile releases are merged in automatically with every Plus feature kept, and each change ships as an optimised build that the app offers as an update. |
-| **Lighter on the phone** | Everything outside the app shares one connection to the music app and one set of lyrics lookups, the overlay draws at 60 fps over 120 Hz apps and keeps its lyrics ready while hidden, and the always-on display runs at the screen's lowest refresh rate. |
+| **Lighter on the phone** | Everything outside the app shares one connection to the music app and one set of lyrics lookups, the overlay draws at 60 fps over 120 Hz apps and keeps its lyrics ready while hidden, and the always-on display runs at the screen's lowest refresh rate. With the phone's battery saver on, the always-on display, overlay, lyrics notification and background haptics rest until it's off (Settings → Device → Battery saver). |
 
 Everything else is the original app: many lyric sources, TTML word timing kept all the way to the screen, Apple Music and Simple styles, romanization, translation, animated backgrounds, picture-in-picture, a widget and more.
 

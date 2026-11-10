@@ -556,7 +556,9 @@ private fun LyricsApp(
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
-    val lowPerformance = settings.lowPerformance
+    // The battery saver can turn on low performance mode too (Settings → Device → Battery saver).
+    val batterySaver = com.tx24.spicyplayer.power.rememberBatterySaverOn()
+    val lowPerformance = settings.lowPerformance || (batterySaver && settings.saverLowPerformance)
     val hideHeader = settings.hideHeader
     val romanizationAvailable = (state.lyrics as? LyricsState.Ready)?.let { ready ->
         ready.lines.any { line -> line.words.any { it.romanized != null } }
@@ -583,8 +585,10 @@ private fun LyricsApp(
     // Awake while the music plays, so the lyrics can be followed without touching the phone.
     // The always-on display needs the same: its dim lyrics stay up while the music plays.
     val view = LocalView.current
-    // As the always-on display it stays up whatever plays, paused or not.
-    val keepAwake = (settings.keepScreenOn && state.isPlaying) || settings.ambientAsAod
+    // As the always-on display it stays up whatever plays, paused or not. The battery saver can
+    // let the screen sleep anyway (Settings → Device → Battery saver).
+    val keepAwake = (settings.keepScreenOn && state.isPlaying && !(batterySaver && settings.saverStopsKeepScreenOn)) ||
+        (settings.ambientAsAod && !(batterySaver && settings.saverStopsAlwaysOn))
     DisposableEffect(view, keepAwake) {
         view.keepScreenOn = keepAwake
         onDispose { view.keepScreenOn = false }
@@ -592,7 +596,7 @@ private fun LyricsApp(
     // 60 Hz unless asked otherwise: word sweeps and the background look the same, and a 90/120 Hz
     // screen would otherwise draw (and composite) half again or twice as many frames.
     val activity = LocalActivity.current
-    val highRefreshRate = settings.highRefreshRate
+    val highRefreshRate = settings.highRefreshRate && !(batterySaver && settings.saverStopsHighRefreshRate)
     DisposableEffect(activity, highRefreshRate) {
         val window = activity?.window
         window?.let { setPreferredRefreshRate(it, if (highRefreshRate) null else 60f) }

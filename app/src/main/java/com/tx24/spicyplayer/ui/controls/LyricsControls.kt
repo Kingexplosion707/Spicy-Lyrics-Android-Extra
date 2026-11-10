@@ -1159,10 +1159,11 @@ private fun TimelineRow(controls: PlaybackControlsState, shown: () -> Float, mod
         positionMs = controls.positionMs()
         while (true) {
             if (!controls.isPlaying) {
-                // Paused, the bar only moves on a seek: a few reads a second, no frames, catch one
-                // from the player (a seek from here reads at once).
+                // Paused, the bar only moves on a seek: a few reads a second catch one from the
+                // player (a seek from here reads at once). Each read waits for a frame, so with the
+                // app in the background (no frames) it sleeps instead of waking four times a second.
                 delay(HIDDEN_UPDATE_MS)
-                positionMs = controls.positionMs()
+                withFrameMillis { positionMs = controls.positionMs() }
                 continue
             }
             // Faded out, nobody sees the bar move: a few updates a second keep it close.

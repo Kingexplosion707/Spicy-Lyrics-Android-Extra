@@ -20,6 +20,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.tx24.spicyplayer.LyricsActivity
 import com.tx24.spicyplayer.R
+import com.tx24.spicyplayer.haptics.BatterySaverReceiver
+import com.tx24.spicyplayer.power.SaverRule
 import com.tx24.spicyplayer.playback.LiveLyrics
 import com.tx24.spicyplayer.wallpaper.WallpaperPresence
 
@@ -29,7 +31,8 @@ import com.tx24.spicyplayer.wallpaper.WallpaperPresence
  *
  * It steps aside while the lyrics screen is up, and (by default) while the music is paused or
  * the song has no lyrics. Its notification hides or shows it, locks it in place, and stops it.
- * Settings → Device → Lyrics overlay turns it on.
+ * Settings → Device → Lyrics overlay turns it on. While the phone's battery saver is on it
+ * rests (Settings → Device → Battery saver): hidden, and not following the player or looking up lyrics.
  */
 class LyricsOverlayService : Service() {
     private lateinit var prefs: SharedPreferences
@@ -41,7 +44,12 @@ class LyricsOverlayService : Service() {
     private var userHidden = false
     private var hiddenFor: String? = null
     private var pausedLongEnough = false
-    private var shownInNotification: Boolean? = null
+    /** What the notification says: shown, waiting, or resting for the battery saver. */
+    private var notificationState: Int? = null
+    /** Resting for the battery saver: the window is hidden and [live] stopped. */
+    private var resting = false
+
+    private val batterySaver = BatterySaverReceiver { update() }
 
     private val wallpaperListener: (Boolean) -> Unit = { update() }
 
@@ -51,7 +59,8 @@ class LyricsOverlayService : Service() {
     }
 
     private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key != null && key.startsWith("overlay")) {
+        if (key == SaverRule.Overlay.pref) update()
+        else if (key != null && key.startsWith("overlay")) {
             if (!enabled(this)) stopSelf() else {
                 window.applyBehaviour()
                 update()
@@ -84,7 +93,9 @@ class LyricsOverlayService : Service() {
         prefs.registerOnSharedPreferenceChangeListener(prefsListener)
         (application as Application).registerActivityLifecycleCallbacks(activityCallbacks)
         WallpaperPresence.addListener(wallpaperListener)
-        live.start()
+        batterySaver.register(this)
+        resting = SaverRule.Overlay.stopsNow(this, prefs)
+        if (!resting) live.start()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -121,9 +132,10 @@ class LyricsOverlayService : Service() {
         prefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
         (application as Application).unregisterActivityLifecycleCallbacks(activityCallbacks)
         WallpaperPresence.removeListener(wallpaperListener)
+        batterySaver.unregister(this)
         window.destroy()
         StatusBarClock.restore(this)
-        live.stop()
+        if (!resting) live.stop()
         super.onDestroy()
     }
 
@@ -131,13 +143,24 @@ class LyricsOverlayService : Service() {
 
     /** Shows or hides the window for what plays now, and keeps the notification's buttons true. */
     private fun update() {
+        // The battery saver: the player's follower and the lookups stop with the window.
+        val rest = SaverRule.Overlay.stopsNow(this, prefs)
+        if (rest != resting) {
+            resting = rest
+            if (rest) {
+                main.removeCallbacks(pauseTimeout)
+                live.stop()
+            } else {
+                live.start()
+            }
+        }
         val track = live.track
         if (userHidden && hiddenFor != track?.key) userHidden = false
         // Paused for a moment (a skip, a seek) it stays; paused for longer, it goes.
         if (live.playing) {
             main.removeCallbacks(pauseTimeout)
             pausedLongEnough = false
-        } else if (!pausedLongEnough) {
+        } else if (!pausedLongEnough && !resting) {
             main.removeCallbacks(pauseTimeout)
             main.postDelayed(pauseTimeout, PAUSE_HIDE_MS)
         }
@@ -146,7 +169,7 @@ class LyricsOverlayService : Service() {
         val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         // On the home screen the live wallpaper shows the lyrics already.
         val onWallpaper = WallpaperPresence.visible && prefs.getBoolean(PREF_HIDE_ON_WALLPAPER, true)
-        val show = track != null && !lyricsResumed && !userHidden && !noLyrics && !onWallpaper &&
+        val show = !resting && track != null && !lyricsResumed && !userHidden && !noLyrics && !onWallpaper &&
             !(hideWhenPaused && !live.playing && pausedLongEnough) &&
             !(landscape && prefs.getBoolean(PREF_HIDE_IN_LANDSCAPE, false))
         if (show) {
@@ -166,8 +189,13 @@ class LyricsOverlayService : Service() {
         } else {
             StatusBarClock.restore(this)
         }
-        if (shownInNotification != shown) {
-            shownInNotification = shown
+        val state = when {
+            resting -> 2
+            shown -> 1
+            else -> 0
+        }
+        if (notificationState != state) {
+            notificationState = state
             runCatching { getSystemService(NotificationManager::class.java)?.notify(NOTIFICATION_ID, notification()) }
         }
     }
@@ -175,7 +203,15 @@ class LyricsOverlayService : Service() {
     private fun notification() = NotificationCompat.Builder(this, CHANNEL_ID)
         .setSmallIcon(R.drawable.app_glyph)
         .setContentTitle(getString(R.string.lyrics_overlay_title))
-        .setContentText(getString(if (window.isShown) R.string.lyrics_overlay_showing else R.string.lyrics_overlay_waiting))
+        .setContentText(
+            getString(
+                when {
+                    resting -> R.string.battery_saver_resting
+                    window.isShown -> R.string.lyrics_overlay_showing
+                    else -> R.string.lyrics_overlay_waiting
+                },
+            ),
+        )
         .setContentIntent(
             PendingIntent.getActivity(
                 this, 0,

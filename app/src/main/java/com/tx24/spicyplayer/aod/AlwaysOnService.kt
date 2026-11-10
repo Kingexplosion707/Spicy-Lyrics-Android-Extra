@@ -18,6 +18,8 @@ import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.tx24.spicyplayer.R
+import com.tx24.spicyplayer.haptics.BatterySaverReceiver
+import com.tx24.spicyplayer.power.SaverRule
 
 /**
  * The lyrics as the always-on display. When the screen turns off (its timeout, or the power
@@ -32,7 +34,8 @@ import com.tx24.spicyplayer.R
  * full-screen notification asks the system to show it instead, which Android 14 and later only
  * does once "Full-screen notifications" is allowed for the app. Not during a call.
  *
- * Settings → Device → Always-on display turns it on.
+ * Settings → Device → Always-on display turns it on. While the phone's battery saver is on it
+ * rests (Settings → Device → Battery saver): the screen turns off as usual.
  */
 class AlwaysOnService : Service() {
     private val main = Handler(Looper.getMainLooper())
@@ -47,6 +50,26 @@ class AlwaysOnService : Service() {
         }
     }
 
+    /** The battery saver turned on: an open display goes, and none comes up until it's off. */
+    private val batterySaver = BatterySaverReceiver { onSaverChanged() }
+
+    private val saverSettings = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == SaverRule.AlwaysOn.pref) onSaverChanged()
+    }
+
+    private var resting: Boolean? = null
+
+    private fun onSaverChanged() {
+        val rest = SaverRule.AlwaysOn.stopsNow(this)
+        if (rest == resting) return
+        resting = rest
+        if (rest) {
+            main.removeCallbacks(launch)
+            if (AlwaysOnActivity.showing) AlwaysOnActivity.dismissAll()
+        }
+        runCatching { getSystemService(NotificationManager::class.java)?.notify(NOTIFICATION_ID, statusNotification()) }
+    }
+
     private fun onScreenOff() {
         main.removeCallbacks(launch)
         if (AlwaysOnActivity.showing) {
@@ -54,7 +77,7 @@ class AlwaysOnService : Service() {
             AlwaysOnActivity.dismissAll()
             return
         }
-        if (inCall()) return
+        if (inCall() || SaverRule.AlwaysOn.stopsNow(this)) return
         main.postDelayed(launch, LAUNCH_DELAY_MS)
     }
 
@@ -71,6 +94,9 @@ class AlwaysOnService : Service() {
         createChannels()
         val screen = IntentFilter(Intent.ACTION_SCREEN_OFF).apply { addAction(Intent.ACTION_SCREEN_ON) }
         ContextCompat.registerReceiver(this, screenReceiver, screen, ContextCompat.RECEIVER_NOT_EXPORTED)
+        batterySaver.register(this)
+        getSharedPreferences("ui", MODE_PRIVATE).registerOnSharedPreferenceChangeListener(saverSettings)
+        resting = SaverRule.AlwaysOn.stopsNow(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -90,6 +116,8 @@ class AlwaysOnService : Service() {
     override fun onDestroy() {
         main.removeCallbacksAndMessages(null)
         runCatching { unregisterReceiver(screenReceiver) }
+        batterySaver.unregister(this)
+        getSharedPreferences("ui", MODE_PRIVATE).unregisterOnSharedPreferenceChangeListener(saverSettings)
         super.onDestroy()
     }
 
@@ -122,7 +150,7 @@ class AlwaysOnService : Service() {
     private fun statusNotification() = NotificationCompat.Builder(this, CHANNEL_ID)
         .setSmallIcon(R.drawable.app_glyph)
         .setContentTitle(getString(R.string.always_on_title))
-        .setContentText(getString(R.string.always_on_text))
+        .setContentText(getString(if (SaverRule.AlwaysOn.stopsNow(this)) R.string.battery_saver_resting else R.string.always_on_text))
         .addAction(
             R.drawable.app_glyph, getString(R.string.background_haptics_stop),
             PendingIntent.getService(

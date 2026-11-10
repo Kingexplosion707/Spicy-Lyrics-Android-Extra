@@ -321,6 +321,14 @@ class AppSettings(private val prefs: SharedPreferences) {
     var wallpaperSaveLineByLine by boolean("wallpaperSaveLineByLine", false)
     var wallpaperSaveStopAll by boolean("wallpaperSaveStopAll", false)
     var wallpaperSaveNoHaptics by boolean("wallpaperSaveNoHaptics", false)
+    /** What the phone's battery saver turns off while it's on ([com.tx24.spicyplayer.power.SaverRule]). */
+    var saverStopsAlwaysOn by boolean("saverStopsAlwaysOn", true)
+    var saverStopsOverlay by boolean("saverStopsOverlay", true)
+    var saverStopsNotification by boolean("saverStopsNotification", true)
+    var saverStopsBackgroundHaptics by boolean("saverStopsBackgroundHaptics", true)
+    var saverStopsKeepScreenOn by boolean("saverStopsKeepScreenOn", true)
+    var saverStopsHighRefreshRate by boolean("saverStopsHighRefreshRate", true)
+    var saverLowPerformance by boolean("saverLowPerformance", false)
     /** The line being sung in an ongoing notification, for islands and Live Updates. */
     var lyricsNotification by boolean("lyricsNotification", false)
     /** The lyrics floating over other apps while music plays. */

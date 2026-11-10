@@ -58,6 +58,13 @@ Modified by Behnoud.
 - The overlay keeps its window (and its laid-out lyrics) for a while after hiding, draws at most 60 frames a second, and rests completely while hidden.
 - The always-on display asks for the screen's lowest refresh rate and wakes once a minute for its clock instead of every second.
 - Cover videos run their players on their own thread, so starting and stopping one never stalls a frame.
+- The lyrics notification stops following the line while the screen is off and catches up when it comes back on.
+- The shared media-session follower reads the player's cover only when its metadata changes, not on every playback update.
+- The lyrics screen's paused timeline sleeps while the app is in the background instead of waking four times a second.
+
+### Battery saver (`power/`)
+- Settings → Device → Battery saver: while the phone's battery saver is on, the always-on display, the lyrics overlay, the lyrics notification and the background haptics rest (each its own switch, all on by default) and come back by themselves after.
+- On the lyrics screen it can also let the screen time out despite Keep the screen on, draw at 60 Hz despite Smoother motion, and turn on low performance mode.
 
 ### Also
 - A lyrics notification (the line being sung) for dynamic-island apps and Live Updates.

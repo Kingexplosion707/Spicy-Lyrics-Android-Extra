@@ -54,6 +54,7 @@ import com.tx24.spicyplayer.ui.components.ChromeTheme
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.ClosedCaption
 import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.BatterySaver
 import androidx.compose.material.icons.rounded.Notes
 import androidx.compose.material.icons.rounded.UnfoldMore
 import androidx.compose.material.icons.automirrored.rounded.CallMerge
@@ -1288,6 +1289,12 @@ internal fun DeviceContent(settings: AppSettings) {
             SettingsPage.Wallpaper,
             Icons.Rounded.Wallpaper,
             if (settings.wallpaperShowLyrics) "Lyrics, video and cover on your home screen" else "Video and cover on your home screen",
+        )
+        GroupDivider()
+        SubPageRow(
+            SettingsPage.BatterySaver,
+            Icons.Rounded.BatterySaver,
+            batterySaverSummary(settings, com.tx24.spicyplayer.power.rememberBatterySaverOn()),
         )
     }
     LyricsNotificationSection(settings)
