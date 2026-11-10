@@ -563,18 +563,8 @@ private fun LyricsApp(
     } == true
     val romanize = settings.romanize && romanizationAvailable
     // The lyrics font: ours, the phone's, or the file picked in settings (ours again if it's gone).
-    val lyricsFont = settings.lyricsFont
-    val customFontFile = settings.customFontFile
-    val fontFamily = remember(lyricsFont, customFontFile) {
-        when (lyricsFont) {
-            LyricsFont.Default -> null
-            LyricsFont.System -> FontFamily.Default
-            LyricsFont.Custom -> LyricsFontFile.family(context, customFontFile)
-        }
-    }
-    SideEffect {
-        LyricsLayoutCalculator.setFont(fontFamily, if (fontFamily == null) "" else "$lyricsFont:$customFontFile")
-    }
+    // With its weight, line spacing and alignment, as the wallpaper and the overlay set them.
+    com.tx24.spicyplayer.wallpaper.LyricsFontSetup(settings)
     // Shared with the lyrics: the scroll-to-active button and the pinned credits.
     val lyricsViewState = remember { LyricsViewState() }
     // New installs and cleared apps only: someone updating already knows their way around.
@@ -795,6 +785,7 @@ private fun LyricsApp(
         distanceBlurEnabled = settings.distanceBlur && !lowPerformance,
         glowEnabled = settings.glow && !lowPerformance,
         glowStrength = settings.glowStrength / 100f,
+        otherLinesOpacity = settings.otherLinesBrightness / 100f,
         scroll = ScrollConfig(
             leadMs = if (settings.scrollLeadEnabled) settings.scrollLeadMs.coerceAtLeast(0).toLong() else 0L,
             smooth = settings.smoothScrolling,
@@ -1297,6 +1288,7 @@ private fun LyricsApp(
                         },
                         motionCoverHeld = ambientOpaque,
                         customColor = Color(settings.backgroundColorArgb),
+                        photo = settings.backgroundPhoto,
                     )
                     ambientUrl?.takeIf { ambientShown > 0f }?.let { url ->
                         CanvasBackdrop(
@@ -1309,6 +1301,10 @@ private fun LyricsApp(
                             modifier = Modifier.fillMaxSize().graphicsLayer { alpha = ambientShown },
                             held = ambientOpaque,
                         )
+                    }
+                    // Background dim: a veil over whatever the background shows.
+                    if (settings.backgroundDim > 0) {
+                        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = settings.backgroundDim / 100f)))
                     }
                     if (landscape && stageVisible) {
                         CoverStage(
@@ -1408,7 +1404,7 @@ private fun LyricsApp(
                             modifier = Modifier.weight(1f),
                             // Under the fully expanded big cover they're drawn at alpha 0.
                             visible = { expansion < 1f },
-                            tint = rememberLyricsTint(settings.lyricsColor, state.artwork),
+                            tint = rememberLyricsTint(settings, state.artwork),
                         )
                     }
                     // Ambient mode: the lyrics sink into the black under the song docked at the bottom,
@@ -1889,6 +1885,7 @@ private fun PipLyrics(
             artistHeaderPending = state.artistHeaderPending,
             refined = settings.refinedBackground,
             customColor = Color(settings.backgroundColorArgb),
+            photo = settings.backgroundPhoto,
         )
         var shownCanvasUrl by remember { mutableStateOf<String?>(null) }
         canvasUrl?.let { shownCanvasUrl = it }
@@ -1929,7 +1926,7 @@ private fun PipLyrics(
             modifier = Modifier.fillMaxWidth().weight(1f),
             // The page's edge fade is 64dp deep: all of a window this small.
             maskScale = 0.25f,
-            tint = rememberLyricsTint(settings.lyricsColor, state.artwork),
+            tint = rememberLyricsTint(settings, state.artwork),
         )
         if (dock) {
             PipDock(
@@ -2238,7 +2235,7 @@ private fun LyricsPanel(
     textCredits: Boolean = true,
     romanizationCredit: String? = null,
     /** The lyrics' colour (Lyrics colour); white draws them as they are. */
-    tint: Color = Color.White,
+    tint: com.tx24.spicyplayer.lyrics.LyricsInk = com.tx24.spicyplayer.lyrics.LyricsInk.White,
 ) {
     // The loading skeleton: up as soon as the lookup starts, over whatever the panel
     // shows, fading in over 0.2s and out over 0.25s (ease-out).
@@ -2334,11 +2331,13 @@ private fun LyricsPanelContent(
                     TranslationPresentation.forTimeline(originalLines, rendererLines, result, translationMode)
                 }
             }
+            val copyContext = LocalContext.current
             LyricsView(
                 lines = rendererLines,
                 documentId = remember(lyrics.lines) { lyrics.lines.hashCode().toString() },
                 currentTimeMs = currentTimeMs,
                 onSeekWord = onSeek,
+                onLineLongPress = { line -> copyHeldLine(copyContext, line) },
                 romanize = romanize,
                 romanizationMode = romanizationMode,
                 translation = presentation,
@@ -2388,3 +2387,14 @@ private fun rememberRomanizationCredit(state: PlayerUiState, romanize: Boolean, 
 private const val PIP_RATIO_SETTLE_MS = 600L
 /** How long to wait before asking again for a PiP shape the system refused. */
 private const val PIP_RATIO_RETRY_MS = 5_000L
+
+/** Holding a line copies it (Settings → Controls → Hold a line to copy), unless that's off. */
+private fun copyHeldLine(context: android.content.Context, line: String) {
+    if (line.isBlank() || !context.getSharedPreferences("ui", android.content.Context.MODE_PRIVATE).getBoolean("holdToCopy", true)) return
+    val clipboard = context.getSystemService(android.content.ClipboardManager::class.java) ?: return
+    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Lyrics", line))
+    // Android 13 and later confirm a copy themselves.
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+        android.widget.Toast.makeText(context, "Line copied", android.widget.Toast.LENGTH_SHORT).show()
+    }
+}

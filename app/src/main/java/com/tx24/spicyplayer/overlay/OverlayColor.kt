@@ -5,9 +5,18 @@ import android.graphics.Bitmap
 import androidx.compose.ui.graphics.Color
 
 /** The overlay lyrics' colour: white as on the lyrics screen, a fixed colour, or the song's own. */
-internal enum class OverlayColor(val label: String, val argb: Long?) {
+internal enum class OverlayColor(val label: String, val argb: Long?, /** A second colour, blended in toward the bottom. */ val argbEnd: Long? = null) {
     White("White", 0xFFFFFFFF),
     Song("From the cover", null),
+    /** The cover's colour at the top, fading to white. */
+    SongFade("Cover to white", null, 0xFFFFFFFF),
+    /** One of the user's choosing (`AppSettings.customLyricsColor`). */
+    Custom("Custom", null),
+    Sunset("Sunset", 0xFFFF7EB6, 0xFFFFA94D),
+    Ocean("Ocean", 0xFF8BE3D7, 0xFF74C0FC),
+    Aurora("Aurora", 0xFF8CE99A, 0xFFB197FC),
+    Candy("Candy", 0xFFFF7EB6, 0xFF74C0FC),
+    Ember("Ember", 0xFFFFE066, 0xFFFF6B6B),
     Pink("Pink", 0xFFFF7EB6),
     Red("Red", 0xFFFF6B6B),
     Orange("Orange", 0xFFFFA94D),
@@ -18,7 +27,14 @@ internal enum class OverlayColor(val label: String, val argb: Long?) {
     Purple("Purple", 0xFFB197FC);
 
     /** The colour to draw with: [cover]'s for [Song] (white without one). */
-    fun resolve(cover: Bitmap?): Color = argb?.let { Color(it) } ?: cover?.let(::songColor) ?: Color.White
+    fun resolve(cover: Bitmap?, custom: Int? = null): Color = when {
+        argb != null -> Color(argb)
+        this == Custom -> custom?.let { Color(it) } ?: Color.White
+        else -> cover?.let(::songColor) ?: Color.White
+    }
+
+    /** Whether the colour comes from the song's cover. */
+    val fromCover: Boolean get() = this == Song || this == SongFade
 
     companion object {
         const val PREF = "overlayColor"

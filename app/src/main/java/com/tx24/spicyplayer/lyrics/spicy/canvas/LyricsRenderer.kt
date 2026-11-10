@@ -713,7 +713,7 @@ internal fun DrawScope.drawLineModeLine(
     // Active Line-mode lines scale to 1.05 with transform-origin left-center
     // (right-center for duet/RTL lines).
     val pivot = Offset(
-        if (layout.isRightAligned) lineStartX + layout.totalWidth else lineStartX,
+        layout.pivotX(lineStartX),
         dynamicY + scrollOffset + layout.height / 2f,
     )
     withTransform({

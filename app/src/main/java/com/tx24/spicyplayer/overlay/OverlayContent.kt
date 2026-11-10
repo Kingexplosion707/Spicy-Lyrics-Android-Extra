@@ -53,7 +53,9 @@ internal fun OverlayContent(live: LiveLyrics, prefs: SharedPreferences, visible:
     val brightness = remember(settingsVersion) { prefs.getInt(PREF_BRIGHTNESS, 100).coerceIn(100, 200) / 100f }
     val colorChoice = remember(settingsVersion) { OverlayColor.from(prefs) }
     val cover = live.track?.cover
-    val color = remember(colorChoice, cover) { colorChoice.resolve(cover) }
+    val customColor = settings.customLyricsColor
+    val color = remember(colorChoice, cover, customColor) { colorChoice.resolve(cover, com.tx24.spicyplayer.ui.settings.parseHexColor(customColor)) }
+    val ink = remember(colorChoice, color) { com.tx24.spicyplayer.lyrics.LyricsInk(color, colorChoice.argbEnd?.let { Color(it) } ?: color) }
     LyricsFontSetup(settings)
     if (style == OverlayStyle.StatusBar) {
         StatusBarLyrics(live, visible, Modifier.fillMaxSize().lyricsTint(Color.White, brightness).graphicsLayer { alpha = lyricsAlpha }, color, glow, glowStrength)
@@ -78,7 +80,7 @@ internal fun OverlayContent(live: LiveLyrics, prefs: SharedPreferences, visible:
                 isPlaying = live.playing,
                 visible = visible,
                 durationMs = track.durationMs,
-                modifier = Modifier.fillMaxSize().lyricsTint(color, brightness).graphicsLayer { alpha = lyricsAlpha },
+                modifier = Modifier.fillMaxSize().lyricsTint(ink, brightness).graphicsLayer { alpha = lyricsAlpha },
                 focusAnchorFraction = FOCUS_FRACTION,
                 fontSizeScale = settings.lyricsScale(false) * size.fontScale,
                 glow = glow,

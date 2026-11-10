@@ -37,6 +37,9 @@ Plus takes those lyrics out of the app and onto the rest of your phone.
 | **Lyrics colour and glow** | Colour the lyrics on the lyrics screen, wallpaper and always-on display (presets or taken from the cover), and turn the glow up to 300%. The overlay has its own colour, glow and text brightness. |
 | **Quick Settings tiles** | Turn the overlay and the always-on display on and off from the notification shade. They come back by themselves after a restart or an update. |
 | **Live captions** | When no lyrics source has the song (or you're watching a video), the captions of its YouTube video, word by word as YouTube's speech recognition heard them, so a word can be off. Off until you turn it on in Settings → Sources, or tap Live captions on the "no lyrics" screen. |
+| **Fonts and looks** | 42 fonts to download for the lyrics, their weight, line spacing and centring, gradient or custom colours, a one-tap Look, your own photo as the background and a dim over any background. |
+| **Listening stats** | Your top songs and artists, counted on your phone from any player once you switch it on. Nothing is sent anywhere. |
+| **Little things** | Copy the lyrics or save them as an .lrc file, hold a line to copy it, the volume in quick settings, and a landscape layout for the live wallpaper. |
 | **Always current** | New Spicy Lyrics Mobile releases are merged in automatically with every Plus feature kept, and each change ships as an optimised build that the app offers as an update. |
 | **Lighter on the phone** | Everything outside the app shares one connection to the music app and one set of lyrics lookups, the overlay draws at 60 fps over 120 Hz apps and keeps its lyrics ready while hidden, and the always-on display runs at the screen's lowest refresh rate. |
 

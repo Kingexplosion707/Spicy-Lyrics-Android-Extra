@@ -63,14 +63,14 @@ import com.tx24.spicyplayer.wallpaper.SpicyWallpaperService
 
 /** Device → Live wallpaper: the now-playing screen as the home screen wallpaper. */
 @Composable
-internal fun WallpaperSection(settings: AppSettings, showPickerButton: Boolean = true) {
+internal fun WallpaperSection(settings: AppSettings, showPickerButton: Boolean = true, titled: Boolean = true) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("ui", Context.MODE_PRIVATE) }
     // What the wallpaper's last lookup found, so a track with no Canvas reads as no Canvas,
     // not as a playback bug. Read when this screen opens; the wallpaper writes it per song.
     val canvasStatus = prefs.getString(SpicyWallpaperService.PREF_CANVAS_STATUS, null)
     val appleStatus = prefs.getString(SpicyWallpaperService.PREF_APPLE_STATUS, null)
-    SettingsSection("Live wallpaper") {
+    SettingsSection("Live wallpaper".takeIf { titled }) {
         if (showPickerButton) SettingRow(
             label = "Live wallpaper",
             description = "The lyrics, video and cover art as your home screen wallpaper.",
@@ -85,6 +85,7 @@ internal fun WallpaperSection(settings: AppSettings, showPickerButton: Boolean =
             description = "Word-synced lyrics over the moving picture. Off: only the video and cover art show.",
             icon = Icons.Rounded.MusicNote,
         )
+        WallpaperLookRows(settings)
         IdlePictureRow()
         PowerSavingRows(settings)
         SettingRow(

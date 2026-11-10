@@ -75,6 +75,28 @@ class AppSettings(private val prefs: SharedPreferences) {
     /** The picked font's file in the app's storage (`LyricsFontFile`), and the name it came with. */
     var customFontFile by string("customFontFile", "")
     var customFontName by string("customFontName", "")
+    /** The font gallery's font in use ([FontGallery]), for [LyricsFont.Gallery]. */
+    var galleryFont by string("galleryFont", "")
+    /** How heavy the lead lines are drawn. */
+    var lyricsWeight by enum("lyricsWeight", LyricsWeight.Bold)
+    /** The gap between lines, in percent of the usual one. */
+    var lineSpacing by int("lineSpacing", 100, 50..250)
+    /** Lines sit in the middle of the screen instead of at its edge (a duet keeps its sides). */
+    var lyricsCentered by boolean("lyricsCentered", false)
+    /** How bright the lines not being sung are, in percent of their usual brightness. */
+    var otherLinesBrightness by int("otherLinesBrightness", 100, 40..190)
+    /** [com.tx24.spicyplayer.overlay.OverlayColor.Custom]'s colour, as `#RRGGBB`. */
+    var customLyricsColor by string("customLyricsColor", "#FFFFFF")
+    /** Holding a line copies it. */
+    var holdToCopy by boolean("holdToCopy", true)
+    /** The media volume in quick settings. */
+    var quickVolume by boolean("quickVolume", true)
+    /** How much the background is darkened, in percent. */
+    var backgroundDim by int("backgroundDim", 0, 0..80)
+    /** [BackgroundType.Photo]'s picture, a file in the app's storage ([BackgroundPhoto]). */
+    var backgroundPhoto by string("backgroundPhoto", "")
+    /** Counts what plays, on this phone only ([com.tx24.spicyplayer.stats.ListeningTracker]). */
+    var listeningStats by boolean("listeningStats", false)
     var showScrollToActive by boolean("showScrollToActive", true)
     var pinnedFooter by enum("pinnedFooter", PinnedFooterMode.Off)
     /** A credit's profile opens in the browser (after asking) rather than in a pop-up. */
@@ -285,6 +307,12 @@ class AppSettings(private val prefs: SharedPreferences) {
     var hapticBeatVocalsOnly by boolean("hapticBeatVocalsOnly", false)
     /** The live wallpaper draws the word-synced lyrics over the moving picture. */
     var wallpaperShowLyrics by boolean("wallpaperShowLyrics", true)
+    /** The wallpaper's cover: its size, or hidden. */
+    var wallpaperCover by enum("wallpaperCover", WallpaperCover.Large)
+    /** The wallpaper's lyric text size, in percent of the lyrics screen's. */
+    var wallpaperLyricsSize by int("wallpaperLyricsSize", 100, 60..160)
+    /** How dark the veil over the wallpaper's picture is, in percent of the usual one. */
+    var wallpaperDim by int("wallpaperDim", 100, 0..200)
     /** When the wallpaper saves power, and what it cuts then. */
     internal var wallpaperPowerSaving by enum("wallpaperPowerSaving", com.tx24.spicyplayer.wallpaper.PowerSaving.BatterySaver)
     var wallpaperSaveNoCanvas by boolean("wallpaperSaveNoCanvas", true)
@@ -406,10 +434,12 @@ enum class BackgroundType(val label: String) {
     CoverArt("Cover Art"),
     Color("Color"),
     /** One colour of the user's choosing, [AppSettings.backgroundColor]. */
-    Custom("Custom Color");
+    Custom("Custom Color"),
+    /** A picture of the user's own, [AppSettings.backgroundPhoto]. */
+    Photo("Your Photo");
 
     /** A still picture, which the blur setting softens. */
-    val image get() = this == Auto || this == ArtistHeader || this == CoverArt
+    val image get() = this == Auto || this == ArtistHeader || this == CoverArt || this == Photo
     val usesArtistHeader get() = this == Auto || this == ArtistHeader
     /** Moves on its own (and can be held still). */
     val moving get() = this == Default || this == Legacy
@@ -420,6 +450,14 @@ fun parseHexColor(text: String): Int? {
     val hex = text.trim().removePrefix("#")
     if (hex.length != 6 || !hex.all { it.isDigit() || it.lowercaseChar() in 'a'..'f' }) return null
     return (0xFF000000 or hex.toLong(16)).toInt()
+}
+
+/** The live wallpaper's cover: its width as a share of the screen's short side, or none. */
+enum class WallpaperCover(val label: String, val fraction: Float) {
+    Large("Large", 0.65f),
+    Medium("Medium", 0.5f),
+    Small("Small", 0.36f),
+    Hidden("Hidden", 0f),
 }
 
 /** The strongest [AppSettings.backgroundBlur]. */

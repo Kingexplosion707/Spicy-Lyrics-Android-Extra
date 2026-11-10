@@ -86,6 +86,8 @@ data class RenderConfig(
     val backgroundPop: Boolean = false,
     /** Keep Overlapping Lines (Minimal): a line sung while one above it is still active stays on screen, dimmed. */
     val keepOverlappingLines: Boolean = true,
+    /** How bright the lines not being sung are, against their usual brightness (Other lines). */
+    val otherLinesOpacity: Float = 1f,
     val scroll: ScrollConfig = ScrollConfig(),
 ) {
     val isRefreshedSimple: Boolean get() = refreshedSimple && simpleLyricsMode && !appleMusic

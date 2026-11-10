@@ -370,8 +370,8 @@ private fun ColumnScope.SetupStep(settings: AppSettings, next: () -> Unit) {
             SettingRow("Background", description = "What fills the screen behind the lyrics.", icon = Icons.Rounded.Wallpaper) {
                 SpicySelect(
                     value = settings.backgroundType.name,
-                    options = BackgroundType.entries.map { it.name },
-                    labels = BackgroundType.entries.map { it.label },
+                    options = BackgroundType.entries.filter { it != BackgroundType.Photo }.map { it.name },
+                    labels = BackgroundType.entries.filter { it != BackgroundType.Photo }.map { it.label },
                     onChange = { settings.backgroundType = BackgroundType.valueOf(it) },
                 )
             }

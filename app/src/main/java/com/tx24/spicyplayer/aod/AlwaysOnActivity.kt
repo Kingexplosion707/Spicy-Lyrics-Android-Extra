@@ -254,7 +254,7 @@ private fun AlwaysOnContent(live: LiveLyrics, settings: AppSettings, canvas: Boo
                     durationMs = track.durationMs,
                     modifier = Modifier.fillMaxWidth().weight(1f).graphicsLayer { alpha = LYRICS_ALPHA },
                     focusAnchorFraction = 0.35f,
-                    tint = com.tx24.spicyplayer.lyrics.rememberLyricsTint(settings.lyricsColor, track.cover),
+                    tint = com.tx24.spicyplayer.lyrics.rememberLyricsTint(settings, track.cover),
                 )
             } else {
                 Spacer(Modifier.weight(1f))

@@ -575,7 +575,8 @@ class LyricsAnimator(
             val opacityTarget = when {
                 line.isSongwriter -> 0.6f
                 line.isInterlude -> if (isActive) 1f else 0f
-                else -> AppleMusicMotion.lineOpacity(away, userScrolling)
+                away == 0 -> 1f
+                else -> (AppleMusicMotion.lineOpacity(away, userScrolling) * config.otherLinesOpacity).coerceAtMost(1f)
             }
             val opacityAnim = lineOpacityAnims.getOrPut(lineIdx) { Animatable(opacityTarget) }
             if (opacityAnim.targetValue != opacityTarget) {
@@ -776,8 +777,8 @@ class LyricsAnimator(
             }
             else -> when (lineState) {
                 ElementState.Active -> config.opacityActive
-                ElementState.NotSung -> config.opacityNotSung
-                ElementState.Sung -> config.opacitySung
+                ElementState.NotSung -> (config.opacityNotSung * config.otherLinesOpacity).coerceAtMost(1f)
+                ElementState.Sung -> (config.opacitySung * config.otherLinesOpacity).coerceAtMost(1f)
             }
         }
         val animatable = lineOpacityAnims.getOrPut(lineIdx) { Animatable(target) }

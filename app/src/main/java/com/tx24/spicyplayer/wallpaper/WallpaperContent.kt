@@ -68,6 +68,8 @@ import com.tx24.spicyplayer.ui.settings.AppSettings
 import com.tx24.spicyplayer.ui.settings.LyricsFont
 import com.tx24.spicyplayer.ui.settings.LyricsFontFile
 import com.tx24.spicyplayer.ui.settings.LyricsStyle
+import com.tx24.spicyplayer.ui.settings.WallpaperCover
+import androidx.compose.ui.draw.clipToBounds
 import com.tx24.spicyplayer.translation.TranslationPresentation
 import com.tx24.spicyplayer.translation.TranslationResult
 import kotlinx.coroutines.Dispatchers
@@ -143,28 +145,41 @@ internal fun WallpaperContent(
         // Saving power with nothing picked to show: a still frame (the blurred cover, the cover
         // and the song's name), nothing moving.
         val still = saving.stopAll
-        val titleSize = (w * 0.045f).coerceIn(30f, 64f)
+        val titleSize = (minOf(w, h) * 0.045f).coerceIn(30f, 64f)
+        val coverChoice = settings.wallpaperCover
         // The covers trading places on a song change (see CoverHandoff). Started in this same
         // composition, so the first frame of a new song already shows the old cover in place.
         val handoff = rememberCoverHandoff(track?.key, ui.cover)
         val handing by remember(handoff) { androidx.compose.runtime.derivedStateOf { handoff.running } }
         // A new song whose cover hasn't come yet keeps the layout it had: nothing jumps up into
         // the cover's room and back.
-        val hasCover = ui.appleUrl != null || ui.cover != null || handing
+        val hasCover = coverChoice != WallpaperCover.Hidden && (ui.appleUrl != null || ui.cover != null || handing)
         // A song with no lyrics: the cover grows and the cover and song's name sit centred.
         val noLyrics = showLyrics && track != null && hasCover &&
             ((ui.lyrics == null && ui.notice != null) || ui.lyrics?.lines?.isEmpty() == true)
-        val bigCover = minOf(w, h) * BIG_COVER_WIDTH_FRACTION
-        val coverTarget = if (noLyrics) bigCover else minOf(w, h) * COVER_WIDTH_FRACTION
+        // On its side, the cover and the song's name take the left of the screen and the lyrics
+        // the right, as on the lyrics screen; with no lyrics to show, the cover has the middle.
+        val landscape = w > h
+        val beside = landscape && showLyrics && !noLyrics && track != null
+        val areaW = if (beside) (w * LANDSCAPE_PANEL).roundToInt() else w
+        val bigCover = minOf(w, h) * (if (landscape) LANDSCAPE_BIG_COVER else BIG_COVER_WIDTH_FRACTION)
+        val coverTarget = when {
+            !hasCover -> 0f
+            noLyrics -> bigCover
+            landscape -> minOf(h * LANDSCAPE_COVER, areaW * 0.8f) * coverChoice.fraction / COVER_WIDTH_FRACTION
+            else -> minOf(w, h) * coverChoice.fraction
+        }
         val topTarget = when {
-            noLyrics -> (h - (bigCover + titleSize * 2.6f)) / 2f
+            noLyrics || landscape -> (h - (coverTarget + titleSize * 2.6f)) / 2f
             showLyrics -> h * 0.055f
             else -> h * 0.16f
         }
         val coverSize = animateFloatAsState(coverTarget, tween(COVER_MOVE_MS), label = "coverSize").value.roundToInt()
         val coverTop = animateFloatAsState(topTarget, tween(COVER_MOVE_MS), label = "coverTop").value.roundToInt()
         val songTop = if (hasCover) coverTop + coverSize else coverTop
-        val lyricsTop = (songTop + titleSize * 3.1f).roundToInt()
+        val lyricsTop = if (beside) (h * LANDSCAPE_LYRICS_INSET).roundToInt() else (songTop + titleSize * 3.1f).roundToInt()
+        val lyricsLeft = if (beside) areaW else 0
+        val centreX = areaW / 2f
         // Read where it's drawn, not here: sliding between pages then moves the layers without
         // recomposing (and redrawing) everything above them.
         val shiftPx = { (0.5f - ui.xOffset) * w * PARALLAX_FRACTION }
@@ -230,7 +245,9 @@ internal fun WallpaperContent(
         }
         // The veil, so the words stay readable over whatever moves behind them.
         Canvas(Modifier.fillMaxSize()) {
-            drawRect(androidx.compose.ui.graphics.Color.Black.copy(alpha = (if (showLyrics) VEIL_LYRICS else VEIL_PLAIN) / 255f))
+            drawRect(androidx.compose.ui.graphics.Color.Black.copy(
+                alpha = ((if (showLyrics) VEIL_LYRICS else VEIL_PLAIN) / 255f * settings.wallpaperDim / 100f).coerceIn(0f, 0.92f),
+            ))
         }
 
         // The cover: the animated one over the still one, both the same size and corners. On a
@@ -238,11 +255,14 @@ internal fun WallpaperContent(
         val coverDp = with(density) { coverSize.toDp() }
         val handoffOld = handoff.old
         if (handing && handoffOld != null) {
-            CoverHandoffCovers(handoff, handoffOld, ui.cover, w, coverSize, coverTop, coverDp)
+            // Beside the lyrics, the covers trade places inside their own side of the screen.
+            Box(Modifier.size(with(density) { areaW.toDp() }, with(density) { h.toDp() }).then(if (beside) Modifier.clipToBounds() else Modifier)) {
+                CoverHandoffCovers(handoff, handoffOld, ui.cover, areaW, coverSize, coverTop, coverDp)
+            }
         } else if (hasCover) {
             Box(
                 Modifier
-                    .offset { IntOffset((w - coverSize) / 2, coverTop) }
+                    .offset { IntOffset((areaW - coverSize) / 2, coverTop) }
                     .size(coverDp)
                     .clip(RoundedCornerShape(COVER_CORNER_RADIUS_DP.dp)),
             ) {
@@ -263,8 +283,8 @@ internal fun WallpaperContent(
                 val canvas = c.nativeCanvas
                 if (track != null) {
                     val titleY = songTop + titleSize * 1.25f
-                    drawCentred(canvas, textPaint, track.title, w / 2f, titleY, titleSize, Typeface.DEFAULT_BOLD, 255, w * 0.9f)
-                    drawCentred(canvas, textPaint, track.artist, w / 2f, titleY + titleSize * 1.15f, titleSize * 0.85f, Typeface.DEFAULT, 180, w * 0.9f)
+                    drawCentred(canvas, textPaint, track.title, centreX, titleY, titleSize, Typeface.DEFAULT_BOLD, 255, areaW * 0.9f)
+                    drawCentred(canvas, textPaint, track.artist, centreX, titleY + titleSize * 1.15f, titleSize * 0.85f, Typeface.DEFAULT, 180, areaW * 0.9f)
                 }
                 if (!showLyrics) return@drawIntoCanvas
                 val message = when {
@@ -274,13 +294,18 @@ internal fun WallpaperContent(
                     ready.lines.isEmpty() -> NO_LYRICS
                     else -> null
                 }
-                message?.let { drawCentred(canvas, textPaint, it, w / 2f, h * 0.5f, titleSize * 0.8f, Typeface.DEFAULT, 150, w * 0.9f) }
+                // Beside the cover on its side, where the lyrics would be; under it upright.
+                val messageLeft = if (beside) areaW else 0
+                message?.let {
+                    drawCentred(canvas, textPaint, it, messageLeft + (w - messageLeft) / 2f, h * 0.5f, titleSize * 0.8f, Typeface.DEFAULT, 150, (w - messageLeft) * 0.9f)
+                }
             }
         }
 
         // The lyrics, by the lyrics screen's own renderer.
         if (showLyrics && !still && track != null && ready != null && ready.lines.isNotEmpty()) {
-            val heightDp = with(density) { (h - lyricsTop).coerceAtLeast(1).toDp() }
+            val heightDp = with(density) { (if (beside) h - 2 * lyricsTop else h - lyricsTop).coerceAtLeast(1).toDp() }
+            val widthDp = with(density) { (w - lyricsLeft).coerceAtLeast(1).toDp() }
             WallpaperLyrics(
                 // Line by line when power saving asks: each line lights as a whole.
                 lyrics = if (saving.lineByLine && ready.lyricsType == LyricsType.Syllable) ready.copy(lyricsType = LyricsType.Line) else ready,
@@ -291,8 +316,10 @@ internal fun WallpaperContent(
                 isPlaying = ui.playing,
                 visible = { ui.visible },
                 durationMs = track.durationMs,
-                modifier = Modifier.offset { IntOffset(0, lyricsTop) }.fillMaxWidth().height(heightDp),
-                tint = rememberLyricsTint(settings.lyricsColor, ui.cover),
+                modifier = Modifier.offset { IntOffset(lyricsLeft, lyricsTop) }.size(widthDp, heightDp),
+                focusAnchorFraction = if (beside) 0.5f else LYRICS_FOCUS_FRACTION,
+                fontSizeScale = settings.lyricsScale(landscape) * settings.wallpaperLyricsSize / 100f,
+                tint = rememberLyricsTint(settings, ui.cover),
             )
         }
     }
@@ -321,7 +348,7 @@ internal fun WallpaperLyrics(
     /** The glow's strength here (1 is normal); null follows the app's Glow strength. */
     glowStrength: Float? = null,
     /** The lyrics' colour (Lyrics colour); white draws them as they are. */
-    tint: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.White,
+    tint: com.tx24.spicyplayer.lyrics.LyricsInk = com.tx24.spicyplayer.lyrics.LyricsInk.White,
     /** The most frames a second the lyrics draw; 0 for every frame. */
     maxFrameRate: Float = 0f,
 ) {
@@ -342,6 +369,7 @@ internal fun WallpaperLyrics(
         distanceBlurEnabled = settings.distanceBlur && !settings.lowPerformance && !reduced,
         glowEnabled = (glow ?: settings.glow) && !settings.lowPerformance && !reduced,
         glowStrength = glowStrength ?: (settings.glowStrength / 100f),
+        otherLinesOpacity = settings.otherLinesBrightness / 100f,
         scroll = ScrollConfig(
             leadMs = if (settings.scrollLeadEnabled) settings.scrollLeadMs.coerceAtLeast(0).toLong() else 0L,
             smooth = settings.smoothScrolling,
@@ -546,15 +574,24 @@ internal fun LyricsFontSetup(settings: AppSettings) {
     val context = LocalContext.current
     val lyricsFont = settings.lyricsFont
     val customFontFile = settings.customFontFile
-    val fontFamily = remember(lyricsFont, customFontFile) {
+    val galleryFont = settings.galleryFont
+    // Ours again when the picked file has gone.
+    val fontFamily = remember(lyricsFont, customFontFile, galleryFont) {
         when (lyricsFont) {
             LyricsFont.Default -> null
             LyricsFont.System -> FontFamily.Default
             LyricsFont.Custom -> LyricsFontFile.family(context, customFontFile)
+            LyricsFont.Gallery -> com.tx24.spicyplayer.ui.settings.FontGallery.family(context, galleryFont)
         }
     }
+    val weight = settings.lyricsWeight
+    val gap = settings.lineSpacing
+    val centred = settings.lyricsCentered
     SideEffect {
-        LyricsLayoutCalculator.setFont(fontFamily, if (fontFamily == null) "" else "$lyricsFont:$customFontFile")
+        LyricsLayoutCalculator.setTypography(
+            fontFamily, weight.weight, gap / 100f, centred,
+            (if (fontFamily == null) "" else "$lyricsFont:$customFontFile:$galleryFont") + "|$weight|$gap|$centred",
+        )
     }
 }
 
@@ -663,6 +700,13 @@ private const val NO_LYRICS = "No lyrics for this song"
 private const val COVER_WIDTH_FRACTION = 0.65f
 /** With no lyrics for the song, the cover at this share of the screen's width, centred. */
 private const val BIG_COVER_WIDTH_FRACTION = 0.85f
+/** On its side: the cover's share of the screen's width, with the lyrics in the rest. */
+private const val LANDSCAPE_PANEL = 0.42f
+/** On its side: the cover's height as a share of the screen's, and with no lyrics. */
+private const val LANDSCAPE_COVER = 0.56f
+private const val LANDSCAPE_BIG_COVER = 0.62f
+/** On its side: the lyrics keep this share of the screen's height clear above and below. */
+private const val LANDSCAPE_LYRICS_INSET = 0.06f
 /** The automix handoff: in, resting side by side, out; the covers' size side by side, and their gap. */
 private const val HANDOFF_IN_MS = 650
 /** How long a handoff waits for the new song's cover before moving without it. */
