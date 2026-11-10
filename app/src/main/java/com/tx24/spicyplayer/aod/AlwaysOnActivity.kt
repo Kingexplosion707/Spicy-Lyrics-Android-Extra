@@ -1,6 +1,5 @@
 package com.tx24.spicyplayer.aod
 
-import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
@@ -76,10 +75,6 @@ class AlwaysOnActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (savedInstanceState == null && screenBackOn(intent)) {
-            finish()
-            return
-        }
         current = WeakReference(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
@@ -124,20 +119,6 @@ class AlwaysOnActivity : ComponentActivity() {
             ?.modeId
     }.getOrNull()
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        if (screenBackOn(intent)) finish()
-    }
-
-    /**
-     * Started by [AlwaysOnService] while the screen was off, but it's on again: the power button
-     * was pressed again (or the screen woke another way) in the meantime, and the lock screen or
-     * the camera is what's wanted, not this.
-     */
-    private fun screenBackOn(intent: Intent?): Boolean =
-        intent?.getBooleanExtra(EXTRA_SCREEN_OFF, false) == true &&
-            getSystemService(PowerManager::class.java)?.isInteractive == true
-
     override fun onResume() {
         super.onResume()
         shownState.value = true
@@ -149,7 +130,7 @@ class AlwaysOnActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        if (::live.isInitialized) live.stop()
+        live.stop()
         if (current?.get() === this) current = null
         super.onDestroy()
     }
@@ -177,8 +158,6 @@ class AlwaysOnActivity : ComponentActivity() {
         const val PREF_CANVAS = "aodCanvas"
         /** Play/pause, previous and next under the lyrics. */
         const val PREF_CONTROLS = "aodControls"
-        /** Set when [AlwaysOnService] starts it while the screen is off, to be checked on arrival. */
-        const val EXTRA_SCREEN_OFF = "screenOff"
 
         fun dismissAll() {
             current?.get()?.finish()
