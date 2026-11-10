@@ -8,7 +8,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.hardware.display.DisplayManager
 import android.media.AudioManager
 import android.os.Build
 import android.os.Handler
@@ -16,7 +15,6 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
-import android.view.Display
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.tx24.spicyplayer.R
@@ -57,27 +55,15 @@ class AlwaysOnService : Service() {
             return
         }
         if (inCall()) return
-        launch.checks = 0
         main.postDelayed(launch, LAUNCH_DELAY_MS)
     }
 
     /**
-     * Brings the display up if the screen is still off: not if it's interactive again, and once
-     * the panel itself is off (or in the system's doze), which it's given a moment more for when
-     * the system is still turning it off.
+     * Brings the display up if the screen is still off. Only checked here: Android wakes the
+     * screen for the display (its turnScreenOn) before the display itself could look.
      */
-    private val launch = object : Runnable {
-        var checks = 0
-
-        override fun run() {
-            if (getSystemService(PowerManager::class.java)?.isInteractive == true) return
-            val panel = getSystemService(DisplayManager::class.java)?.getDisplay(Display.DEFAULT_DISPLAY)?.state
-            if (panel == Display.STATE_ON && ++checks < PANEL_CHECKS) {
-                main.postDelayed(this, PANEL_CHECK_MS)
-                return
-            }
-            showDisplay()
-        }
+    private val launch = Runnable {
+        if (getSystemService(PowerManager::class.java)?.isInteractive != true) showDisplay()
     }
 
     override fun onCreate() {
@@ -117,12 +103,9 @@ class AlwaysOnService : Service() {
     private fun showDisplay() {
         val intent = Intent(this, AlwaysOnActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
-        // Started straight away, it checks the screen is still off before turning it on.
-        val direct = Intent(intent).putExtra(AlwaysOnActivity.EXTRA_SCREEN_OFF, true)
-        val started = Settings.canDrawOverlays(this) && runCatching { startActivity(direct) }.isSuccess
+        val started = Settings.canDrawOverlays(this) && runCatching { startActivity(intent) }.isSuccess
         if (started) return
-        // The system shows a full-screen notification's screen right away while the screen is off
-        // (waking the screen for it first, so that one isn't checked).
+        // The system shows a full-screen notification's screen right away while the screen is off.
         val pending = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val launcher = NotificationCompat.Builder(this, LAUNCH_CHANNEL_ID)
             .setSmallIcon(R.drawable.app_glyph)
@@ -182,9 +165,6 @@ class AlwaysOnService : Service() {
          * to finish turning it off.
          */
         private const val LAUNCH_DELAY_MS = 500L
-        /** While the panel is still on after that, it's checked this often, up to this many times. */
-        private const val PANEL_CHECK_MS = 100L
-        private const val PANEL_CHECKS = 10
         private const val LAUNCH_NOTIFICATION_TIMEOUT_MS = 5_000L
 
         fun enabled(context: Context): Boolean =
