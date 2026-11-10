@@ -24,6 +24,7 @@ Modified by Behnoud.
 ### Always-on display (`aod/`)
 - The lyrics, time and song on black over the lock screen when the screen turns off, with burn-in shift, dim levels, optional Canvas background and playback controls.
 - The lyrics screen's own always-on mode works without ambient mode, playing or paused.
+- Comes up only once the screen is really off: a double press of the power button (or the camera gesture) that turns the screen straight back on no longer brings it up.
 
 ### Haptics (`haptics/`)
 - Pulses snapped to measured drum onsets, downbeats and sung onsets; lyric pulses for line-timed lyrics laid out word by word; unsynced lyrics and interludes give none.
