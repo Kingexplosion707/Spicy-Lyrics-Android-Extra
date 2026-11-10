@@ -122,6 +122,12 @@ private class SessionCore(private val app: Context) {
     private val observedCallbacks = HashMap<MediaSession.Token, MediaController.Callback>()
     /** A new song whose first report hasn't come yet: the clock takes it outright. */
     private var awaitingReport = false
+    /**
+     * The followed player's metadata changed (or it's a new player) since the cover was last read.
+     * Every player's playback changes run [update] too, and reading and comparing a cover's pixels
+     * each time costs far more than the update itself, so it's read only after this is set.
+     */
+    private var coverStale = true
     private var outputProfiles: AudioOutputProfiles? = null
     private var songDelays: SongDelays? = null
     private var playerDelays: PlayerDelays? = null
@@ -176,7 +182,10 @@ private class SessionCore(private val app: Context) {
     private val sessionsListener = MediaSessionManager.OnActiveSessionsChangedListener { follow(it.orEmpty()) }
 
     private val controllerCallback = object : MediaController.Callback() {
-        override fun onMetadataChanged(metadata: MediaMetadata?) = update()
+        override fun onMetadataChanged(metadata: MediaMetadata?) {
+            coverStale = true
+            update()
+        }
         override fun onPlaybackStateChanged(state: PlaybackState?) = refreshSessions()
         override fun onSessionDestroyed() = refreshSessions()
     }
@@ -270,6 +279,7 @@ private class SessionCore(private val app: Context) {
             stickiness.reset()
             controller?.unregisterCallback(controllerCallback)
             controller = best
+            coverStale = true
             clock.reset(now)
             awaitingReport = true
             best?.registerCallback(controllerCallback, main)
@@ -300,10 +310,15 @@ private class SessionCore(private val app: Context) {
             track = current.copy(durationMs = reportedDuration)
             onTrack(track)
         }
-        // With the screen off the cover waits: it's read again once the screen is on. Here the
-        // cover is read on every update; a new bitmap only replaces the old one when its pixels differ.
+        // The cover is read again only when the metadata changed (see coverStale); a new bitmap
+        // only replaces the old one when its pixels differ.
         val wasPlaying = clock.isPlaying
-        val coverChanged = refreshCover(metadata)
+        val coverChanged = if (newSong || coverStale) {
+            coverStale = false
+            refreshCover(metadata)
+        } else {
+            false
+        }
         report(session, newSong)
         if (coverChanged) onTrack(track)
         if (wasPlaying != clock.isPlaying) onPlayingChanged(clock.isPlaying)

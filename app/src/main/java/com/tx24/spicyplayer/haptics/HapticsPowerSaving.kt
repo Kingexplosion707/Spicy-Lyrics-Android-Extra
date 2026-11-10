@@ -7,12 +7,6 @@ import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.os.PowerManager
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import com.tx24.spicyplayer.ui.settings.AppSettings
 import com.tx24.spicyplayer.wallpaper.PowerSaving
@@ -28,14 +22,7 @@ internal fun hapticsStoppedBySaving(context: Context, prefs: SharedPreferences):
 /** [hapticsStoppedBySaving] for the lyrics screen, following the settings and the battery saver as they change. */
 @Composable
 internal fun rememberHapticsStoppedBySaving(settings: AppSettings): Boolean {
-    val context = LocalContext.current.applicationContext
-    var batterySaver by remember { mutableStateOf(batterySaverOn(context)) }
-    DisposableEffect(context) {
-        val receiver = BatterySaverReceiver { batterySaver = batterySaverOn(context) }
-        receiver.register(context)
-        batterySaver = batterySaverOn(context)
-        onDispose { receiver.unregister(context) }
-    }
+    val batterySaver = com.tx24.spicyplayer.power.rememberBatterySaverOn()
     return settings.wallpaperSaveNoHaptics && settings.wallpaperPowerSaving.active(batterySaver)
 }
 

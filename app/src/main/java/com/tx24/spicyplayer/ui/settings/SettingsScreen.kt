@@ -184,6 +184,7 @@ internal enum class SettingsPage(
     Device("Device"),
     FloatingLyrics("Floating lyrics", parent = Device),
     Wallpaper("Live wallpaper", parent = Device),
+    BatterySaver("Battery saver", parent = Device),
     Stats("Listening stats"),
     Advanced("Advanced"),
     /** Opened from the About card. */
@@ -564,6 +565,7 @@ private fun PageContent(
         SettingsPage.FloatingLyrics -> FloatingLyricsContent(settings)
         SettingsPage.Fonts -> FontGalleryContent(settings)
         SettingsPage.Wallpaper -> WallpaperSection(settings, titled = false)
+        SettingsPage.BatterySaver -> BatterySaverContent(settings)
         SettingsPage.Stats -> ListeningStatsContent(settings)
         SettingsPage.Advanced -> AdvancedContent(state, viewModel, updater, settings)
         SettingsPage.Changelog -> ChangelogContent(updater)
@@ -657,6 +659,7 @@ private fun PageSkeleton(page: SettingsPage) {
         SettingsPage.FloatingLyrics -> SettingsSkeleton(rows = 8)
         SettingsPage.Fonts -> SettingsSkeleton(rows = 12)
         SettingsPage.Wallpaper -> SettingsSkeleton(rows = 12)
+        SettingsPage.BatterySaver -> SettingsSkeleton(rows = 8)
         SettingsPage.Stats -> SettingsSkeleton(rows = 8)
         SettingsPage.Advanced -> SettingsSkeleton(rows = 10)
         SettingsPage.Changelog -> SettingsSkeleton(rows = 6, cards = true)
