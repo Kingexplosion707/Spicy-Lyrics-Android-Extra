@@ -36,7 +36,7 @@ internal fun DrawScope.drawTranslationText(
     }
     withTransform({
         scale(animation.scale, animation.scale, Offset(
-            if (layout.isRightAligned) startX + layout.totalWidth else startX, y + scroll + layout.height / 2f,
+            layout.pivotX(startX), y + scroll + layout.height / 2f,
         ))
     }) {
         if (replacement) layout.words.forEach { draw(it.textLayoutResult, Offset(startX, y + scroll) + it.relativeOffset, 1f) }

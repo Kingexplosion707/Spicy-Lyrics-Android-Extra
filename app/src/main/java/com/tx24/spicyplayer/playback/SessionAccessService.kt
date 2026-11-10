@@ -11,7 +11,11 @@ import com.tx24.spicyplayer.widget.NowPlayingHolder
  * home screen widget starts following the music here.
  */
 class SessionAccessService : NotificationListenerService() {
-    override fun onListenerConnected() = NowPlayingHolder.start(this)
+    override fun onListenerConnected() {
+        NowPlayingHolder.start(this)
+        // Access is (back) on: the listening stats, when they're on, follow the players from here.
+        runCatching { com.tx24.spicyplayer.stats.ListeningTracker.sync(this, reconnect = true) }
+    }
 
     override fun onListenerDisconnected() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {

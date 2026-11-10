@@ -37,6 +37,18 @@ Modified by Behnoud.
 - **Sleep timer**: pauses the player after a set time or at the end of the song, fading the music out first (`playback/SleepTimerService.kt`, `ui/sleep/`).
 - **Lyrics colour** for the lyrics screen, wallpaper and always-on display, and a **Glow strength** setting (50–300%).
 
+### Looks and type
+- **Font gallery**: 42 open-licensed fonts for the lyrics, downloaded from Google Fonts' GitHub repository when picked (`ui/settings/FontGallery.kt`), beside the font file picker.
+- **Lyrics weight**, **Line spacing**, **Centre the lyrics** and **Other lines** (how bright the lines not being sung are), and a **Look** that sets them together.
+- Lyrics colour: a **custom** colour and two-colour **gradients** down the lyrics.
+- Background: **Your Photo**, and a **Background dim** over any background.
+- Live wallpaper: a **landscape** layout (cover and song on the left, lyrics on the right), cover size or none, its own lyrics size and dim; its settings have a page of their own.
+
+### Quality of life
+- This song: **Copy lyrics** and **Save lyrics as a file** (.lrc, word by word where the lyrics have it; `LyricsExport` in `:core`).
+- Holding a line copies it; the media **volume** in quick settings.
+- **Listening stats** (off until switched on): top songs and artists counted on the phone from any player (`stats/`), never sent anywhere.
+
 ### Lyrics sources
 - **Live captions** (off by default): when no lyrics source has the song, the captions of its YouTube video, word-timed from YouTube's automatic captions and re-cut at sentence ends (`network/data/providers/YouTubeLiveCaptions.kt`). Turned on in Settings → Sources or from the no-lyrics notice, after a disclosure of what is sent.
 

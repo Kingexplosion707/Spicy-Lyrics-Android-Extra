@@ -70,12 +70,14 @@ fun SpicySessionBackground(
     onFollowMotionFailed: () -> Unit = {},
     /** [BackgroundType.Custom]'s colour. */
     customColor: Color = Color.Black,
+    /** [BackgroundType.Photo]'s picture, by its file name ([BackgroundPhoto]). */
+    photo: String = "",
 ) {
     @Composable
     fun background(type: BackgroundType, modifier: Modifier, retired: Boolean) = BackgroundOfType(
         artwork, artworkUri, isPlaying, modifier, type, animate && !retired, blurDp, artistHeaderUrl,
         artistHeaderPending, speed, motionCoverUrl, onMotionCoverFailed, hasSession, refined, retired,
-        followMotionUrl, onFollowMotionFailed, motionCoverHeld, customColor,
+        followMotionUrl, onFollowMotionFailed, motionCoverHeld, customColor, photo,
     )
     if (!refined) {
         background(type, modifier, retired = false)
@@ -143,8 +145,19 @@ private fun BackgroundOfType(
     onFollowMotionFailed: () -> Unit,
     motionCoverHeld: Boolean,
     customColor: Color,
+    photo: String,
 ) {
     when (type) {
+        BackgroundType.Photo -> {
+            val context = LocalContext.current
+            // Black until it has loaded, and when the picture has gone.
+            val picture by produceState<SessionArtwork?>(null, photo) {
+                value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    BackgroundPhoto.load(context, photo, STILL_HEADER_PX)?.let(SessionArtwork::of)
+                }
+            }
+            StillImageBackground(picture, blurDp, modifier, refined = refined, retired = retired)
+        }
         BackgroundType.Default, BackgroundType.Legacy -> {
             val softwareArtwork = rememberSessionArtwork(artwork, artworkUri, maxDimension = 256, hasSession = hasSession)?.bitmap
             if (type == BackgroundType.Legacy) {

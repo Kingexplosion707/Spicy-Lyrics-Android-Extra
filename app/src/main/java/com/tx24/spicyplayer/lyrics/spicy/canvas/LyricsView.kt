@@ -90,6 +90,8 @@ fun LyricsView(
     currentTimeMs: () -> Long,
     onSeekWord: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    /** Holding a line hands over its text. */
+    onLineLongPress: ((String) -> Unit)? = null,
     fontSizeScale: Float = 1.0f,
     config: RenderConfig = RenderConfig.FULL,
     lyricsType: LyricsType = LyricsType.Syllable,
@@ -131,6 +133,7 @@ fun LyricsView(
     romanizationMode: RomanizationMode = RomanizationMode.Replace,
 ) {
     val textMeasurer = rememberTextMeasurer()
+    val onLineLongPressUpdated by rememberUpdatedState(onLineLongPress)
     // What is on screen: lines and their layouts, swapped together once new layouts are measured.
     // Until then the previous lyrics stay up, so a source switch mid-song (a better answer
     // arriving) replaces them in one frame instead of blanking the view while it measures.
@@ -224,7 +227,7 @@ fun LyricsView(
         // The lyrics fade out over the last 64dp; credits brought into view stay clear of it.
         val bottomFadeUpdated by rememberUpdatedState(canvasHeight * (1f - lyricsMaskStops(canvasHeight, density.density * maskScale).innerBottom))
         LaunchedEffect(centerY, alignTop) { wake.trySend(Unit) }
-        val footerMetrics = remember(canvasWidth, density.density, fontSizeScale, lyricsType) {
+        val footerMetrics = remember(canvasWidth, density.density, fontSizeScale, lyricsType, fontKey) {
             LyricsLayoutMetrics(canvasWidth, density.density, lyricsType, fontSizeScale)
         }
         val footerSlot = footerMetrics.contentSlot(false, false, false)
@@ -665,7 +668,21 @@ fun LyricsView(
                         position.x, footerSlot.startPx, footerSlot.startPx + footerSlot.widthPx, footerAlignEnd) != null
                 }
                 .pointerInput(isStatic, footerLayouts, shown, ripple) {
-                    detectTapGestures { tapOffset ->
+                    detectTapGestures(onLongPress = { held ->
+                        val heldY = held.y - (centerYUpdated + scrollManager.animScrollY)
+                        for (i in lineLayouts.indices) {
+                            val layout = lineLayouts[i]
+                            if (layout.isInterlude || layout.isSongwriter) continue
+                            val top = dynamicYOffsets.getOrElse(i) { layout.yOffset } + (if (refreshedUpdated) ripple.offset(i) else 0f)
+                            if (heldY < top || heldY > top + layout.height) continue
+                            val text = layout.line.words.joinToString("") { (if (it.isPartOfWord) "" else " ") + it.text }.trim()
+                            if (text.isNotEmpty()) {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onLineLongPressUpdated?.invoke(text)
+                            }
+                            break
+                        }
+                    }) { tapOffset ->
                         val currentScrollY = scrollManager.animScrollY
                         val adjustedTapY = tapOffset.y - (centerYUpdated + currentScrollY)
 
@@ -736,7 +753,7 @@ fun LyricsView(
                     // fold up into their top edge, under their line.
                     lineAnim.scale != 1f -> withTransform({
                         scale(lineAnim.scale, lineAnim.scale, Offset(
-                            if (layout.isRightAligned) lineStartX + layout.totalWidth else lineStartX,
+                            layout.pivotX(lineStartX),
                             dynamicY + scrollOffset + if (layout.isBackground && config.backgroundPop) 0f else layout.height / 2f,
                         ))
                     }) { drawStandardLine(layout, lineAnim, lineStartX, scrollOffset, dynamicY, config) }
@@ -855,7 +872,9 @@ private const val REFERENCE_LYRIC_SIZE_PX = 56f
 private fun getLineStartX(
     layout: LineLayout,
 ): Float {
-    return if (layout.isRightAligned) {
+    return if (layout.isCentered) {
+        layout.contentStartX + (layout.contentWidth - layout.totalWidth) / 2f
+    } else if (layout.isRightAligned) {
         layout.contentStartX + layout.contentWidth - layout.totalWidth
     } else {
         layout.contentStartX

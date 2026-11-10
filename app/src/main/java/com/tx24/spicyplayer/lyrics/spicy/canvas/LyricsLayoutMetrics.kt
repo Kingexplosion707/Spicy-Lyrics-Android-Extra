@@ -25,9 +25,10 @@ internal data class LyricsLayoutMetrics(
      * new line always reads as further away than a wrapped row of the same line; a width-based
      * 1cqw was only ~14% of the text and the two looked the same.
      */
-    val lineGapPx = baseFontSizeSp * density * 0.4f
+    val lineGapPx = baseFontSizeSp * density * 0.4f * LyricsLayoutCalculator.lineGapScale
     fun lineGapPx(refreshedSimple: Boolean) = if (refreshedSimple)
-        baseFontSizeSp * density * com.tx24.spicyplayer.lyrics.spicy.animation.RefreshedMotion.GAP_EM else lineGapPx
+        baseFontSizeSp * density * com.tx24.spicyplayer.lyrics.spicy.animation.RefreshedMotion.GAP_EM * LyricsLayoutCalculator.lineGapScale
+        else lineGapPx
     val lineHeightMultiplier = 1.1818182f
 
     fun lineHeightPx(fontSizeSp: Float): Float = fontSizeSp * density * lineHeightMultiplier

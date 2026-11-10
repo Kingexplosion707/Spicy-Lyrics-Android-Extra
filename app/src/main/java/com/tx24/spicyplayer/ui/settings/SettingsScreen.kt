@@ -82,6 +82,7 @@ import androidx.compose.material.icons.rounded.Smartphone
 import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.Translate
 import com.tx24.spicyplayer.translation.TranslationLanguages
 import androidx.compose.material3.Icon
@@ -172,6 +173,7 @@ internal enum class SettingsPage(
 ) {
     ThisSong("This song"),
     Lyrics("Lyrics"),
+    Fonts("Fonts", parent = Lyrics),
     Translation("Romanization & Translation"),
     ScrollSync("Scroll & Sync"),
     Background("Background"),
@@ -181,6 +183,8 @@ internal enum class SettingsPage(
     Sources("Sources"),
     Device("Device"),
     FloatingLyrics("Floating lyrics", parent = Device),
+    Wallpaper("Live wallpaper", parent = Device),
+    Stats("Listening stats"),
     Advanced("Advanced"),
     /** Opened from the About card. */
     Changelog("Changelog", searchable = false),
@@ -558,6 +562,9 @@ private fun PageContent(
         SettingsPage.Sources -> SourcesContent(state, viewModel)
         SettingsPage.Device -> DeviceContent(settings)
         SettingsPage.FloatingLyrics -> FloatingLyricsContent(settings)
+        SettingsPage.Fonts -> FontGalleryContent(settings)
+        SettingsPage.Wallpaper -> WallpaperSection(settings, titled = false)
+        SettingsPage.Stats -> ListeningStatsContent(settings)
         SettingsPage.Advanced -> AdvancedContent(state, viewModel, updater, settings)
         SettingsPage.Changelog -> ChangelogContent(updater)
     }
@@ -648,6 +655,9 @@ private fun PageSkeleton(page: SettingsPage) {
         SettingsPage.Sources -> SettingsSkeleton(rows = 8, cards = true)
         SettingsPage.Device -> SettingsSkeleton(rows = 39)
         SettingsPage.FloatingLyrics -> SettingsSkeleton(rows = 8)
+        SettingsPage.Fonts -> SettingsSkeleton(rows = 12)
+        SettingsPage.Wallpaper -> SettingsSkeleton(rows = 12)
+        SettingsPage.Stats -> SettingsSkeleton(rows = 8)
         SettingsPage.Advanced -> SettingsSkeleton(rows = 10)
         SettingsPage.Changelog -> SettingsSkeleton(rows = 6, cards = true)
     }
@@ -681,6 +691,7 @@ private fun HomeGroups(state: PlayerUiState, settings: AppSettings, updater: Upd
                     LyricsFont.Default -> null
                     LyricsFont.System -> "system font"
                     LyricsFont.Custom -> settings.customFontName.ifBlank { "custom font" }
+                    LyricsFont.Gallery -> FontGallery.entry(settings.galleryFont)?.name ?: "gallery font"
                 },
                 "no blur".takeIf { !settings.distanceBlur || settings.lowPerformance },
                 "no glow".takeIf { !settings.glow || settings.lowPerformance },
@@ -772,6 +783,12 @@ private fun HomeGroups(state: PlayerUiState, settings: AppSettings, updater: Upd
                 "haptics to the music".takeIf { settings.musicHaptics },
             ).joinToString(),
         ) { onOpen(SettingsPage.Device) }
+        GroupDivider()
+        GroupRow(
+            Icons.Rounded.Insights,
+            SettingsPage.Stats.title,
+            if (settings.listeningStats) "Your top songs and artists, counted on this phone" else "Off",
+        ) { onOpen(SettingsPage.Stats) }
         GroupDivider()
         GroupRow(Icons.Rounded.Tune, SettingsPage.Advanced.title, "Updates, cache and diagnostics") { onOpen(SettingsPage.Advanced) }
     }

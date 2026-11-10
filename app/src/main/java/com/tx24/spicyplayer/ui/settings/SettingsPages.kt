@@ -281,6 +281,7 @@ internal fun ThisSongContent(
         SpicyButton("Retry", onClick = { viewModel.loadLyrics(force = true) })
     }
     SongDelayRow(state, viewModel)
+    LyricsExportRows(state, viewModel)
     SettingRow(
         label = "Lyrics Manager",
         description = "Use your own TTML for this song, once or saved, and manage the songs you've saved.",
@@ -324,6 +325,7 @@ internal fun MoreOptions(summary: String, content: @Composable () -> Unit) {
 
 @Composable
 internal fun LyricsContent(state: PlayerUiState, viewModel: ExternalPlaybackViewModel, settings: AppSettings) {
+    LyricsLookRow(settings)
     SettingRow(
         label = "Lyrics Style",
         description = "How the lyrics look and move. Apple Music lifts words as they're sung, with a soft wipe, and has lines follow one after another.",
@@ -404,8 +406,17 @@ internal fun LyricsContent(state: PlayerUiState, viewModel: ExternalPlaybackView
             )
         }
         LyricsFontRows(settings)
+        SubPageCard {
+            SubPageRow(
+                SettingsPage.Fonts,
+                Icons.Rounded.FontDownload,
+                if (settings.lyricsFont == LyricsFont.Gallery) "Using ${FontGallery.entry(settings.galleryFont)?.name ?: "a gallery font"}"
+                else "${FontGallery.entries.size} fonts to download",
+            )
+        }
+        LyricsTypeRows(settings)
     }
-    MoreOptions("Merge syllables, duet padding, credits, blur and glow") {
+    MoreOptions("Merge syllables, duet padding, credits, blur, glow and colour") {
         SettingRow(
             label = "Merge syllables",
             description = "Draw a word split into syllables as one word. Steadily sung words only merges the words whose parts have no gap and keep an even pace. Held words only merges the words that are then long enough for the held-word letter effect.",
@@ -504,6 +515,7 @@ internal fun LyricsContent(state: PlayerUiState, viewModel: ExternalPlaybackView
                     onChange = { settings.lyricsColor = com.tx24.spicyplayer.overlay.OverlayColor.valueOf(it) },
                 )
             }
+            LyricsInkRows(settings)
         }
     }
 }
@@ -536,6 +548,8 @@ private fun LyricsFontRows(settings: AppSettings) {
             value = settings.lyricsFont.name,
             options = LyricsFont.entries.map { it.name },
             labels = LyricsFont.entries.map { if (it == LyricsFont.Custom && hasCustom) settings.customFontName else it.label },
+            // A gallery font is picked on the Fonts page, which downloads it.
+            unavailable = if (settings.galleryFont.isBlank()) setOf(LyricsFont.Gallery.name) else emptySet(),
             onChange = { choice ->
                 val font = LyricsFont.valueOf(choice)
                 if (font == LyricsFont.Custom && !hasCustom) pick() else settings.lyricsFont = font
@@ -650,12 +664,12 @@ private val PresetBackgroundColors = listOf("#000000", "#121212", "#0B1426", "#1
 
 /** Swatches for the presets, and a hex field for any other colour; [onPick] gets `#RRGGBB`. */
 @Composable
-private fun CustomColorPicker(value: String, onPick: (String) -> Unit) {
+internal fun CustomColorPicker(value: String, presets: List<String> = PresetBackgroundColors, onPick: (String) -> Unit) {
     val haptics = LocalHapticFeedback.current
     val current = parseHexColor(value)
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            for (preset in PresetBackgroundColors) {
+            for (preset in presets) {
                 val argb = parseHexColor(preset)!!
                 val selected = argb == current
                 Box(
@@ -707,6 +721,8 @@ internal fun BackgroundContent(settings: AppSettings, viewModel: ExternalPlaybac
             CustomColorPicker(settings.backgroundColor) { settings.backgroundColor = it }
         }
     }
+    if (type == BackgroundType.Photo) BackgroundPhotoRow(settings)
+    BackgroundDimRow(settings)
     // Each background keeps its own blur: they're measured differently and start from different looks.
     if (type != BackgroundType.Color && type != BackgroundType.Custom) {
         SettingRow(
@@ -1010,6 +1026,7 @@ internal fun ControlsContent(settings: AppSettings) {
         description = "In landscape, show the timeline under the cover, above the song, where it always stays.",
         icon = Icons.Rounded.LinearScale,
     )
+    LyricsGestureRows(settings)
     SettingsSection("Floating Buttons") {
         ToggleRow(
             label = "Player buttons",
@@ -1266,8 +1283,13 @@ internal fun DeviceContent(settings: AppSettings) {
                 else -> "Off"
             },
         )
+        GroupDivider()
+        SubPageRow(
+            SettingsPage.Wallpaper,
+            Icons.Rounded.Wallpaper,
+            if (settings.wallpaperShowLyrics) "Lyrics, video and cover on your home screen" else "Video and cover on your home screen",
+        )
     }
-    WallpaperSection(settings)
     LyricsNotificationSection(settings)
     LyricsOverlaySection(settings)
     HapticsSection(settings)

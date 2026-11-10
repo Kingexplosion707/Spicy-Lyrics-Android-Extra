@@ -18,6 +18,18 @@ enum class LyricsFont(val label: String) {
     Default("Default"),
     System("System"),
     Custom("Custom"),
+    /** One downloaded from the font gallery ([FontGallery]); `AppSettings.galleryFont` says which. */
+    Gallery("From the gallery"),
+}
+
+/** How heavy the lyrics' lead lines are drawn. A font without the weight draws its nearest. */
+enum class LyricsWeight(val label: String, val weight: FontWeight) {
+    Regular("Regular", FontWeight.Normal),
+    Medium("Medium", FontWeight.Medium),
+    SemiBold("Semi-bold", FontWeight.SemiBold),
+    Bold("Bold", FontWeight.Bold),
+    ExtraBold("Extra bold", FontWeight.ExtraBold),
+    Black("Black", FontWeight.Black),
 }
 
 /**
@@ -54,7 +66,11 @@ object LyricsFontFile {
     /** The picked font as a family, or null when the file has gone. */
     fun family(context: Context, fileName: String): FontFamily? {
         if (fileName.isBlank()) return null
-        val file = File(dir(context), fileName)
+        return familyOf(File(dir(context), fileName))
+    }
+
+    /** [file] as a family, or null when it has gone. */
+    fun familyOf(file: File): FontFamily? {
         if (!file.isFile) return null
         // A variable font has to be told each weight on its `wght` axis, or every weight draws
         // its default instance. A static one is declared once and bolded by the system.
@@ -66,7 +82,7 @@ object LyricsFontFile {
     }
 
     /** An OpenType/TrueType file (or collection) that Android loads as something of its own. */
-    private fun isFont(file: File): Boolean {
+    internal fun isFont(file: File): Boolean {
         val tag = runCatching { RandomAccessFile(file, "r").use { it.readInt() } }.getOrNull() ?: return false
         if (tag !in FONT_TAGS) return false
         return runCatching { Typeface.createFromFile(file) }.getOrNull().let { it != null && it != Typeface.DEFAULT }

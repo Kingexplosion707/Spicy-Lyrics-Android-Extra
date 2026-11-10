@@ -63,21 +63,23 @@ internal object LyricsLayoutCalculator {
             fun measure(text: String, scale: Float, width: Float, right: Boolean) = textMeasurer.measure(
                 text = AnnotatedString(text),
                 style = TextStyle(fontFamily = fontFamilyFor(text), fontSize = (size * scale).sp,
-                    fontWeight = if (line.isBackground) FontWeight.SemiBold else FontWeight.Bold,
-                    lineHeight = (size * scale * 1.18f).sp, textAlign = if (right) TextAlign.Right else TextAlign.Left,
+                    fontWeight = if (line.isBackground) FontWeight.SemiBold else leadWeight,
+                    lineHeight = (size * scale * 1.18f).sp,
+                    textAlign = if (centres(hasDuet, line.isSongwriter)) TextAlign.Center else if (right) TextAlign.Right else TextAlign.Left,
                     textMotion = TextMotion.Animated, color = Color.White, shadow = Shadow.None),
                 constraints = Constraints(maxWidth = width.toInt().coerceAtLeast(1)),
             )
             if (line.translationReplaces) {
                 val text = line.words.single().text
                 val rtl = RtlDetector.isRtl(text)
-                val right = resolveRightAligned(hasDuet, rtl, line.oppositeAligned, false)
+                val centre = centres(hasDuet, false)
+                val right = !centre && resolveRightAligned(hasDuet, rtl, line.oppositeAligned, false)
                 val slot = metrics.contentSlot(hasDuet, rtl, line.oppositeAligned, wideDuet)
                 val textLayout = measure(text, 1f, slot.widthPx / ACTIVE_LINE_SCALE, right)
                 val width = textLayout.size.width.toFloat()
                 layout = layout.copy(words = listOf(WordLayout(line.words.single(), textLayout, Offset.Zero)),
                     height = textLayout.size.height.toFloat(), totalWidth = width, maxRowWidth = width,
-                    isRtl = rtl, isRightAligned = right, contentStartX = slot.startPx, contentWidth = slot.widthPx)
+                    isRtl = rtl, isRightAligned = right, contentStartX = slot.startPx, contentWidth = slot.widthPx, isCentered = centre)
             }
             if (!line.isInterlude) {
                 // Word by word only where the line is: a line-timed line in word-synced lyrics has
@@ -95,7 +97,11 @@ internal object LyricsLayoutCalculator {
                     // read as belonging to it.
                     val rows = supplements.mapIndexed { row, measured ->
                         y += em * if (row == 0) LINE_TO_NOTE_GAP else NOTE_GAP
-                        SupplementLayout(measured, Offset(if (layout.isRightAligned) layout.totalWidth - measured.size.width else 0f, y),
+                        SupplementLayout(measured, Offset(when {
+                            layout.isCentered -> (layout.totalWidth - measured.size.width) / 2f
+                            layout.isRightAligned -> layout.totalWidth - measured.size.width
+                            else -> 0f
+                        }, y),
                             words = if (row == 0 && romanization != null) calculateRomanizationWords(romanization, measured, textMeasurer) else emptyList(),
                             isRtl = RtlDetector.isRtl(measured.layoutInput.text.text))
                             .also { y += measured.size.height }
@@ -177,6 +183,29 @@ internal object LyricsLayoutCalculator {
         fontOverride = family
         fontKey = key
     }
+
+    /** The lead lines' weight (Lyrics weight); background vocals stay a step lighter. */
+    internal var leadWeight: FontWeight = FontWeight.Bold
+        private set
+
+    /** The gap between lines against the usual one (Line spacing). */
+    internal var lineGapScale: Float = 1f
+        private set
+
+    /** Lines sit in the middle of the lyrics column (Lyrics alignment), except in a duet. */
+    internal var centered: Boolean = false
+        private set
+
+    /** The font and the type settings around it; [key] names them all, so a change measures the lyrics again. */
+    internal fun setTypography(family: FontFamily?, weight: FontWeight, gapScale: Float, centre: Boolean, key: String) {
+        leadWeight = weight
+        lineGapScale = gapScale
+        centered = centre
+        setFont(family, key)
+    }
+
+    /** Whether a line is centred: a duet keeps its two sides, and the credits their edge. */
+    private fun centres(hasDuet: Boolean, isSongwriter: Boolean) = centered && !hasDuet && !isSongwriter
 
     /** The font for lyrics and the text around them (the song header, the controls' times). */
     internal val spicyFontFamily: FontFamily get() = fontOverride ?: bundledFontFamily
@@ -292,7 +321,7 @@ internal object LyricsLayoutCalculator {
             val fontWeight = when {
                 lyricsType == LyricsType.Static -> FontWeight.Medium
                 isBg -> FontWeight.SemiBold
-                else -> FontWeight.Bold
+                else -> leadWeight
             }
 
             if (isInterlude) {
@@ -334,11 +363,12 @@ internal object LyricsLayoutCalculator {
                 val nextLineAlignment = nextLine?.oppositeAligned ?: false
                 val nextLineIsRtl = nextLine != null &&
                     RtlDetector.isRtl(nextLine.words.joinToString(" ") { displayText(it, romanizes(nextLine, romanize)) })
-                val dotsRightAligned = resolveRightAligned(hasDuet, nextLineIsRtl, nextLineAlignment, isSongwriter = false)
+                val dotsCentered = centres(hasDuet, false)
+                val dotsRightAligned = !dotsCentered && resolveRightAligned(hasDuet, nextLineIsRtl, nextLineAlignment, isSongwriter = false)
 
                 val slot = metrics.contentSlot(hasDuet, nextLineIsRtl, nextLineAlignment, wideDuet)
                 layouts.add(LineLayout(line, dotLayouts, currentY, dotH, totalDotsW, totalDotsW, true, isBg,
-                    nextLineAlignment, false, nextLineIsRtl, dotsRightAligned, slot.startPx, slot.widthPx))
+                    nextLineAlignment, false, nextLineIsRtl, dotsRightAligned, slot.startPx, slot.widthPx, isCentered = dotsCentered))
                 currentY += 0f // Interludes collapse when not active.
                 continue
             }
@@ -555,10 +585,15 @@ internal object LyricsLayoutCalculator {
 
             // Apply alignment and flatten. RTL duet lines mirror the LTR duet convention (primary
             // right, guest left) instead of both stacking on the right — see resolveRightAligned.
-            val isRightAligned = resolveRightAligned(hasDuet, lineIsRtl, line.oppositeAligned, line.isSongwriter)
+            val isCentered = centres(hasDuet, line.isSongwriter)
+            val isRightAligned = !isCentered && resolveRightAligned(hasDuet, lineIsRtl, line.oppositeAligned, line.isSongwriter)
             val wordLayouts = mutableListOf<WordLayout>()
             for ((rWidth, rowPieces) in allRows) {
-                val alignmentShift = if (isRightAligned) maxRowWidth - rWidth else 0f
+                val alignmentShift = when {
+                    isCentered -> (maxRowWidth - rWidth) / 2f
+                    isRightAligned -> maxRowWidth - rWidth
+                    else -> 0f
+                }
                 for (wLayout in rowPieces) {
                     // Our layout builds each row left-to-right in source (logical reading) order.
                     // For LTR that's also visual order, but RTL reading order is right-to-left, so
@@ -581,7 +616,7 @@ internal object LyricsLayoutCalculator {
 
             layouts.add(LineLayout(line, wordLayouts, drawY, totalHeight, totalWidth, maxRowWidth, false, isBg,
                 line.oppositeAligned, line.isSongwriter, lineIsRtl, isRightAligned,
-                contentSlot.startPx, contentSlot.widthPx, gluedToPrevious = gluedToPrevious.toList()))
+                contentSlot.startPx, contentSlot.widthPx, gluedToPrevious = gluedToPrevious.toList(), isCentered = isCentered))
             
             val bottomY = drawY + totalHeight
             currentY = maxOf(currentY, bottomY + lineSpacing)

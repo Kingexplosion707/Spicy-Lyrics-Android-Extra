@@ -57,7 +57,16 @@ internal data class LineLayout(
      * flag, but romaji spaced from its neighbour starts a word although its syllable was glued.
      */
     val gluedToPrevious: List<Boolean>? = null,
+    /** Centred in the lyrics column (Lyrics alignment), its rows centred too; never with [isRightAligned]. */
+    val isCentered: Boolean = false,
 )
+
+/** Where a line that starts at [startX] grows and shrinks from: the edge it's aligned to, or its middle. */
+internal fun LineLayout.pivotX(startX: Float): Float = when {
+    isCentered -> startX + totalWidth / 2f
+    isRightAligned -> startX + totalWidth
+    else -> startX
+}
 
 internal data class SupplementLayout(
     val text: TextLayoutResult,

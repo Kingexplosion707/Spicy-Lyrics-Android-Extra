@@ -36,6 +36,13 @@ class SettingsBackupStore(private val context: Context) {
             if (name == "ui" && restored["lyricsFont"] == "Custom" && prefs.getString("customFontFile", "").isNullOrEmpty()) {
                 restored.remove("lyricsFont")
             }
+            // Likewise a gallery font and the Your Photo background: downloaded and picked on each phone.
+            if (name == "ui" && restored["lyricsFont"] == "Gallery" && prefs.getString("galleryFont", "").isNullOrEmpty()) {
+                restored.remove("lyricsFont")
+            }
+            if (name == "ui" && restored["backgroundType"] == "Photo" && prefs.getString("backgroundPhoto", "").isNullOrEmpty()) {
+                restored.remove("backgroundType")
+            }
             prefs.edit().apply {
                 prefs.all.keys.filter { it !in kept }.forEach(::remove)
                 restored.forEach { (key, value) -> put(key, value) }
@@ -96,7 +103,7 @@ class SettingsBackupStore(private val context: Context) {
             // Also this device's own: whether the app has its clock hidden, and the wallpaper
             // picture's version (the picture itself travels as a file in the backup).
             "ui" -> setOf(
-                "customFontFile", "customFontName", UsageStats.KEY_ENABLED, UsageStats.KEY_ASKED, "introDone",
+                "customFontFile", "customFontName", "galleryFont", "backgroundPhoto", UsageStats.KEY_ENABLED, UsageStats.KEY_ASKED, "introDone",
                 "overlayClockHiddenByUs", WallpaperIdlePicture.PREF_STAMP,
             )
             "translation" -> setOf("disclosed")
