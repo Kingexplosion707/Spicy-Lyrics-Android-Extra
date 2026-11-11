@@ -222,4 +222,13 @@ class LyricClockTest {
         early.onReport(restart, 1_000L)
         assertTrue(!early.startedSong(restart, 1_000L + LyricClock.START_REPORT_FRESH_MS + 1))
     }
+
+    @Test fun theLastSongsEndIsRememberedPastItsRestart() {
+        val clock = clockAt(200_000L)
+        clock.onReport(LyricClock.Report(playing, true, 0L, 5_000L, 1f), 5_000L)
+        assertNear(206_000L, clock.lastSongPositionAt(6_000L))
+        assertNear(1_000L, clock.positionAt(6_000L))
+        // Without a restart it's just where the clock is.
+        assertNear(201_000L, clockAt(200_000L).lastSongPositionAt(1_000L))
+    }
 }

@@ -602,6 +602,7 @@ internal fun ScrollSyncContent(state: PlayerUiState, viewModel: ExternalPlayback
             onChange = { picked -> settings.quickDelays = DelayKind.entries.filter { it.name in picked }.toSet() },
         )
     }
+    SongChangeSection(settings)
     SettingsSection("Scrolling") {
         ToggleRow(
             label = "Early Scroll",

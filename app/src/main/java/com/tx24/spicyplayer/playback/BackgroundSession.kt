@@ -128,6 +128,10 @@ private class SessionCore(private val app: Context) {
      * each time costs far more than the update itself, so it's read only after this is set.
      */
     private var coverStale = true
+    /** The crossfade lead for this song ([AutomixResync] has the Automix side), added to its reports until a seek. */
+    private var transitionOffsetMs = 0L
+    private var automixSongKey: String? = null
+    private val automixResync = Runnable { automixResyncNow() }
     private var outputProfiles: AudioOutputProfiles? = null
     private var songDelays: SongDelays? = null
     private var playerDelays: PlayerDelays? = null
@@ -200,6 +204,7 @@ private class SessionCore(private val app: Context) {
 
     fun stop() {
         main.removeCallbacks(sessionRecheck)
+        main.removeCallbacks(automixResync)
         runCatching { sessionManager?.removeOnActiveSessionsChangedListener(sessionsListener) }
         controller?.unregisterCallback(controllerCallback)
         observedSessions.forEach { (token, session) -> observedCallbacks[token]?.let(session::unregisterCallback) }
@@ -301,6 +306,7 @@ private class SessionCore(private val app: Context) {
             return
         }
         val newSong = key != track?.key
+        if (newSong) onSongChange(session, metadata)
         if (newSong) startSong(key, metadata)
         // Players may publish the duration after the title, or briefly omit it during
         // playback updates. Learn it when available without hiding an existing timeline.
@@ -322,6 +328,44 @@ private class SessionCore(private val app: Context) {
         report(session, newSong)
         if (coverChanged) onTrack(track)
         if (wasPlaying != clock.isPlaying) onPlayingChanged(clock.isPlaying)
+    }
+
+    /** Before the new song replaces the last: its crossfade lead, and Spotify's Automix resync. */
+    private fun onSongChange(session: MediaController, metadata: MediaMetadata) {
+        val now = SystemClock.elapsedRealtime()
+        val crossfadeMs = app.getSharedPreferences("ui", Context.MODE_PRIVATE).getInt(CROSSFADE_PREF, 0) * 1_000L
+        val lastDuration = track?.durationMs ?: 0L
+        val endedOnItsOwn = lastDuration > 0L && clock.lastSongPositionAt(now) >= lastDuration - crossfadeMs - 2_500L
+        transitionOffsetMs = if (crossfadeMs > 0L && endedOnItsOwn) crossfadeMs else 0L
+        main.removeCallbacks(automixResync)
+        automixSongKey = null
+        if (transitionOffsetMs == 0L && session.packageName == AutomixResync.PLAYER && AutomixResync.enabled(app)) {
+            automixSongKey = AutomixResync.songKey(
+                session.packageName,
+                metadata.getString(MediaMetadata.METADATA_KEY_TITLE),
+                metadata.getString(MediaMetadata.METADATA_KEY_ARTIST),
+            )
+            main.postDelayed(automixResync, AutomixResync.DELAY_MS)
+        }
+    }
+
+    /** Sends the player to where the lyrics are, once per song across the app ([AutomixResync]). */
+    private fun automixResyncNow() {
+        val session = controller ?: return
+        val key = automixSongKey ?: return
+        val playback = session.playbackState ?: return
+        if (playback.state != PlaybackState.STATE_PLAYING || (playback.actions and PlaybackState.ACTION_SEEK_TO) == 0L) return
+        val current = AutomixResync.songKey(
+            session.packageName,
+            session.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE),
+            session.metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST),
+        )
+        if (current != key || !AutomixResync.claim(key)) return
+        val now = SystemClock.elapsedRealtime()
+        val target = clock.positionAt(now)
+        transitionOffsetMs = 0L
+        clock.seekTo(target, now)
+        session.transportControls.seekTo(target)
     }
 
     private fun startSong(key: String, metadata: MediaMetadata) {
@@ -367,13 +411,15 @@ private class SessionCore(private val app: Context) {
         val playing = playback.state == PlaybackState.STATE_PLAYING
         val speed = LyricClock.playingSpeed(playing, playback.playbackSpeed)
         val relayed = session.playbackInfo?.playbackType == MediaController.PlaybackInfo.PLAYBACK_TYPE_REMOTE
-        val report = LyricClock.Report(playback.state, playing, playback.position, playback.lastPositionUpdateTime, speed, relayed)
+        val position = playback.position + if (playing) transitionOffsetMs else 0L
+        val report = LyricClock.Report(playback.state, playing, position, playback.lastPositionUpdateTime, speed, relayed)
         val fresh = clock.isFresh(report)
         // The report is the last song's, and the new one starts from 0 until the player reports,
         // unless it's the new song's own start that came before the song change.
         val startedSong = newSong && !fresh && clock.startedSong(report, now)
         if (newSong && !fresh && !startedSong) {
             clock.startTrack(now, speed, playing)
+            if (transitionOffsetMs > 0L) clock.seekTo(transitionOffsetMs, now)
             awaitingReport = true
             return
         }
