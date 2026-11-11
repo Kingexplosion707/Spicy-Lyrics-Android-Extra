@@ -10,8 +10,8 @@ import android.content.Context
  * it answers with a report that matches its audio. The music jumps back by Automix's head start.
  *
  * With a Spotify account signed in ([com.tx24.spicyplayer.spotify.SpotifyAccount]) Spotify's own
- * servers are asked where the song is instead, and the lyrics move there with no jump; the seek is
- * left for when they can't say.
+ * servers are asked where the song is too, and their answer is logged beside the phone's (Debug
+ * info). It isn't used: moving the lyrics by it put them seconds off when the phone was right.
  *
  * Settings → Scroll & Sync → Song changes (on by default). The lyrics screen and the background
  * follower both schedule it; [claim] lets only the first one seek for each song.

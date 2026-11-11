@@ -1989,21 +1989,18 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
             resyncBySeek(active, key)
             return
         }
+        // Spotify's account answer is logged only, for comparing with the phone's: moving the lyrics
+        // by it put them seconds off when the phone's reports were right. The seek ends in a report
+        // that matches the audio either way.
         val trackId = active.metadata.sessionSpotifyId()
         viewModelScope.launch {
             val sample = SpotifyPosition.sample(app, key, trackId)
-            if (controller !== active || automixSongKey != key || pendingCommand != null) return@launch
-            if (sample == null) {
-                resyncBySeek(active, key)
-                return@launch
-            }
             val now = SystemClock.elapsedRealtime()
-            val offset = AutomixResync.offsetFrom(sample.positionMs + (now - sample.atMs), clock.positionAt(now))
-            SyncTrace.add(now, "spotify account: ${sample.positionMs + (now - sample.atMs) - clock.positionAt(now)} ms from the lyrics, moved $offset")
-            if (offset != 0L) {
-                transitionOffsetMs += offset
-                clock.seekTo(clock.positionAt(now) + offset, now)
+            if (sample != null) {
+                SyncTrace.add(now, "spotify account: ${sample.positionMs + (now - sample.atMs) - clock.positionAt(now)} ms from the phone")
             }
+            if (controller !== active || automixSongKey != key || pendingCommand != null) return@launch
+            resyncBySeek(active, key)
         }
     }
 
