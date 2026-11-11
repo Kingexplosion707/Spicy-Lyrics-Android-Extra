@@ -2436,7 +2436,11 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         // The end report skipped above is the last song's, not news for the next one.
         val fresh = clock.isFresh(report) && report != endBufferingReport
         val now = SystemClock.elapsedRealtime()
-        if (trackChanged && (report == endBufferingReport || (!fresh && now - lastReportAt > TRACK_REPORT_FRESH_MS))) {
+        // A report that sent the clock back to the start just before the song changed is the new
+        // song's own (Spotify can name the song a second or two after its report): it's kept.
+        val startedSong = trackChanged && !fresh && clock.startedSong(report, now)
+        if (startedSong) SyncTrace.add(now, "new song: its start came before it, kept")
+        if (trackChanged && !startedSong && (report == endBufferingReport || (!fresh && now - lastReportAt > TRACK_REPORT_FRESH_MS))) {
             // No report for the new song yet: the one we have is the previous song's position.
             // Seeding the clock from it jumps the new lyrics ahead and forces a scroll, so the
             // song starts from 0 until the player reports.
