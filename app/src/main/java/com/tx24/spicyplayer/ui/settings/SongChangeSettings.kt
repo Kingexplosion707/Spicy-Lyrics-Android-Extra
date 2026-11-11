@@ -40,8 +40,7 @@ internal fun SongChangeSection(settings: AppSettings) {
             checked = settings.resyncAfterSongChange,
             onCheckedChange = { settings.resyncAfterSongChange = it },
             description = "For Spotify's Automix, which reports each new song a few seconds late: two seconds in, " +
-                "Spotify is sent to where the lyrics are, as tapping a line does, and the song jumps back a little. " +
-                "With your Spotify account signed in below, the lyrics move instead, with no jump.",
+                "Spotify is sent to where the lyrics are, as tapping a line does, and the song may jump a little.",
             icon = Icons.Rounded.Sync,
         )
         SpotifyAccountRows()
@@ -83,8 +82,8 @@ private fun SpotifyAccountRows() {
     SettingRow(
         label = "Spotify account",
         description = when {
-            signedIn -> "Signed in${name?.let { " as $it" } ?: ""}. After Automix, Spotify says where the song is and the lyrics move there, with no jump."
-            else -> "Sign in so Spotify can say where each new song is, with no jump. Make an app at developer.spotify.com " +
+            signedIn -> "Signed in${name?.let { " as $it" } ?: ""}. Testing: where Spotify's servers say each new song is goes into Debug info, beside the phone's."
+            else -> "Testing: sign in to compare where Spotify's servers say each new song is with the phone (Debug info). Make an app at developer.spotify.com " +
                 "with the redirect URI ${SpotifyAccount.REDIRECT_URI}, then paste its Client ID below."
         },
         icon = Icons.Rounded.AccountCircle,

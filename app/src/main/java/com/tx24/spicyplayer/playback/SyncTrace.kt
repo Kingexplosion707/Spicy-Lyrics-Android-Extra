@@ -21,7 +21,7 @@ internal class EventTrace(private val maxLines: Int) {
 }
 
 /** What the lyric clock did. */
-internal val SyncTrace = EventTrace(40)
+internal val SyncTrace = EventTrace(200)
 
 /** What translation did: started, shown, skipped, dropped as stale, failed. */
-internal val TranslationTrace = EventTrace(40)
+internal val TranslationTrace = EventTrace(200)
