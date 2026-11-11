@@ -9,8 +9,12 @@ import android.content.Context
  * a moment into each new song the player is sent to where the lyrics are, as tapping a line does:
  * it answers with a report that matches its audio. The music jumps back by Automix's head start.
  *
- * Settings → Sources → Resync after a song change (on by default). The lyrics screen and the
- * background follower both schedule it; [claim] lets only the first one seek for each song.
+ * With a Spotify account signed in ([com.tx24.spicyplayer.spotify.SpotifyAccount]) Spotify's own
+ * servers are asked where the song is instead, and the lyrics move there with no jump; the seek is
+ * left for when they can't say.
+ *
+ * Settings → Scroll & Sync → Song changes (on by default). The lyrics screen and the background
+ * follower both schedule it; [claim] lets only the first one seek for each song.
  */
 internal object AutomixResync {
     /** The player whose new songs are resynced. */
@@ -21,6 +25,17 @@ internal object AutomixResync {
     const val PREF = "resyncAfterSongChange"
 
     private var claimed: String? = null
+
+    /** Smaller differences between Spotify's account and the lyrics are its own timing, not Automix. */
+    const val MIN_OFFSET_MS = 250L
+    /** Automix starts a song at most this far ahead; Spotify running behind the phone is its delay. */
+    private val OFFSET_RANGE = -2_000L..20_000L
+
+    /** How far to move the lyrics to [spotifyMs], from [lyricsMs]: 0 for its own jitter or an answer out of range. */
+    fun offsetFrom(spotifyMs: Long, lyricsMs: Long): Long {
+        val offset = spotifyMs - lyricsMs
+        return if (offset in OFFSET_RANGE && kotlin.math.abs(offset) >= MIN_OFFSET_MS) offset else 0L
+    }
 
     fun enabled(context: Context): Boolean =
         context.getSharedPreferences("ui", Context.MODE_PRIVATE).getBoolean(PREF, true)

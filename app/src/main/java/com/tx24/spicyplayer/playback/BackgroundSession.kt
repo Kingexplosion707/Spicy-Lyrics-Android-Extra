@@ -2,6 +2,9 @@ package com.tx24.spicyplayer.playback
 
 import android.content.ComponentName
 import android.content.Context
+import com.tx24.spicyplayer.spotify.SpotifyAccount
+import com.tx24.spicyplayer.spotify.SpotifyPosition
+import kotlinx.coroutines.launch
 import android.graphics.Bitmap
 import android.media.MediaMetadata
 import android.media.session.MediaController
@@ -132,6 +135,8 @@ private class SessionCore(private val app: Context) {
     private var transitionOffsetMs = 0L
     private var automixSongKey: String? = null
     private val automixResync = Runnable { automixResyncNow() }
+    private val automixScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
+    private var automixJob: kotlinx.coroutines.Job? = null
     private var outputProfiles: AudioOutputProfiles? = null
     private var songDelays: SongDelays? = null
     private var playerDelays: PlayerDelays? = null
@@ -205,6 +210,7 @@ private class SessionCore(private val app: Context) {
     fun stop() {
         main.removeCallbacks(sessionRecheck)
         main.removeCallbacks(automixResync)
+        automixJob?.cancel()
         runCatching { sessionManager?.removeOnActiveSessionsChangedListener(sessionsListener) }
         controller?.unregisterCallback(controllerCallback)
         observedSessions.forEach { (token, session) -> observedCallbacks[token]?.let(session::unregisterCallback) }
@@ -338,6 +344,7 @@ private class SessionCore(private val app: Context) {
         val endedOnItsOwn = lastDuration > 0L && clock.lastSongPositionAt(now) >= lastDuration - crossfadeMs - 2_500L
         transitionOffsetMs = if (crossfadeMs > 0L && endedOnItsOwn) crossfadeMs else 0L
         main.removeCallbacks(automixResync)
+        automixJob?.cancel()
         automixSongKey = null
         if (transitionOffsetMs == 0L && session.packageName == AutomixResync.PLAYER && AutomixResync.enabled(app)) {
             automixSongKey = AutomixResync.songKey(
@@ -349,18 +356,49 @@ private class SessionCore(private val app: Context) {
         }
     }
 
-    /** Sends the player to where the lyrics are, once per song across the app ([AutomixResync]). */
+    /**
+     * A moment into a new Spotify song ([AutomixResync]): Spotify's own position with an account
+     * signed in, with no jump; otherwise the player is sent to where the lyrics are.
+     */
     private fun automixResyncNow() {
         val session = controller ?: return
         val key = automixSongKey ?: return
         val playback = session.playbackState ?: return
+        if (playback.state != PlaybackState.STATE_PLAYING) return
+        if (songKeyOf(session) != key) return
+        if (!SpotifyAccount.signedIn(app)) {
+            resyncBySeek(session, key)
+            return
+        }
+        val trackId = session.metadata.sessionSpotifyId()
+        automixJob?.cancel()
+        automixJob = automixScope.launch {
+            val sample = SpotifyPosition.sample(app, key, trackId)
+            if (controller !== session || automixSongKey != key) return@launch
+            if (sample == null) {
+                resyncBySeek(session, key)
+                return@launch
+            }
+            val now = SystemClock.elapsedRealtime()
+            val offset = AutomixResync.offsetFrom(sample.positionMs + (now - sample.atMs), clock.positionAt(now))
+            if (offset != 0L) {
+                transitionOffsetMs += offset
+                clock.seekTo(clock.positionAt(now) + offset, now)
+            }
+        }
+    }
+
+    private fun songKeyOf(session: MediaController) = AutomixResync.songKey(
+        session.packageName,
+        session.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE),
+        session.metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST),
+    )
+
+    /** Sends the player to where the lyrics are, once per song across the app. */
+    private fun resyncBySeek(session: MediaController, key: String) {
+        val playback = session.playbackState ?: return
         if (playback.state != PlaybackState.STATE_PLAYING || (playback.actions and PlaybackState.ACTION_SEEK_TO) == 0L) return
-        val current = AutomixResync.songKey(
-            session.packageName,
-            session.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE),
-            session.metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST),
-        )
-        if (current != key || !AutomixResync.claim(key)) return
+        if (!AutomixResync.claim(key)) return
         val now = SystemClock.elapsedRealtime()
         val target = clock.positionAt(now)
         transitionOffsetMs = 0L

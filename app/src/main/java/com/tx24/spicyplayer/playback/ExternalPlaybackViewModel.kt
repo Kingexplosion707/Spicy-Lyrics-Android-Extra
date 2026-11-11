@@ -7,6 +7,8 @@ import com.tx24.spicyplayer.analytics.UsageStats
 import android.net.Uri
 import android.app.Application
 import android.content.Context
+import com.tx24.spicyplayer.spotify.SpotifyAccount
+import com.tx24.spicyplayer.spotify.SpotifyPosition
 import android.content.ComponentName
 import android.graphics.Bitmap
 import android.media.MediaMetadata
@@ -1971,20 +1973,52 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         if (transitionOffsetMs > 0L) SyncTrace.add(now, "new song after a crossfade: +${transitionOffsetMs} ms")
     }
 
-    /** Sends the player to where the lyrics are, as tapping a line does ([AutomixResync]). */
+    /**
+     * A moment into a new Spotify song ([AutomixResync]): with a Spotify account signed in, asks
+     * Spotify where the song is and moves the lyrics there, with no jump; otherwise (or when
+     * Spotify can't say) sends the player to where the lyrics are, as tapping a line does.
+     */
     private fun automixResyncNow() {
         val active = controller ?: return
         val key = automixSongKey ?: return
         val playback = active.playbackState ?: return
+        if (playback.state != PlaybackState.STATE_PLAYING || pendingCommand != null) return
+        if (currentSongKey(active) != key) return
+        val app = getApplication<Application>()
+        if (!SpotifyAccount.signedIn(app)) {
+            resyncBySeek(active, key)
+            return
+        }
+        val trackId = active.metadata.sessionSpotifyId()
+        viewModelScope.launch {
+            val sample = SpotifyPosition.sample(app, key, trackId)
+            if (controller !== active || automixSongKey != key || pendingCommand != null) return@launch
+            if (sample == null) {
+                resyncBySeek(active, key)
+                return@launch
+            }
+            val now = SystemClock.elapsedRealtime()
+            val offset = AutomixResync.offsetFrom(sample.positionMs + (now - sample.atMs), clock.positionAt(now))
+            SyncTrace.add(now, "spotify account: ${sample.positionMs + (now - sample.atMs) - clock.positionAt(now)} ms from the lyrics, moved $offset")
+            if (offset != 0L) {
+                transitionOffsetMs += offset
+                clock.seekTo(clock.positionAt(now) + offset, now)
+            }
+        }
+    }
+
+    private fun currentSongKey(active: MediaController) = AutomixResync.songKey(
+        active.packageName,
+        active.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE),
+        active.metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST),
+    )
+
+    /** Sends the player to where the lyrics are, once per song across the app. */
+    private fun resyncBySeek(active: MediaController, key: String) {
+        val playback = active.playbackState ?: return
         val seekable = (playback.actions and PlaybackState.ACTION_SEEK_TO) != 0L
         if (playback.state != PlaybackState.STATE_PLAYING || !seekable || active.packageName == seekRefusedBy) return
-        if (pendingCommand != null) return
-        val current = AutomixResync.songKey(
-            active.packageName,
-            active.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE),
-            active.metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST),
-        )
-        if (current != key || !AutomixResync.claim(key)) return
+        if (!AutomixResync.claim(key)) return
         SyncTrace.add(SystemClock.elapsedRealtime(), "automix resync at ${currentPositionMs()}")
         seekTo(currentPositionMs(), resync = true)
     }
