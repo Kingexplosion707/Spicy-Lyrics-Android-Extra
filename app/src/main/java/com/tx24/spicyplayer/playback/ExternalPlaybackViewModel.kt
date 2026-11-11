@@ -6,6 +6,7 @@ import com.tx24.spicyplayer.analytics.UsageCounter
 import com.tx24.spicyplayer.analytics.UsageStats
 import android.net.Uri
 import android.app.Application
+import android.content.Context
 import android.content.ComponentName
 import android.graphics.Bitmap
 import android.media.MediaMetadata
@@ -113,6 +114,10 @@ private const val FETCH_AHEAD = 3
 
 /** How long after our own skip a track change is still taken to be its result. */
 private const val SKIP_DIRECTION_WINDOW_MS = 3_000L
+/** The crossfade lead setting, in seconds ([ExternalPlaybackViewModel.onSongChange]). */
+internal const val CROSSFADE_PREF = "crossfadeSeconds"
+/** A song whose clock was this close to its end (beyond the crossfade) ended on its own. */
+private const val NATURAL_END_SLACK_MS = 2_500L
 
 /** How often the ticker reads the player and the audio output while the screen is up. */
 private const val PERIODIC_CHECK_MS = 2_000L
@@ -709,6 +714,15 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
     private var skipCheckJob: Job? = null
     /** When the track last changed, for a pause some players report while they load the next one. */
     private var trackChangedAt = Long.MIN_VALUE / 2
+    /**
+     * How far the player's reports run behind its audio for this song: the crossfade lead
+     * (Settings → Scroll & Sync → Crossfade) when the last song ended on its own. Added to every
+     * report until our own seek, whose report is the audio's own position.
+     */
+    private var transitionOffsetMs = 0L
+    /** Spotify's Automix head start, resynced a moment into each new song ([AutomixResync]). */
+    private val automixResync = Runnable { automixResyncNow() }
+    private var automixSongKey: String? = null
     private val sessionStickiness = SessionStickiness(SESSION_SWITCH_GRACE_MS)
     /** Looks at the sessions again once the followed one has been stopped for its grace. */
     private val sessionRecheck = Runnable { refreshSessionSelection() }
@@ -929,6 +943,9 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
             mutableState.value.durationMs.takeIf { it > 0L } ?: Long.MAX_VALUE,
         )
         pendingCommand = PendingCommand.Seek(target, SystemClock.elapsedRealtime(), resync)
+        // The seek's report is the audio's own position: no crossfade lead, nothing to resync.
+        transitionOffsetMs = 0L
+        mainHandler.removeCallbacks(automixResync)
         tickerWake.trySend(Unit)
         clock.seekTo(target, SystemClock.elapsedRealtime())
         mutableState.value = mutableState.value.copy(status = null)
@@ -1928,7 +1945,53 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
             .onSuccess(::attachBestSession)
     }
 
+    /**
+     * A new song: works out the crossfade lead from where the last one ended (before its clock is
+     * replaced), and schedules Spotify's Automix resync.
+     */
+    private fun onSongChange(active: MediaController, metadata: MediaMetadata?) {
+        val now = SystemClock.elapsedRealtime()
+        val app = getApplication<Application>()
+        val crossfadeMs = app.getSharedPreferences("ui", Context.MODE_PRIVATE).getInt(CROSSFADE_PREF, 0) * 1_000L
+        val lastDuration = mutableState.value.durationMs
+        // It ended on its own when the clock had reached its last seconds, not a skip mid-song.
+        val endedOnItsOwn = lastDuration > 0L &&
+            clock.lastSongPositionAt(now) >= lastDuration - crossfadeMs - NATURAL_END_SLACK_MS
+        transitionOffsetMs = if (crossfadeMs > 0L && endedOnItsOwn) crossfadeMs else 0L
+        mainHandler.removeCallbacks(automixResync)
+        automixSongKey = null
+        if (transitionOffsetMs == 0L && active.packageName == AutomixResync.PLAYER && AutomixResync.enabled(app)) {
+            automixSongKey = AutomixResync.songKey(
+                active.packageName,
+                metadata?.getString(MediaMetadata.METADATA_KEY_TITLE),
+                metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST),
+            )
+            mainHandler.postDelayed(automixResync, AutomixResync.DELAY_MS)
+        }
+        if (transitionOffsetMs > 0L) SyncTrace.add(now, "new song after a crossfade: +${transitionOffsetMs} ms")
+    }
+
+    /** Sends the player to where the lyrics are, as tapping a line does ([AutomixResync]). */
+    private fun automixResyncNow() {
+        val active = controller ?: return
+        val key = automixSongKey ?: return
+        val playback = active.playbackState ?: return
+        val seekable = (playback.actions and PlaybackState.ACTION_SEEK_TO) != 0L
+        if (playback.state != PlaybackState.STATE_PLAYING || !seekable || active.packageName == seekRefusedBy) return
+        if (pendingCommand != null) return
+        val current = AutomixResync.songKey(
+            active.packageName,
+            active.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE),
+            active.metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST),
+        )
+        if (current != key || !AutomixResync.claim(key)) return
+        SyncTrace.add(SystemClock.elapsedRealtime(), "automix resync at ${currentPositionMs()}")
+        seekTo(currentPositionMs(), resync = true)
+    }
+
     private fun detachController() {
+        mainHandler.removeCallbacks(automixResync)
+        transitionOffsetMs = 0L
         clearTranslation()
         controller?.unregisterCallback(controllerCallback)
         controller = null
@@ -1986,6 +2049,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         // A new song settles a seek: the player moved on (a seek to the end rolls into the next
         // song at 0), and the new song's reports are the ones to follow.
         if (trackChanged && pendingCommand is PendingCommand.Seek) pendingCommand = null
+        if (trackChanged) onSongChange(active, metadata)
         val waitingForSeek = pendingCommand is PendingCommand.Seek &&
             pendingCommand?.acknowledged(playback, trackIdentity) != true &&
             SystemClock.elapsedRealtime() - pendingCommand!!.issuedAtMs < 1_500L
@@ -2421,7 +2485,9 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         val playing = playback.state == PlaybackState.STATE_PLAYING
         val speed = LyricClock.playingSpeed(playing, playback.playbackSpeed)
         val relayed = controller?.playbackInfo?.playbackType == MediaController.PlaybackInfo.PLAYBACK_TYPE_REMOTE
-        val report = LyricClock.Report(playback.state, playing, playback.position, playback.lastPositionUpdateTime, speed, relayed)
+        // After a crossfade the player counts the song from its switch, behind its audio.
+        val position = playback.position + if (playing) transitionOffsetMs else 0L
+        val report = LyricClock.Report(playback.state, playing, position, playback.lastPositionUpdateTime, speed, relayed)
         // Spotify reports buffering at its end position about a second before the next song
         // starts. Stopping the clock there freezes a line that runs to the end halfway through,
         // so the clock carries on until the next song's report.
@@ -2447,6 +2513,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
             Log.d(SYNC_TAG, "track changed before its report; clock starts at 0")
             SyncTrace.add(now, "new song, no report yet: clock at 0")
             clock.startTrack(now, speed, playing)
+            if (transitionOffsetMs > 0L) clock.seekTo(transitionOffsetMs, now)
             awaitingTrackReport = true
             return
         }
@@ -2480,6 +2547,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
     }
 
     override fun onCleared() {
+        mainHandler.removeCallbacks(automixResync)
         runCatching { sessionManager.removeOnActiveSessionsChangedListener(activeSessionsListener) }
         mainHandler.removeCallbacks(sessionRecheck)
         stopObservingSessions()
