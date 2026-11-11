@@ -28,6 +28,11 @@ import kotlin.math.abs
  * audio kept playing after it reported the pause (its fade-out, ~0.3 s). That's where the audio
  * picks up again, measured against the mixer's frame count, so it's taken as it comes.
  *
+ * A player often reports a new song's start before it says the song changed (Spotify's metadata
+ * can follow its report by a second or two, and sends no further report while it plays on). That
+ * report is the new song's, so [startedSong] tells the caller to keep it rather than start the new
+ * song from 0 when the song change comes, which would leave the lyrics behind for the whole song.
+ *
  * Plain Kotlin, no Android: the times are `elapsedRealtime`, passed in.
  */
 class LyricClock(nowMs: Long) {
@@ -63,6 +68,10 @@ class LyricClock(nowMs: Long) {
     /** The position of the pause report that set [biasMs]. */
     private var stalePauseAtMs = 0L
     private val votes = ArrayDeque<Vote>()
+    /** When the last report was taken. */
+    private var lastReportAtMs = Long.MIN_VALUE / 2
+    /** Whether the last report sent the clock back to a song's start ([startedSong]). */
+    private var lastReportRestarted = false
 
     val isPlaying get() = anchor.isPlaying
 
@@ -101,6 +110,8 @@ class LyricClock(nowMs: Long) {
             )
         }
         if (pauseReport) stalePauseAtMs = report.positionMs
+        lastReportAtMs = nowMs
+        lastReportRestarted = report.positionMs <= START_REPORT_MAX_MS && predicted - raw >= JUMP_MS
         val reported = raw + biasMs
         val drift = reported - predicted
         val speedChanged = report.playing && anchor.isPlaying && report.speed != anchor.speed
@@ -156,9 +167,18 @@ class LyricClock(nowMs: Long) {
         return if (abs(adjustment) >= MIN_MOVE_MS) adjustment else 0L
     }
 
+    /**
+     * Whether [report], already taken, is a new song's start that came before the player said the
+     * song changed: it sent the clock back to near 0 from far on, at most [START_REPORT_FRESH_MS]
+     * ago. Then the song change keeps it ([onReport] with `snap`) instead of [startTrack].
+     */
+    fun startedSong(report: Report, nowMs: Long): Boolean =
+        report == lastReport && lastReportRestarted && nowMs - lastReportAtMs <= START_REPORT_FRESH_MS
+
     /** Our own seek: the clock goes to [targetMs] now, and what came before no longer counts. */
     fun seekTo(targetMs: Long, nowMs: Long) {
         anchor = anchor.copy(positionMs = targetMs, atMs = nowMs)
+        lastReportRestarted = false
         biasMs = 0L
         votes.clear()
     }
@@ -166,6 +186,7 @@ class LyricClock(nowMs: Long) {
     /** A new song before its first report: it starts from 0 until the player reports. */
     fun startTrack(nowMs: Long, speed: Float, playing: Boolean) {
         anchor = Anchor(0L, nowMs, speed, playing)
+        lastReportRestarted = false
         biasMs = 0L
         votes.clear()
     }
@@ -174,6 +195,7 @@ class LyricClock(nowMs: Long) {
     fun reset(nowMs: Long) {
         anchor = Anchor(0L, nowMs, 0f, false)
         lastReport = null
+        lastReportRestarted = false
         biasMs = 0L
         votes.clear()
     }
@@ -202,6 +224,13 @@ class LyricClock(nowMs: Long) {
         const val RESUME_CARRIES_ON_MS = 50L
         /** A local pause report at most this far behind the clock is late, not the song going back. */
         const val PAUSE_LAG_MAX_MS = 150L
+        /** A report at most this far into a song can be its start ([startedSong]). */
+        const val START_REPORT_MAX_MS = 2_000L
+        /**
+         * How long a song's start report can come before the song change ([startedSong]); longer
+         * ago, it's more likely a seek back in the last song.
+         */
+        const val START_REPORT_FRESH_MS = 4_000L
         /** Votes older than this don't count: sparse reporters send one every couple of seconds. */
         const val VOTE_WINDOW_MS = 5_000L
         private const val MAX_VOTES = 64

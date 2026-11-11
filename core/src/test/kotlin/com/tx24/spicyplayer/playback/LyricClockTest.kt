@@ -196,4 +196,30 @@ class LyricClockTest {
         assertEquals(1.5f, LyricClock.playingSpeed(playing = true, reported = 1.5f))
         assertEquals(0f, LyricClock.playingSpeed(playing = false, reported = 0f))
     }
+
+    @Test fun aNewSongsStartBeforeItsMetadataIsKept() {
+        // The last song at 3:20, then the next one's start, its metadata 1.5 s later.
+        val clock = clockAt(200_000L)
+        val start = LyricClock.Report(playing, true, 0L, 5_000L, 1f)
+        clock.onReport(start, 5_000L)
+        assertTrue(clock.startedSong(start, 6_500L))
+        clock.onReport(start, 6_500L, snap = true)
+        assertNear(1_500L, clock.positionAt(6_500L))
+    }
+
+    @Test fun theLastSongsReportIsNotANewStart() {
+        val clock = clockAt(200_000L)
+        val last = LyricClock.Report(playing, true, 201_000L, 1_000L, 1f)
+        clock.onReport(last, 1_000L)
+        assertTrue(!clock.startedSong(last, 2_000L))
+        // A song's own start (taken as its first report) isn't one either, nor an old one.
+        val own = LyricClock(0L)
+        val first = LyricClock.Report(playing, true, 0L, 0L, 1f)
+        own.onReport(first, 0L, snap = true)
+        assertTrue(!own.startedSong(first, 8_000L))
+        val early = clockAt(200_000L)
+        val restart = LyricClock.Report(playing, true, 0L, 1_000L, 1f)
+        early.onReport(restart, 1_000L)
+        assertTrue(!early.startedSong(restart, 1_000L + LyricClock.START_REPORT_FRESH_MS + 1))
+    }
 }

@@ -369,13 +369,15 @@ private class SessionCore(private val app: Context) {
         val relayed = session.playbackInfo?.playbackType == MediaController.PlaybackInfo.PLAYBACK_TYPE_REMOTE
         val report = LyricClock.Report(playback.state, playing, playback.position, playback.lastPositionUpdateTime, speed, relayed)
         val fresh = clock.isFresh(report)
-        if (newSong && !fresh) {
-            // The report is the last song's: the new one starts from 0 until the player reports.
+        // The report is the last song's, and the new one starts from 0 until the player reports,
+        // unless it's the new song's own start that came before the song change.
+        val startedSong = newSong && !fresh && clock.startedSong(report, now)
+        if (newSong && !fresh && !startedSong) {
             clock.startTrack(now, speed, playing)
             awaitingReport = true
             return
         }
-        if (!fresh) return
+        if (!fresh && !startedSong) return
         clock.onReport(report, now, snap = newSong || awaitingReport)
         awaitingReport = false
     }
