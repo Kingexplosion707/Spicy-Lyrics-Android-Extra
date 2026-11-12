@@ -1135,13 +1135,6 @@ internal fun ControlsContent(settings: AppSettings) {
                 icon = Icons.Rounded.IosShare,
             )
             ToggleRow(
-                label = "Resync lyrics button",
-                checked = settings.resyncButton,
-                onCheckedChange = { settings.resyncButton = it },
-                description = "Puts the player and the lyrics back in step where the song is, for when they've come apart.",
-                icon = Icons.Rounded.Sync,
-            )
-            ToggleRow(
                 label = "Sleep timer button",
                 checked = settings.sleepTimerButton,
                 onCheckedChange = { settings.sleepTimerButton = it },

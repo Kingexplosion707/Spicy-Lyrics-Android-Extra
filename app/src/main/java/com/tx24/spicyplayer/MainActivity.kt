@@ -1176,7 +1176,6 @@ private fun LyricsApp(
                     onShareLyrics = { whenUnlocked { showShareLyrics = true } }.takeIf { settings.shareButton && state.lyrics is LyricsState.Ready },
                     onSleepTimer = { showSleepTimer = true }.takeIf { settings.sleepTimerButton && state.sourcePackage != null },
                     sleepTimerOn = SleepTimerService.state.value != null,
-                    onResync = { viewModel.resyncNow() }.takeIf { settings.resyncButton && state.canSeek && state.isPlaying },
                     hideSettings = settingsPeeking,
                     // Hidden on a screen that's landscape on its own: there's nothing to turn.
                     onRotate = { rotated = !rotated }.takeIf { settings.rotateButton && (rotated || !landscape) },

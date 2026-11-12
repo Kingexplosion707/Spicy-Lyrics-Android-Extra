@@ -1013,15 +1013,6 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
 
     fun seekTo(targetMs: Long) = seekTo(targetMs, resync = false)
 
-    /**
-     * Puts the player and the lyrics back in step where the song is (the Resync lyrics button):
-     * the player is sent to the lyrics' own position, and its answer is its audio's position.
-     */
-    fun resyncNow() {
-        SyncTrace.add(SystemClock.elapsedRealtime(), "resync: asked for at ${currentPositionMs()}")
-        seekTo(currentPositionMs(), resync = true)
-    }
-
     private fun seekTo(targetMs: Long, resync: Boolean) {
         val active = controller ?: return
         if (((active.playbackState?.actions ?: 0L) and PlaybackState.ACTION_SEEK_TO) == 0L) {

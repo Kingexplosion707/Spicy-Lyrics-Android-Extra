@@ -37,7 +37,6 @@ Modified by Behnoud.
 - **Sleep timer**: pauses the player after a set time or at the end of the song, fading the music out first (`playback/SleepTimerService.kt`, `ui/sleep/`).
 - **Lyrics colour** for the lyrics screen, wallpaper and always-on display, and a **Glow strength** setting (50–300%).
 
-- **Resync lyrics** button (under More): puts the player and the lyrics back in step where the song is.
 - **Saved lines**: Share lyrics → Save keeps the picked lines with their song in Settings → Saved lines, to copy, share or remove (`quotes/`, `SavedLines` in `:core`).
 
 ### Looks and type
