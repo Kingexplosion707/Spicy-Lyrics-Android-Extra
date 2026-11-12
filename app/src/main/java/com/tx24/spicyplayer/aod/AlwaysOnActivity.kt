@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.Composable
@@ -322,12 +323,7 @@ private fun PlayerLayout(live: LiveLyrics, settings: AppSettings, controls: Bool
         Row(verticalAlignment = Alignment.CenterVertically) {
             val cover = remember(track.cover) { track.cover?.asImageBitmap() }
             if (cover != null) {
-                androidx.compose.foundation.Image(
-                    cover, null,
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                    modifier = Modifier.size(64.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-                        .graphicsLayer { alpha = 0.9f },
-                )
+                AodCover(cover, track, settings)
                 Spacer(Modifier.width(14.dp))
             }
             Column(Modifier.weight(1f)) {
@@ -345,6 +341,39 @@ private fun PlayerLayout(live: LiveLyrics, settings: AppSettings, controls: Bool
         AodLyrics(live, settings, Modifier.fillMaxWidth().weight(1f), 1f)
         if (settings.aodProgress && track.durationMs > 0L) ProgressBar(live, track.durationMs)
         if (controls) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { Controls(live) }
+    }
+}
+
+/**
+ * The cover beside the song, as on the lyrics screen: the record's animated cover over it when
+ * Animated cover is on and the record has one (not with the battery saver on, or low
+ * performance mode), and it pauses while the display is off screen.
+ */
+@Composable
+private fun AodCover(cover: androidx.compose.ui.graphics.ImageBitmap, track: com.tx24.spicyplayer.playback.BackgroundSession.Track, settings: AppSettings) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val batterySaver = remember { context.getSystemService(PowerManager::class.java)?.isPowerSaveMode == true }
+    val animated = settings.animatedCover && !settings.lowPerformance && !batterySaver
+    val url = com.tx24.spicyplayer.ui.nowplaying.rememberMotionCoverUrl(
+        animated,
+        com.tx24.spicyplayer.ui.nowplaying.MotionCoverQuery(track.artist, track.album, track.title),
+    )
+    var failed by remember(track.key) { mutableStateOf<String?>(null) }
+    Box(Modifier.size(COVER_DP.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp)).graphicsLayer { alpha = 0.9f }) {
+        androidx.compose.foundation.Image(
+            cover, null,
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+        if (url != null && url != failed) {
+            MotionCoverVideo(
+                url = url,
+                visible = AlwaysOnActivity.showing,
+                onFailed = { failed = url },
+                modifier = Modifier.fillMaxSize(),
+                held = !AlwaysOnActivity.showing,
+            )
+        }
     }
 }
 
@@ -420,19 +449,70 @@ private fun BlurredCover(cover: android.graphics.Bitmap?, shift: IntOffset) {
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = COVER_VEIL)))
 }
 
-/** Previous, play/pause and next. */
+/**
+ * The player's buttons, without crowding: previous, play/pause and next in the middle, and at
+ * most two of the player's own beside them, its like button on the left and its shuffle (or
+ * repeat) on the right, when it offers them.
+ */
 @Composable
 private fun Controls(live: LiveLyrics) {
+    val actions = live.actions
+    val like = remember(actions) { actions.firstOrNull { it.matches(LIKE_WORDS) } }
+    val mode = remember(actions) { actions.firstOrNull { it.matches(SHUFFLE_WORDS) } ?: actions.firstOrNull { it.matches(REPEAT_WORDS) } }
     Row(
         Modifier.padding(top = 12.dp, bottom = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(28.dp),
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        PlayerAction(like, live)
         ControlButton(Icons.Rounded.SkipPrevious, "Previous", 30.dp) { live.skipPrevious() }
         ControlButton(if (live.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (live.playing) "Pause" else "Play", 40.dp) { live.playPause() }
         ControlButton(Icons.Rounded.SkipNext, "Next", 30.dp) { live.skipNext() }
+        PlayerAction(mode, live)
     }
 }
+
+/** One of the player's own buttons in its own icon, tinted to match; an empty space of its size when there's none. */
+@Composable
+private fun PlayerAction(action: android.media.session.PlaybackState.CustomAction?, live: LiveLyrics) {
+    val size = 24.dp
+    if (action == null) {
+        Spacer(Modifier.size(size + 28.dp))
+        return
+    }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val player = live.playerPackage
+    val icon = remember(player, action.icon) {
+        runCatching {
+            val resources = context.packageManager.getResourcesForApplication(player!!)
+            androidx.core.content.res.ResourcesCompat.getDrawable(resources, action.icon, null)
+                ?.toBitmap(72, 72)?.asImageBitmap()
+        }.getOrNull()
+    }
+    Box(
+        Modifier.size(size + 28.dp).clip(CircleShape).clickable { live.sendCustomAction(action.action) },
+        contentAlignment = Alignment.Center,
+    ) {
+        if (icon != null) {
+            androidx.compose.foundation.Image(
+                icon, action.name.toString(),
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White.copy(alpha = CONTROL_ALPHA)),
+                modifier = Modifier.size(size),
+            )
+        } else {
+            Text(action.name.toString().take(1), color = Color.White.copy(alpha = CONTROL_ALPHA), fontSize = 16.sp)
+        }
+    }
+}
+
+private fun android.media.session.PlaybackState.CustomAction.matches(words: List<String>): Boolean {
+    val text = (action + " " + name).lowercase()
+    return words.any { it in text }
+}
+
+private val LIKE_WORDS = listOf("like", "heart", "favorite", "favourite", "save", "thumb")
+private val SHUFFLE_WORDS = listOf("shuffle")
+private val REPEAT_WORDS = listOf("repeat")
 
 /** One control: a dim white glyph in a round touch target. */
 @Composable
@@ -451,6 +531,7 @@ private fun ControlButton(icon: androidx.compose.ui.graphics.vector.ImageVector,
 /** The controls as dim as the lyrics around them. */
 private const val CONTROL_ALPHA = 0.8f
 
+private const val COVER_DP = 72
 /** The cover behind the player look, under a veil heavy enough to keep it an always-on display. */
 private const val COVER_VEIL = 0.62f
 /** The Canvas behind the always-on display: blurred, and under a heavy veil to keep it dim. */

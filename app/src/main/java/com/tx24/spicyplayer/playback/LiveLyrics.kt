@@ -46,6 +46,13 @@ internal class LiveLyrics(context: Context) {
         private set
     var playing by mutableStateOf(false)
         private set
+    /** The player's own buttons (like, shuffle, ...), read again with every change and after a press. */
+    var actions by mutableStateOf<List<android.media.session.PlaybackState.CustomAction>>(emptyList())
+        private set
+    /** The player whose [actions] these are, for their icons. */
+    val playerPackage: String? get() = session.playerPackage
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    private val rereadActions = Runnable { actions = session.customActions }
 
     /** Told when the song, its lyrics or playing changes, beside the state above. */
     var onChange: () -> Unit = {}
@@ -57,17 +64,28 @@ internal class LiveLyrics(context: Context) {
     fun skipNext() = session.skipNext()
     fun skipPrevious() = session.skipPrevious()
 
+    /** Presses one of the player's own buttons; its new state shows once the player publishes it. */
+    fun sendCustomAction(action: String) {
+        session.sendCustomAction(action)
+        main.removeCallbacks(rereadActions)
+        main.postDelayed(rereadActions, 400L)
+        main.postDelayed({ actions = session.customActions }, 1_200L)
+    }
+
     fun start() {
         session.onTrack = { onTrack(it) }
         session.onPlayingChanged = {
             playing = it
+            actions = session.customActions
             onChange()
         }
         session.start()
         playing = session.isPlaying
+        actions = session.customActions
     }
 
     fun stop() {
+        main.removeCallbacksAndMessages(null)
         session.stop()
         scope.cancel()
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -77,6 +95,7 @@ internal class LiveLyrics(context: Context) {
     private fun onTrack(next: BackgroundSession.Track?) {
         track = next
         playing = session.isPlaying
+        actions = session.customActions
         if (next?.key == key) {
             onChange()
             return
