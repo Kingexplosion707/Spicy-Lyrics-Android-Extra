@@ -9,7 +9,6 @@ import android.app.Application
 import android.content.Context
 import com.tx24.spicyplayer.spotify.SpotifyAccount
 import com.tx24.spicyplayer.spotify.SpotifyDevice
-import com.tx24.spicyplayer.spotify.SpotifyPosition
 import android.content.ComponentName
 import android.graphics.Bitmap
 import android.media.MediaMetadata
@@ -124,6 +123,8 @@ private const val NATURAL_END_SLACK_MS = 2_500L
 
 /** How often the ticker reads the player and the audio output while the screen is up. */
 private const val PERIODIC_CHECK_MS = 2_000L
+/** A burst of session updates is taken at most this often ([ExternalPlaybackViewModel.scheduleUpdate]). */
+private const val UPDATE_COALESCE_MS = 40L
 /** How often the ticker looks while a seek waits for the player to confirm it. */
 private const val SEEK_CHECK_MS = 100L
 
@@ -725,10 +726,10 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
     private var transitionOffsetMs = 0L
     /** Spotify's Automix head start, resynced a moment into each new song ([AutomixResync]). */
     private val automixResync = Runnable { automixResyncNow() }
-    /** Every couple of seconds while playing, the clock is put back on the player ([LyricClock.resyncTo]). */
-    private val periodicResync = Runnable { periodicResyncNow() }
-    private var periodicResyncPosted = false
     private var automixSongKey: String? = null
+    private var automixRetries = 0
+    /** The song [ListeningSync] is told about: the player's own Spotify track ID. */
+    private var listeningId: String? = null
     private val sessionStickiness = SessionStickiness(SESSION_SWITCH_GRACE_MS)
     /** Looks at the sessions again once the followed one has been stopped for its grace. */
     private val sessionRecheck = Runnable { refreshSessionSelection() }
@@ -764,11 +765,86 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         val score: List<MusicHaptic>,
     )
 
+    /**
+     * What the followed session last gave its callbacks. Reading them back from the session is a
+     * binder call each (the metadata with its cover, the queue with every item) on the main
+     * thread, and Spotify sends dozens of updates within a fifth of a second at every song change
+     * and seek: read back each time, they held up the frames being drawn.
+     */
+    private val held = HeldSession()
+
+    private class HeldSession {
+        var metadata: MediaMetadata? = null
+        var hasMetadata = false
+        var playback: PlaybackState? = null
+        var hasPlayback = false
+        var queueIds: LongArray? = null
+
+        fun clear() {
+            metadata = null
+            hasMetadata = false
+            playback = null
+            hasPlayback = false
+            queueIds = null
+        }
+    }
+
     private val controllerCallback = object : MediaController.Callback() {
-        override fun onMetadataChanged(metadata: MediaMetadata?) = updateFromController(metadataChanged = true)
-        override fun onPlaybackStateChanged(playbackState: PlaybackState?) = updateFromController()
+        override fun onMetadataChanged(metadata: MediaMetadata?) {
+            held.metadata = metadata
+            held.hasMetadata = true
+            scheduleUpdate(metadataChanged = true)
+        }
+        override fun onPlaybackStateChanged(playbackState: PlaybackState?) {
+            held.playback = playbackState
+            held.hasPlayback = true
+            scheduleUpdate()
+        }
         override fun onQueueChanged(queue: MutableList<MediaSession.QueueItem>?) = refreshQueue()
         override fun onSessionDestroyed() = refresh()
+    }
+
+    private var updateScheduled = false
+    private var scheduledMetadataChanged = false
+    private var lastUpdateAt = 0L
+    private val scheduledUpdate = Runnable {
+        updateScheduled = false
+        val metadataChanged = scheduledMetadataChanged
+        scheduledMetadataChanged = false
+        lastUpdateAt = SystemClock.elapsedRealtime()
+        updateFromController(metadataChanged = metadataChanged)
+    }
+
+    /**
+     * Takes the session's update now, or, in a burst, once for all that arrive within
+     * [UPDATE_COALESCE_MS] of the last one taken. Nothing is lost: each report carries its own
+     * time, and the last one is the one that counts.
+     */
+    private fun scheduleUpdate(metadataChanged: Boolean = false) {
+        scheduledMetadataChanged = scheduledMetadataChanged || metadataChanged
+        if (updateScheduled) return
+        val since = SystemClock.elapsedRealtime() - lastUpdateAt
+        if (since >= UPDATE_COALESCE_MS) {
+            scheduledUpdate.run()
+        } else {
+            updateScheduled = true
+            mainHandler.postDelayed(scheduledUpdate, UPDATE_COALESCE_MS - since)
+        }
+    }
+
+    /** [ListeningSync] heard where the audio is: the lyrics move there, the music is left alone. */
+    private val listeningListener = object : ListeningSync.Listener {
+        override fun onOffset(spotifyId: String, offsetMs: Long) {
+            if (spotifyId != listeningId) return
+            val delta = offsetMs - transitionOffsetMs
+            if (delta == 0L) return
+            val now = SystemClock.elapsedRealtime()
+            transitionOffsetMs = offsetMs
+            mainHandler.removeCallbacks(automixResync)
+            clock.seekTo(clock.positionAt(now) + delta, now)
+            SyncTrace.add(now, "listening: lyrics moved $delta ms")
+            tickerWake.trySend(Unit)
+        }
     }
 
     private val activeSessionsListener = MediaSessionManager.OnActiveSessionsChangedListener {
@@ -776,6 +852,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
     }
 
     init {
+        ListeningSync.addListener(listeningListener)
         // The Spotify token that matching needs is fetched now, not by the first song.
         viewModelScope.launch(Dispatchers.IO) { lyricsBackend.warmUp() }
         startTicker()
@@ -873,7 +950,8 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
     private fun refreshQueue() {
         val active = controller
         val items = active?.queue.orEmpty()
-        val currentId = active?.playbackState?.activeQueueItemId
+        held.queueIds = LongArray(items.size) { items[it].queueId }
+        val currentId = (if (held.hasPlayback) held.playback else active?.playbackState)?.activeQueueItemId
         val queue = items.map { item ->
             val d = item.description
             QueueEntry(
@@ -1920,7 +1998,16 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
             if (token !in observedSessions) {
                 observedSessions[token] = session
                 val callback = object : MediaController.Callback() {
-                    override fun onPlaybackStateChanged(state: PlaybackState?) = refreshSessionSelection()
+                    // Which session to follow turns on whether each plays, not on where it is:
+                    // only a change of state looks at the sessions again (a list read and a
+                    // state read per session), not each of a burst of position updates.
+                    private var lastState = Int.MIN_VALUE
+                    override fun onPlaybackStateChanged(state: PlaybackState?) {
+                        val code = state?.state ?: -1
+                        if (code == lastState) return
+                        lastState = code
+                        refreshSessionSelection()
+                    }
                     override fun onSessionDestroyed() = refreshSessionSelection()
                 }
                 observedCallbacks[token] = callback
@@ -1968,18 +2055,15 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         transitionOffsetMs = if (crossfaded && CrossfadeLead.appliesNow(app, relayed)) crossfadeMs else 0L
         mainHandler.removeCallbacks(automixResync)
         automixSongKey = null
-        val songKey = AutomixResync.songKey(
-            active.packageName,
-            metadata?.getString(MediaMetadata.METADATA_KEY_TITLE),
-            metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST),
-        )
+        automixRetries = 0
+        val songKey = songKeyOf(active.packageName, metadata)
+        SyncTrace.add(now, "song change" + if (transitionOffsetMs > 0L) " after a crossfade: +$transitionOffsetMs ms" else "")
         if (transitionOffsetMs == 0L) scheduleAutomixResync(active, songKey)
-        if (transitionOffsetMs > 0L) SyncTrace.add(now, "new song after a crossfade: +${transitionOffsetMs} ms")
         // The Spotify account says where Spotify plays: a speaker through Connect never crossfades.
         if (crossfaded && !relayed && SpotifyAccount.signedIn(app)) {
             viewModelScope.launch {
                 val onPhone = SpotifyDevice.playingOnPhone(app) ?: return@launch
-                if (controller !== active || currentSongKey(active) != songKey || pendingCommand != null) return@launch
+                if (controller !== active || songKeyOf(active.packageName, held.metadata) != songKey || pendingCommand != null) return@launch
                 val lead = if (onPhone) crossfadeMs else 0L
                 val delta = lead - transitionOffsetMs
                 if (delta == 0L) return@launch
@@ -1992,6 +2076,12 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         }
     }
 
+    private fun songKeyOf(player: String, metadata: MediaMetadata?) = AutomixResync.songKey(
+        player,
+        metadata?.getString(MediaMetadata.METADATA_KEY_TITLE),
+        metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST),
+    )
+
     private fun scheduleAutomixResync(active: MediaController, songKey: String) {
         if (active.packageName != AutomixResync.PLAYER || !AutomixResync.enabled(getApplication())) return
         automixSongKey = songKey
@@ -2000,80 +2090,60 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
     }
 
     /**
-     * A moment into a new Spotify song ([AutomixResync]): with a Spotify account signed in, asks
-     * Spotify where the song is and moves the lyrics there, with no jump; otherwise (or when
-     * Spotify can't say) sends the player to where the lyrics are, as tapping a line does.
+     * A moment into a new Spotify song ([AutomixResync]): sends the player to where the lyrics
+     * are, as tapping a line does. Not when the song is being listened to instead
+     * ([ListeningSync]), which moves the lyrics and leaves the music alone. Every way out says
+     * why in the sync trace: a resync that silently didn't happen looks like one that didn't work.
      */
     private fun automixResyncNow() {
+        val now = SystemClock.elapsedRealtime()
         val active = controller ?: return
         val key = automixSongKey ?: return
-        val playback = active.playbackState ?: return
-        if (playback.state != PlaybackState.STATE_PLAYING || pendingCommand != null) return
-        if (currentSongKey(active) != key) return
-        val app = getApplication<Application>()
-        if (!SpotifyAccount.signedIn(app)) {
-            resyncBySeek(active, key)
+        if (songKeyOf(active.packageName, held.metadata) != key) {
+            SyncTrace.add(now, "resync skipped: another song by now")
             return
         }
-        // Spotify's account answer is logged only, for comparing with the phone's: moving the lyrics
-        // by it put them seconds off when the phone's reports were right. The seek ends in a report
-        // that matches the audio either way.
-        val trackId = active.metadata.sessionSpotifyId()
-        viewModelScope.launch {
-            val sample = SpotifyPosition.sample(app, key, trackId)
-            val now = SystemClock.elapsedRealtime()
-            if (sample != null) {
-                SyncTrace.add(now, "spotify account: ${sample.positionMs + (now - sample.atMs) - clock.positionAt(now)} ms from the phone")
+        when (ListeningSync.stateFor(listeningId)) {
+            ListeningSync.State.Listening, ListeningSync.State.Settled -> {
+                SyncTrace.add(now, "resync skipped: listening instead")
+                return
             }
-            if (controller !== active || automixSongKey != key || pendingCommand != null) return@launch
-            resyncBySeek(active, key)
+            // The song's analysis is still coming: a little longer, once.
+            ListeningSync.State.Loading -> if (automixRetries++ < 1) {
+                mainHandler.postDelayed(automixResync, AutomixResync.RETRY_MS)
+                return
+            }
+            else -> Unit
         }
-    }
-
-    /**
-     * Reads the player again and puts the clock exactly where it says, every couple of seconds
-     * while it plays. Reading it is a call to the player's session, no network and no frames; it
-     * stops while paused and starts again with the next playing report.
-     */
-    private fun periodicResyncNow() {
-        periodicResyncPosted = false
-        val active = controller ?: return
-        val playback = active.playbackState ?: return
-        if (playback.state != PlaybackState.STATE_PLAYING) return
-        if (pendingCommand == null && awaitingTrackReport.not()) {
-            val now = SystemClock.elapsedRealtime()
-            val speed = LyricClock.playingSpeed(true, playback.playbackSpeed)
-            val relayed = active.playbackInfo?.playbackType == MediaController.PlaybackInfo.PLAYBACK_TYPE_REMOTE
-            val report = LyricClock.Report(
-                playback.state, true, playback.position + transitionOffsetMs, playback.lastPositionUpdateTime, speed, relayed,
-            )
-            val moved = clock.resyncTo(report, now)
-            if (moved != 0L) SyncTrace.add(now, "resync: moved $moved ms to the player")
+        val playback = held.playback
+        if (playback?.state != PlaybackState.STATE_PLAYING || pendingCommand != null) {
+            // Still loading, or a command of ours is in the air: again shortly, a few times.
+            if (automixRetries++ < AutomixResync.MAX_RETRIES) {
+                mainHandler.postDelayed(automixResync, AutomixResync.RETRY_MS)
+            } else {
+                SyncTrace.add(now, "resync skipped: state=${playback?.state} pending=${pendingCommand != null}")
+            }
+            return
         }
-        periodicResyncPosted = true
-        mainHandler.postDelayed(periodicResync, LyricClock.RESYNC_EVERY_MS)
-    }
-
-    private fun currentSongKey(active: MediaController) = AutomixResync.songKey(
-        active.packageName,
-        active.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE),
-        active.metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST),
-    )
-
-    /** Sends the player to where the lyrics are, once per song across the app. */
-    private fun resyncBySeek(active: MediaController, key: String) {
-        val playback = active.playbackState ?: return
         val seekable = (playback.actions and PlaybackState.ACTION_SEEK_TO) != 0L
-        if (playback.state != PlaybackState.STATE_PLAYING || !seekable || active.packageName == seekRefusedBy) return
-        if (!AutomixResync.claim(key)) return
-        SyncTrace.add(SystemClock.elapsedRealtime(), "automix resync at ${currentPositionMs()}")
+        if (!seekable || active.packageName == seekRefusedBy) {
+            SyncTrace.add(now, "resync skipped: " + if (seekable) "the player ignored the last seek" else "the player can't seek")
+            return
+        }
+        if (!AutomixResync.claim(key)) {
+            SyncTrace.add(now, "resync: done by the background follower")
+            return
+        }
+        SyncTrace.add(now, "resync: seek to ${currentPositionMs()}")
         seekTo(currentPositionMs(), resync = true)
     }
 
     private fun detachController() {
+        mainHandler.removeCallbacks(scheduledUpdate)
+        updateScheduled = false
+        scheduledMetadataChanged = false
+        held.clear()
         mainHandler.removeCallbacks(automixResync)
-        mainHandler.removeCallbacks(periodicResync)
-        periodicResyncPosted = false
         transitionOffsetMs = 0L
         clearTranslation()
         controller?.unregisterCallback(controllerCallback)
@@ -2093,7 +2163,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         awaitingTrackReport = false
     }
 
-    private fun updateFromController(metadataChanged: Boolean = false, preserveStatus: Boolean = false) {
+    private fun updateFromController(metadataChanged: Boolean = false, preserveStatus: Boolean = false, reread: Boolean = false) {
         val active = controller
         if (active == null) {
             // Song state goes; settings the screens show (sources, keys, the Lyrics Manager) stay.
@@ -2124,8 +2194,18 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
             )
             return
         }
-        val metadata = active.metadata
-        val playback = active.playbackState
+        // From the callbacks where they've given them; read from the session otherwise (a new
+        // session, or the periodic check, which reads the small playback state again).
+        if (!held.hasMetadata) {
+            held.metadata = active.metadata
+            held.hasMetadata = true
+        }
+        if (!held.hasPlayback || reread) {
+            held.playback = active.playbackState
+            held.hasPlayback = true
+        }
+        val metadata = held.metadata
+        val playback = held.playback
         val trackIdentity = metadata.trackIdentity()
         val trackChanged = trackIdentity != currentTrackIdentity
         val refreshArtwork = metadataChanged || trackChanged
@@ -2133,6 +2213,11 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         // song at 0), and the new song's reports are the ones to follow.
         if (trackChanged && pendingCommand is PendingCommand.Seek) pendingCommand = null
         if (trackChanged) onSongChange(active, metadata)
+        val spotifyId = metadata.sessionSpotifyId()
+        if (spotifyId != listeningId) {
+            listeningId = spotifyId
+            ListeningSync.onSong(getApplication(), spotifyId)
+        }
         val waitingForSeek = pendingCommand is PendingCommand.Seek &&
             pendingCommand?.acknowledged(playback, trackIdentity) != true &&
             SystemClock.elapsedRealtime() - pendingCommand!!.issuedAtMs < 1_500L
@@ -2142,18 +2227,13 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         if (confirmed && pendingCommand is PendingCommand.Seek) seekRefusedBy = null
         if (!waitingForSeek && playback != null) {
             reconcileClock(playback, force = trackChanged || confirmed, trackChanged = trackChanged, snap = trackChanged || resyncConfirmed)
-            if (playback.state == PlaybackState.STATE_PLAYING && !periodicResyncPosted) {
-                periodicResyncPosted = true
-                mainHandler.postDelayed(periodicResync, LyricClock.RESYNC_EVERY_MS)
-            }
         }
-        val spotifyId = metadata.sessionSpotifyId()
-
         val latency = pendingCommand?.takeIf { it.acknowledged(playback, trackIdentity) }
             ?.let { SystemClock.elapsedRealtime() - it.issuedAtMs }
         if (latency != null) pendingCommand = null
 
-        val queueIndex = active.queue.orEmpty().indexOfFirst { it.queueId == playback?.activeQueueItemId }
+        val queueIds = held.queueIds ?: active.queue.orEmpty().let { items -> LongArray(items.size) { items[it].queueId } }.also { held.queueIds = it }
+        val queueIndex = playback?.activeQueueItemId?.let(queueIds::indexOf) ?: -1
         val direction = if (trackChanged) {
             // Our own skip says it outright; otherwise a lower queue position means we went back.
             pendingSkip?.takeIf { SystemClock.elapsedRealtime() - it.second < SKIP_DIRECTION_WINDOW_MS }?.first
@@ -2524,7 +2604,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
                 lastPeriodicCheckMs = now
                 refreshOutputRoute()
                 if (pendingCommand !is PendingCommand.Seek) {
-                    updateFromController(preserveStatus = true)
+                    updateFromController(preserveStatus = true, reread = true)
                 }
             }
             if (controller != null) {
@@ -2533,7 +2613,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
                     pendingCommand = null
                     seekRefusedBy = controller?.packageName
                     SyncTrace.add(SystemClock.elapsedRealtime(), "seek to ${seek.targetMs} not confirmed")
-                    updateFromController()
+                    updateFromController(reread = true)
                     // Spotify Free lists seeking but ignores it: resync from its reports instead.
                     if (seek.resync) resyncFromReports()
                     mutableState.value = mutableState.value.copy(
@@ -2572,7 +2652,10 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         val playing = playback.state == PlaybackState.STATE_PLAYING
         val speed = LyricClock.playingSpeed(playing, playback.playbackSpeed)
         val relayed = controller?.playbackInfo?.playbackType == MediaController.PlaybackInfo.PLAYBACK_TYPE_REMOTE
-        // After a crossfade the player counts the song from its switch, behind its audio.
+        // The report as the player gave it; a jump in it drops a heard offset before it's added below.
+        ListeningSync.onReport(listeningId, playback.position, playback.lastPositionUpdateTime, speed, playing)
+        // After a crossfade the player counts the song from its switch, behind its audio; with
+        // Automix, by what was heard.
         val position = playback.position + if (playing) transitionOffsetMs else 0L
         val report = LyricClock.Report(playback.state, playing, position, playback.lastPositionUpdateTime, speed, relayed)
         // Spotify reports buffering at its end position about a second before the next song
@@ -2634,8 +2717,8 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
     }
 
     override fun onCleared() {
+        ListeningSync.removeListener(listeningListener)
         mainHandler.removeCallbacks(automixResync)
-        mainHandler.removeCallbacks(periodicResync)
         runCatching { sessionManager.removeOnActiveSessionsChangedListener(activeSessionsListener) }
         mainHandler.removeCallbacks(sessionRecheck)
         stopObservingSessions()

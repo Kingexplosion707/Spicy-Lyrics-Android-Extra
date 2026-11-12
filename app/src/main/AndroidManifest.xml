@@ -5,6 +5,11 @@
     <!-- To tell "you're offline" apart from sources failing when a lookup comes back empty. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Listening to stay in sync (Settings → Scroll & Sync → Song changes, off until switched on):
+         hearing what the phone itself plays needs both. The microphone is never opened. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <!-- The background haptics run as a foreground service while the app is not in front. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />

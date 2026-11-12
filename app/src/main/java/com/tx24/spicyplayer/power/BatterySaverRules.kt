@@ -30,6 +30,8 @@ internal enum class SaverRule(val pref: String, val default: Boolean = true) {
     KeepScreenOn("saverStopsKeepScreenOn"),
     /** Smoother motion: the lyrics screen draws at 60 Hz. */
     HighRefreshRate("saverStopsHighRefreshRate"),
+    /** Listening to stay in sync ([com.tx24.spicyplayer.playback.ListeningSync]). */
+    Listening("saverStopsListening"),
     ;
 
     fun enabled(prefs: SharedPreferences): Boolean = prefs.getBoolean(pref, default)
@@ -42,6 +44,27 @@ internal enum class SaverRule(val pref: String, val default: Boolean = true) {
         /** Whether [key] is one of the rules' settings. */
         fun isRuleKey(key: String?): Boolean = key != null && entries.any { it.pref == key }
     }
+}
+
+/** Whether the phone is charging (plugged in or on a wireless charger), following it as that changes. */
+@Composable
+internal fun rememberCharging(): Boolean {
+    val context = LocalContext.current.applicationContext
+    fun read(): Boolean = context.getSystemService(android.os.BatteryManager::class.java)?.isCharging == true
+    var charging by remember { mutableStateOf(read()) }
+    DisposableEffect(context) {
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: android.content.Intent) {
+                charging = intent.action == android.content.Intent.ACTION_POWER_CONNECTED
+            }
+        }
+        val filter = android.content.IntentFilter(android.content.Intent.ACTION_POWER_CONNECTED)
+            .apply { addAction(android.content.Intent.ACTION_POWER_DISCONNECTED) }
+        androidx.core.content.ContextCompat.registerReceiver(context, receiver, filter, androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
+        charging = read()
+        onDispose { runCatching { context.unregisterReceiver(receiver) } }
+    }
+    return charging
 }
 
 /** Whether the phone's battery saver is on, following it as it turns on and off. */

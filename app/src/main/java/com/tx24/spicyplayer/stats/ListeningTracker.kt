@@ -10,8 +10,9 @@ import java.util.concurrent.Executors
 /**
  * Listening stats: while they're on (Settings → Listening stats), follows what plays, whichever
  * player it is and whether or not the app is open, and adds each song's time and plays to a
- * [ListeningLog] kept in the app's storage. Nothing leaves the phone. Main thread only, apart from
- * [log] and [clear].
+ * [ListeningLog] kept in the app's storage, which never leaves the phone. With scrobbling on
+ * ([Scrobbler]) each song heard far enough also goes to the user's ListenBrainz account; either
+ * one keeps it following. Main thread only, apart from [log] and [clear].
  */
 internal object ListeningTracker {
     const val PREF = "listeningStats"
@@ -25,13 +26,15 @@ internal object ListeningTracker {
     /** Listened of the song since it came up, for counting it as played once. */
     private var heardMs = 0L
     private var counted = false
+    /** This song has gone to [Scrobbler]. */
+    private var scrobbled = false
     @Volatile private var loaded: ListeningLog? = null
     private val disk = Executors.newSingleThreadExecutor()
 
     /** Starts or stops following to match the setting; [reconnect] starts over (access was just granted). */
     fun sync(context: Context, reconnect: Boolean = false) {
         val app = context.applicationContext
-        val on = app.getSharedPreferences("ui", Context.MODE_PRIVATE).getBoolean(PREF, false)
+        val on = statsOn(app) || Scrobbler.enabled(app)
         if (!on || reconnect) stop(app)
         if (!on || session != null) return
         val follower = BackgroundSession(app)
@@ -40,6 +43,8 @@ internal object ListeningTracker {
         session = follower
         follower.start()
     }
+
+    private fun statsOn(app: Context) = app.getSharedPreferences("ui", Context.MODE_PRIVATE).getBoolean(PREF, false)
 
     private fun stop(app: Context) {
         val follower = session ?: return
@@ -61,6 +66,7 @@ internal object ListeningTracker {
         current = track
         heardMs = 0L
         counted = false
+        scrobbled = false
         playingSince = if (track != null && follower.isPlaying) SystemClock.elapsedRealtime() else 0L
     }
 
@@ -91,6 +97,12 @@ internal object ListeningTracker {
         val plays = if (!counted && heardMs >= PLAY_AFTER_MS) { counted = true; 1 } else 0
         val ms = pendingMs
         pendingMs = 0L
+        if (!scrobbled && heardMs >= ListenBrainz.listenAfterMs(track.durationMs)) {
+            scrobbled = true
+            val startedAtSec = (System.currentTimeMillis() - heardMs) / 1_000L
+            Scrobbler.submit(app, ListenBrainz.Listen(track.title, track.artist, track.album, startedAtSec, track.durationMs))
+        }
+        if (!statsOn(app)) return
         val day = today()
         disk.execute {
             val log = log(app)

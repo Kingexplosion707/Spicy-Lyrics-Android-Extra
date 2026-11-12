@@ -1,12 +1,16 @@
 package com.tx24.spicyplayer.ui.settings
 
+import android.Manifest
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.BlurLinear
+import androidx.compose.material.icons.rounded.Hearing
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.runtime.Composable
@@ -19,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import com.tx24.spicyplayer.playback.ListeningSync
 import com.tx24.spicyplayer.spotify.SpotifyAccount
 import com.tx24.spicyplayer.ui.components.SpicyButton
 import com.tx24.spicyplayer.ui.components.SpicyTextField
@@ -35,12 +40,14 @@ import com.tx24.spicyplayer.ui.components.ToggleRow
 @Composable
 internal fun SongChangeSection(settings: AppSettings) {
     SettingsSection("Song changes") {
+        ListeningSyncRow(settings)
         ToggleRow(
             label = "Resync after a song change",
             checked = settings.resyncAfterSongChange,
             onCheckedChange = { settings.resyncAfterSongChange = it },
             description = "For Spotify's Automix, which reports each new song a few seconds late: two seconds in, " +
-                "Spotify is sent to where the lyrics are, as tapping a line does, and the song may jump a little.",
+                "Spotify is sent to where the lyrics are, as tapping a line does, and the song may jump a little. " +
+                "Left out for songs being listened to.",
             icon = Icons.Rounded.Sync,
         )
         SpotifyAccountRows()
@@ -65,8 +72,38 @@ internal fun SongChangeSection(settings: AppSettings) {
 }
 
 /**
- * Your own Spotify account: with it, Spotify's servers say where a new song is and the lyrics move
- * there with no jump ([SpotifyAccount]).
+ * Listen to stay in sync ([ListeningSync]): asks for Android's record-audio permission when
+ * switched on, and stays off without it.
+ */
+@Composable
+private fun ListeningSyncRow(settings: AppSettings) {
+    val context = LocalContext.current
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        settings.listeningSync = granted
+        if (!granted) Toast.makeText(context, "Listening needs the permission; it stays off", Toast.LENGTH_LONG).show()
+    }
+    ToggleRow(
+        label = "Listen to stay in sync",
+        // Switched on in a backup from another phone, or the permission taken away since: off.
+        checked = settings.listeningSync && ListeningSync.hasPermission(context),
+        onCheckedChange = { on ->
+            when {
+                !on -> settings.listeningSync = false
+                ListeningSync.hasPermission(context) -> settings.listeningSync = true
+                else -> ask.launch(Manifest.permission.RECORD_AUDIO)
+            }
+        },
+        description = "A little into each song, hears what the phone is playing for some seconds and moves the lyrics to " +
+            "where the music really is, without touching the music. For Spotify's Automix, and anything else that " +
+            "reports the wrong time. It hears the phone's own playback, not the microphone; nothing is recorded or " +
+            "sent. Android asks for its record-audio permission. Experimental.",
+        icon = Icons.Rounded.Hearing,
+    )
+}
+
+/**
+ * Your own Spotify account ([SpotifyAccount]): says which device Spotify plays on, which decides
+ * whether the Crossfade below applies.
  */
 @Composable
 private fun SpotifyAccountRows() {
@@ -83,8 +120,8 @@ private fun SpotifyAccountRows() {
     SettingRow(
         label = "Spotify account",
         description = when {
-            signedIn -> "Signed in${name?.let { " as $it" } ?: ""}. Testing: where Spotify's servers say each new song is goes into Debug info, beside the phone's."
-            else -> "Testing: sign in to compare where Spotify's servers say each new song is with the phone (Debug info). Make an app at developer.spotify.com " +
+            signedIn -> "Signed in${name?.let { " as $it" } ?: ""}. Spotify says which device it plays on, so the crossfade below only applies on the phone."
+            else -> "Sign in so Spotify can say which device it plays on (the crossfade below then only applies on the phone). Make an app at developer.spotify.com " +
                 "with the redirect URI ${SpotifyAccount.REDIRECT_URI}, then paste its Client ID below."
         },
         icon = Icons.Rounded.AccountCircle,

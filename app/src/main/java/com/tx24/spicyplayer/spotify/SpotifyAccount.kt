@@ -2,12 +2,8 @@ package com.tx24.spicyplayer.spotify
 
 import android.content.Context
 import android.net.Uri
-import android.os.SystemClock
 import android.util.Base64
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -164,62 +160,6 @@ internal object SpotifyAccount {
     }
 
     private fun ByteArray.base64Url(): String = Base64.encodeToString(this, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
-}
-
-/**
- * Where Spotify's own servers say the song is, for the signed-in account. Asked a moment into a
- * new song (Spotify's Automix reports it late on the phone, see
- * [com.tx24.spicyplayer.playback.AutomixResync]); the lyrics screen and the background follower
- * share one answer per song.
- */
-internal object SpotifyPosition {
-    /** [positionMs] at [atMs] (`elapsedRealtime`). */
-    data class Sample(val positionMs: Long, val atMs: Long)
-
-    private const val CURRENTLY_PLAYING = "https://api.spotify.com/v1/me/player/currently-playing"
-    private val lock = Mutex()
-    private var cachedKey: String? = null
-    private var cached: kotlinx.coroutines.Deferred<Sample?>? = null
-    private val cacheJob = Job()
-
-    /**
-     * Spotify's position for [songKey], or null when signed out, offline, on another song
-     * ([trackId], when known, has to match) or paused.
-     */
-    suspend fun sample(context: Context, songKey: String, trackId: String?): Sample? {
-        val deferred = lock.withLock {
-            if (cachedKey != songKey || cached == null) {
-                cachedKey = songKey
-                cached = kotlinx.coroutines.CoroutineScope(Dispatchers.IO + cacheJob).async { ask(context, trackId) }
-            }
-            cached!!
-        }
-        return deferred.await()
-    }
-
-    /** Two asks, keeping the one that came back quickest: its position is nearest its moment. */
-    private suspend fun ask(context: Context, trackId: String?): Sample? = coroutineScope {
-        val token = SpotifyAccount.accessToken(context) ?: return@coroutineScope null
-        var best: Pair<Sample, Long>? = null
-        repeat(2) {
-            val sent = SystemClock.elapsedRealtime()
-            val request = okhttp3.Request.Builder().url(CURRENTLY_PLAYING).header("Authorization", "Bearer $token").build()
-            val json = runCatching {
-                SpotifyAccount.client.newCall(request).execute().use { response ->
-                    if (response.code != 200) null else JSONObject(response.body?.string().orEmpty())
-                }
-            }.getOrNull() ?: return@repeat
-            val back = SystemClock.elapsedRealtime()
-            if (!json.optBoolean("is_playing")) return@coroutineScope null
-            val id = json.optJSONObject("item")?.optString("id")
-            if (trackId != null && id != null && id != trackId) return@coroutineScope null
-            if (!json.has("progress_ms")) return@repeat
-            val rtt = back - sent
-            val sample = Sample(json.getLong("progress_ms"), sent + rtt / 2)
-            if (best == null || rtt < best!!.second) best = sample to rtt
-        }
-        best?.first
-    }
 }
 
 /**

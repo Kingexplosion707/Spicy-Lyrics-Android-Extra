@@ -81,6 +81,18 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      # Pull requests build the optimised APK too (unsigned, never published): R8 and the baseline
+      # profile only run in that build, so a failure there would otherwise first show on main,
+      # as a release that never comes.
+      - name: Check the optimised build
+        if: github.event_name == 'pull_request'
+        env:
+          SPICY_LYRICS_CLIENT_KEY: ${{ vars.SPICY_LYRICS_CLIENT_KEY }}
+        run: |
+          ./gradlew --no-daemon assembleRelease
+          apk=$(ls app/build/outputs/apk/release/*.apk | head -n 1)
+          unzip -l "$apk" | grep -q 'assets/dexopt/baseline.prof' || { echo "The baseline profile isn't in $apk"; exit 1; }
+
       # Main gets an optimised (R8) build as well: debug builds run Compose unoptimised and
       # interpreted at first, so their lyrics and animations lag. It's published as a prerelease
       # the app's updater offers, named so it installs over the previous build from main. Manual

@@ -38,10 +38,12 @@ Plus takes those lyrics out of the app and onto the rest of your phone.
 | **Quick Settings tiles** | Turn the overlay and the always-on display on and off from the notification shade. They come back by themselves after a restart or an update. |
 | **Live captions** | When no lyrics source has the song (or you're watching a video), the captions of its YouTube video, word by word as YouTube's speech recognition heard them, so a word can be off. Off until you turn it on in Settings → Sources, or tap Live captions on the "no lyrics" screen. |
 | **Fonts and looks** | 42 fonts to download for the lyrics, their weight, line spacing and centring, gradient or custom colours, a one-tap Look, your own photo as the background and a dim over any background. |
-| **Listening stats** | Your top songs and artists, counted on your phone from any player once you switch it on. Nothing is sent anywhere. |
-| **Little things** | Copy the lyrics or save them as an .lrc file, hold a line to copy it, the volume in quick settings, and a landscape layout for the live wallpaper. |
+| **Listening stats and scrobbling** | Your top songs and artists, counted on your phone from any player once you switch it on; the stats never leave the phone. Optionally scrobble what you hear to your own ListenBrainz account. |
+| **Saved lines** | Keep the lines you like from Share lyrics, with their song, and copy or share them later. |
+| **Staying in sync** | A resync after each song change for Spotify's Automix, a Crossfade setting, and (experimental, off by default) listening to the phone's own playback to place the lyrics where the music really is. |
+| **Little things** | Copy the lyrics or save them as an .lrc file, share the song or look it up on Genius or YouTube, hold a line to copy it, the volume in quick settings, keep the screen on only while charging, and a landscape layout for the live wallpaper. |
 | **Always current** | New Spicy Lyrics Mobile releases are merged in automatically with every Plus feature kept, and each change ships as an optimised build that the app offers as an update. |
-| **Lighter on the phone** | Everything outside the app shares one connection to the music app and one set of lyrics lookups, the overlay draws at 60 fps over 120 Hz apps and keeps its lyrics ready while hidden, and the always-on display runs at the screen's lowest refresh rate. With the phone's battery saver on, the always-on display, overlay, lyrics notification and background haptics rest until it's off (Settings → Device → Battery saver). |
+| **Lighter on the phone** | Everything outside the app shares one connection to the music app and one set of lyrics lookups, the overlay keeps its lyrics ready while hidden and can be held to 60 fps, and the always-on display runs at the screen's lowest refresh rate. With the phone's battery saver on, the always-on display, overlay, lyrics notification and background haptics rest until it's off (Settings → Device → Battery saver). |
 
 Everything else is the original app: many lyric sources, TTML word timing kept all the way to the screen, Apple Music and Simple styles, romanization, translation, animated backgrounds, picture-in-picture, a widget and more.
 
@@ -65,6 +67,7 @@ Every extra is off until you turn it on, and each asks only for what it needs:
 | Notifications | The lyrics notification and the background services' status notifications |
 | Full-screen notifications (optional) | The always-on display's fallback if "Display over other apps" isn't given |
 | Write secure settings (via Shizuku, optional) | Hiding the status bar clock behind the status bar lyrics; granted once through Shizuku, never asked otherwise |
+| Record audio (optional) | "Listen to stay in sync" only: hearing what the phone itself plays to place the lyrics. The microphone is never opened, and nothing is recorded or sent |
 | Run at startup | Bringing back the overlay, always-on display and lyrics notification you turned on after the phone restarts |
 
 ## Privacy
@@ -72,6 +75,8 @@ Every extra is off until you turn it on, and each asks only for what it needs:
 - **No usage statistics.** Plus doesn't send any. (The original app's optional stats went to its author's own server; that's switched off here.)
 - **Lyrics lookups** send the song's title and artist (sometimes album or length) to the lyrics sources you have on, exactly as in the original app. Sources beyond the defaults stay off until you turn them on, and each says what it sends first.
 - **Translation** stays off until you turn it on and agree to the service. The wallpaper, overlay and always-on display only use translators you've already allowed in the app, and reuse translations the app has already made.
+- **Listening stats** stay on your phone. **Scrobbling** (off until you switch it on with your own token) sends each song's title, artist, album, length and when you heard it to ListenBrainz, and nothing else.
+- **Listening to stay in sync** (off until you switch it on) keeps only how loud each moment of the phone's playback was, in memory, for the seconds it listens. Nothing is saved or sent.
 - **The wallpaper, overlay and always-on display** use the same lookups as the app, from your phone, with nothing extra sent anywhere.
 
 The original README's full source-by-source breakdown applies to Plus too: see [Spicy Lyrics Mobile's privacy section](https://github.com/spicylyrics/mobile#privacy).

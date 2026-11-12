@@ -134,6 +134,9 @@ private class SessionCore(private val app: Context) {
     /** The crossfade lead for this song ([AutomixResync] has the Automix side), added to its reports until a seek. */
     private var transitionOffsetMs = 0L
     private var automixSongKey: String? = null
+    private var automixRetries = 0
+    /** The song [ListeningSync] is told about: the player's own Spotify track ID. */
+    private var listeningId: String? = null
     private val automixResync = Runnable { automixResyncNow() }
     /** Every couple of seconds while playing, the clock is put back on the player ([LyricClock.resyncTo]). */
     private val periodicResync = Runnable { periodicResyncNow() }
@@ -195,17 +198,63 @@ private class SessionCore(private val app: Context) {
 
     private val sessionsListener = MediaSessionManager.OnActiveSessionsChangedListener { follow(it.orEmpty()) }
 
+    /**
+     * What the followed session last gave its callbacks, so a burst of updates (Spotify sends
+     * dozens at a song change or seek) isn't a binder read of the metadata, cover and all, and of
+     * the playback state for each.
+     */
+    private var heldMetadata: MediaMetadata? = null
+    private var hasHeldMetadata = false
+    private var heldPlayback: PlaybackState? = null
+    private var hasHeldPlayback = false
+    private var updateScheduled = false
+    private var lastUpdateAt = 0L
+    private val scheduledUpdate = Runnable {
+        updateScheduled = false
+        lastUpdateAt = SystemClock.elapsedRealtime()
+        update()
+    }
+
+    /** Takes the session's update now, or once for all of a burst that arrive within [UPDATE_COALESCE_MS]. */
+    private fun scheduleUpdate() {
+        if (updateScheduled) return
+        val since = SystemClock.elapsedRealtime() - lastUpdateAt
+        if (since >= UPDATE_COALESCE_MS) {
+            scheduledUpdate.run()
+        } else {
+            updateScheduled = true
+            main.postDelayed(scheduledUpdate, UPDATE_COALESCE_MS - since)
+        }
+    }
+
+    private fun forgetHeld() {
+        main.removeCallbacks(scheduledUpdate)
+        updateScheduled = false
+        heldMetadata = null
+        hasHeldMetadata = false
+        heldPlayback = null
+        hasHeldPlayback = false
+    }
+
     private val controllerCallback = object : MediaController.Callback() {
         override fun onMetadataChanged(metadata: MediaMetadata?) {
+            heldMetadata = metadata
+            hasHeldMetadata = true
             coverStale = true
-            update()
+            scheduleUpdate()
         }
-        override fun onPlaybackStateChanged(state: PlaybackState?) = refreshSessions()
+        // The session observers below look at the sessions again when its state changes.
+        override fun onPlaybackStateChanged(state: PlaybackState?) {
+            heldPlayback = state
+            hasHeldPlayback = true
+            scheduleUpdate()
+        }
         override fun onSessionDestroyed() = refreshSessions()
     }
 
     fun start() {
         if (sessionManager != null) return
+        ListeningSync.addListener(listeningListener)
         outputProfiles = AudioOutputProfiles(app)
         songDelays = SongDelays(app)
         playerDelays = PlayerDelays(app)
@@ -213,6 +262,8 @@ private class SessionCore(private val app: Context) {
     }
 
     fun stop() {
+        ListeningSync.removeListener(listeningListener)
+        listeningId = null
         main.removeCallbacks(sessionRecheck)
         main.removeCallbacks(automixResync)
         main.removeCallbacks(periodicResync)
@@ -220,6 +271,7 @@ private class SessionCore(private val app: Context) {
         deviceCheck?.cancel()
         runCatching { sessionManager?.removeOnActiveSessionsChangedListener(sessionsListener) }
         controller?.unregisterCallback(controllerCallback)
+        forgetHeld()
         observedSessions.forEach { (token, session) -> observedCallbacks[token]?.let(session::unregisterCallback) }
         observedSessions.clear()
         observedCallbacks.clear()
@@ -258,6 +310,7 @@ private class SessionCore(private val app: Context) {
         runCatching { sessionManager?.removeOnActiveSessionsChangedListener(sessionsListener) }
         sessionManager = null
         controller?.unregisterCallback(controllerCallback)
+        forgetHeld()
         controller = null
         observedSessions.forEach { (token, session) -> observedCallbacks[token]?.let(session::unregisterCallback) }
         observedSessions.clear()
@@ -280,7 +333,14 @@ private class SessionCore(private val app: Context) {
             val token = session.sessionToken
             if (token !in observedSessions) {
                 val callback = object : MediaController.Callback() {
-                    override fun onPlaybackStateChanged(state: PlaybackState?) = refreshSessions()
+                    // Which session to follow turns on whether each plays, not on where it is.
+                    private var lastState = Int.MIN_VALUE
+                    override fun onPlaybackStateChanged(state: PlaybackState?) {
+                        val code = state?.state ?: -1
+                        if (code == lastState) return
+                        lastState = code
+                        refreshSessions()
+                    }
                     override fun onSessionDestroyed() = refreshSessions()
                 }
                 observedSessions[token] = session
@@ -296,6 +356,7 @@ private class SessionCore(private val app: Context) {
         } else {
             stickiness.reset()
             controller?.unregisterCallback(controllerCallback)
+            forgetHeld()
             controller = best
             coverStale = true
             clock.reset(now)
@@ -307,7 +368,11 @@ private class SessionCore(private val app: Context) {
 
     private fun update() {
         val session = controller
-        val metadata = session?.metadata
+        if (session != null && !hasHeldMetadata) {
+            heldMetadata = session.metadata
+            hasHeldMetadata = true
+        }
+        val metadata = if (session == null) null else heldMetadata
         val key = metadata.lyricsKey()
         if (session == null || metadata == null || key == null) {
             if (track != null) {
@@ -320,6 +385,11 @@ private class SessionCore(private val app: Context) {
         }
         val newSong = key != track?.key
         if (newSong) onSongChange(session, metadata)
+        val spotifyId = metadata.sessionSpotifyId()
+        if (spotifyId != listeningId) {
+            listeningId = spotifyId
+            ListeningSync.onSong(app, spotifyId)
+        }
         if (newSong) startSong(key, metadata)
         // Players may publish the duration after the title, or briefly omit it during
         // playback updates. Learn it when available without hiding an existing timeline.
@@ -354,6 +424,7 @@ private class SessionCore(private val app: Context) {
         transitionOffsetMs = if (crossfaded && CrossfadeLead.appliesNow(app, relayed)) crossfadeMs else 0L
         main.removeCallbacks(automixResync)
         automixSongKey = null
+        automixRetries = 0
         val songKey = AutomixResync.songKey(
             session.packageName,
             metadata.getString(MediaMetadata.METADATA_KEY_TITLE),
@@ -384,32 +455,54 @@ private class SessionCore(private val app: Context) {
         main.postDelayed(automixResync, AutomixResync.DELAY_MS)
     }
 
-    /** A moment into a new Spotify song ([AutomixResync]): the player is sent to where the lyrics are. */
+    /**
+     * A moment into a new Spotify song ([AutomixResync]): the player is sent to where the lyrics
+     * are, unless the song is being listened to instead ([ListeningSync]).
+     */
     private fun automixResyncNow() {
+        val now = SystemClock.elapsedRealtime()
         val session = controller ?: return
         val key = automixSongKey ?: return
-        val playback = session.playbackState ?: return
-        if (playback.state != PlaybackState.STATE_PLAYING) return
         if (songKeyOf(session) != key) return
-        resyncBySeek(session, key)
+        when (ListeningSync.stateFor(listeningId)) {
+            ListeningSync.State.Listening, ListeningSync.State.Settled -> return
+            ListeningSync.State.Loading -> if (automixRetries++ < 1) {
+                main.postDelayed(automixResync, AutomixResync.RETRY_MS)
+                return
+            }
+            else -> Unit
+        }
+        val playback = heldPlayback
+        if (playback?.state != PlaybackState.STATE_PLAYING) {
+            if (automixRetries++ < AutomixResync.MAX_RETRIES) main.postDelayed(automixResync, AutomixResync.RETRY_MS)
+            return
+        }
+        if ((playback.actions and PlaybackState.ACTION_SEEK_TO) == 0L) return
+        if (!AutomixResync.claim(key)) return
+        val target = clock.positionAt(now)
+        SyncTrace.add(now, "resync (background): seek to $target")
+        transitionOffsetMs = 0L
+        clock.seekTo(target, now)
+        session.transportControls.seekTo(target)
     }
 
     private fun songKeyOf(session: MediaController) = AutomixResync.songKey(
         session.packageName,
-        session.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE),
-        session.metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST),
+        heldMetadata?.getString(MediaMetadata.METADATA_KEY_TITLE),
+        heldMetadata?.getString(MediaMetadata.METADATA_KEY_ARTIST),
     )
 
-    /** Sends the player to where the lyrics are, once per song across the app. */
-    private fun resyncBySeek(session: MediaController, key: String) {
-        val playback = session.playbackState ?: return
-        if (playback.state != PlaybackState.STATE_PLAYING || (playback.actions and PlaybackState.ACTION_SEEK_TO) == 0L) return
-        if (!AutomixResync.claim(key)) return
-        val now = SystemClock.elapsedRealtime()
-        val target = clock.positionAt(now)
-        transitionOffsetMs = 0L
-        clock.seekTo(target, now)
-        session.transportControls.seekTo(target)
+    /** [ListeningSync] heard where the audio is: the lyrics move there, the music is left alone. */
+    private val listeningListener = object : ListeningSync.Listener {
+        override fun onOffset(spotifyId: String, offsetMs: Long) {
+            if (spotifyId != listeningId) return
+            val delta = offsetMs - transitionOffsetMs
+            if (delta == 0L) return
+            val now = SystemClock.elapsedRealtime()
+            transitionOffsetMs = offsetMs
+            main.removeCallbacks(automixResync)
+            clock.seekTo(clock.positionAt(now) + delta, now)
+        }
     }
 
     private fun startSong(key: String, metadata: MediaMetadata) {
@@ -450,7 +543,13 @@ private class SessionCore(private val app: Context) {
         periodicResyncPosted = false
         val session = controller ?: return
         val playback = session.playbackState ?: return
+        heldPlayback = playback
+        hasHeldPlayback = true
         if (playback.state != PlaybackState.STATE_PLAYING) return
+        ListeningSync.onReport(
+            listeningId, playback.position, playback.lastPositionUpdateTime,
+            LyricClock.playingSpeed(true, playback.playbackSpeed), true,
+        )
         if (!awaitingReport) {
             val relayed = session.playbackInfo?.playbackType == MediaController.PlaybackInfo.PLAYBACK_TYPE_REMOTE
             val report = LyricClock.Report(
@@ -465,7 +564,11 @@ private class SessionCore(private val app: Context) {
 
     private fun report(session: MediaController, newSong: Boolean) {
         val now = SystemClock.elapsedRealtime()
-        val playback = session.playbackState
+        if (!hasHeldPlayback) {
+            heldPlayback = session.playbackState
+            hasHeldPlayback = true
+        }
+        val playback = heldPlayback
         if (playback?.state == PlaybackState.STATE_PLAYING && !periodicResyncPosted) {
             periodicResyncPosted = true
             main.postDelayed(periodicResync, LyricClock.RESYNC_EVERY_MS)
@@ -477,6 +580,8 @@ private class SessionCore(private val app: Context) {
         val playing = playback.state == PlaybackState.STATE_PLAYING
         val speed = LyricClock.playingSpeed(playing, playback.playbackSpeed)
         val relayed = session.playbackInfo?.playbackType == MediaController.PlaybackInfo.PLAYBACK_TYPE_REMOTE
+        // The report as the player gave it; a jump in it drops a heard offset before it's added below.
+        ListeningSync.onReport(listeningId, playback.position, playback.lastPositionUpdateTime, speed, playing)
         val position = playback.position + if (playing) transitionOffsetMs else 0L
         val report = LyricClock.Report(playback.state, playing, position, playback.lastPositionUpdateTime, speed, relayed)
         val fresh = clock.isFresh(report)
@@ -504,6 +609,8 @@ private class SessionCore(private val app: Context) {
 
         /** How long the followed session may stay stopped before another playing one takes over. */
         private const val SESSION_SWITCH_GRACE_MS = 2_000L
+        /** A burst of session updates is taken at most this often. */
+        private const val UPDATE_COALESCE_MS = 40L
         /** How long a looked-up delay is used before it's looked up again (a new output, a changed setting). */
         private const val DELAYS_FRESH_MS = 1_000L
     }

@@ -54,6 +54,7 @@ import com.tx24.spicyplayer.ui.components.ChromeTheme
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.ClosedCaption
 import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.BatterySaver
 import androidx.compose.material.icons.rounded.Notes
 import androidx.compose.material.icons.rounded.UnfoldMore
@@ -283,6 +284,7 @@ internal fun ThisSongContent(
     }
     SongDelayRow(state, viewModel)
     LyricsExportRows(state, viewModel)
+    SongLinkRows(state)
     SettingRow(
         label = "Lyrics Manager",
         description = "Use your own TTML for this song, once or saved, and manage the songs you've saved.",
@@ -1199,7 +1201,7 @@ internal fun DeviceContent(settings: AppSettings) {
         label = "Smoother motion",
         checked = settings.highRefreshRate,
         onCheckedChange = { settings.highRefreshRate = it },
-        description = "Draw at your screen's full refresh rate instead of 60 Hz. Uses slightly more battery.",
+        description = "Draw at your screen's full refresh rate instead of 60 Hz. Off saves some battery.",
         icon = Icons.Rounded.Animation,
     )
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) ToggleRow(
@@ -1308,6 +1310,13 @@ internal fun DeviceContent(settings: AppSettings) {
             onCheckedChange = { settings.keepScreenOn = it },
             description = "Stop the screen from turning off while music plays.",
             icon = Icons.Rounded.StayCurrentPortrait,
+        )
+        if (settings.keepScreenOn) ToggleRow(
+            label = "Only while charging",
+            checked = settings.keepScreenOnOnlyCharging,
+            onCheckedChange = { settings.keepScreenOnOnlyCharging = it },
+            description = "On battery, the screen turns off as usual.",
+            icon = Icons.Rounded.BatteryChargingFull,
         )
         SettingRow(
             label = "System bars",

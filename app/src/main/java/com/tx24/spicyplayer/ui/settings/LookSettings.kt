@@ -28,6 +28,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.tx24.spicyplayer.lyrics.LyricsExport
+import android.content.Intent
+import androidx.compose.material.icons.rounded.IosShare
+import androidx.compose.material.icons.rounded.TravelExplore
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import com.tx24.spicyplayer.ui.theme.SpicySpacing
+import com.tx24.spicyplayer.lyrics.SongLinks
 import com.tx24.spicyplayer.lyrics.LyricsState
 import com.tx24.spicyplayer.overlay.OverlayColor
 import com.tx24.spicyplayer.playback.ExternalPlaybackViewModel
@@ -315,6 +322,36 @@ internal fun LyricsExportRows(state: PlayerUiState, viewModel: ExternalPlaybackV
         icon = Icons.Rounded.Save,
     ) {
         SpicyButton("Save", onClick = { save.launch(LyricsExport.fileName(state.title, state.artist)) })
+    }
+}
+
+/** This song: sharing it, and looking it up elsewhere ([SongLinks]). */
+@Composable
+internal fun SongLinkRows(state: PlayerUiState) {
+    if (state.sourcePackage == null || state.title.isBlank()) return
+    val context = LocalContext.current
+    val trackId = state.manualSpotifyId ?: state.detectedSpotifyId
+    SettingRow(
+        label = "Share song",
+        description = if (SongLinks.spotify(trackId) != null) "Its name and its Spotify link." else "Its name and artist.",
+        icon = Icons.Rounded.IosShare,
+    ) {
+        SpicyButton("Share", onClick = {
+            val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+                .putExtra(Intent.EXTRA_TEXT, SongLinks.shareText(state.title, state.artist, trackId))
+            runCatching { context.startActivity(Intent.createChooser(send, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        })
+    }
+    SettingRow(
+        label = "Look it up",
+        description = "Search for the song on Genius or YouTube.",
+        icon = Icons.Rounded.TravelExplore,
+        stacked = true,
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(SpicySpacing.S2)) {
+            SpicyButton("Genius", external = true, onClick = { openUrl(context, SongLinks.genius(state.title, state.artist)) })
+            SpicyButton("YouTube", external = true, onClick = { openUrl(context, SongLinks.youtube(state.title, state.artist)) })
+        }
     }
 }
 

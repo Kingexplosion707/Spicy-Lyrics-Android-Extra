@@ -218,6 +218,8 @@ class AppSettings(private val prefs: SharedPreferences) {
     var backgroundFollowsMotion by boolean("backgroundFollowsMotion", true)
 
     var keepScreenOn by boolean("keepScreenOn", true)
+    /** Keep the screen on only while the phone is charging; on battery it times out as usual. */
+    var keepScreenOnOnlyCharging by boolean("keepScreenOnOnlyCharging", false)
     /** The lyrics screen shows over the lock screen; anything opened over the lyrics asks to unlock first. */
     var showOverLockScreen by boolean("showOverLockScreen", false)
     /** Left untouched while the music plays, the lyrics screen dims to the lyrics alone on black. */
@@ -276,8 +278,12 @@ class AppSettings(private val prefs: SharedPreferences) {
     var headerSize by enum("headerSize", HeaderSize.Large)
     /** Which side the now-playing panel sits on in landscape; the floating swap button, not a settings row. */
     var panelSide by enum("panelSide", PanelSide.Left)
-    /** The screen's full refresh rate (90/120 Hz) instead of 60 Hz, which costs battery. */
-    var highRefreshRate by boolean("highRefreshRate", false)
+    /**
+     * The screen's full refresh rate (90/120 Hz) instead of 60 Hz. On by default in Plus: on a
+     * 120 Hz screen the lyrics at 60 Hz look choppy beside everything else on the phone. Costs
+     * some battery; the battery saver can cap it ([com.tx24.spicyplayer.power.SaverRule.HighRefreshRate]).
+     */
+    var highRefreshRate by boolean("highRefreshRate", true)
     var autoHideControls by boolean("autoHideControls", true)
     var controlsHideDelay by enum("controlsHideDelay", ControlsHideDelay.Default)
     /** The controls fade while paused too, not only while playing. */
@@ -329,6 +335,9 @@ class AppSettings(private val prefs: SharedPreferences) {
     var saverStopsKeepScreenOn by boolean("saverStopsKeepScreenOn", true)
     var saverStopsHighRefreshRate by boolean("saverStopsHighRefreshRate", true)
     var saverLowPerformance by boolean("saverLowPerformance", false)
+    var saverStopsListening by boolean("saverStopsListening", true)
+    /** Hears the phone's playback to place the lyrics ([com.tx24.spicyplayer.playback.ListeningSync]); needs record-audio. */
+    var listeningSync by boolean("listeningSync", false)
     /** Spotify's Automix: resync a moment into each new song ([com.tx24.spicyplayer.playback.AutomixResync]). */
     var resyncAfterSongChange by boolean("resyncAfterSongChange", true)
     /** The player's crossfade, in seconds: a song that follows another on its own starts this far in. */
@@ -372,6 +381,8 @@ class AppSettings(private val prefs: SharedPreferences) {
     var romanizeButton by boolean("romanizeButton", true)
     var translateButton by boolean("translateButton", true)
     var resyncButton by boolean("resyncButton", true)
+    /** Songs heard far enough go to the user's ListenBrainz account ([com.tx24.spicyplayer.stats.Scrobbler]). */
+    var scrobbleListenBrainz by boolean("scrobbleListenBrainz", false)
     var expandButton by boolean("expandButton", true)
     /** How the Lyrics Manager's last upload was applied; the upload screen reopens on it. */
     var ttmlUploadSaves by boolean("ttmlUploadSaves", true)
