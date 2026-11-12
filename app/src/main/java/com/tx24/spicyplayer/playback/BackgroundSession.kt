@@ -2,9 +2,6 @@ package com.tx24.spicyplayer.playback
 
 import android.content.ComponentName
 import android.content.Context
-import com.tx24.spicyplayer.spotify.SpotifyAccount
-import com.tx24.spicyplayer.spotify.SpotifyDevice
-import kotlinx.coroutines.launch
 import android.graphics.Bitmap
 import android.media.MediaMetadata
 import android.media.session.MediaController
@@ -131,7 +128,7 @@ private class SessionCore(private val app: Context) {
      * each time costs far more than the update itself, so it's read only after this is set.
      */
     private var coverStale = true
-    /** The crossfade lead for this song ([AutomixResync] has the Automix side), added to its reports until a seek. */
+    /** How far [ListeningSync] heard this song's audio from the player's reports, added to them until a seek. */
     private var transitionOffsetMs = 0L
     private var automixSongKey: String? = null
     private var automixRetries = 0
@@ -141,9 +138,6 @@ private class SessionCore(private val app: Context) {
     /** Every couple of seconds while playing, the clock is put back on the player ([LyricClock.resyncTo]). */
     private val periodicResync = Runnable { periodicResyncNow() }
     private var periodicResyncPosted = false
-    /** Asks the Spotify account where Spotify plays ([SpotifyDevice]), on the main thread. */
-    private val deviceScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
-    private var deviceCheck: kotlinx.coroutines.Job? = null
 
     private var outputProfiles: AudioOutputProfiles? = null
     private var songDelays: SongDelays? = null
@@ -268,7 +262,6 @@ private class SessionCore(private val app: Context) {
         main.removeCallbacks(automixResync)
         main.removeCallbacks(periodicResync)
         periodicResyncPosted = false
-        deviceCheck?.cancel()
         runCatching { sessionManager?.removeOnActiveSessionsChangedListener(sessionsListener) }
         controller?.unregisterCallback(controllerCallback)
         forgetHeld()
@@ -413,39 +406,20 @@ private class SessionCore(private val app: Context) {
         if (wasPlaying != clock.isPlaying) onPlayingChanged(clock.isPlaying)
     }
 
-    /** Before the new song replaces the last: its crossfade lead, and Spotify's Automix resync. */
+    /** A new song: nothing heard about it yet, and Spotify's is resynced a moment in ([AutomixResync]). */
     private fun onSongChange(session: MediaController, metadata: MediaMetadata) {
-        val now = SystemClock.elapsedRealtime()
-        val crossfadeMs = CrossfadeLead.ms(app)
-        val lastDuration = track?.durationMs ?: 0L
-        val endedOnItsOwn = lastDuration > 0L && clock.lastSongPositionAt(now) >= lastDuration - crossfadeMs - 2_500L
-        val relayed = session.playbackInfo?.playbackType == MediaController.PlaybackInfo.PLAYBACK_TYPE_REMOTE
-        val crossfaded = crossfadeMs > 0L && endedOnItsOwn
-        transitionOffsetMs = if (crossfaded && CrossfadeLead.appliesNow(app, relayed)) crossfadeMs else 0L
+        transitionOffsetMs = 0L
         main.removeCallbacks(automixResync)
         automixSongKey = null
         automixRetries = 0
-        val songKey = AutomixResync.songKey(
-            session.packageName,
-            metadata.getString(MediaMetadata.METADATA_KEY_TITLE),
-            metadata.getString(MediaMetadata.METADATA_KEY_ARTIST),
+        scheduleAutomixResync(
+            session,
+            AutomixResync.songKey(
+                session.packageName,
+                metadata.getString(MediaMetadata.METADATA_KEY_TITLE),
+                metadata.getString(MediaMetadata.METADATA_KEY_ARTIST),
+            ),
         )
-        if (transitionOffsetMs == 0L) scheduleAutomixResync(session, songKey)
-        // The Spotify account says where Spotify plays: a speaker through Connect never crossfades.
-        if (crossfaded && !relayed && SpotifyAccount.signedIn(app)) {
-            deviceCheck?.cancel()
-            deviceCheck = deviceScope.launch {
-                val onPhone = SpotifyDevice.playingOnPhone(app) ?: return@launch
-                if (controller !== session || songKeyOf(session) != songKey) return@launch
-                val lead = if (onPhone) crossfadeMs else 0L
-                val delta = lead - transitionOffsetMs
-                if (delta == 0L) return@launch
-                val at = SystemClock.elapsedRealtime()
-                transitionOffsetMs = lead
-                clock.seekTo(clock.positionAt(at) + delta, at)
-                if (lead == 0L) scheduleAutomixResync(session, songKey)
-            }
-        }
     }
 
     private fun scheduleAutomixResync(session: MediaController, songKey: String) {
@@ -455,23 +429,12 @@ private class SessionCore(private val app: Context) {
         main.postDelayed(automixResync, AutomixResync.DELAY_MS)
     }
 
-    /**
-     * A moment into a new Spotify song ([AutomixResync]): the player is sent to where the lyrics
-     * are, unless the song is being listened to instead ([ListeningSync]).
-     */
+    /** A moment into a new Spotify song ([AutomixResync]): the player is sent to where the lyrics are. */
     private fun automixResyncNow() {
         val now = SystemClock.elapsedRealtime()
         val session = controller ?: return
         val key = automixSongKey ?: return
         if (songKeyOf(session) != key) return
-        when (ListeningSync.stateFor(listeningId)) {
-            ListeningSync.State.Listening, ListeningSync.State.Settled -> return
-            ListeningSync.State.Loading -> if (automixRetries++ < 1) {
-                main.postDelayed(automixResync, AutomixResync.RETRY_MS)
-                return
-            }
-            else -> Unit
-        }
         val playback = heldPlayback
         if (playback?.state != PlaybackState.STATE_PLAYING) {
             if (automixRetries++ < AutomixResync.MAX_RETRIES) main.postDelayed(automixResync, AutomixResync.RETRY_MS)
@@ -479,7 +442,7 @@ private class SessionCore(private val app: Context) {
         }
         if ((playback.actions and PlaybackState.ACTION_SEEK_TO) == 0L) return
         if (!AutomixResync.claim(key)) return
-        val target = clock.positionAt(now)
+        val target = clock.positionAt(now) + AutomixResync.seekLeadMs(null)
         SyncTrace.add(now, "resync (background): seek to $target")
         transitionOffsetMs = 0L
         clock.seekTo(target, now)
@@ -590,7 +553,6 @@ private class SessionCore(private val app: Context) {
         val startedSong = newSong && !fresh && clock.startedSong(report, now)
         if (newSong && !fresh && !startedSong) {
             clock.startTrack(now, speed, playing)
-            if (transitionOffsetMs > 0L) clock.seekTo(transitionOffsetMs, now)
             awaitingReport = true
             return
         }

@@ -72,8 +72,6 @@ class LyricClock(nowMs: Long) {
     private var lastReportAtMs = Long.MIN_VALUE / 2
     /** Whether the last report sent the clock back to a song's start ([startedSong]). */
     private var lastReportRestarted = false
-    /** Where the clock was when the last report sent it back to a start. */
-    private var restartedFromMs = 0L
 
     val isPlaying get() = anchor.isPlaying
 
@@ -114,7 +112,6 @@ class LyricClock(nowMs: Long) {
         if (pauseReport) stalePauseAtMs = report.positionMs
         lastReportAtMs = nowMs
         lastReportRestarted = report.positionMs <= START_REPORT_MAX_MS && predicted - raw >= JUMP_MS
-        if (lastReportRestarted) restartedFromMs = predicted
         val reported = raw + biasMs
         val drift = reported - predicted
         val speedChanged = report.playing && anchor.isPlaying && report.speed != anchor.speed
@@ -177,14 +174,6 @@ class LyricClock(nowMs: Long) {
      */
     fun startedSong(report: Report, nowMs: Long): Boolean =
         report == lastReport && lastReportRestarted && nowMs - lastReportAtMs <= START_REPORT_FRESH_MS
-
-    /**
-     * Where the last song got to: where the clock was before a new song's start report sent it
-     * back ([startedSong]), or where it is now.
-     */
-    fun lastSongPositionAt(nowMs: Long): Long =
-        if (lastReportRestarted && nowMs - lastReportAtMs <= START_REPORT_FRESH_MS) restartedFromMs + (nowMs - lastReportAtMs)
-        else positionAt(nowMs)
 
     /**
      * The periodic resync: puts the clock exactly where the player's [report] says it is now, when
