@@ -587,7 +587,9 @@ private fun LyricsApp(
     val view = LocalView.current
     // As the always-on display it stays up whatever plays, paused or not. The battery saver can
     // let the screen sleep anyway (Settings → Device → Battery saver).
-    val keepAwake = (settings.keepScreenOn && state.isPlaying && !(batterySaver && settings.saverStopsKeepScreenOn)) ||
+    val charging = com.tx24.spicyplayer.power.rememberCharging()
+    val keepAwake = (settings.keepScreenOn && state.isPlaying && (charging || !settings.keepScreenOnOnlyCharging) &&
+        !(batterySaver && settings.saverStopsKeepScreenOn)) ||
         (settings.ambientAsAod && !(batterySaver && settings.saverStopsAlwaysOn))
     DisposableEffect(view, keepAwake) {
         view.keepScreenOn = keepAwake
@@ -1174,6 +1176,7 @@ private fun LyricsApp(
                     onShareLyrics = { whenUnlocked { showShareLyrics = true } }.takeIf { settings.shareButton && state.lyrics is LyricsState.Ready },
                     onSleepTimer = { showSleepTimer = true }.takeIf { settings.sleepTimerButton && state.sourcePackage != null },
                     sleepTimerOn = SleepTimerService.state.value != null,
+                    onResync = { viewModel.resyncNow() }.takeIf { settings.resyncButton && state.canSeek && state.isPlaying },
                     hideSettings = settingsPeeking,
                     // Hidden on a screen that's landscape on its own: there's nothing to turn.
                     onRotate = { rotated = !rotated }.takeIf { settings.rotateButton && (rotated || !landscape) },

@@ -37,6 +37,9 @@ Modified by Behnoud.
 - **Sleep timer**: pauses the player after a set time or at the end of the song, fading the music out first (`playback/SleepTimerService.kt`, `ui/sleep/`).
 - **Lyrics colour** for the lyrics screen, wallpaper and always-on display, and a **Glow strength** setting (50–300%).
 
+- **Resync lyrics** button (under More): puts the player and the lyrics back in step where the song is.
+- **Saved lines**: Share lyrics → Save keeps the picked lines with their song in Settings → Saved lines, to copy, share or remove (`quotes/`, `SavedLines` in `:core`).
+
 ### Looks and type
 - **Font gallery**: 42 open-licensed fonts for the lyrics, downloaded from Google Fonts' GitHub repository when picked (`ui/settings/FontGallery.kt`), beside the font file picker.
 - **Lyrics weight**, **Line spacing**, **Centre the lyrics** and **Other lines** (how bright the lines not being sung are), and a **Look** that sets them together.
@@ -48,6 +51,10 @@ Modified by Behnoud.
 - This song: **Copy lyrics** and **Save lyrics as a file** (.lrc, word by word where the lyrics have it; `LyricsExport` in `:core`).
 - Holding a line copies it; the media **volume** in quick settings.
 - **Listening stats** (off until switched on): top songs and artists counted on the phone from any player (`stats/`), never sent anywhere.
+
+- This song: **Share song** (its name and Spotify link) and **Look it up** on Genius or YouTube (`SongLinks` in `:core`).
+- Keep the screen on **only while charging**.
+- **Scrobble to ListenBrainz** (off until switched on with your own token): each song heard half of, or four minutes of, from any player, sent when it ends; what can't be sent waits and goes with the next (`stats/Scrobbler.kt`, `ListenBrainz` in `:core`).
 
 ### Lyrics sources
 - **Live captions** (off by default): when no lyrics source has the song, the captions of its YouTube video, word-timed from YouTube's automatic captions and re-cut at sentence ends (`network/data/providers/YouTubeLiveCaptions.kt`). Turned on in Settings → Sources or from the no-lyrics notice, after a disclosure of what is sent.
@@ -61,6 +68,13 @@ Modified by Behnoud.
 - The lyrics notification stops following the line while the screen is off and catches up when it comes back on.
 - The shared media-session follower reads the player's cover only when its metadata changes, not on every playback update.
 - The lyrics screen's paused timeline sleeps while the app is in the background instead of waking four times a second.
+
+- The session followers (the lyrics screen's and the shared one outside it) hold what the player's callbacks give them and take a burst of updates once per 40 ms, instead of reading the metadata (with its cover), playback state and queue back from the player for each of the dozens Spotify sends at a song change or seek; they pick the session again only when a player's state changes.
+- The lyrics screen draws at the screen's full refresh rate by default (the battery saver can cap it at 60 Hz), and the app ships a baseline profile so the renderer is compiled ahead of time from the first launch.
+- Pull requests build the optimised (R8) APK too, so a release-only failure shows before it reaches main.
+
+### Listening to stay in sync (`playback/ListeningSync.kt`)
+- Off until switched on (Scroll & Sync → Song changes → Listen to stay in sync, which asks for record-audio): a little into each song the app hears what the phone itself is playing for some seconds (Android's Visualizer on the output mix, not the microphone), lays where its sounds start over the song's audio analysis from Spotify (`AudioAlign` in `:core`, with tests), and moves the lyrics to where the music really is, without touching the music. Three windows have to agree before anything moves. It keeps only loudness over time, in memory, and sends nothing. The battery saver rests it. Experimental.
 
 ### Battery saver (`power/`)
 - Settings → Device → Battery saver: while the phone's battery saver is on, the always-on display, the lyrics overlay, the lyrics notification and the background haptics rest (each its own switch, all on by default) and come back by themselves after.

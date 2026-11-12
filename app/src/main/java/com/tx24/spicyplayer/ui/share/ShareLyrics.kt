@@ -45,6 +45,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import com.tx24.spicyplayer.quotes.SavedLinesStore
 import com.tx24.spicyplayer.lyrics.LyricsState
 import com.tx24.spicyplayer.lyrics.TimedLine
 import com.tx24.spicyplayer.lyrics.spicy.models.LineRole
@@ -161,6 +162,15 @@ private fun ShareLyricsBody(
     }
     SpicyModalGap()
     SpicyModalActions {
+        // Kept in Settings → Saved lines.
+        SpicyModalButton("Save", {
+            if (chosen.isEmpty()) return@SpicyModalButton
+            scope.launch {
+                val kept = withContext(Dispatchers.IO) { SavedLinesStore.add(context, chosen, title, artist) }
+                Toast.makeText(context, if (kept != null) "Saved to Saved lines" else "Couldn't save the lines", Toast.LENGTH_SHORT).show()
+                onDismiss()
+            }
+        })
         SpicyModalButton("Copy", {
             if (chosen.isEmpty()) return@SpicyModalButton
             copyLines(context, chosen, title, artist)

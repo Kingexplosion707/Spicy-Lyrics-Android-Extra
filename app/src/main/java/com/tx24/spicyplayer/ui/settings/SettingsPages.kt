@@ -54,6 +54,7 @@ import com.tx24.spicyplayer.ui.components.ChromeTheme
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.ClosedCaption
 import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.BatterySaver
 import androidx.compose.material.icons.rounded.Notes
 import androidx.compose.material.icons.rounded.UnfoldMore
@@ -283,6 +284,7 @@ internal fun ThisSongContent(
     }
     SongDelayRow(state, viewModel)
     LyricsExportRows(state, viewModel)
+    SongLinkRows(state)
     SettingRow(
         label = "Lyrics Manager",
         description = "Use your own TTML for this song, once or saved, and manage the songs you've saved.",
@@ -1133,6 +1135,13 @@ internal fun ControlsContent(settings: AppSettings) {
                 icon = Icons.Rounded.IosShare,
             )
             ToggleRow(
+                label = "Resync lyrics button",
+                checked = settings.resyncButton,
+                onCheckedChange = { settings.resyncButton = it },
+                description = "Puts the player and the lyrics back in step where the song is, for when they've come apart.",
+                icon = Icons.Rounded.Sync,
+            )
+            ToggleRow(
                 label = "Sleep timer button",
                 checked = settings.sleepTimerButton,
                 onCheckedChange = { settings.sleepTimerButton = it },
@@ -1308,6 +1317,13 @@ internal fun DeviceContent(settings: AppSettings) {
             onCheckedChange = { settings.keepScreenOn = it },
             description = "Stop the screen from turning off while music plays.",
             icon = Icons.Rounded.StayCurrentPortrait,
+        )
+        if (settings.keepScreenOn) ToggleRow(
+            label = "Only while charging",
+            checked = settings.keepScreenOnOnlyCharging,
+            onCheckedChange = { settings.keepScreenOnOnlyCharging = it },
+            description = "On battery, the screen turns off as usual.",
+            icon = Icons.Rounded.BatteryChargingFull,
         )
         SettingRow(
             label = "System bars",

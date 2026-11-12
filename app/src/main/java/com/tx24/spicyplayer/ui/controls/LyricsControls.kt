@@ -87,6 +87,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.IosShare
+import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.BedtimeOff
 import androidx.compose.material3.Icon
@@ -208,6 +209,8 @@ class PlaybackControlsState(
     val onSleepTimer: (() -> Unit)? = null,
     /** A sleep timer is running: its button says so. */
     val sleepTimerOn: Boolean = false,
+    /** Puts the player and the lyrics back in step, as tapping a line does but staying where the song is; null hides the button. */
+    val onResync: (() -> Unit)? = null,
 )
 
 /**
@@ -597,6 +600,11 @@ private fun floatingActions(
     controls.onSleepTimer?.let { open ->
         add(FloatingAction(if (controls.sleepTimerOn) "Sleep timer (on)" else "Sleep timer", keep = 12, open) { icon ->
             Icon(if (controls.sleepTimerOn) Icons.Rounded.Bedtime else Icons.Rounded.BedtimeOff, null, Modifier.size(icon(22f)), tint = Color.White)
+        })
+    }
+    controls.onResync?.let { resync ->
+        add(FloatingAction("Resync lyrics", keep = 14, resync) { icon ->
+            Icon(Icons.Rounded.Sync, null, Modifier.size(icon(22f)), tint = Color.White)
         })
     }
     controls.onRotate?.let { rotate ->

@@ -218,6 +218,12 @@ class AppSettings(private val prefs: SharedPreferences) {
     var backgroundFollowsMotion by boolean("backgroundFollowsMotion", true)
 
     var keepScreenOn by boolean("keepScreenOn", true)
+    /** Keep the screen on only while the phone is charging; on battery it times out as usual. */
+    var keepScreenOnOnlyCharging by boolean("keepScreenOnOnlyCharging", false)
+    /** The Resync lyrics button among the lyrics screen's buttons. */
+    var resyncButton by boolean("resyncButton", true)
+    /** Songs heard far enough go to the user's ListenBrainz account ([com.tx24.spicyplayer.stats.Scrobbler]). */
+    var scrobbleListenBrainz by boolean("scrobbleListenBrainz", false)
     /** The lyrics screen shows over the lock screen; anything opened over the lyrics asks to unlock first. */
     var showOverLockScreen by boolean("showOverLockScreen", false)
     /** Left untouched while the music plays, the lyrics screen dims to the lyrics alone on black. */
@@ -379,6 +385,8 @@ class AppSettings(private val prefs: SharedPreferences) {
     var romanizeButton by boolean("romanizeButton", true)
     var translateButton by boolean("translateButton", true)
     var resyncButton by boolean("resyncButton", true)
+    /** Songs heard far enough go to the user's ListenBrainz account ([com.tx24.spicyplayer.stats.Scrobbler]). */
+    var scrobbleListenBrainz by boolean("scrobbleListenBrainz", false)
     var expandButton by boolean("expandButton", true)
     /** How the Lyrics Manager's last upload was applied; the upload screen reopens on it. */
     var ttmlUploadSaves by boolean("ttmlUploadSaves", true)
