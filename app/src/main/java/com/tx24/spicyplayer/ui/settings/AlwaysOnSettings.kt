@@ -121,7 +121,7 @@ internal fun AlwaysOnContent(settings: AppSettings) {
             label = "Controls",
             checked = settings.aodControls,
             onCheckedChange = { settings.aodControls = it },
-            description = "Play/pause, previous and next under the lyrics. A tap anywhere else still goes to the lock screen.",
+            description = "Play/pause, previous and next under the lyrics, with the player's like button and shuffle beside them when it has them. A tap anywhere else still goes to the lock screen.",
             icon = Icons.Rounded.SmartDisplay,
             enabled = on,
         )

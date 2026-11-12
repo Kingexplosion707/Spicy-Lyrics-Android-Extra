@@ -43,6 +43,9 @@ internal class BackgroundSession(context: Context) {
     fun pause() { core?.pause() }
     fun skipNext() { core?.skipNext() }
     fun skipPrevious() { core?.skipPrevious() }
+    /** The player's own buttons (like, shuffle, ...) as it publishes them now. */
+    val customActions: List<android.media.session.PlaybackState.CustomAction> get() = core?.customActions.orEmpty()
+    fun sendCustomAction(action: String) { core?.sendCustomAction(action) }
 
     /** The player's position, held back by every delay, as the lyrics screen reads it. Any thread. */
     fun positionMs(): Long = core?.positionMs() ?: 0L
@@ -160,6 +163,15 @@ private class SessionCore(private val app: Context) {
     fun pause() { controller?.transportControls?.pause() }
     fun skipNext() { controller?.transportControls?.skipToNext() }
     fun skipPrevious() { controller?.transportControls?.skipToPrevious() }
+
+    val customActions: List<android.media.session.PlaybackState.CustomAction>
+        get() = (heldPlayback ?: controller?.playbackState)?.customActions.orEmpty()
+
+    fun sendCustomAction(action: String) {
+        val session = controller ?: return
+        val extras = customActions.firstOrNull { it.action == action }?.extras
+        session.transportControls.sendCustomAction(action, extras)
+    }
 
     /**
      * The player's position, held back by every delay, as the lyrics screen reads it. Read every

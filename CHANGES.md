@@ -27,6 +27,7 @@ Modified by Behnoud.
 - **Player look** (Settings → Device → Always-on display → Look): the lyrics screen's player, dimmed: the cover blurred behind (or the Canvas), a small clock, the cover beside the song, the lyrics in the app's own look, and the progress bar.
 - Around the music, as Android's own always-on display: the **weather** (Open-Meteo, from the phone's last rough position, off until switched on), the **next alarm**, the **notification icons** of apps with something waiting (icons only), the **battery**, and **silent / Do Not Disturb**; each its own switch.
 - **Double-tap to leave**, and **only while charging**.
+- The controls carry the player's own **like** button and **shuffle** (or repeat) beside previous, play/pause and next, when it offers them; the player look's cover plays the record's **animated cover** when Animated cover is on (not with the battery saver).
 - Comes up only once the screen is really off: a double press of the power button (or the camera gesture) that turns the screen straight back on no longer brings it up.
 
 ### Haptics (`haptics/`)
