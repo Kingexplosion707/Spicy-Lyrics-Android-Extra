@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.Composable
@@ -485,7 +486,7 @@ private fun PlayerAction(action: android.media.session.PlaybackState.CustomActio
         runCatching {
             val resources = context.packageManager.getResourcesForApplication(player!!)
             androidx.core.content.res.ResourcesCompat.getDrawable(resources, action.icon, null)
-                ?.let { androidx.core.graphics.drawable.toBitmap(it, 72, 72).asImageBitmap() }
+                ?.toBitmap(72, 72)?.asImageBitmap()
         }.getOrNull()
     }
     Box(
