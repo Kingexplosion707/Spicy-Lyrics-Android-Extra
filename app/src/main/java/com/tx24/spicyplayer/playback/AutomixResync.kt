@@ -3,17 +3,16 @@ package com.tx24.spicyplayer.playback
 import android.content.Context
 
 /**
- * Spotify's Automix starts the next song while the last one is still playing, then reports it
- * from 0 once it has switched over, a few seconds (a different amount each song) behind what's
- * heard, and nothing later corrects it. Android has no other way to learn where the audio is, so
- * a moment into each new song the player is sent to where the lyrics are, as tapping a line does:
- * it answers with a report that matches its audio. The music jumps back by Automix's head start.
- *
- * A song that is being listened to ([ListeningSync]) is left alone: there the lyrics move to
- * the music instead.
+ * After a song change Spotify can report a position that isn't where its audio is, and keep to it
+ * for the whole song: measured on a Pixel, a second or two either way, and with Automix (which
+ * starts the next song under the last one, on the beat) a whole number of beats. Android has no
+ * other way to learn where the audio is, so a moment into each new song the player is sent to
+ * where it says it is, as tapping a line does: it answers with a report that matches its audio.
+ * The music skips by however far off the player was.
  *
  * Settings → Scroll & Sync → Song changes (on by default). The lyrics screen and the background
- * follower both schedule it; [claim] lets only the first one seek for each song.
+ * follower both schedule it; [claim] lets only the first one seek for each song. While it's on,
+ * [ListeningSync] rests: the player is right after the seek.
  */
 internal object AutomixResync {
     /** The player whose new songs are resynced. */
@@ -25,6 +24,13 @@ internal object AutomixResync {
     const val MAX_RETRIES = 4
     /** The setting, in the "ui" preferences. */
     const val PREF = "resyncAfterSongChange"
+
+    /**
+     * How far past the lyrics' position to send the player: about as long as it takes to answer
+     * ([measuredLatencyMs], its last answer), so that a player that was right carries on from
+     * where it would have been and only its short gap is heard.
+     */
+    fun seekLeadMs(measuredLatencyMs: Long?): Long = (measuredLatencyMs ?: 200L).coerceIn(100L, 400L)
 
     private var claimed: String? = null
 
@@ -40,26 +46,5 @@ internal object AutomixResync {
         if (claimed == songKey) return false
         claimed = songKey
         return true
-    }
-}
-
-/**
- * Settings → Scroll & Sync → Crossfade: how far into a song that follows another on its own the
- * player's audio is when it reports the song. With a Spotify account signed in, the device Spotify
- * plays on decides whether it applies ([com.tx24.spicyplayer.spotify.SpotifyDevice]); a remote
- * session (a speaker through Connect) never crossfades.
- */
-internal object CrossfadeLead {
-    fun ms(context: Context): Long =
-        context.getSharedPreferences("ui", Context.MODE_PRIVATE).getInt(CROSSFADE_PREF, 0) * 1_000L
-
-    /**
-     * Whether the lead applies, as far as is known without waiting: not on a remote session, and
-     * on a phone when the account last said where Spotify plays.
-     */
-    fun appliesNow(context: Context, relayed: Boolean): Boolean {
-        if (relayed) return false
-        if (!com.tx24.spicyplayer.spotify.SpotifyAccount.signedIn(context)) return true
-        return com.tx24.spicyplayer.spotify.SpotifyDevice.lastOnPhone ?: true
     }
 }

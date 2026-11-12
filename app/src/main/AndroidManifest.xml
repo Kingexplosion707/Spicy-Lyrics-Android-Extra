@@ -65,21 +65,6 @@
         android:supportsRtl="true"
         android:banner="@drawable/tv_banner"
         android:theme="@style/Theme.SpicyLyricsMobile">
-        <!-- Spotify's sign-in page comes back here (Settings → Scroll & Sync → Song changes). -->
-        <activity
-            android:name="com.tx24.spicyplayer.spotify.SpotifyLoginActivity"
-            android:exported="true"
-            android:launchMode="singleTask"
-            android:noHistory="true"
-            android:excludeFromRecents="true"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="spicylyricsplus" android:host="callback" />
-            </intent-filter>
-        </activity>
         <activity
             android:name="com.tx24.spicyplayer.LyricsActivity"
             android:launchMode="singleTask"

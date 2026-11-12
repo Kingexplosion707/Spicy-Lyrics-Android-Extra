@@ -340,8 +340,6 @@ class AppSettings(private val prefs: SharedPreferences) {
     var listeningSync by boolean("listeningSync", false)
     /** Spotify's Automix: resync a moment into each new song ([com.tx24.spicyplayer.playback.AutomixResync]). */
     var resyncAfterSongChange by boolean("resyncAfterSongChange", true)
-    /** The player's crossfade, in seconds: a song that follows another on its own starts this far in. */
-    var crossfadeSeconds by int("crossfadeSeconds", 0, 0..12)
     /** The line being sung in an ongoing notification, for islands and Live Updates. */
     var lyricsNotification by boolean("lyricsNotification", false)
     /** The lyrics floating over other apps while music plays. */

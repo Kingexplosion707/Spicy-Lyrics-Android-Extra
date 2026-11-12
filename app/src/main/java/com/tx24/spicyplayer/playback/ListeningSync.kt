@@ -98,10 +98,14 @@ internal object ListeningSync {
     fun hasPermission(context: Context): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 
-    /** Whether it's switched on, allowed, and not resting for the battery saver. */
+    /**
+     * Whether it's switched on, allowed, and not resting: for the battery saver, or because the
+     * resync after a song change is on ([AutomixResync]), after which the player is right.
+     */
     fun enabled(context: Context): Boolean {
         val prefs = context.getSharedPreferences("ui", Context.MODE_PRIVATE)
-        return prefs.getBoolean(PREF, false) && hasPermission(context) && !SaverRule.Listening.stopsNow(context, prefs)
+        return prefs.getBoolean(PREF, false) && !AutomixResync.enabled(context) && hasPermission(context) &&
+            !SaverRule.Listening.stopsNow(context, prefs)
     }
 
     /** What it is doing about the song with Spotify ID [key]; [State.Off] for any other song. */

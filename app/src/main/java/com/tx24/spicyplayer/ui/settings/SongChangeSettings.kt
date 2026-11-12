@@ -1,161 +1,72 @@
 package com.tx24.spicyplayer.ui.settings
 
 import android.Manifest
-import android.content.Intent
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import android.widget.Toast
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AccountCircle
-import androidx.compose.material.icons.rounded.BlurLinear
 import androidx.compose.material.icons.rounded.Hearing
-import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.tx24.spicyplayer.playback.ListeningSync
-import com.tx24.spicyplayer.spotify.SpotifyAccount
-import com.tx24.spicyplayer.ui.components.SpicyButton
-import com.tx24.spicyplayer.ui.components.SpicyTextField
-import com.tx24.spicyplayer.ui.theme.SpicySpacing
-import com.tx24.spicyplayer.ui.components.SettingRow
 import com.tx24.spicyplayer.ui.components.SettingsSection
-import com.tx24.spicyplayer.ui.components.SpicyBipolarSlider
 import com.tx24.spicyplayer.ui.components.ToggleRow
 
 /**
- * Scroll & Sync → Song changes: keeping the lyrics on time when a player blends one song into the
- * next, which it reports late (Spotify's Automix and Crossfade).
+ * Scroll & Sync → Song changes: keeping the lyrics on time after a song change, when Spotify can
+ * report a position that isn't where its audio is. Two ways, one at a time: the resync (a seek,
+ * which always works and is heard) or listening (no seek, and it can't always tell).
  */
 @Composable
 internal fun SongChangeSection(settings: AppSettings) {
     SettingsSection("Song changes") {
-        ListeningSyncRow(settings)
         ToggleRow(
             label = "Resync after a song change",
             checked = settings.resyncAfterSongChange,
-            onCheckedChange = { settings.resyncAfterSongChange = it },
-            description = "For Spotify's Automix, which reports each new song a few seconds late: two seconds in, " +
-                "Spotify is sent to where the lyrics are, as tapping a line does, and the song may jump a little. " +
-                "Left out for songs being listened to.",
+            onCheckedChange = { on ->
+                settings.resyncAfterSongChange = on
+                if (on) settings.listeningSync = false
+            },
+            description = "After a song change Spotify can say it's a second or two from where its audio is, and keep " +
+                "to it for the whole song. Two seconds into each song, Spotify is sent to where it says it is, as " +
+                "tapping a line does, and the lyrics are right from there. You hear a short skip.",
             icon = Icons.Rounded.Sync,
         )
-        SpotifyAccountRows()
-        SettingRow(
-            label = "Crossfade",
-            description = "Set it to your player's Crossfade. A song that follows another on its own starts this far in, " +
-                "with no jump. Off for Automix. With your Spotify account signed in, it only applies while Spotify plays on the phone " +
-                "(a speaker through Connect, such as an Echo Dot, doesn't crossfade).",
-            icon = Icons.Rounded.BlurLinear,
-            stacked = true,
-        ) {
-            SpicyBipolarSlider(
-                value = settings.crossfadeSeconds,
-                range = 0..12,
-                step = 1,
-                onValueChange = { settings.crossfadeSeconds = it },
-                default = 0,
-                unit = "s",
-            )
-        }
+        ListeningSyncRow(settings)
     }
 }
 
 /**
- * Listen to stay in sync ([ListeningSync]): asks for Android's record-audio permission when
- * switched on, and stays off without it.
+ * Listen to stay in sync ([ListeningSync]), in place of the resync: asks for Android's
+ * record-audio permission when switched on, and stays off without it.
  */
 @Composable
 private fun ListeningSyncRow(settings: AppSettings) {
     val context = LocalContext.current
+    fun switchOn() {
+        settings.listeningSync = true
+        settings.resyncAfterSongChange = false
+    }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        settings.listeningSync = granted
-        if (!granted) Toast.makeText(context, "Listening needs the permission; it stays off", Toast.LENGTH_LONG).show()
+        if (granted) switchOn()
+        else Toast.makeText(context, "Listening needs the permission; it stays off", Toast.LENGTH_LONG).show()
     }
     ToggleRow(
         label = "Listen to stay in sync",
-        // Switched on in a backup from another phone, or the permission taken away since: off.
-        checked = settings.listeningSync && ListeningSync.hasPermission(context),
+        // Switched on in a backup from another phone, the permission taken away since, or the resync on: off.
+        checked = settings.listeningSync && !settings.resyncAfterSongChange && ListeningSync.hasPermission(context),
         onCheckedChange = { on ->
             when {
                 !on -> settings.listeningSync = false
-                ListeningSync.hasPermission(context) -> settings.listeningSync = true
+                ListeningSync.hasPermission(context) -> switchOn()
                 else -> ask.launch(Manifest.permission.RECORD_AUDIO)
             }
         },
-        description = "A little into each song, hears what the phone is playing for some seconds and moves the lyrics to " +
-            "where the music really is, without touching the music. For Spotify's Automix, and anything else that " +
-            "reports the wrong time. It hears the phone's own playback, not the microphone; nothing is recorded or " +
-            "sent. Android asks for its record-audio permission. Experimental.",
+        description = "Instead of the resync, with no skip: a little into each song it hears what the phone is playing " +
+            "and moves the lyrics to where the music is. Experimental: in a song with a steady, repeating beat it " +
+            "often can't tell, and the lyrics then stay where Spotify says. It hears the phone's own playback, not " +
+            "the microphone; nothing is recorded or sent. Android asks for its record-audio permission.",
         icon = Icons.Rounded.Hearing,
     )
-}
-
-/**
- * Your own Spotify account ([SpotifyAccount]): says which device Spotify plays on, which decides
- * whether the Crossfade below applies.
- */
-@Composable
-private fun SpotifyAccountRows() {
-    val context = LocalContext.current
-    // Signing in finishes in another activity: read again on coming back.
-    var seen by remember { mutableIntStateOf(0) }
-    LifecycleResumeEffect(Unit) {
-        seen++
-        onPauseOrDispose { }
-    }
-    val signedIn = remember(seen) { SpotifyAccount.signedIn(context) }
-    val name = remember(seen) { SpotifyAccount.accountName(context) }
-    var clientId by remember(seen) { mutableStateOf(SpotifyAccount.clientId(context)) }
-    SettingRow(
-        label = "Spotify account",
-        description = when {
-            signedIn -> "Signed in${name?.let { " as $it" } ?: ""}. Spotify says which device it plays on, so the crossfade below only applies on the phone."
-            else -> "Sign in so Spotify can say which device it plays on (the crossfade below then only applies on the phone). Make an app at developer.spotify.com " +
-                "with the redirect URI ${SpotifyAccount.REDIRECT_URI}, then paste its Client ID below."
-        },
-        icon = Icons.Rounded.AccountCircle,
-    ) {
-        if (signedIn) {
-            SpicyButton("Sign out", onClick = {
-                SpotifyAccount.logOut(context)
-                seen++
-            })
-        } else {
-            SpicyButton("Open", external = true, onClick = { openUrl(context, SpotifyAccount.DEVELOPER_URL) })
-        }
-    }
-    if (!signedIn) {
-        SettingRow(
-            label = "Client ID",
-            description = "From your app's page on the Spotify developer site. No secret is needed.",
-            icon = Icons.Rounded.Key,
-            stacked = true,
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SpicySpacing.S2)) {
-                SpicyTextField(clientId, { clientId = it.trim() }, placeholder = "Client ID", modifier = Modifier.weight(1f))
-                SpicyButton("Sign in", enabled = clientId.length >= 16, onClick = {
-                    SpotifyAccount.setClientId(context, clientId)
-                    val uri = SpotifyAccount.loginUri(context)
-                    if (uri == null) {
-                        Toast.makeText(context, "Paste your Client ID first", Toast.LENGTH_SHORT).show()
-                    } else {
-                        runCatching {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                        }.onFailure { Toast.makeText(context, "No browser to sign in with", Toast.LENGTH_SHORT).show() }
-                    }
-                })
-            }
-        }
-    }
 }
