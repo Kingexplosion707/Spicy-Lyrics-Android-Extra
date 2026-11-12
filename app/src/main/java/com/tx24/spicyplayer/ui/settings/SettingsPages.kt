@@ -1246,36 +1246,13 @@ internal fun DeviceContent(settings: AppSettings) {
         searchDescription = "Once dimmed, keep the lyrics on as the always-on display at the lowest brightness, instead of the screen turning off.",
         icon = Icons.Rounded.Nightlight,
     )
-    SettingRow(
-        label = "Always-on dim",
-        description = "How bright the always-on display is. Brighter reads better in daylight and uses more battery.",
-        icon = Icons.Rounded.BrightnessLow,
-        enabled = settings.ambientAsAod,
-    ) {
-        val levels = listOf(1 to "Dimmest", 5 to "Dim", 12 to "Medium", 25 to "Bright", 45 to "Brightest")
-        SpicySelect(
-            value = (levels.minByOrNull { kotlin.math.abs(it.first - settings.aodBrightness) } ?: levels.first()).first.toString(),
-            options = levels.map { it.first.toString() },
-            labels = levels.map { it.second },
-            onChange = { settings.aodBrightness = it.toInt() },
+    SubPageCard {
+        SubPageRow(
+            SettingsPage.AlwaysOn,
+            Icons.Rounded.Nightlight,
+            if (settings.ambientAsAod) "${settings.aodStyle.label} look · weather, alarm, notifications and more" else "Off",
         )
     }
-    ToggleRow(
-        label = "Controls on always-on",
-        checked = settings.aodControls,
-        onCheckedChange = { settings.aodControls = it },
-        description = "Play/pause, previous and next under the always-on lyrics. A tap anywhere else still goes to the lock screen.",
-        icon = Icons.Rounded.SmartDisplay,
-        enabled = settings.ambientAsAod,
-    )
-    ToggleRow(
-        label = "Canvas on always-on",
-        checked = settings.aodCanvas,
-        onCheckedChange = { settings.aodCanvas = it },
-        description = "The song's Spotify Canvas moves behind the always-on lyrics, blurred and darkened. Uses more battery.",
-        icon = Icons.Rounded.Movie,
-        enabled = settings.ambientAsAod,
-    )
     SubPageCard {
         val supported = PictureInPicture.supported(LocalContext.current)
         SubPageRow(

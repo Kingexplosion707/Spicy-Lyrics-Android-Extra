@@ -27,6 +27,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.Composable
@@ -59,6 +61,9 @@ import com.tx24.spicyplayer.ui.settings.AppSettings
 import com.tx24.spicyplayer.wallpaper.LyricsFontSetup
 import com.tx24.spicyplayer.wallpaper.WallpaperLyrics
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.lifecycle.lifecycleScope
+import com.tx24.spicyplayer.ui.settings.AodStyle
 import java.lang.ref.WeakReference
 import java.text.DateFormat
 import java.util.Date
@@ -104,7 +109,17 @@ class AlwaysOnActivity : ComponentActivity() {
         val batterySaver = getSystemService(PowerManager::class.java)?.isPowerSaveMode == true
         val canvas = prefs.getBoolean(PREF_CANVAS, false) && !batterySaver
         controls = prefs.getBoolean(PREF_CONTROLS, false)
-        setContent { AlwaysOnContent(live, AppSettings(prefs), canvas, controls, onDismiss = ::finish) }
+        doubleTap = prefs.getBoolean(PREF_DOUBLE_TAP, false)
+        val settings = AppSettings(prefs)
+        val extras = AodExtras(
+            weather = AodWeather.enabled(this),
+            alarm = settings.aodAlarm,
+            battery = settings.aodBattery,
+            notifications = settings.aodNotifications,
+            ringer = settings.aodRinger,
+        )
+        if (extras.weather) AodWeather.load(this)
+        setContent { AlwaysOnContent(live, settings, canvas, controls, extras, onDismiss = ::tapToLeave) }
     }
 
     /** The display mode with this one's size and the lowest refresh rate (not under 30 Hz), if there's a slower one. */
@@ -122,6 +137,9 @@ class AlwaysOnActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         shownState.value = true
+        // The notification icons and the weather as they are now.
+        AodNotifications.refresher?.invoke()
+        if (AodWeather.enabled(this)) lifecycleScope.launch { AodWeather.refreshIfStale(this@AlwaysOnActivity) }
     }
 
     override fun onPause() {
@@ -137,10 +155,19 @@ class AlwaysOnActivity : ComponentActivity() {
 
     /** With the controls shown, touches reach them (and the rest of the screen dismisses it). */
     private var controls = false
+    /** Two taps in a row to leave ([PREF_DOUBLE_TAP]). */
+    private var doubleTap = false
+    private var lastTapAt = 0L
+
+    /** A tap away from the controls: leaves it, or with [doubleTap] only the second of two quick ones. */
+    private fun tapToLeave() {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (!doubleTap || now - lastTapAt <= DOUBLE_TAP_MS) finish() else lastTapAt = now
+    }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         if (controls) return super.dispatchTouchEvent(ev)
-        if (ev.actionMasked == MotionEvent.ACTION_UP) finish()
+        if (ev.actionMasked == MotionEvent.ACTION_UP) tapToLeave()
         return true
     }
 
@@ -158,6 +185,11 @@ class AlwaysOnActivity : ComponentActivity() {
         const val PREF_CANVAS = "aodCanvas"
         /** Play/pause, previous and next under the lyrics. */
         const val PREF_CONTROLS = "aodControls"
+        /** Two taps in a row to leave. */
+        const val PREF_DOUBLE_TAP = "aodDoubleTap"
+        /** It only comes up while charging. */
+        const val PREF_ONLY_CHARGING = "aodOnlyCharging"
+        private const val DOUBLE_TAP_MS = 400L
 
         fun dismissAll() {
             current?.get()?.finish()
@@ -167,7 +199,7 @@ class AlwaysOnActivity : ComponentActivity() {
 }
 
 @Composable
-private fun AlwaysOnContent(live: LiveLyrics, settings: AppSettings, canvas: Boolean, controls: Boolean, onDismiss: () -> Unit) {
+private fun AlwaysOnContent(live: LiveLyrics, settings: AppSettings, canvas: Boolean, controls: Boolean, extras: AodExtras, onDismiss: () -> Unit) {
     LyricsFontSetup(settings)
     val context = androidx.compose.ui.platform.LocalContext.current
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -196,8 +228,6 @@ private fun AlwaysOnContent(live: LiveLyrics, settings: AppSettings, canvas: Boo
             delay(60_000L - now % 60_000L + 20L)
         }
     }
-    val timeFormat = remember { DateFormat.getTimeInstance(DateFormat.SHORT) }
-    val dateFormat = remember { DateFormat.getDateInstance(DateFormat.FULL) }
     Box(
         Modifier
             .fillMaxSize()
@@ -221,56 +251,186 @@ private fun AlwaysOnContent(live: LiveLyrics, settings: AppSettings, canvas: Boo
             )
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = CANVAS_VEIL)))
         }
-        Column(
-            Modifier.fillMaxSize().offset { shift }.padding(top = 72.dp, bottom = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(timeFormat.format(Date(now)), color = Color.White.copy(alpha = 0.9f), fontSize = 64.sp, fontWeight = FontWeight.Light)
-            Text(dateFormat.format(Date(now)), color = Color.White.copy(alpha = 0.6f), fontSize = 15.sp)
-            Spacer(Modifier.height(28.dp))
-            val track = live.track
-            if (track != null) {
-                Text(
-                    track.title, color = Color.White.copy(alpha = 0.85f), fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 32.dp),
-                )
-                Text(
-                    track.artist, color = Color.White.copy(alpha = 0.55f), fontSize = 14.sp,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 32.dp),
-                )
-            }
-            Spacer(Modifier.height(12.dp))
-            val lyrics = live.lyrics
-            if (track != null && lyrics != null && lyrics.lines.isNotEmpty()) {
-                WallpaperLyrics(
-                    lyrics = lyrics,
-                    translation = live.translation,
-                    settings = settings,
-                    positionMs = live::positionMs,
-                    isPlaying = live.playing,
-                    visible = { AlwaysOnActivity.showing },
-                    durationMs = track.durationMs,
-                    modifier = Modifier.fillMaxWidth().weight(1f).graphicsLayer { alpha = LYRICS_ALPHA },
-                    focusAnchorFraction = 0.35f,
-                    tint = com.tx24.spicyplayer.lyrics.rememberLyricsTint(settings, track.cover),
-                )
-            } else {
-                Spacer(Modifier.weight(1f))
-            }
-            if (controls && track != null) {
-                Row(
-                    Modifier.padding(top = 12.dp, bottom = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(28.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    ControlButton(Icons.Rounded.SkipPrevious, "Previous", 30.dp) { live.skipPrevious() }
-                    ControlButton(if (live.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (live.playing) "Pause" else "Play", 40.dp) { live.playPause() }
-                    ControlButton(Icons.Rounded.SkipNext, "Next", 30.dp) { live.skipNext() }
-                }
+        val track = live.track
+        if (settings.aodStyle == AodStyle.Player && track != null) {
+            // The cover, blurred and darkened, when there's no Canvas.
+            if (canvasUrl == null) BlurredCover(track.cover, shift)
+            PlayerLayout(live, settings, controls, extras, now, shift)
+        } else {
+            ClassicLayout(live, settings, controls, extras, now, shift)
+        }
+    }
+}
+
+/** The classic look: a big clock and date, what's around them, the song and its lyrics on black. */
+@Composable
+private fun ClassicLayout(live: LiveLyrics, settings: AppSettings, controls: Boolean, extras: AodExtras, now: Long, shift: IntOffset) {
+    val timeFormat = remember { DateFormat.getTimeInstance(DateFormat.SHORT) }
+    val dateFormat = remember { DateFormat.getDateInstance(DateFormat.FULL) }
+    Column(
+        Modifier.fillMaxSize().offset { shift }.padding(top = 72.dp, bottom = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(timeFormat.format(Date(now)), color = Color.White.copy(alpha = 0.9f), fontSize = 64.sp, fontWeight = FontWeight.Light)
+        Text(dateFormat.format(Date(now)), color = Color.White.copy(alpha = 0.6f), fontSize = 15.sp)
+        AodStatusLine(extras, alpha = 0.6f, modifier = Modifier.padding(top = 10.dp))
+        if (extras.notifications) AodNotificationIcons(alpha = 0.6f, modifier = Modifier.padding(top = 10.dp))
+        Spacer(Modifier.height(24.dp))
+        val track = live.track
+        if (track != null) {
+            Text(
+                track.title, color = Color.White.copy(alpha = 0.85f), fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 32.dp),
+            )
+            Text(
+                track.artist, color = Color.White.copy(alpha = 0.55f), fontSize = 14.sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 32.dp),
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        AodLyrics(live, settings, Modifier.fillMaxWidth().weight(1f), LYRICS_ALPHA)
+        if (controls && track != null) Controls(live)
+    }
+}
+
+/**
+ * The player look: as the lyrics screen's player, dimmed. A small clock with what's around it at
+ * the top, the cover beside the song, the lyrics in the app's own look, and the progress bar.
+ */
+@Composable
+private fun PlayerLayout(live: LiveLyrics, settings: AppSettings, controls: Boolean, extras: AodExtras, now: Long, shift: IntOffset) {
+    val track = live.track ?: return
+    val timeFormat = remember { DateFormat.getTimeInstance(DateFormat.SHORT) }
+    val dateFormat = remember { java.text.SimpleDateFormat("EEE, MMM d", java.util.Locale.getDefault()) }
+    Column(
+        Modifier.fillMaxSize().offset { shift }.padding(top = 48.dp, bottom = 24.dp, start = 24.dp, end = 24.dp),
+    ) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(timeFormat.format(Date(now)), color = Color.White.copy(alpha = 0.9f), fontSize = 44.sp, fontWeight = FontWeight.Light)
+            Spacer(Modifier.weight(1f))
+            if (extras.weather) {
+                Column(horizontalAlignment = Alignment.End) { AodWeatherRange(alpha = 0.55f) }
             }
         }
+        Text(dateFormat.format(Date(now)), color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp)
+        AodStatusLine(extras, alpha = 0.6f, modifier = Modifier.padding(top = 8.dp), size = 13.sp)
+        if (extras.notifications) AodNotificationIcons(alpha = 0.6f, modifier = Modifier.padding(top = 8.dp))
+        Spacer(Modifier.height(22.dp))
+        // As the lyrics screen's header: the cover with the song beside it.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val cover = remember(track.cover) { track.cover?.asImageBitmap() }
+            if (cover != null) {
+                androidx.compose.foundation.Image(
+                    cover, null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.size(64.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                        .graphicsLayer { alpha = 0.9f },
+                )
+                Spacer(Modifier.width(14.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    track.title, color = Color.White.copy(alpha = 0.9f), fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    track.artist, color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        AodLyrics(live, settings, Modifier.fillMaxWidth().weight(1f), 1f)
+        if (settings.aodProgress && track.durationMs > 0L) ProgressBar(live, track.durationMs)
+        if (controls) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { Controls(live) }
+    }
+}
+
+/** The lyrics, by the lyrics screen's renderer in the app's look; empty space with none. */
+@Composable
+private fun androidx.compose.foundation.layout.ColumnScope.AodLyrics(live: LiveLyrics, settings: AppSettings, modifier: Modifier, alpha: Float) {
+    val track = live.track
+    val lyrics = live.lyrics
+    if (track != null && lyrics != null && lyrics.lines.isNotEmpty()) {
+        WallpaperLyrics(
+            lyrics = lyrics,
+            translation = live.translation,
+            settings = settings,
+            positionMs = live::positionMs,
+            isPlaying = live.playing,
+            visible = { AlwaysOnActivity.showing },
+            durationMs = track.durationMs,
+            modifier = modifier.graphicsLayer { this.alpha = alpha },
+            focusAnchorFraction = 0.35f,
+            tint = com.tx24.spicyplayer.lyrics.rememberLyricsTint(settings, track.cover),
+        )
+    } else {
+        Spacer(Modifier.weight(1f))
+    }
+}
+
+/**
+ * How far into the song it is, as the lyrics screen's timeline. Moves once a second while
+ * playing, and not at all while paused or off screen.
+ */
+@Composable
+private fun ProgressBar(live: LiveLyrics, durationMs: Long) {
+    var position by remember { mutableLongStateOf(live.positionMs()) }
+    val playing = live.playing
+    LaunchedEffect(playing) {
+        position = live.positionMs()
+        while (playing) {
+            delay(1_000L - position % 1_000L + 10L)
+            if (AlwaysOnActivity.showing) position = live.positionMs()
+        }
+    }
+    val fraction = (position.toFloat() / durationMs).coerceIn(0f, 1f)
+    Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
+        Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.18f))) {
+            Box(Modifier.fillMaxWidth(fraction).height(4.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.75f)))
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+            Text(clock(position), color = Color.White.copy(alpha = 0.55f), fontSize = 12.sp)
+            Spacer(Modifier.weight(1f))
+            Text(clock(durationMs), color = Color.White.copy(alpha = 0.55f), fontSize = 12.sp)
+        }
+    }
+}
+
+private fun clock(ms: Long): String {
+    val seconds = (ms / 1000).coerceAtLeast(0)
+    return "%d:%02d".format(seconds / 60, seconds % 60)
+}
+
+/** The cover, blurred and darkened, behind the player look. */
+@Composable
+private fun BlurredCover(cover: android.graphics.Bitmap?, shift: IntOffset) {
+    val image = remember(cover) {
+        // Small first: blurred anyway, and a small bitmap is cheap to draw for hours.
+        cover?.let { android.graphics.Bitmap.createScaledBitmap(it, 64, 64, true).asImageBitmap() }
+    } ?: return
+    val bg = Modifier.fillMaxSize().offset { shift }.graphicsLayer { scaleX = 1.15f; scaleY = 1.15f }
+    androidx.compose.foundation.Image(
+        image, null,
+        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+        modifier = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) bg.blur(40.dp, BlurredEdgeTreatment.Rectangle) else bg,
+    )
+    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = COVER_VEIL)))
+}
+
+/** Previous, play/pause and next. */
+@Composable
+private fun Controls(live: LiveLyrics) {
+    Row(
+        Modifier.padding(top = 12.dp, bottom = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(28.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ControlButton(Icons.Rounded.SkipPrevious, "Previous", 30.dp) { live.skipPrevious() }
+        ControlButton(if (live.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (live.playing) "Pause" else "Play", 40.dp) { live.playPause() }
+        ControlButton(Icons.Rounded.SkipNext, "Next", 30.dp) { live.skipNext() }
     }
 }
 
@@ -291,6 +451,8 @@ private fun ControlButton(icon: androidx.compose.ui.graphics.vector.ImageVector,
 /** The controls as dim as the lyrics around them. */
 private const val CONTROL_ALPHA = 0.8f
 
+/** The cover behind the player look, under a veil heavy enough to keep it an always-on display. */
+private const val COVER_VEIL = 0.62f
 /** The Canvas behind the always-on display: blurred, and under a heavy veil to keep it dim. */
 private const val CANVAS_BLUR_PX = 18f
 private const val CANVAS_VEIL = 0.55f

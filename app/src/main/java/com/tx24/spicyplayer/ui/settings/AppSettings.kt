@@ -234,6 +234,24 @@ class AppSettings(private val prefs: SharedPreferences) {
     var aodCanvas by boolean("aodCanvas", false)
     /** Play/pause, previous and next on the always-on display. */
     var aodControls by boolean("aodControls", false)
+    /** How the always-on display is laid out: the classic clock, or the lyrics screen's player. */
+    var aodStyle by enum("aodStyle", AodStyle.Classic)
+    /** Weather where the phone is, from Open-Meteo ([com.tx24.spicyplayer.aod.AodWeather]); needs rough location. */
+    var aodWeather by boolean("aodWeather", false)
+    var aodWeatherUnit by enum("aodWeatherUnit", TemperatureUnit.Auto)
+    /** The next alarm within a day. */
+    var aodAlarm by boolean("aodAlarm", true)
+    var aodBattery by boolean("aodBattery", true)
+    /** The icons of the apps with notifications waiting ([com.tx24.spicyplayer.aod.AodNotifications]). */
+    var aodNotifications by boolean("aodNotifications", true)
+    /** Silent, vibrate or Do Not Disturb, when on. */
+    var aodRinger by boolean("aodRinger", true)
+    /** The song's progress bar and times on the always-on display. */
+    var aodProgress by boolean("aodProgress", true)
+    /** It takes two taps in a row to leave it, so a brush in a pocket doesn't. */
+    var aodDoubleTap by boolean("aodDoubleTap", false)
+    /** It only comes up while the phone is charging. */
+    var aodOnlyCharging by boolean("aodOnlyCharging", false)
     /** Which of the phone's bars stay on screen. */
     var systemBars by enum("systemBars", SystemBarsMode.HideBoth)
     /** Leaving the app with a song playing shrinks the lyrics into a small floating window. */
@@ -511,6 +529,18 @@ enum class ControlsHideDelay(val label: String, val millis: Long) {
     Default("3 seconds", 3_000L),
     Long("5 seconds", 5_000L),
     Longer("10 seconds", 10_000L),
+}
+
+/** The always-on display's layout. */
+enum class AodStyle(val label: String) {
+    Classic("Clock"),
+    Player("Player"),
+}
+
+enum class TemperatureUnit(val label: String) {
+    Auto("Automatic"),
+    Celsius("°C"),
+    Fahrenheit("°F"),
 }
 
 enum class AmbientDelay(val label: String, val millis: Long) {

@@ -78,6 +78,10 @@ class AlwaysOnService : Service() {
             return
         }
         if (inCall() || SaverRule.AlwaysOn.stopsNow(this)) return
+        // "Only while charging": on battery the screen just turns off.
+        if (getSharedPreferences("ui", MODE_PRIVATE).getBoolean(AlwaysOnActivity.PREF_ONLY_CHARGING, false) &&
+            getSystemService(android.os.BatteryManager::class.java)?.isCharging != true
+        ) return
         main.postDelayed(launch, LAUNCH_DELAY_MS)
     }
 
