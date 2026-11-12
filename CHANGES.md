@@ -74,6 +74,6 @@ Modified by Behnoud.
 - Crossfade follows where Spotify plays: with the Spotify account signed in, the crossfade lead applies only while Spotify plays on the phone, never on a speaker through Connect (an Echo Dot); a remote session never gets it either.
 - Every two seconds while the music plays, the lyrics clock reads the player again and moves to exactly where it says (40 ms or more apart; no seek, no network), in the app and outside it.
 - A new song no longer starts its lyrics late when the player reports its start before naming it (Spotify): the lyrics screen, wallpaper, overlay, always-on display, haptics and widget keep that report instead of starting the song from 0 when its name arrives.
-- CI debug builds share one signing key (from a repository secret) and count their version up, so they install as updates.
+- CI builds share one signing key and count their version up, so they install as updates: from the DEBUG_KEYSTORE_BASE64 secret, or else one made once and kept in the repository's Actions cache (kept from expiring by the scheduled update check).
 - Every change to main is also published as an optimised (R8) build, a prerelease the in-app updater offers (`android-ci.yml`).
 - New Spicy Lyrics Mobile releases are merged in by `tools/upstream_sync.sh`, run every six hours by `upstream-sync.yml`, which opens an issue when one needs a hand.

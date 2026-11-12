@@ -32,6 +32,14 @@ jobs:
           ref: main
           fetch-depth: 0
 
+      # Reading the shared debug key keeps it in the Actions cache (unused entries expire after a
+      # week); see android-ci.yml.
+      - name: Keep the shared debug key warm
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/cached-key
+          key: plus-debug-keystore-v1
+
       - name: Look for a new release
         id: check
         env:

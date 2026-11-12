@@ -25,16 +25,48 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v6
+      # Without the DEBUG_KEYSTORE_BASE64 secret, builds from main still share one key: made here
+      # once and kept in this repository's Actions cache (never in the repository or a log), so
+      # each build installs over the last and the in-app updater works. Pull requests don't touch
+      # it. The scheduled Spicy Lyrics Mobile check reads it too, so it never goes unused long
+      # enough to expire.
+      - name: Look for the cached debug key
+        id: cached-key
+        if: github.event_name != 'pull_request'
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/cached-key
+          key: plus-debug-keystore-v1
+
       - name: Restore the shared debug key
         env:
           DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+          EVENT: ${{ github.event_name }}
         run: |
+          cached="$RUNNER_TEMP/cached-key/debug.keystore"
           if [ -n "$DEBUG_KEYSTORE_BASE64" ]; then
             echo "$DEBUG_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/debug.keystore"
             echo "DEBUG_KEYSTORE_FILE=$RUNNER_TEMP/debug.keystore" >> "$GITHUB_ENV"
+          elif [ "$EVENT" != "pull_request" ]; then
+            if [ ! -s "$cached" ]; then
+              mkdir -p "$(dirname "$cached")"
+              keytool -genkeypair -keystore "$cached" -storepass android -keypass android \
+                -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
+                -dname "CN=Android Debug,O=Android,C=US" >/dev/null 2>&1
+              echo "NEW_CACHED_KEY=1" >> "$GITHUB_ENV"
+              echo "Made the shared debug key; it's kept in the Actions cache from now on."
+            fi
+            echo "DEBUG_KEYSTORE_FILE=$cached" >> "$GITHUB_ENV"
           else
-            echo "No DEBUG_KEYSTORE_BASE64 secret: this build is signed with a throwaway key."
+            echo "Pull request: signed with a throwaway key."
           fi
+
+      - name: Keep the new debug key
+        if: env.NEW_CACHED_KEY == '1'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/cached-key
+          key: plus-debug-keystore-v1
 
       - name: Build, test, and lint
         env:
@@ -84,7 +116,7 @@ jobs:
           if [ -n "$DEBUG_KEYSTORE_FILE" ]; then
             signing="Signed with the repository's shared key, so it installs over the previous build."
           else
-            signing="Signed with a one-off key (no DEBUG_KEYSTORE_BASE64 secret yet): uninstall the previous build before installing this one."
+            signing="Signed with a one-off key: uninstall the previous build before installing this one."
           fi
           printf '## Changed\n- **Build %s from main.**\n%s\n\n## Known limitations\n- %s\n' "$RUN" "$changes" "$signing" > notes.md
           gh release create "$tag" "$apk" "$apk.sha256" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
