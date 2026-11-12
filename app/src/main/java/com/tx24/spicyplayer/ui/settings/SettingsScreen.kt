@@ -659,7 +659,7 @@ private fun PageSkeleton(page: SettingsPage) {
         SettingsPage.FloatingLyrics -> SettingsSkeleton(rows = 8)
         SettingsPage.Fonts -> SettingsSkeleton(rows = 12)
         SettingsPage.Wallpaper -> SettingsSkeleton(rows = 12)
-        SettingsPage.BatterySaver -> SettingsSkeleton(rows = 8)
+        SettingsPage.BatterySaver -> SettingsSkeleton(rows = 9)
         SettingsPage.Stats -> SettingsSkeleton(rows = 8)
         SettingsPage.Advanced -> SettingsSkeleton(rows = 10)
         SettingsPage.Changelog -> SettingsSkeleton(rows = 6, cards = true)

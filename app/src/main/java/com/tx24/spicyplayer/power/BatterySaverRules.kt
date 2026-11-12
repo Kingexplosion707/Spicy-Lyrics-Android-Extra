@@ -30,6 +30,8 @@ internal enum class SaverRule(val pref: String, val default: Boolean = true) {
     KeepScreenOn("saverStopsKeepScreenOn"),
     /** Smoother motion: the lyrics screen draws at 60 Hz. */
     HighRefreshRate("saverStopsHighRefreshRate"),
+    /** Listening to stay in sync ([com.tx24.spicyplayer.playback.ListeningSync]). */
+    Listening("saverStopsListening"),
     ;
 
     fun enabled(prefs: SharedPreferences): Boolean = prefs.getBoolean(pref, default)

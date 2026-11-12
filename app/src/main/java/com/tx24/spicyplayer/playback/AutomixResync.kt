@@ -9,9 +9,8 @@ import android.content.Context
  * a moment into each new song the player is sent to where the lyrics are, as tapping a line does:
  * it answers with a report that matches its audio. The music jumps back by Automix's head start.
  *
- * With a Spotify account signed in ([com.tx24.spicyplayer.spotify.SpotifyAccount]) Spotify's own
- * servers are asked where the song is too, and their answer is logged beside the phone's (Debug
- * info). It isn't used: moving the lyrics by it put them seconds off when the phone was right.
+ * A song that is being listened to ([ListeningSync]) is left alone: there the lyrics move to
+ * the music instead.
  *
  * Settings → Scroll & Sync → Song changes (on by default). The lyrics screen and the background
  * follower both schedule it; [claim] lets only the first one seek for each song.
@@ -21,21 +20,13 @@ internal object AutomixResync {
     const val PLAYER = "com.spotify.music"
     /** How long after a song change to resync: past Automix's switch, early in the song. */
     const val DELAY_MS = 2_000L
+    /** A resync that can't go yet (the player still loading) is tried again this much later, a few times. */
+    const val RETRY_MS = 1_500L
+    const val MAX_RETRIES = 4
     /** The setting, in the "ui" preferences. */
     const val PREF = "resyncAfterSongChange"
 
     private var claimed: String? = null
-
-    /** Smaller differences between Spotify's account and the lyrics are its own timing, not Automix. */
-    const val MIN_OFFSET_MS = 250L
-    /** Automix starts a song at most this far ahead; Spotify running behind the phone is its delay. */
-    private val OFFSET_RANGE = -2_000L..20_000L
-
-    /** How far to move the lyrics to [spotifyMs], from [lyricsMs]: 0 for its own jitter or an answer out of range. */
-    fun offsetFrom(spotifyMs: Long, lyricsMs: Long): Long {
-        val offset = spotifyMs - lyricsMs
-        return if (offset in OFFSET_RANGE && kotlin.math.abs(offset) >= MIN_OFFSET_MS) offset else 0L
-    }
 
     fun enabled(context: Context): Boolean =
         context.getSharedPreferences("ui", Context.MODE_PRIVATE).getBoolean(PREF, true)

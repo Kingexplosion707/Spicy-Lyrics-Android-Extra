@@ -1,0 +1,14 @@
+HSPLcom/tx24/spicyplayer/lyrics/**->**(**)**
+HSPLcom/tx24/spicyplayer/ui/**->**(**)**
+HSPLcom/tx24/spicyplayer/playback/**->**(**)**
+HSPLcom/tx24/spicyplayer/MainActivity**->**(**)**
+HSPLcom/tx24/spicyplayer/LyricsActivity**->**(**)**
+HSPLcom/tx24/spicyplayer/SpicyLyricsApplication**->**(**)**
+HPLcom/tx24/spicyplayer/overlay/**->**(**)**
+HPLcom/tx24/spicyplayer/wallpaper/**->**(**)**
+HPLcom/tx24/spicyplayer/aod/**->**(**)**
+HPLcom/tx24/spicyplayer/haptics/**->**(**)**
+HPLcom/tx24/spicyplayer/network/**->**(**)**
+HPLcom/tx24/spicyplayer/widget/**->**(**)**
+HPLcom/tx24/spicyplayer/power/**->**(**)**
+HPLcom/tx24/spicyplayer/spotify/**->**(**)**

@@ -276,8 +276,12 @@ class AppSettings(private val prefs: SharedPreferences) {
     var headerSize by enum("headerSize", HeaderSize.Large)
     /** Which side the now-playing panel sits on in landscape; the floating swap button, not a settings row. */
     var panelSide by enum("panelSide", PanelSide.Left)
-    /** The screen's full refresh rate (90/120 Hz) instead of 60 Hz, which costs battery. */
-    var highRefreshRate by boolean("highRefreshRate", false)
+    /**
+     * The screen's full refresh rate (90/120 Hz) instead of 60 Hz. On by default in Plus: on a
+     * 120 Hz screen the lyrics at 60 Hz look choppy beside everything else on the phone. Costs
+     * some battery; the battery saver can cap it ([com.tx24.spicyplayer.power.SaverRule.HighRefreshRate]).
+     */
+    var highRefreshRate by boolean("highRefreshRate", true)
     var autoHideControls by boolean("autoHideControls", true)
     var controlsHideDelay by enum("controlsHideDelay", ControlsHideDelay.Default)
     /** The controls fade while paused too, not only while playing. */
@@ -329,6 +333,9 @@ class AppSettings(private val prefs: SharedPreferences) {
     var saverStopsKeepScreenOn by boolean("saverStopsKeepScreenOn", true)
     var saverStopsHighRefreshRate by boolean("saverStopsHighRefreshRate", true)
     var saverLowPerformance by boolean("saverLowPerformance", false)
+    var saverStopsListening by boolean("saverStopsListening", true)
+    /** Hears the phone's playback to place the lyrics ([com.tx24.spicyplayer.playback.ListeningSync]); needs record-audio. */
+    var listeningSync by boolean("listeningSync", false)
     /** Spotify's Automix: resync a moment into each new song ([com.tx24.spicyplayer.playback.AutomixResync]). */
     var resyncAfterSongChange by boolean("resyncAfterSongChange", true)
     /** The player's crossfade, in seconds: a song that follows another on its own starts this far in. */

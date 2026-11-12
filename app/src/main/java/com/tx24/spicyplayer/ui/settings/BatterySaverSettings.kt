@@ -3,6 +3,7 @@ package com.tx24.spicyplayer.ui.settings
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Animation
 import androidx.compose.material.icons.rounded.BatterySaver
+import androidx.compose.material.icons.rounded.Hearing
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Nightlight
 import androidx.compose.material.icons.rounded.Notifications
@@ -20,7 +21,7 @@ internal fun batterySaverSummary(settings: AppSettings, saverOn: Boolean): Strin
     val count = listOf(
         settings.saverStopsAlwaysOn, settings.saverStopsOverlay, settings.saverStopsNotification,
         settings.saverStopsBackgroundHaptics, settings.saverStopsKeepScreenOn, settings.saverStopsHighRefreshRate,
-        settings.saverLowPerformance,
+        settings.saverLowPerformance, settings.saverStopsListening,
     ).count { it }
     val what = if (count == 0) "Turns nothing off" else "Turns off $count ${if (count == 1) "thing" else "things"}"
     return if (saverOn) "On now · $what" else "$what while it's on"
@@ -69,6 +70,13 @@ internal fun BatterySaverContent(settings: AppSettings) {
         onCheckedChange = { settings.saverStopsBackgroundHaptics = it },
         description = "No vibrations outside the app, and no song analysis for them.",
         icon = Icons.Rounded.Vibration,
+    )
+    ToggleRow(
+        label = "Stop listening to stay in sync",
+        checked = settings.saverStopsListening,
+        onCheckedChange = { settings.saverStopsListening = it },
+        description = "The lyrics follow the player's own position only.",
+        icon = Icons.Rounded.Hearing,
     )
     SettingsSection("Lyrics screen") {
         ToggleRow(
