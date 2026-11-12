@@ -132,6 +132,9 @@ private class SessionCore(private val app: Context) {
     private var transitionOffsetMs = 0L
     private var automixSongKey: String? = null
     private val automixResync = Runnable { automixResyncNow() }
+    /** Every couple of seconds while playing, the clock is put back on the player ([LyricClock.resyncTo]). */
+    private val periodicResync = Runnable { periodicResyncNow() }
+    private var periodicResyncPosted = false
 
     private var outputProfiles: AudioOutputProfiles? = null
     private var songDelays: SongDelays? = null
@@ -206,6 +209,8 @@ private class SessionCore(private val app: Context) {
     fun stop() {
         main.removeCallbacks(sessionRecheck)
         main.removeCallbacks(automixResync)
+        main.removeCallbacks(periodicResync)
+        periodicResyncPosted = false
         runCatching { sessionManager?.removeOnActiveSessionsChangedListener(sessionsListener) }
         controller?.unregisterCallback(controllerCallback)
         observedSessions.forEach { (token, session) -> observedCallbacks[token]?.let(session::unregisterCallback) }
@@ -411,9 +416,31 @@ private class SessionCore(private val app: Context) {
     }
 
     /** Takes the session's latest position report, as the widget does but without its corrections for seeks. */
+    /** Reads the player again and puts the clock where it says, every couple of seconds while it plays. */
+    private fun periodicResyncNow() {
+        periodicResyncPosted = false
+        val session = controller ?: return
+        val playback = session.playbackState ?: return
+        if (playback.state != PlaybackState.STATE_PLAYING) return
+        if (!awaitingReport) {
+            val relayed = session.playbackInfo?.playbackType == MediaController.PlaybackInfo.PLAYBACK_TYPE_REMOTE
+            val report = LyricClock.Report(
+                playback.state, true, playback.position + transitionOffsetMs, playback.lastPositionUpdateTime,
+                LyricClock.playingSpeed(true, playback.playbackSpeed), relayed,
+            )
+            clock.resyncTo(report, SystemClock.elapsedRealtime())
+        }
+        periodicResyncPosted = true
+        main.postDelayed(periodicResync, LyricClock.RESYNC_EVERY_MS)
+    }
+
     private fun report(session: MediaController, newSong: Boolean) {
         val now = SystemClock.elapsedRealtime()
         val playback = session.playbackState
+        if (playback?.state == PlaybackState.STATE_PLAYING && !periodicResyncPosted) {
+            periodicResyncPosted = true
+            main.postDelayed(periodicResync, LyricClock.RESYNC_EVERY_MS)
+        }
         if (playback == null || playback.position < 0L) {
             if (newSong) clock.reset(now)
             return
