@@ -221,3 +221,31 @@ internal object SpotifyPosition {
         best?.first
     }
 }
+
+/**
+ * Which device the signed-in account is playing on. Spotify crossfades only in its own app on the
+ * phone: on a speaker it plays to through Connect (an Echo Dot, say) songs follow each other with
+ * no crossfade, so the crossfade lead must not apply there. Spotify's Web API doesn't give the
+ * crossfade setting itself, only the device; what it says wins over the Crossfade setting.
+ */
+internal object SpotifyDevice {
+    /** The last answer: true when playing on a phone. Null before any. */
+    @Volatile
+    var lastOnPhone: Boolean? = null
+        private set
+
+    /** Asks Spotify which device is playing; true for a phone, null when it can't say. */
+    suspend fun playingOnPhone(context: Context): Boolean? = withContext(Dispatchers.IO) {
+        val token = SpotifyAccount.accessToken(context) ?: return@withContext null
+        val request = Request.Builder().url("https://api.spotify.com/v1/me/player").header("Authorization", "Bearer $token").build()
+        val answer = runCatching {
+            SpotifyAccount.client.newCall(request).execute().use { response ->
+                if (response.code != 200) return@use null
+                val device = JSONObject(response.body?.string().orEmpty()).optJSONObject("device") ?: return@use null
+                device.optString("type").equals("Smartphone", ignoreCase = true)
+            }
+        }.getOrNull()
+        if (answer != null) lastOnPhone = answer
+        answer
+    }
+}

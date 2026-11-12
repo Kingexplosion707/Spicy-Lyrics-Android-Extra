@@ -51,3 +51,24 @@ internal object AutomixResync {
         return true
     }
 }
+
+/**
+ * Settings → Scroll & Sync → Crossfade: how far into a song that follows another on its own the
+ * player's audio is when it reports the song. With a Spotify account signed in, the device Spotify
+ * plays on decides whether it applies ([com.tx24.spicyplayer.spotify.SpotifyDevice]); a remote
+ * session (a speaker through Connect) never crossfades.
+ */
+internal object CrossfadeLead {
+    fun ms(context: Context): Long =
+        context.getSharedPreferences("ui", Context.MODE_PRIVATE).getInt(CROSSFADE_PREF, 0) * 1_000L
+
+    /**
+     * Whether the lead applies, as far as is known without waiting: not on a remote session, and
+     * on a phone when the account last said where Spotify plays.
+     */
+    fun appliesNow(context: Context, relayed: Boolean): Boolean {
+        if (relayed) return false
+        if (!com.tx24.spicyplayer.spotify.SpotifyAccount.signedIn(context)) return true
+        return com.tx24.spicyplayer.spotify.SpotifyDevice.lastOnPhone ?: true
+    }
+}

@@ -47,7 +47,8 @@ internal fun SongChangeSection(settings: AppSettings) {
         SettingRow(
             label = "Crossfade",
             description = "Set it to your player's Crossfade. A song that follows another on its own starts this far in, " +
-                "with no jump. Off for Automix.",
+                "with no jump. Off for Automix. With your Spotify account signed in, it only applies while Spotify plays on the phone " +
+                "(a speaker through Connect, such as an Echo Dot, doesn't crossfade).",
             icon = Icons.Rounded.BlurLinear,
             stacked = true,
         ) {

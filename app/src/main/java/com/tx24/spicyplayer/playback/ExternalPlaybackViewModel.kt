@@ -8,6 +8,7 @@ import android.net.Uri
 import android.app.Application
 import android.content.Context
 import com.tx24.spicyplayer.spotify.SpotifyAccount
+import com.tx24.spicyplayer.spotify.SpotifyDevice
 import com.tx24.spicyplayer.spotify.SpotifyPosition
 import android.content.ComponentName
 import android.graphics.Bitmap
@@ -1957,23 +1958,45 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
     private fun onSongChange(active: MediaController, metadata: MediaMetadata?) {
         val now = SystemClock.elapsedRealtime()
         val app = getApplication<Application>()
-        val crossfadeMs = app.getSharedPreferences("ui", Context.MODE_PRIVATE).getInt(CROSSFADE_PREF, 0) * 1_000L
+        val crossfadeMs = CrossfadeLead.ms(app)
         val lastDuration = mutableState.value.durationMs
         // It ended on its own when the clock had reached its last seconds, not a skip mid-song.
         val endedOnItsOwn = lastDuration > 0L &&
             clock.lastSongPositionAt(now) >= lastDuration - crossfadeMs - NATURAL_END_SLACK_MS
-        transitionOffsetMs = if (crossfadeMs > 0L && endedOnItsOwn) crossfadeMs else 0L
+        val relayed = active.playbackInfo?.playbackType == MediaController.PlaybackInfo.PLAYBACK_TYPE_REMOTE
+        val crossfaded = crossfadeMs > 0L && endedOnItsOwn
+        transitionOffsetMs = if (crossfaded && CrossfadeLead.appliesNow(app, relayed)) crossfadeMs else 0L
         mainHandler.removeCallbacks(automixResync)
         automixSongKey = null
-        if (transitionOffsetMs == 0L && active.packageName == AutomixResync.PLAYER && AutomixResync.enabled(app)) {
-            automixSongKey = AutomixResync.songKey(
-                active.packageName,
-                metadata?.getString(MediaMetadata.METADATA_KEY_TITLE),
-                metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST),
-            )
-            mainHandler.postDelayed(automixResync, AutomixResync.DELAY_MS)
-        }
+        val songKey = AutomixResync.songKey(
+            active.packageName,
+            metadata?.getString(MediaMetadata.METADATA_KEY_TITLE),
+            metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST),
+        )
+        if (transitionOffsetMs == 0L) scheduleAutomixResync(active, songKey)
         if (transitionOffsetMs > 0L) SyncTrace.add(now, "new song after a crossfade: +${transitionOffsetMs} ms")
+        // The Spotify account says where Spotify plays: a speaker through Connect never crossfades.
+        if (crossfaded && !relayed && SpotifyAccount.signedIn(app)) {
+            viewModelScope.launch {
+                val onPhone = SpotifyDevice.playingOnPhone(app) ?: return@launch
+                if (controller !== active || currentSongKey(active) != songKey || pendingCommand != null) return@launch
+                val lead = if (onPhone) crossfadeMs else 0L
+                val delta = lead - transitionOffsetMs
+                if (delta == 0L) return@launch
+                val at = SystemClock.elapsedRealtime()
+                transitionOffsetMs = lead
+                clock.seekTo(clock.positionAt(at) + delta, at)
+                SyncTrace.add(at, "spotify account: ${if (onPhone) "on the phone, crossfade" else "on another device, no crossfade"}: moved $delta ms")
+                if (lead == 0L) scheduleAutomixResync(active, songKey)
+            }
+        }
+    }
+
+    private fun scheduleAutomixResync(active: MediaController, songKey: String) {
+        if (active.packageName != AutomixResync.PLAYER || !AutomixResync.enabled(getApplication())) return
+        automixSongKey = songKey
+        mainHandler.removeCallbacks(automixResync)
+        mainHandler.postDelayed(automixResync, AutomixResync.DELAY_MS)
     }
 
     /**
