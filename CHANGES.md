@@ -62,7 +62,7 @@ Modified by Behnoud.
 ### Performance
 - The wallpaper, overlay, always-on display, notification and background haptics share one media-session follower instead of each running its own.
 - The lyric clock outside the app no longer asks the system for the audio output on every frame; the delays are looked up when the song or player changes, or once a second.
-- The overlay keeps its window (and its laid-out lyrics) for a while after hiding, draws at most 60 frames a second, and rests completely while hidden.
+- The overlay keeps its window (and its laid-out lyrics) for a while after hiding and rests completely while hidden. It draws at the screen's full rate with Smoother motion on, and at most 60 frames a second without it or while the battery saver caps it.
 - The always-on display asks for the screen's lowest refresh rate and wakes once a minute for its clock instead of every second.
 - Cover videos run their players on their own thread, so starting and stopping one never stalls a frame.
 - The lyrics notification stops following the line while the screen is off and catches up when it comes back on.

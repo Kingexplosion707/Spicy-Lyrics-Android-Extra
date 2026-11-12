@@ -62,6 +62,10 @@ internal fun OverlayContent(live: LiveLyrics, prefs: SharedPreferences, visible:
         return
     }
 
+    // The screen's full rate with Smoother motion (the lyrics at 60 over a 120 Hz app look choppy
+    // beside it), 60 without it or while the battery saver caps it: half a 120 Hz screen's work.
+    val fullRate = settings.highRefreshRate &&
+        !(settings.saverStopsHighRefreshRate && com.tx24.spicyplayer.power.rememberBatterySaverOn())
     val shape = RoundedCornerShape(BACKDROP_CORNER_DP.dp)
     Box(
         Modifier
@@ -85,8 +89,7 @@ internal fun OverlayContent(live: LiveLyrics, prefs: SharedPreferences, visible:
                 fontSizeScale = settings.lyricsScale(false) * size.fontScale,
                 glow = glow,
                 glowStrength = glowStrength,
-                // Smooth enough floating over another app, at half a 120 Hz screen's work.
-                maxFrameRate = OVERLAY_MAX_FPS,
+                maxFrameRate = if (fullRate) 0f else OVERLAY_MAX_FPS,
             )
         } else if (track != null) {
             Text(
