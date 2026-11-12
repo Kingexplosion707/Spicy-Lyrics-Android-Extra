@@ -186,6 +186,7 @@ internal enum class SettingsPage(
     FloatingLyrics("Floating lyrics", parent = Device),
     Wallpaper("Live wallpaper", parent = Device),
     BatterySaver("Battery saver", parent = Device),
+    AlwaysOn("Always-on display", parent = Device),
     Stats("Listening stats"),
     SavedLines("Saved lines"),
     Advanced("Advanced"),
@@ -568,6 +569,7 @@ private fun PageContent(
         SettingsPage.Fonts -> FontGalleryContent(settings)
         SettingsPage.Wallpaper -> WallpaperSection(settings, titled = false)
         SettingsPage.BatterySaver -> BatterySaverContent(settings)
+        SettingsPage.AlwaysOn -> AlwaysOnContent(settings)
         SettingsPage.Stats -> ListeningStatsContent(settings)
         SettingsPage.SavedLines -> SavedLinesContent()
         SettingsPage.Advanced -> AdvancedContent(state, viewModel, updater, settings)
@@ -663,6 +665,7 @@ private fun PageSkeleton(page: SettingsPage) {
         SettingsPage.Fonts -> SettingsSkeleton(rows = 12)
         SettingsPage.Wallpaper -> SettingsSkeleton(rows = 12)
         SettingsPage.BatterySaver -> SettingsSkeleton(rows = 9)
+        SettingsPage.AlwaysOn -> SettingsSkeleton(rows = 12)
         SettingsPage.Stats -> SettingsSkeleton(rows = 8)
         SettingsPage.SavedLines -> SettingsSkeleton(rows = 5)
         SettingsPage.Advanced -> SettingsSkeleton(rows = 10)
