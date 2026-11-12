@@ -2,6 +2,9 @@ package com.tx24.spicyplayer.playback
 
 import android.content.ComponentName
 import android.content.Context
+import com.tx24.spicyplayer.spotify.SpotifyAccount
+import com.tx24.spicyplayer.spotify.SpotifyDevice
+import kotlinx.coroutines.launch
 import android.graphics.Bitmap
 import android.media.MediaMetadata
 import android.media.session.MediaController
@@ -135,6 +138,9 @@ private class SessionCore(private val app: Context) {
     /** Every couple of seconds while playing, the clock is put back on the player ([LyricClock.resyncTo]). */
     private val periodicResync = Runnable { periodicResyncNow() }
     private var periodicResyncPosted = false
+    /** Asks the Spotify account where Spotify plays ([SpotifyDevice]), on the main thread. */
+    private val deviceScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
+    private var deviceCheck: kotlinx.coroutines.Job? = null
 
     private var outputProfiles: AudioOutputProfiles? = null
     private var songDelays: SongDelays? = null
@@ -211,6 +217,7 @@ private class SessionCore(private val app: Context) {
         main.removeCallbacks(automixResync)
         main.removeCallbacks(periodicResync)
         periodicResyncPosted = false
+        deviceCheck?.cancel()
         runCatching { sessionManager?.removeOnActiveSessionsChangedListener(sessionsListener) }
         controller?.unregisterCallback(controllerCallback)
         observedSessions.forEach { (token, session) -> observedCallbacks[token]?.let(session::unregisterCallback) }
@@ -339,20 +346,42 @@ private class SessionCore(private val app: Context) {
     /** Before the new song replaces the last: its crossfade lead, and Spotify's Automix resync. */
     private fun onSongChange(session: MediaController, metadata: MediaMetadata) {
         val now = SystemClock.elapsedRealtime()
-        val crossfadeMs = app.getSharedPreferences("ui", Context.MODE_PRIVATE).getInt(CROSSFADE_PREF, 0) * 1_000L
+        val crossfadeMs = CrossfadeLead.ms(app)
         val lastDuration = track?.durationMs ?: 0L
         val endedOnItsOwn = lastDuration > 0L && clock.lastSongPositionAt(now) >= lastDuration - crossfadeMs - 2_500L
-        transitionOffsetMs = if (crossfadeMs > 0L && endedOnItsOwn) crossfadeMs else 0L
+        val relayed = session.playbackInfo?.playbackType == MediaController.PlaybackInfo.PLAYBACK_TYPE_REMOTE
+        val crossfaded = crossfadeMs > 0L && endedOnItsOwn
+        transitionOffsetMs = if (crossfaded && CrossfadeLead.appliesNow(app, relayed)) crossfadeMs else 0L
         main.removeCallbacks(automixResync)
         automixSongKey = null
-        if (transitionOffsetMs == 0L && session.packageName == AutomixResync.PLAYER && AutomixResync.enabled(app)) {
-            automixSongKey = AutomixResync.songKey(
-                session.packageName,
-                metadata.getString(MediaMetadata.METADATA_KEY_TITLE),
-                metadata.getString(MediaMetadata.METADATA_KEY_ARTIST),
-            )
-            main.postDelayed(automixResync, AutomixResync.DELAY_MS)
+        val songKey = AutomixResync.songKey(
+            session.packageName,
+            metadata.getString(MediaMetadata.METADATA_KEY_TITLE),
+            metadata.getString(MediaMetadata.METADATA_KEY_ARTIST),
+        )
+        if (transitionOffsetMs == 0L) scheduleAutomixResync(session, songKey)
+        // The Spotify account says where Spotify plays: a speaker through Connect never crossfades.
+        if (crossfaded && !relayed && SpotifyAccount.signedIn(app)) {
+            deviceCheck?.cancel()
+            deviceCheck = deviceScope.launch {
+                val onPhone = SpotifyDevice.playingOnPhone(app) ?: return@launch
+                if (controller !== session || songKeyOf(session) != songKey) return@launch
+                val lead = if (onPhone) crossfadeMs else 0L
+                val delta = lead - transitionOffsetMs
+                if (delta == 0L) return@launch
+                val at = SystemClock.elapsedRealtime()
+                transitionOffsetMs = lead
+                clock.seekTo(clock.positionAt(at) + delta, at)
+                if (lead == 0L) scheduleAutomixResync(session, songKey)
+            }
         }
+    }
+
+    private fun scheduleAutomixResync(session: MediaController, songKey: String) {
+        if (session.packageName != AutomixResync.PLAYER || !AutomixResync.enabled(app)) return
+        automixSongKey = songKey
+        main.removeCallbacks(automixResync)
+        main.postDelayed(automixResync, AutomixResync.DELAY_MS)
     }
 
     /** A moment into a new Spotify song ([AutomixResync]): the player is sent to where the lyrics are. */
