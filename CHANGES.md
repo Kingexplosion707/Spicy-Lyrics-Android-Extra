@@ -71,6 +71,7 @@ Modified by Behnoud.
 - Quick Settings tiles for the overlay and the always-on display; both, and the lyrics notification, come back after a restart or an app update.
 - Version matching for LRCLIB and NetEase prefers the copy closest in length.
 - **Song changes** (Scroll & Sync): Spotify's Automix reports each new song a few seconds behind its audio, so two seconds in, Spotify is sent to where the lyrics are, as tapping a line does (on by default; `AutomixResync`). With your own **Spotify account** signed in (your Client ID from developer.spotify.com, PKCE, read-only playback scope; `spotify/`), where Spotify's servers say a new song is goes into Debug info beside the phone's, for testing. A **Crossfade** setting starts a song that follows another on its own that many seconds in, with no jump.
+- Every two seconds while the music plays, the lyrics clock reads the player again and moves to exactly where it says (40 ms or more apart; no seek, no network), in the app and outside it.
 - A new song no longer starts its lyrics late when the player reports its start before naming it (Spotify): the lyrics screen, wallpaper, overlay, always-on display, haptics and widget keep that report instead of starting the song from 0 when its name arrives.
 - CI debug builds share one signing key (from a repository secret) and count their version up, so they install as updates.
 - Every change to main is also published as an optimised (R8) build, a prerelease the in-app updater offers (`android-ci.yml`).

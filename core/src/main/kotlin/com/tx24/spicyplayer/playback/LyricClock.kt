@@ -186,6 +186,24 @@ class LyricClock(nowMs: Long) {
         if (lastReportRestarted && nowMs - lastReportAtMs <= START_REPORT_FRESH_MS) restartedFromMs + (nowMs - lastReportAtMs)
         else positionAt(nowMs)
 
+    /**
+     * The periodic resync: puts the clock exactly where the player's [report] says it is now, when
+     * they're [toleranceMs] or more apart. Only a playing local report counts. Returns how far the
+     * clock moved, or 0.
+     */
+    fun resyncTo(report: Report, nowMs: Long, toleranceMs: Long = RESYNC_TOLERANCE_MS): Long {
+        if (!report.playing || report.relayed || report.positionMs < 0L) return 0L
+        val elapsed = (nowMs - report.updatedAtMs).coerceAtLeast(0L)
+        // The report's own bias (a stale pause report's lag) still applies.
+        val target = (report.positionMs + elapsed * report.speed).toLong().coerceAtLeast(0L) + biasMs
+        val moved = target - positionAt(nowMs)
+        if (kotlin.math.abs(moved) < toleranceMs) return 0L
+        anchor = Anchor(target, nowMs, report.speed, true)
+        votes.clear()
+        lastReport = report
+        return moved
+    }
+
     /** Our own seek: the clock goes to [targetMs] now, and what came before no longer counts. */
     fun seekTo(targetMs: Long, nowMs: Long) {
         anchor = anchor.copy(positionMs = targetMs, atMs = nowMs)
@@ -235,6 +253,10 @@ class LyricClock(nowMs: Long) {
         const val RESUME_CARRIES_ON_MS = 50L
         /** A local pause report at most this far behind the clock is late, not the song going back. */
         const val PAUSE_LAG_MAX_MS = 150L
+        /** How far apart the clock and the player can be before the periodic resync moves the clock. */
+        const val RESYNC_TOLERANCE_MS = 40L
+        /** How often the periodic resync reads the player while it plays. */
+        const val RESYNC_EVERY_MS = 2_000L
         /** A report at most this far into a song can be its start ([startedSong]). */
         const val START_REPORT_MAX_MS = 2_000L
         /**

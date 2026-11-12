@@ -231,4 +231,15 @@ class LyricClockTest {
         // Without a restart it's just where the clock is.
         assertNear(201_000L, clockAt(200_000L).lastSongPositionAt(1_000L))
     }
+
+    @Test fun thePeriodicResyncPutsTheClockOnThePlayer() {
+        val clock = clockAt(10_000L)
+        // The player says 10.5 s at 1 s (the clock says 11 s): it moves to the player.
+        val report = LyricClock.Report(playing, true, 10_500L, 1_000L, 1f)
+        assertNear(-500L, clock.resyncTo(report, 1_000L))
+        assertNear(10_500L, clock.positionAt(1_000L))
+        // Within the tolerance, or paused, it stays.
+        assertNear(0L, clock.resyncTo(LyricClock.Report(playing, true, 10_520L, 1_000L, 1f), 1_000L))
+        assertNear(0L, clock.resyncTo(LyricClock.Report(2, false, 0L, 1_000L, 0f), 1_000L))
+    }
 }

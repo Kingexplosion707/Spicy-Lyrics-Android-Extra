@@ -724,6 +724,9 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
     private var transitionOffsetMs = 0L
     /** Spotify's Automix head start, resynced a moment into each new song ([AutomixResync]). */
     private val automixResync = Runnable { automixResyncNow() }
+    /** Every couple of seconds while playing, the clock is put back on the player ([LyricClock.resyncTo]). */
+    private val periodicResync = Runnable { periodicResyncNow() }
+    private var periodicResyncPosted = false
     private var automixSongKey: String? = null
     private val sessionStickiness = SessionStickiness(SESSION_SWITCH_GRACE_MS)
     /** Looks at the sessions again once the followed one has been stopped for its grace. */
@@ -2004,6 +2007,30 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         }
     }
 
+    /**
+     * Reads the player again and puts the clock exactly where it says, every couple of seconds
+     * while it plays. Reading it is a call to the player's session, no network and no frames; it
+     * stops while paused and starts again with the next playing report.
+     */
+    private fun periodicResyncNow() {
+        periodicResyncPosted = false
+        val active = controller ?: return
+        val playback = active.playbackState ?: return
+        if (playback.state != PlaybackState.STATE_PLAYING) return
+        if (pendingCommand == null && awaitingTrackReport.not()) {
+            val now = SystemClock.elapsedRealtime()
+            val speed = LyricClock.playingSpeed(true, playback.playbackSpeed)
+            val relayed = active.playbackInfo?.playbackType == MediaController.PlaybackInfo.PLAYBACK_TYPE_REMOTE
+            val report = LyricClock.Report(
+                playback.state, true, playback.position + transitionOffsetMs, playback.lastPositionUpdateTime, speed, relayed,
+            )
+            val moved = clock.resyncTo(report, now)
+            if (moved != 0L) SyncTrace.add(now, "resync: moved $moved ms to the player")
+        }
+        periodicResyncPosted = true
+        mainHandler.postDelayed(periodicResync, LyricClock.RESYNC_EVERY_MS)
+    }
+
     private fun currentSongKey(active: MediaController) = AutomixResync.songKey(
         active.packageName,
         active.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE),
@@ -2022,6 +2049,8 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
 
     private fun detachController() {
         mainHandler.removeCallbacks(automixResync)
+        mainHandler.removeCallbacks(periodicResync)
+        periodicResyncPosted = false
         transitionOffsetMs = 0L
         clearTranslation()
         controller?.unregisterCallback(controllerCallback)
@@ -2090,6 +2119,10 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         if (confirmed && pendingCommand is PendingCommand.Seek) seekRefusedBy = null
         if (!waitingForSeek && playback != null) {
             reconcileClock(playback, force = trackChanged || confirmed, trackChanged = trackChanged, snap = trackChanged || resyncConfirmed)
+            if (playback.state == PlaybackState.STATE_PLAYING && !periodicResyncPosted) {
+                periodicResyncPosted = true
+                mainHandler.postDelayed(periodicResync, LyricClock.RESYNC_EVERY_MS)
+            }
         }
         val spotifyId = metadata.sessionSpotifyId()
 
@@ -2579,6 +2612,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
 
     override fun onCleared() {
         mainHandler.removeCallbacks(automixResync)
+        mainHandler.removeCallbacks(periodicResync)
         runCatching { sessionManager.removeOnActiveSessionsChangedListener(activeSessionsListener) }
         mainHandler.removeCallbacks(sessionRecheck)
         stopObservingSessions()
