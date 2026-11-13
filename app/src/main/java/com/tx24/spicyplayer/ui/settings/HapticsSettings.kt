@@ -4,6 +4,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Equalizer
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.Movie
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.widget.Toast
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.material.icons.rounded.LinearScale
 import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material.icons.rounded.Vibration
@@ -69,6 +77,7 @@ internal fun HapticsSection(settings: AppSettings) {
             icon = Icons.Rounded.Home,
             enabled = settings.musicHaptics && player.canPlayMusic,
         )
+        LiveHapticsRows(settings, player.canPlayMusic)
         SettingRow(
             label = "Music haptics follow",
             description = "The drums: kicks deep, snares crisp, and the notes where there are no drums. The beat: a steady pulse, firmer on each bar.",
@@ -254,5 +263,68 @@ internal fun HapticsSection(settings: AppSettings) {
             icon = Icons.Rounded.Vibration,
             enabled = beatEnabled && settings.hapticBeatMode == HapticBeatMode.Apple,
         )
+    }
+}
+
+/**
+ * Haptics from live sound ([com.tx24.spicyplayer.haptics.LiveHapticsService]), each its own
+ * switch: the phone's own sound while Spotify isn't playing, and the microphone for music on
+ * someone else's device. Both need Android's record-audio permission, asked for when switched on.
+ */
+@Composable
+private fun LiveHapticsRows(settings: AppSettings, canVibrate: Boolean) {
+    val context = LocalContext.current
+    var pending by remember { mutableStateOf<String?>(null) }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        when (pending) {
+            "device" -> settings.liveHapticsDevice = granted
+            "mic" -> settings.liveHapticsMic = granted
+        }
+        pending = null
+        if (!granted) Toast.makeText(context, "It needs the permission; it stays off", Toast.LENGTH_LONG).show()
+        com.tx24.spicyplayer.haptics.LiveHapticsService.sync(context)
+    }
+    val permitted = com.tx24.spicyplayer.haptics.LiveHapticsService.hasPermission(context)
+    fun switch(which: String, on: Boolean) {
+        if (on && !permitted) {
+            pending = which
+            ask.launch(android.Manifest.permission.RECORD_AUDIO)
+            return
+        }
+        if (which == "device") settings.liveHapticsDevice = on else settings.liveHapticsMic = on
+        com.tx24.spicyplayer.haptics.LiveHapticsService.sync(context)
+    }
+    ToggleRow(
+        label = "Haptics to the phone's sound",
+        checked = settings.liveHapticsDevice && permitted && canVibrate,
+        onCheckedChange = { switch("device", it) },
+        description = "Feel films, videos and games: the phone's own sound, while Spotify isn't playing. Some streaming apps keep their sound to themselves. Android asks for its record-audio permission; nothing is recorded.",
+        icon = Icons.Rounded.Movie,
+        enabled = canVibrate,
+    )
+    ToggleRow(
+        label = "Haptics to music nearby",
+        checked = settings.liveHapticsMic && permitted && canVibrate,
+        onCheckedChange = { switch("mic", it) },
+        description = "Feel music from someone else's speaker through the microphone. Rests while Spotify plays on this phone. Nothing is recorded or sent.",
+        icon = Icons.Rounded.Mic,
+        enabled = canVibrate,
+    )
+    if ((settings.liveHapticsDevice || settings.liveHapticsMic) && permitted) {
+        SettingRow(
+            label = "Live haptics sensitivity",
+            description = "Higher feels softer hits too; lower only the big ones.",
+            icon = Icons.Rounded.GraphicEq,
+            stacked = true,
+        ) {
+            SpicyBipolarSlider(
+                value = settings.liveHapticsSensitivity,
+                range = 0..100,
+                step = 10,
+                onValueChange = { settings.liveHapticsSensitivity = it },
+                default = 50,
+                unit = "%",
+            )
+        }
     }
 }

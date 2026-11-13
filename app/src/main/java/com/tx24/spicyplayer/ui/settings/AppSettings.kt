@@ -328,6 +328,11 @@ class AppSettings(private val prefs: SharedPreferences) {
     var musicHapticsStyle by enum("musicHapticsStyle", MusicHapticsStyle.Drums)
     /** The music haptics keep vibrating once the app is not in front (a foreground service). */
     var backgroundMusicHaptics by boolean("backgroundMusicHaptics", true)
+    /** Haptics to the phone's own sound while Spotify isn't playing (a film, a video) ([com.tx24.spicyplayer.haptics.LiveHapticsService]). */
+    var liveHapticsDevice by boolean("liveHapticsDevice", false)
+    /** Haptics to the microphone: music from someone else's device. */
+    var liveHapticsMic by boolean("liveHapticsMic", false)
+    var liveHapticsSensitivity by int("liveHapticsSensitivity", 50, 0..100)
     /** HapticBeat's style: which pulses fire (Bass, Beat, Drums, Full mix, Apple-style, ...). */
     var hapticBeatMode by enum("hapticBeatMode", HapticBeatMode.Full)
     /** HapticBeat's engine: how a pulse is rendered on the motor. */

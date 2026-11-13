@@ -2166,6 +2166,7 @@ private fun SettingsBackupRows(viewModel: ExternalPlaybackViewModel, settings: A
                 com.tx24.spicyplayer.aod.AlwaysOnService.sync(context)
                 com.tx24.spicyplayer.playback.LyricsNotificationService.sync(context)
                 com.tx24.spicyplayer.haptics.BackgroundHapticsService.sync(context)
+                com.tx24.spicyplayer.haptics.LiveHapticsService.sync(context)
                 if (!settings.overlayHideClock) com.tx24.spicyplayer.overlay.StatusBarClock.restore(context)
                 viewModel.showMessage("Settings restored.")
             } else {

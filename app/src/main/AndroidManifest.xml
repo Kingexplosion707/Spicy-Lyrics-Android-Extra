@@ -17,6 +17,8 @@
     <!-- The background haptics run as a foreground service while the app is not in front. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- Live haptics from the microphone (music from another device). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <!-- Updates: the downloaded APK goes to Android's installer, which asks the user first. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Only for an update downloaded out of view: Android holds its install prompt back until a tap. -->
@@ -191,6 +193,12 @@
             android:name="com.tx24.spicyplayer.haptics.BackgroundHapticsService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+
+        <!-- Live haptics: vibrating to the phone's own sound or the microphone, when there's no song analysis. -->
+        <service
+            android:name="com.tx24.spicyplayer.haptics.LiveHapticsService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback|microphone" />
 
         <!-- The lyrics notification: the line being sung, for islands and Live Updates. -->
         <service
