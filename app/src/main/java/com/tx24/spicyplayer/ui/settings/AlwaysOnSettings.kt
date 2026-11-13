@@ -37,6 +37,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import android.content.Intent
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Key
+import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.MyLocation
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.rounded.PlaylistAdd
@@ -180,7 +181,7 @@ internal fun AlwaysOnContent(settings: AppSettings) {
             label = "Notifications",
             checked = settings.aodNotifications,
             onCheckedChange = { settings.aodNotifications = it },
-            description = "The icons of the apps with notifications waiting. Tap them for a list; tap one to unlock and open it. Hidden ones show only their app, as on your lock screen.",
+            description = "The icons of the apps with notifications waiting. Tap them for a list of every one, which scrolls; tap one to unlock and open it. Hidden ones show only their app, as on your lock screen.",
             searchDescription = "The icons of the apps with notifications waiting, as Android's own always-on display shows them. Only icons: nothing they say.",
             icon = Icons.Rounded.Notifications,
             enabled = on,
@@ -226,6 +227,14 @@ internal fun AlwaysOnContent(settings: AppSettings) {
             enabled = on && settings.aodControls,
         )
         if (settings.aodControls && settings.aodPlaylistButton) SpotifyAccountRows()
+        ToggleRow(
+            label = "Notification animation",
+            checked = settings.aodArrivalAnimation,
+            onCheckedChange = { settings.aodArrivalAnimation = it },
+            description = "When a notification comes in, light runs round the screen's edge and its app drops in from the top. Tap it to open.",
+            icon = Icons.Rounded.NotificationsActive,
+            enabled = on && settings.aodNotifications,
+        )
         ToggleRow(
             label = "Hide what notifications say until unlocked",
             checked = settings.aodHideNotificationText,
