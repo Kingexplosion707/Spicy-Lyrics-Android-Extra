@@ -47,6 +47,19 @@ class LiveHapticsService : Service() {
     private val thread = HandlerThread("live-haptics").apply { start() }
     private val worker = Handler(thread.looper)
     private var source: Source? = null
+    /** Started in the foreground: the sources wait for it (the microphone needs it). */
+    private var foreground = false
+    /** What it's hearing, for its notification: hits felt, and whether its source works. */
+    @Volatile private var hits = 0
+    @Volatile private var problem: String? = null
+    private var lastStatus = ""
+    private val main = Handler(android.os.Looper.getMainLooper())
+    private val refresh = object : Runnable {
+        override fun run() {
+            postNotification()
+            main.postDelayed(this, STATUS_MS)
+        }
+    }
     private val settings = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key in WATCHED) update()
     }
@@ -90,11 +103,15 @@ class LiveHapticsService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        foreground = true
         update()
+        main.removeCallbacks(refresh)
+        main.postDelayed(refresh, STATUS_MS)
         return START_STICKY
     }
 
     override fun onDestroy() {
+        main.removeCallbacks(refresh)
         source?.stop()
         source = null
         player.stop()
@@ -114,20 +131,33 @@ class LiveHapticsService : Service() {
             stopSelf()
             return
         }
-        val spotifyPlaying = session.isPlaying && session.playerPackage == SPOTIFY
-        val resting = spotifyPlaying || SaverRule.BackgroundHaptics.stopsNow(this, prefs)
-        val wanted = if (resting) null else mode
+        if (!foreground) return
+        val wanted = if (resting()) null else mode
         if (source?.mode != wanted) {
             source?.stop()
+            problem = null
             source = wanted?.let { start(it) }
         }
-        runCatching { getSystemService(NotificationManager::class.java)?.notify(NOTIFICATION_ID, notification(mode, resting)) }
+        postNotification()
+    }
+
+    private fun resting(): Boolean =
+        (session.isPlaying && session.playerPackage == SPOTIFY) || SaverRule.BackgroundHaptics.stopsNow(this, prefs)
+
+    private fun postNotification() {
+        val mode = wantedMode(this) ?: return
+        val built = notification(mode, resting())
+        val status = built.extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty()
+        if (status == lastStatus) return
+        lastStatus = status
+        runCatching { getSystemService(NotificationManager::class.java)?.notify(NOTIFICATION_ID, built) }
     }
 
     private fun start(mode: Mode): Source {
         val detector = LiveBeatDetector(prefs.getInt(PREF_SENSITIVITY, 50) / 100f)
         val strength = prefs.getInt("musicHapticsStrength", 100) / 100f
         val onHit: (LiveBeatDetector.Hit) -> Unit = { hit ->
+            hits++
             val pulse = if (hit.kind == LiveBeatDetector.Kind.Low) MusicPulse.Kick else MusicPulse.Snare
             player.play(pulse, (hit.strength * strength).coerceIn(0.05f, 1f))
         }
@@ -165,7 +195,8 @@ class LiveHapticsService : Service() {
                     val created = Visualizer(0)
                     created.enabled = false
                     created.captureSize = Visualizer.getCaptureSizeRange().let { BLOCK.coerceIn(it[0], it[1]) }
-                    created.scalingMode = Visualizer.SCALING_MODE_AS_PLAYED
+                    // Normalized: the same at any volume, even with the volume right down or on headphones.
+                    created.scalingMode = Visualizer.SCALING_MODE_NORMALIZED
                     created.enabled = true
                     visualizer = created
                     bytes = ByteArray(created.captureSize)
@@ -173,7 +204,10 @@ class LiveHapticsService : Service() {
                     rate = created.samplingRate / 1000
                     quietSince = SystemClock.elapsedRealtime()
                     worker.post(poll)
-                }.onFailure { close() }
+                }.onFailure {
+                    problem = "Android won't share the phone's sound right now"
+                    close()
+                }
             }
         }
 
@@ -200,7 +234,7 @@ class LiveHapticsService : Service() {
                 for (i in bytes.indices) {
                     val s = ((bytes[i].toInt() and 0xFF) - 128) / 128f
                     samples[i] = s
-                    if (s > SILENT || s < -SILENT) loud = true
+                    if (s != 0f) loud = true
                 }
                 if (loud) {
                     quietSince = now
@@ -227,15 +261,32 @@ class LiveHapticsService : Service() {
                 if (stopped || !hasPermission(this@LiveHapticsService)) return@post
                 val min = AudioRecord.getMinBufferSize(MIC_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
                 if (min <= 0) return@post
-                val created = runCatching {
-                    AudioRecord(MediaRecorder.AudioSource.MIC, MIC_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(min, MIC_BLOCK * 4))
-                }.getOrNull() ?: return@post
-                if (created.state != AudioRecord.STATE_INITIALIZED) {
-                    created.release()
+                // Unprocessed where the phone has it: the voice clean-up would turn music down.
+                val audio = getSystemService(android.media.AudioManager::class.java)
+                val unprocessed = audio?.getProperty(android.media.AudioManager.PROPERTY_SUPPORT_AUDIO_SOURCE_UNPROCESSED) == "true"
+                val created = listOfNotNull(
+                    MediaRecorder.AudioSource.UNPROCESSED.takeIf { unprocessed },
+                    MediaRecorder.AudioSource.MIC,
+                ).firstNotNullOfOrNull { input ->
+                    runCatching {
+                        AudioRecord(input, MIC_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(min, MIC_BLOCK * 4))
+                    }.getOrNull()?.takeIf { it.state == AudioRecord.STATE_INITIALIZED || run { it.release(); false } }
+                }
+                if (created == null) {
+                    problem = "Couldn't open the microphone"
                     return@post
                 }
                 record = created
-                runCatching { created.startRecording() }.onFailure { close(); return@post }
+                runCatching { created.startRecording() }.onFailure {
+                    problem = "Couldn't open the microphone"
+                    close()
+                    return@post
+                }
+                if (created.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                    problem = "Another app is using the microphone"
+                    close()
+                    return@post
+                }
                 val pcm = ShortArray(MIC_BLOCK)
                 val samples = FloatArray(MIC_BLOCK)
                 while (!stopped) {
@@ -278,8 +329,10 @@ class LiveHapticsService : Service() {
         val text = when {
             resting && session.isPlaying && session.playerPackage == SPOTIFY -> "Resting while Spotify plays"
             resting -> "Resting while the battery saver is on"
+            problem != null -> problem!!
+            hits > 0 -> "$hits hits felt so far"
             mode == Mode.Microphone -> "Listening for music nearby. Nothing is recorded."
-            else -> "Vibrating to what the phone plays"
+            else -> "Waiting for sound"
         }
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.app_glyph)
@@ -288,6 +341,7 @@ class LiveHapticsService : Service() {
             .addAction(R.drawable.app_glyph, "Stop", stop)
             .setOngoing(true)
             .setSilent(true)
+            .setOnlyAlertOnce(true)
             .build()
     }
 
@@ -309,8 +363,8 @@ class LiveHapticsService : Service() {
         private const val POLL_MS = 20L
         private const val IDLE_POLL_MS = 400L
         private const val IDLE_AFTER_MS = 4_000L
-        /** A block whose every sample stays under this is silence. */
-        private const val SILENT = 2f / 128f
+        /** How often its notification catches up with what it's hearing. */
+        private const val STATUS_MS = 3_000L
         private const val MIC_RATE = 16_000
         private const val MIC_BLOCK = 512
 

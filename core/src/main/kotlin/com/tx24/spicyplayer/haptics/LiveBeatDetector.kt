@@ -22,7 +22,7 @@ class LiveBeatDetector(
     class Hit(val kind: Kind, val strength: Float)
 
     /** How far over its floor (in log energy, about 2.7 times per step) a band must jump to hit. */
-    private val threshold = 3.2f - 2.2f * sensitivity.coerceIn(0f, 1f)
+    private val threshold = 1.8f - 1.2f * sensitivity.coerceIn(0f, 1f)
     private val low = Band(LOW_FROM_HZ, LOW_TO_HZ, refractoryMs = 110L)
     private val high = Band(HIGH_FROM_HZ, HIGH_TO_HZ, refractoryMs = 90L)
     private var re = FloatArray(0)
@@ -58,7 +58,8 @@ class LiveBeatDetector(
         val lowHit = low.take(energy(low, binHz, n), atMs, threshold)
         val highHit = high.take(energy(high, binHz, n), atMs, threshold)
         return when {
-            lowHit != null && (highHit == null || lowHit >= highHit) -> Hit(Kind.Low, lowHit)
+            // A kick's click reaches the highs too: the low hit is the one to feel.
+            lowHit != null -> Hit(Kind.Low, lowHit)
             highHit != null -> Hit(Kind.High, highHit)
             else -> null
         }
@@ -80,16 +81,23 @@ class LiveBeatDetector(
         private var floor = Float.NaN
         private var previous = Float.NaN
         private var lastHitMs = Long.MIN_VALUE / 2
+        /** How far the level wanders from the floor between hits: a noisy band needs a bigger jump. */
+        private var wander = 0.3f
+        /** Blocks heard since a reset: the first few only learn the level. */
+        private var heard = 0
 
         fun reset() {
+            heard = 0
             floor = Float.NaN
             previous = Float.NaN
             lastHitMs = Long.MIN_VALUE / 2
+            wander = 0.3f
         }
 
         /** The hit's strength when [energy] jumps out of the band's floor, else null. */
         fun take(energy: Float, atMs: Long, threshold: Float): Float? {
             val level = ln(energy + SILENCE)
+            heard++
             if (floor.isNaN()) {
                 floor = level
                 previous = level
@@ -99,7 +107,9 @@ class LiveBeatDetector(
             val rise = level - previous
             previous = level
             floor += if (level < floor) (level - floor) * FALL else (level - floor) * RISE_RATE
-            if (level < ln(SILENCE) + QUIET || above < threshold || rise < MIN_RISE || atMs - lastHitMs < refractoryMs) return null
+            val needed = maxOf(threshold, WANDER_TIMES * wander)
+            if (above < needed) wander += (kotlin.math.abs(above) - wander) * WANDER_RATE
+            if (heard < WARM_UP || level < ln(SILENCE) + QUIET || above < needed || rise < MIN_RISE || atMs - lastHitMs < refractoryMs) return null
             lastHitMs = atMs
             return ((above - threshold) / STRONG_ABOVE + 0.35f).coerceIn(0.2f, 1f)
         }
@@ -114,6 +124,10 @@ class LiveBeatDetector(
         const val SILENCE = 1e-9f
         /** A band this far (in log energy) above silence counts as sound at all. */
         const val QUIET = 4f
+        /** A hit must stand this many times its band's usual wander above the floor. */
+        const val WANDER_TIMES = 3f
+        const val WANDER_RATE = 0.05f
+        const val WARM_UP = 25
         /** How fast the floor follows the level down, and up. */
         const val FALL = 0.06f
         const val RISE_RATE = 0.015f
