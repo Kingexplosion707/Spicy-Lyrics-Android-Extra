@@ -228,8 +228,17 @@ class AppSettings(private val prefs: SharedPreferences) {
     var ambientDelay by enum("ambientDelay", AmbientDelay.Default)
     /** The lyrics screen as the always-on display: it stays on over the lock screen and dims to the lyrics at the lowest brightness, with or without [ambientMode], playing or paused. */
     var ambientAsAod by boolean("ambientAsAod", false)
-    /** The always-on display's screen brightness, in percent (1 is the lowest the screen allows). */
-    var aodBrightness by int("aodBrightness", 1, 1..100)
+    /** The always-on display's brightness follows the light sensor ([com.tx24.spicyplayer.aod.AodBrightness]). */
+    var aodAutoBrightness by boolean("aodAutoBrightness", true)
+    /** Its brightness without the sensor, 0 (darker than the screen's lowest) to 100. */
+    var aodLevel by int("aodLevel", 15, 0..100)
+    /** With the sensor, brighter or dimmer than it would choose. */
+    var aodBrightnessBias by int("aodBrightnessBias", 0, -40..40)
+    /** How its clock looks, and its size in percent. */
+    var aodClockStyle by enum("aodClockStyle", AodClockStyle.Light)
+    var aodClockSize by int("aodClockSize", 100, 60..160)
+    /** On a Pixel, holding the fingerprint sensor leaves it for the lock screen to unlock. */
+    var aodFingerprintUnlock by boolean("aodFingerprintUnlock", true)
     /** The song's Canvas behind the always-on display, blurred and darkened. */
     var aodCanvas by boolean("aodCanvas", false)
     /** Play/pause, previous and next on the always-on display. */
@@ -539,6 +548,14 @@ enum class ControlsHideDelay(val label: String, val millis: Long) {
 enum class AodStyle(val label: String) {
     Classic("Clock"),
     Player("Player"),
+}
+
+enum class AodClockStyle(val label: String) {
+    Light("Thin"),
+    Bold("Bold"),
+    Stacked("Stacked"),
+    Outline("Outline"),
+    Glass("Liquid glass"),
 }
 
 enum class TemperatureUnit(val label: String) {

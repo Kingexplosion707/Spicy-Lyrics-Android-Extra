@@ -8,7 +8,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.BatteryStd
+import androidx.compose.material.icons.rounded.BrightnessAuto
 import androidx.compose.material.icons.rounded.BrightnessLow
+import androidx.compose.material.icons.rounded.BrightnessMedium
+import androidx.compose.material.icons.rounded.Fingerprint
+import androidx.compose.material.icons.rounded.FormatSize
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.DoNotDisturbOn
 import androidx.compose.material.icons.rounded.LinearScale
@@ -19,10 +24,13 @@ import androidx.compose.material.icons.rounded.Thermostat
 import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import com.tx24.spicyplayer.aod.AodFingerprint
 import com.tx24.spicyplayer.aod.AodWeather
 import com.tx24.spicyplayer.ui.components.SettingRow
 import com.tx24.spicyplayer.ui.components.SettingsSection
+import com.tx24.spicyplayer.ui.components.SpicyBipolarSlider
 import com.tx24.spicyplayer.ui.components.SpicySelect
 import com.tx24.spicyplayer.ui.components.ToggleRow
 
@@ -51,18 +59,81 @@ internal fun AlwaysOnContent(settings: AppSettings) {
             enabled = on,
         )
     }
+    val hasLight = remember { context.getSystemService(android.hardware.SensorManager::class.java)?.getDefaultSensor(android.hardware.Sensor.TYPE_LIGHT) != null }
+    if (hasLight) {
+        ToggleRow(
+            label = "Auto brightness",
+            checked = settings.aodAutoBrightness,
+            onCheckedChange = { settings.aodAutoBrightness = it },
+            description = "Follows the light sensor: dimmer than the screen's lowest in the dark, brighter in daylight.",
+            icon = Icons.Rounded.BrightnessAuto,
+            enabled = on,
+        )
+    }
+    if (hasLight && settings.aodAutoBrightness) {
+        SettingRow(
+            label = "Brighter or dimmer",
+            description = "Shifts what the light sensor picks.",
+            icon = Icons.Rounded.BrightnessMedium,
+            enabled = on,
+            stacked = true,
+        ) {
+            SpicyBipolarSlider(
+                value = settings.aodBrightnessBias,
+                range = -40..40,
+                step = 5,
+                onValueChange = { settings.aodBrightnessBias = it },
+                default = 0,
+                enabled = on,
+            )
+        }
+    } else {
+        SettingRow(
+            label = "Brightness",
+            description = "Below about a third it goes dimmer than the screen's lowest. Brighter reads better in daylight and uses more battery.",
+            searchDescription = "Always-on dim",
+            icon = Icons.Rounded.BrightnessLow,
+            enabled = on,
+            stacked = true,
+        ) {
+            SpicyBipolarSlider(
+                value = settings.aodLevel,
+                range = 0..100,
+                step = 5,
+                onValueChange = { settings.aodLevel = it },
+                default = 15,
+                unit = "%",
+                enabled = on,
+            )
+        }
+    }
     SettingRow(
-        label = "Always-on dim",
-        description = "How bright the always-on display is. Brighter reads better in daylight and uses more battery.",
-        icon = Icons.Rounded.BrightnessLow,
+        label = "Clock",
+        description = if (settings.aodClockStyle == AodClockStyle.Glass) "Frosted glass lit from above, with a bright rim." else "How the clock's figures look.",
+        icon = Icons.Rounded.Schedule,
         enabled = on,
     ) {
-        val levels = listOf(1 to "Dimmest", 5 to "Dim", 12 to "Medium", 25 to "Bright", 45 to "Brightest")
         SpicySelect(
-            value = (levels.minByOrNull { kotlin.math.abs(it.first - settings.aodBrightness) } ?: levels.first()).first.toString(),
-            options = levels.map { it.first.toString() },
-            labels = levels.map { it.second },
-            onChange = { settings.aodBrightness = it.toInt() },
+            value = settings.aodClockStyle.name,
+            options = AodClockStyle.entries.map { it.name },
+            labels = AodClockStyle.entries.map { it.label },
+            onChange = { settings.aodClockStyle = AodClockStyle.valueOf(it) },
+            enabled = on,
+        )
+    }
+    SettingRow(
+        label = "Clock size",
+        icon = Icons.Rounded.FormatSize,
+        enabled = on,
+        stacked = true,
+    ) {
+        SpicyBipolarSlider(
+            value = settings.aodClockSize,
+            range = 60..160,
+            step = 10,
+            onValueChange = { settings.aodClockSize = it },
+            default = 100,
+            unit = "%",
             enabled = on,
         )
     }
@@ -89,7 +160,8 @@ internal fun AlwaysOnContent(settings: AppSettings) {
             label = "Notifications",
             checked = settings.aodNotifications,
             onCheckedChange = { settings.aodNotifications = it },
-            description = "The icons of the apps with notifications waiting, as Android's own always-on display shows them. Only icons: nothing they say.",
+            description = "The icons of the apps with notifications waiting. Tap them for a list; tap one to unlock and open it. Hidden ones show only their app, as on your lock screen.",
+            searchDescription = "The icons of the apps with notifications waiting, as Android's own always-on display shows them. Only icons: nothing they say.",
             icon = Icons.Rounded.Notifications,
             enabled = on,
         )
@@ -136,6 +208,16 @@ internal fun AlwaysOnContent(settings: AppSettings) {
             icon = Icons.Rounded.TouchApp,
             enabled = on,
         )
+        if (remember { AodFingerprint.supported(context) }) {
+            ToggleRow(
+                label = "Hold the fingerprint sensor to unlock",
+                checked = settings.aodFingerprintUnlock,
+                onCheckedChange = { settings.aodFingerprintUnlock = it },
+                description = "Resting a finger on the sensor goes straight to the lock screen, which unlocks with it.",
+                icon = Icons.Rounded.Fingerprint,
+                enabled = on,
+            )
+        }
         ToggleRow(
             label = "Only while charging",
             checked = settings.aodOnlyCharging,

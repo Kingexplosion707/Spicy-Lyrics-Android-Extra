@@ -25,10 +25,14 @@ Modified by Behnoud.
 - The lyrics, time and song on black over the lock screen when the screen turns off, with burn-in shift, dim levels, optional Canvas background and playback controls.
 - The lyrics screen's own always-on mode works without ambient mode, playing or paused.
 - **Player look** (Settings → Device → Always-on display → Look): the lyrics screen's player, dimmed: the cover blurred behind (or the Canvas), a small clock, the cover beside the song, the lyrics in the app's own look, and the progress bar.
-- Around the music, as Android's own always-on display: the **weather** (Open-Meteo, from the phone's last rough position, off until switched on), the **next alarm**, the **notification icons** of apps with something waiting (icons only), the **battery**, and **silent / Do Not Disturb**; each its own switch.
+- Around the music, as Android's own always-on display: the **weather** (Open-Meteo, from the phone's last rough position, off until switched on), the **next alarm**, the **notification icons** of apps with something waiting, the **battery**, and **silent / Do Not Disturb**; each its own switch.
 - **Double-tap to leave**, and **only while charging**.
 - The controls carry the player's own **like** button and **shuffle** (or repeat) beside previous, play/pause and next, when it offers them; the player look's cover plays the record's **animated cover** when Animated cover is on (not with the battery saver).
 - Comes up only once the screen is really off: a double press of the power button (or the camera gesture) that turns the screen straight back on no longer brings it up.
+- **Auto brightness** from the light sensor (on by default; `AodBrightness`): in the dark it goes dimmer than the screen's own lowest by dimming what's drawn, and brighter in daylight, with a **Brighter or dimmer** shift; without it, a **Brightness** slider from 0 to 100 replaces the old dim levels.
+- Tapping the **notification icons** opens a list of what's waiting (app, time, title and a line of text; private ones, or all of them when the lock screen hides what notifications say, show only their app); tapping one unlocks and opens it.
+- **Clock** styles (Thin, Bold, Stacked, Outline and **Liquid glass**) and a **Clock size**.
+- On Pixels, **hold the fingerprint sensor to unlock** (on by default; `AodFingerprint`): a finger resting on the sensor leaves straight for the lock screen, with no animation, so it unlocks.
 
 ### Haptics (`haptics/`)
 - Pulses snapped to measured drum onsets, downbeats and sung onsets; lyric pulses for line-timed lyrics laid out word by word; unsynced lyrics and interludes give none.
