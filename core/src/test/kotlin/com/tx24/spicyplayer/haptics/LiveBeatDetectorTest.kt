@@ -14,14 +14,20 @@ class LiveBeatDetectorTest {
     private val blockMs = block * 1000L / rate
 
     /** [seconds] of quiet noise with a kick (a decaying 60 Hz thump) every [everyMs], and optional hats. */
-    private fun render(seconds: Int, everyMs: Long, hats: Boolean = false): FloatArray {
+    private fun render(seconds: Int, everyMs: Long, hats: Boolean = false, bass: Float = 0f, pad: Float = 0f): FloatArray {
         val random = Random(7)
         val out = FloatArray(rate * seconds)
         for (i in out.indices) {
             val t = i * 1000L / rate
             var s = (random.nextFloat() - 0.5f) * 0.01f
+            val sec = i.toDouble() / rate
+            // A held bass note and a chord under the beat, as in a real mix.
+            s += (bass * sin(2 * PI * 55 * sec)).toFloat()
+            s += (pad * (sin(2 * PI * 220 * sec) + sin(2 * PI * 277 * sec) + sin(2 * PI * 330 * sec)) / 3).toFloat()
             val sinceKick = (t % everyMs) / 1000.0
-            s += (0.8 * exp(-sinceKick * 18) * sin(2 * PI * 60 * sinceKick)).toFloat()
+            // A kick: a thump that drops from 120 Hz to 50 Hz as it fades.
+            val phase = 2 * PI * (50 * sinceKick + 70 * (1 - exp(-sinceKick * 30)) / 30)
+            s += (0.8 * exp(-sinceKick * 18) * sin(phase)).toFloat()
             if (hats) {
                 val sinceHat = ((t + everyMs / 2) % everyMs) / 1000.0
                 s += ((random.nextFloat() - 0.5f) * 0.6f * exp(-sinceHat * 60)).toFloat()
@@ -48,6 +54,19 @@ class LiveBeatDetectorTest {
         // 16 beats in 8 s; the first second or so is spent learning the level.
         assertTrue("found ${found.size}", found.size in 12..17)
         found.zipWithNext().forEach { (a, b) -> assertTrue("gap ${b.first - a.first} in $found", b.first - a.first in 400L..600L) }
+    }
+
+    @Test
+    fun `finds kicks over a held bass note and chords`() {
+        val found = hits(render(8, 500L, hats = true, bass = 0.3f, pad = 0.3f), LiveBeatDetector())
+        val lows = found.filter { it.second == LiveBeatDetector.Kind.Low }
+        assertTrue("lows in $found", lows.size >= 10)
+    }
+
+    @Test
+    fun `finds quieter kicks over a loud bass line`() {
+        val found = hits(render(8, 500L, bass = 0.5f), LiveBeatDetector())
+        assertTrue("found $found", found.count { it.second == LiveBeatDetector.Kind.Low } >= 8)
     }
 
     @Test

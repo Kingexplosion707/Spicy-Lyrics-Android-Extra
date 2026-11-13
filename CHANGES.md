@@ -45,6 +45,7 @@ Modified by Behnoud.
 - Android 16 sharpness envelopes, with each pulse's sharpness from the song's timbre.
 - Power saving can stop the haptics too (in the app and in the background), with the phone's battery saver or always; the background service then skips each song's analysis until they're back.
 - **Haptics to the phone's sound** (off by default): vibrates to what the phone plays (films, videos, games) while Spotify isn't playing, heard through Android's output visualizer; it reads a few times a second once it's quiet. **Haptics to music nearby** (off by default): vibrates to music on someone else's speaker through the microphone, resting while Spotify plays on the phone. Each its own switch, with a sensitivity; both need the record-audio permission and record nothing (`LiveHapticsService`, `LiveBeatDetector` in `:core`).
+- The live haptics now feel the kicks in a real mix (over a held bass line and chords, where they were missed), read the phone's sound at the same level at any volume, use the microphone unprocessed where the phone allows (the voice clean-up turned music down), start listening only once they're running in the foreground, and say in their notification what they're hearing: hits felt so far, or why they can't hear.
 
 ### Lyrics screen
 - **Share lyrics**: pick up to eight lines and share them as a 4:5 card (blurred cover, the song, the lines in large type), or copy them as text (`ui/share/`).
