@@ -55,6 +55,20 @@ class LiveHapticsService : Service() {
     @Volatile private var hits = 0
     @Volatile private var problem: String? = null
     private var lastStatus = ""
+    /** When the source last handed over a block: a source that goes quiet this way has stalled. */
+    @Volatile private var lastBlockAt = 0L
+    /** When it last heard sound: it stays awake for a while after, not for silence. */
+    @Volatile private var lastLoudAt = 0L
+    /** Keeps the processor awake while it hears sound, so the screen going off doesn't stop it. */
+    private var wakeLock: android.os.PowerManager.WakeLock? = null
+    /** Android stopped the capture (the screen locking, say): it waits for a tap to allow it again. */
+    @Volatile private var captureStopped = false
+    private val watchdog = object : Runnable {
+        override fun run() {
+            checkSource()
+            main.postDelayed(this, WATCHDOG_MS)
+        }
+    }
     /** How loud the last blocks were, 0..1, for the settings' meter. */
     @Volatile private var level = 0f
     /** Android's audio capture, when allowed: what the phone plays, from the apps that share it. */
@@ -132,6 +146,7 @@ class LiveHapticsService : Service() {
                         main.post {
                             if (projection === granted) {
                                 projection = null
+                                captureStopped = true
                                 // Back to the visualizer.
                                 source?.stop()
                                 source = null
@@ -141,6 +156,7 @@ class LiveHapticsService : Service() {
                     }
                 }, main)
             }
+            if (projection != null) captureStopped = false
             // A new way to hear: start over with it.
             source?.stop()
             source = null
@@ -151,10 +167,15 @@ class LiveHapticsService : Service() {
         main.postDelayed(refresh, STATUS_MS)
         main.removeCallbacks(statusTick)
         main.post(statusTick)
+        main.removeCallbacks(watchdog)
+        main.postDelayed(watchdog, WATCHDOG_MS)
         return START_STICKY
     }
 
     override fun onDestroy() {
+        main.removeCallbacks(watchdog)
+        runCatching { wakeLock?.takeIf { it.isHeld }?.release() }
+        wakeLock = null
         main.removeCallbacks(refresh)
         main.removeCallbacks(statusTick)
         runCatching { projection?.stop() }
@@ -184,9 +205,41 @@ class LiveHapticsService : Service() {
         if (source?.mode != wanted) {
             source?.stop()
             problem = null
+            lastBlockAt = SystemClock.elapsedRealtime()
             source = wanted?.let { start(it) }
         }
+        holdAwake(source != null)
         postNotification()
+    }
+
+    /**
+     * Every few seconds: a source that stopped handing over blocks (its read failed, Android
+     * took the microphone or the sound away for a moment) is started again, so the haptics carry
+     * on instead of going quiet for good.
+     */
+    private fun checkSource() {
+        val running = source ?: return
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastBlockAt < STALL_MS) {
+            holdAwake(now - lastLoudAt < AWAKE_AFTER_SOUND_MS)
+            return
+        }
+        running.stop()
+        lastBlockAt = now
+        source = start(running.mode)
+    }
+
+    /** Holds the processor awake while a source runs (renewed by the watchdog, never forever). */
+    private fun holdAwake(on: Boolean) {
+        if (!on) {
+            runCatching { wakeLock?.takeIf { it.isHeld }?.release() }
+            return
+        }
+        val lock = wakeLock ?: getSystemService(android.os.PowerManager::class.java)
+            ?.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "SpicyLyrics:LiveHaptics")
+            ?.apply { setReferenceCounted(false) }
+            ?.also { wakeLock = it }
+        runCatching { lock?.acquire(WAKE_MS) }
     }
 
     private fun resting(): Boolean =
@@ -232,6 +285,7 @@ class LiveHapticsService : Service() {
         for (i in 0 until count) sum += samples[i] * samples[i]
         val rms = kotlin.math.sqrt(sum / count.coerceAtLeast(1))
         val loud = (rms * 3f).coerceIn(0f, 1f)
+        if (rms > 0.001f) lastLoudAt = SystemClock.elapsedRealtime()
         if (loud > level) level = loud
     }
 
@@ -296,6 +350,7 @@ class LiveHapticsService : Service() {
             val active = visualizer ?: return
             val now = SystemClock.elapsedRealtime()
             val ok = runCatching { active.getWaveForm(bytes) == Visualizer.SUCCESS }.getOrDefault(false)
+            if (ok) lastBlockAt = now
             var loud = false
             if (ok) {
                 // Unsigned 8-bit, centred on 128.
@@ -370,7 +425,9 @@ class LiveHapticsService : Service() {
                 var quietSince = SystemClock.elapsedRealtime()
                 while (!stopped) {
                     val read = created.read(pcm, 0, pcm.size)
+                    // A failed read ends this loop; the watchdog starts the source again.
                     if (read <= 0) break
+                    lastBlockAt = SystemClock.elapsedRealtime()
                     var loud = false
                     for (i in 0 until read) {
                         samples[i] = pcm[i] / 32768f
@@ -445,7 +502,9 @@ class LiveHapticsService : Service() {
                 val samples = FloatArray(MIC_BLOCK)
                 while (!stopped) {
                     val read = created.read(pcm, 0, pcm.size)
+                    // A failed read ends this loop; the watchdog starts the source again.
                     if (read <= 0) break
+                    lastBlockAt = SystemClock.elapsedRealtime()
                     for (i in 0 until read) samples[i] = pcm[i] / 32768f
                     hear(samples, read)
                     detector.frame(samples, read, MIC_RATE, SystemClock.elapsedRealtime())?.let(onHit)
@@ -487,6 +546,18 @@ class LiveHapticsService : Service() {
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .apply {
+                // Tapped, it asks to capture again (Android's prompt), then carries on.
+                if (mode == Mode.DeviceAudio) {
+                    setContentIntent(
+                        PendingIntent.getActivity(
+                            this@LiveHapticsService, 2, Intent(this@LiveHapticsService, CaptureConsentActivity::class.java)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                        ),
+                    )
+                }
+            }
             .addAction(R.drawable.app_glyph, "Stop", stop)
             .setOngoing(true)
             .setSilent(true)
@@ -498,6 +569,7 @@ class LiveHapticsService : Service() {
         return when {
             resting && session.isPlaying && session.playerPackage == SPOTIFY -> "Resting while Spotify plays"
             resting -> "Resting while the battery saver is on"
+            mode == Mode.DeviceAudio && captureStopped && projection == null -> "Android stopped the capture. Tap to allow it again"
             hits > 0 -> "$hits hits felt so far"
             problem != null -> problem!!
             mode == Mode.Microphone -> "Listening for music nearby. Nothing is recorded."
@@ -537,6 +609,11 @@ class LiveHapticsService : Service() {
         private const val STATUS_MS = 3_000L
         private const val NOTHING_HEARD = "Hearing nothing: the phone isn't sharing its sound this way. Turn the switch off and on and allow the capture"
         private const val STATUS_TICK_MS = 250L
+        private const val WATCHDOG_MS = 2_000L
+        /** No block for this long and the source is started again. */
+        private const val STALL_MS = 5_000L
+        private const val WAKE_MS = 10_000L
+        private const val AWAKE_AFTER_SOUND_MS = 60_000L
         private const val LEVEL_FALL = 0.7f
         /** This long in silence with nothing felt, it says the phone isn't sharing its sound. */
         private const val SILENT_PROBLEM_MS = 15_000L
