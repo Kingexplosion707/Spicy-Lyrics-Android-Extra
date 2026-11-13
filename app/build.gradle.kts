@@ -4,7 +4,7 @@ plugins {
 }
 
 /** This release's version code; CI debug builds build on it (see androidComponents). */
-val BASE_VERSION_CODE = 31
+val BASE_VERSION_CODE = 32
 /** The run number of an optimised build from main (android-ci.yml), else null. */
 val plusBuild: Int? = System.getenv("PLUS_BUILD")?.toIntOrNull()
 
@@ -30,7 +30,7 @@ android {
         targetSdk = 36
         // CI debug builds count up by run: see androidComponents below.
         versionCode = BASE_VERSION_CODE
-        versionName = "0.19.0"
+        versionName = "0.20.0"
         // A publishable (sl_pk_) key, made to ship in clients: SL rate-limits it per viewer IP.
         val clientKey = localEnv("SPICY_LYRICS_CLIENT_KEY")
         require(clientKey.isBlank() || Regex("sl_pk_[A-Za-z0-9_-]+").matches(clientKey)) {

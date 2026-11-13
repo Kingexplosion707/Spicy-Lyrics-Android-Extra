@@ -12,6 +12,10 @@ import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.collectAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.rounded.LinearScale
 import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material.icons.rounded.Vibration
@@ -275,14 +279,51 @@ internal fun HapticsSection(settings: AppSettings) {
 private fun LiveHapticsRows(settings: AppSettings, canVibrate: Boolean) {
     val context = LocalContext.current
     var pending by remember { mutableStateOf<String?>(null) }
-    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        when (pending) {
-            "device" -> settings.liveHapticsDevice = granted
-            "mic" -> settings.liveHapticsMic = granted
+    // Android's audio capture for the phone's sound: its "start recording or casting" prompt.
+    val capture = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        settings.liveHapticsDevice = true
+        val data = result.data
+        if (result.resultCode == android.app.Activity.RESULT_OK && data != null) {
+            com.tx24.spicyplayer.haptics.LiveHapticsService.startWithCapture(context, result.resultCode, data)
+        } else {
+            // Declined: the visualizer, which some phones still feed.
+            com.tx24.spicyplayer.haptics.LiveHapticsService.sync(context)
         }
+    }
+    fun askCapture() {
+        val manager = context.getSystemService(android.media.projection.MediaProjectionManager::class.java)
+        if (manager == null || android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
+            settings.liveHapticsDevice = true
+            com.tx24.spicyplayer.haptics.LiveHapticsService.sync(context)
+            return
+        }
+        runCatching { capture.launch(manager.createScreenCaptureIntent()) }.onFailure {
+            settings.liveHapticsDevice = true
+            com.tx24.spicyplayer.haptics.LiveHapticsService.sync(context)
+        }
+    }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val which = pending
         pending = null
-        if (!granted) Toast.makeText(context, "It needs the permission; it stays off", Toast.LENGTH_LONG).show()
-        com.tx24.spicyplayer.haptics.LiveHapticsService.sync(context)
+        if (!granted) {
+            // Turned down for good: Android won't ask again, so its settings page it is.
+            Toast.makeText(context, "Allow the microphone permission for Spicy Lyrics Plus, then switch it on again", Toast.LENGTH_LONG).show()
+            runCatching {
+                context.startActivity(
+                    android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                        .setData(android.net.Uri.fromParts("package", context.packageName, null))
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }
+            return@rememberLauncherForActivityResult
+        }
+        when (which) {
+            "device" -> askCapture()
+            "mic" -> {
+                settings.liveHapticsMic = true
+                com.tx24.spicyplayer.haptics.LiveHapticsService.sync(context)
+            }
+        }
     }
     val permitted = com.tx24.spicyplayer.haptics.LiveHapticsService.hasPermission(context)
     fun switch(which: String, on: Boolean) {
@@ -291,6 +332,7 @@ private fun LiveHapticsRows(settings: AppSettings, canVibrate: Boolean) {
             ask.launch(android.Manifest.permission.RECORD_AUDIO)
             return
         }
+        if (on && which == "device") return askCapture()
         if (which == "device") settings.liveHapticsDevice = on else settings.liveHapticsMic = on
         com.tx24.spicyplayer.haptics.LiveHapticsService.sync(context)
     }
@@ -298,7 +340,7 @@ private fun LiveHapticsRows(settings: AppSettings, canVibrate: Boolean) {
         label = "Haptics to the phone's sound",
         checked = settings.liveHapticsDevice && permitted && canVibrate,
         onCheckedChange = { switch("device", it) },
-        description = "Feel films, videos and games: the phone's own sound, while Spotify isn't playing. Some streaming apps keep their sound to themselves. Android asks for its record-audio permission; nothing is recorded.",
+        description = "Feel films, videos and games while Spotify isn't playing. Android asks to let the app capture the phone's sound (choose the entire screen); nothing is recorded or kept. Apps that keep their sound private, like some streaming apps, stay silent.",
         icon = Icons.Rounded.Movie,
         enabled = canVibrate,
     )
@@ -306,15 +348,33 @@ private fun LiveHapticsRows(settings: AppSettings, canVibrate: Boolean) {
         label = "Haptics to music nearby",
         checked = settings.liveHapticsMic && permitted && canVibrate,
         onCheckedChange = { switch("mic", it) },
-        description = "Feel music from someone else's speaker through the microphone. Rests while Spotify plays on this phone. Nothing is recorded or sent.",
+        description = "Feel music from someone else's speaker through the microphone. Switch it on with the app open. Rests while Spotify plays on this phone. Nothing is recorded or sent.",
         icon = Icons.Rounded.Mic,
         enabled = canVibrate,
     )
     if ((settings.liveHapticsDevice || settings.liveHapticsMic) && permitted) {
+        val status by com.tx24.spicyplayer.haptics.LiveHapticsService.status.collectAsState()
+        SettingRow(
+            label = if (status.running) "Live haptics: on" else "Live haptics: not running",
+            description = status.text,
+            icon = Icons.Rounded.GraphicEq,
+            stacked = true,
+        ) {
+            // How loud what it hears is: no movement here means no sound reaches it.
+            androidx.compose.foundation.layout.Box(
+                Modifier.fillMaxWidth().height(6.dp)
+                    .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.12f), androidx.compose.foundation.shape.RoundedCornerShape(3.dp)),
+            ) {
+                androidx.compose.foundation.layout.Box(
+                    Modifier.fillMaxWidth(status.level.coerceIn(0f, 1f)).height(6.dp)
+                        .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.8f), androidx.compose.foundation.shape.RoundedCornerShape(3.dp)),
+                )
+            }
+        }
         SettingRow(
             label = "Live haptics sensitivity",
             description = "Higher feels softer hits too; lower only the big ones.",
-            icon = Icons.Rounded.GraphicEq,
+            icon = Icons.Rounded.LinearScale,
             stacked = true,
         ) {
             SpicyBipolarSlider(
