@@ -382,19 +382,44 @@ private fun AodCover(cover: androidx.compose.ui.graphics.ImageBitmap, track: com
 private fun androidx.compose.foundation.layout.ColumnScope.AodLyrics(live: LiveLyrics, settings: AppSettings, modifier: Modifier, alpha: Float) {
     val track = live.track
     val lyrics = live.lyrics
-    if (track != null && lyrics != null && lyrics.lines.isNotEmpty()) {
-        WallpaperLyrics(
-            lyrics = lyrics,
-            translation = live.translation,
-            settings = settings,
-            positionMs = live::positionMs,
-            isPlaying = live.playing,
-            visible = { AlwaysOnActivity.showing },
-            durationMs = track.durationMs,
-            modifier = modifier.graphicsLayer { this.alpha = alpha },
-            focusAnchorFraction = 0.35f,
-            tint = com.tx24.spicyplayer.lyrics.rememberLyricsTint(settings, track.cover),
-        )
+    // The last song's lyrics fade out over the new song's on a song change.
+    val transition = com.tx24.spicyplayer.lyrics.rememberSongTransition(
+        live.lyricsState, live.translation, track?.key, live::positionMs,
+        settings.lyricsSongTransition, settings.lyricsHoldUntilFirstLine,
+    )
+    val outgoing = transition.outgoing
+    if (track != null && (outgoing != null || (lyrics != null && lyrics.lines.isNotEmpty()))) {
+        val tint = com.tx24.spicyplayer.lyrics.rememberLyricsTint(settings, track.cover)
+        Box(modifier.graphicsLayer { this.alpha = alpha }) {
+            if (outgoing != null) {
+                WallpaperLyrics(
+                    lyrics = outgoing.lyrics,
+                    translation = outgoing.translation,
+                    settings = settings,
+                    positionMs = outgoing::timeMs,
+                    isPlaying = live.playing && outgoing.runs,
+                    visible = { AlwaysOnActivity.showing },
+                    durationMs = Long.MAX_VALUE / 4,
+                    modifier = Modifier.fillMaxSize().graphicsLayer { this.alpha = transition.outgoingAlpha() },
+                    focusAnchorFraction = 0.35f,
+                    tint = tint,
+                )
+            }
+            if (lyrics != null && lyrics.lines.isNotEmpty()) {
+                WallpaperLyrics(
+                    lyrics = lyrics,
+                    translation = live.translation,
+                    settings = settings,
+                    positionMs = live::positionMs,
+                    isPlaying = live.playing,
+                    visible = { AlwaysOnActivity.showing },
+                    durationMs = track.durationMs,
+                    modifier = Modifier.fillMaxSize().graphicsLayer { this.alpha = transition.incomingAlpha() },
+                    focusAnchorFraction = 0.35f,
+                    tint = tint,
+                )
+            }
+        }
     } else {
         Spacer(Modifier.weight(1f))
     }

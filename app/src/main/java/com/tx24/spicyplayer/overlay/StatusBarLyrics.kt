@@ -45,13 +45,22 @@ internal fun StatusBarLyrics(
     glow: Boolean = true,
     glowStrength: Float = 1f,
 ) {
-    val lyrics = live.lyrics
+    // On a song change the last song's line stays until the new one's are ready or start
+    // (Settings → Scroll & Sync → Song changes), on its own clock.
+    val settings = remember { com.tx24.spicyplayer.ui.settings.AppSettings(live.appContext.getSharedPreferences("ui", android.content.Context.MODE_PRIVATE)) }
+    val transition = com.tx24.spicyplayer.lyrics.rememberSongTransition(
+        live.lyricsState, live.translation, live.track?.key, live::positionMs,
+        settings.lyricsSongTransition, settings.lyricsHoldUntilFirstLine,
+    )
+    val outgoing = transition.outgoing
+    val lyrics = outgoing?.lyrics ?: live.lyrics
+    val clock: () -> Long = outgoing?.let { it::timeMs } ?: live::positionMs
     val lines = remember(lyrics) { lyrics?.let(::leadLines).orEmpty() }
     // The clock is read while drawing; only a change of line recomposes.
-    val nowState = remember { androidx.compose.runtime.mutableLongStateOf(live.positionMs()) }
-    val running = live.playing
-    LaunchedEffect(running, lines) {
-        nowState.longValue = live.positionMs()
+    val nowState = remember { androidx.compose.runtime.mutableLongStateOf(clock()) }
+    val running = live.playing && (outgoing == null || outgoing.runs)
+    LaunchedEffect(running, lines, outgoing) {
+        nowState.longValue = clock()
         var drawnAt = 0L
         while (running) {
             // Hidden, it asks for no frames at all until it shows again.
@@ -60,7 +69,7 @@ internal fun StatusBarLyrics(
                 // About 60 a second, even while the app under it runs the screen faster.
                 if (at - drawnAt >= MIN_FRAME_MS) {
                     drawnAt = at
-                    nowState.longValue = live.positionMs()
+                    nowState.longValue = clock()
                 }
             }
         }

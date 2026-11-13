@@ -26,6 +26,8 @@ import kotlinx.coroutines.withContext
  */
 internal class LiveLyrics(context: Context) {
     private val app = context.applicationContext
+    /** The app's context, for what draws these to read the settings. */
+    val appContext: Context get() = app
     private val prefs = app.getSharedPreferences("ui", Context.MODE_PRIVATE)
     private val session = BackgroundSession(app)
     private val lookup = BackgroundLyrics(app)
@@ -53,6 +55,9 @@ internal class LiveLyrics(context: Context) {
     val playerPackage: String? get() = session.playerPackage
     private val main = android.os.Handler(android.os.Looper.getMainLooper())
     private val rereadActions = Runnable { actions = session.customActions }
+
+    /** The lyrics as a [LyricsState], for song changes: loading, none ([LyricsState.Idle]) or ready. */
+    val lyricsState: LyricsState get() = lyrics ?: if (settled || track == null) LyricsState.Idle else LyricsState.Loading
 
     /** Told when the song, its lyrics or playing changes, beside the state above. */
     var onChange: () -> Unit = {}
