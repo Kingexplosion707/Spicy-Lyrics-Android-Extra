@@ -23,5 +23,7 @@ class StartupReceiver : BroadcastReceiver() {
         runCatching { AlwaysOnService.sync(app) }
         runCatching { LyricsOverlayService.sync(app) }
         runCatching { LyricsNotificationService.sync(app) }
+        // The microphone can't start from here (only with the app in front); the phone's sound can.
+        runCatching { com.tx24.spicyplayer.haptics.LiveHapticsService.sync(app) }
     }
 }
