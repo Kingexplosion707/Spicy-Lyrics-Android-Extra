@@ -19,6 +19,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.rounded.ExpandLess
@@ -240,9 +243,11 @@ internal fun AodNotificationIcons(
     val entries = AodNotifications.entries.value
     val details = AodNotifications.details.value
     var open by remember { mutableStateOf(false) }
-    androidx.compose.runtime.LaunchedEffect(open, details) {
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    // Closes by itself a while after the last touch: scrolling keeps it open.
+    androidx.compose.runtime.LaunchedEffect(open, details, listState.isScrollInProgress, listState.firstVisibleItemIndex) {
         if (details.isEmpty()) open = false
-        if (open) {
+        if (open && !listState.isScrollInProgress) {
             kotlinx.coroutines.delay(LIST_OPEN_MS)
             open = false
         }
@@ -266,26 +271,115 @@ internal fun AodNotificationIcons(
             }
         }
         AnimatedVisibility(visible = open && onOpen != null, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-            Column(
-                Modifier.fillMaxWidth().padding(top = 8.dp, start = 16.dp, end = 16.dp),
+            val now = System.currentTimeMillis()
+            // Face unlock (or the fingerprint) with the lock screen still up: what they say shows.
+            val unlocked = rememberDeviceUnlocked() || AodNotifications.revealed.value
+            // Opened with what they say hidden: Android's own prompt asks for a face or fingerprint.
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                if (!unlocked && details.any { hideTextUntilUnlocked || it.private }) onReveal?.invoke()
+            }
+            // Every notification, scrolled within at most about half the screen.
+            val maxHeight = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * LIST_HEIGHT_SHARE).dp
+            androidx.compose.foundation.lazy.LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxWidth().heightIn(max = maxHeight).padding(top = 8.dp, start = 16.dp, end = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                val now = System.currentTimeMillis()
-                // Face unlock (or the fingerprint) with the lock screen still up: what they say shows.
-                val unlocked = rememberDeviceUnlocked() || AodNotifications.revealed.value
-                // Opened with what they say hidden: Android's own prompt asks for a face or fingerprint.
-                androidx.compose.runtime.LaunchedEffect(Unit) {
-                    if (!unlocked && details.any { hideTextUntilUnlocked || it.private }) onReveal?.invoke()
-                }
-                details.take(LIST_MAX).forEach { detail ->
+                items(details.size, key = { details[it].key }) { i ->
+                    val detail = details[i]
                     val full = unlocked || (!hideTextUntilUnlocked && !detail.private)
                     NotificationCard(detail, full, alpha, now) { onOpen?.invoke(detail) }
                 }
-                if (details.size > LIST_MAX) {
+            }
+        }
+    }
+}
+
+/**
+ * A notification coming in on the always-on display: a pill drops in from the top with its app
+ * (and, as the lock screen would show it, what it says) while light runs round the screen's edge,
+ * then both fade after a few seconds. Tapping the pill opens it.
+ */
+@Composable
+internal fun AodArrival(
+    hideTextUntilUnlocked: Boolean,
+    onOpen: ((AodNotifications.Detail) -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    val arrival = AodNotifications.arrival.value
+    val at = AodNotifications.arrivalAt.value
+    var shown by remember { mutableStateOf<AodNotifications.Detail?>(null) }
+    val glow = remember { androidx.compose.animation.core.Animatable(0f) }
+    androidx.compose.runtime.LaunchedEffect(arrival, at) {
+        // Only one that just came: not one from before the screen came on.
+        if (arrival == null || android.os.SystemClock.uptimeMillis() - at > ARRIVAL_FRESH_MS) return@LaunchedEffect
+        shown = arrival
+        repeat(2) {
+            glow.animateTo(1f, androidx.compose.animation.core.tween(450, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+            glow.animateTo(0.25f, androidx.compose.animation.core.tween(650))
+        }
+        kotlinx.coroutines.delay(ARRIVAL_SHOW_MS)
+        glow.animateTo(0f, androidx.compose.animation.core.tween(600))
+        shown = null
+    }
+    Box(modifier.fillMaxSize()) {
+        // The light round the edge, drawn only: touches go through.
+        androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+            val a = glow.value
+            if (a <= 0.01f) return@Canvas
+            val stroke = 3.dp.toPx()
+            val radius = 36.dp.toPx()
+            val brush = Brush.sweepGradient(
+                listOf(Color(0xFF7FDBFF), Color.White, Color(0xFFB388FF), Color(0xFF7FDBFF)),
+                center = center,
+            )
+            for ((width, fade) in listOf(stroke * 6f to 0.12f, stroke * 3f to 0.25f, stroke to 0.9f)) {
+                drawRoundRect(
+                    brush = brush,
+                    topLeft = androidx.compose.ui.geometry.Offset(width / 2, width / 2),
+                    size = androidx.compose.ui.geometry.Size(size.width - width, size.height - width),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(radius),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width),
+                    alpha = a * fade,
+                )
+            }
+        }
+        AnimatedVisibility(
+            visible = shown != null,
+            enter = androidx.compose.animation.slideInVertically { -it * 2 } + fadeIn(),
+            exit = androidx.compose.animation.slideOutVertically { -it * 2 } + fadeOut(),
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 28.dp, start = 24.dp, end = 24.dp),
+        ) {
+            val detail = shown ?: return@AnimatedVisibility
+            val unlocked = rememberDeviceUnlocked() || AodNotifications.revealed.value
+            val full = unlocked || (!hideTextUntilUnlocked && !detail.private)
+            val title = if (full) detail.title else detail.lockedTitle
+            val text = if (full) detail.text else detail.lockedText
+            Row(
+                Modifier
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(Color.White.copy(alpha = 0.12f))
+                    .clickable(enabled = onOpen != null) { onOpen?.invoke(detail) }
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                AppIcon(detail.packageName, detail.icon, 0.95f, 22.dp)
+                Spacer(Modifier.width(12.dp))
+                Column {
                     Text(
-                        "+${details.size - LIST_MAX} more", color = Color.White.copy(alpha = alpha * 0.6f), fontSize = 12.sp,
-                        modifier = Modifier.align(Alignment.CenterHorizontally),
+                        detail.appName, color = Color.White.copy(alpha = 0.65f), fontSize = 12.sp, maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     )
+                    Text(
+                        title ?: text ?: "New notification", color = Color.White.copy(alpha = 0.95f), fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    )
+                    if (title != null && text != null) {
+                        Text(
+                            text, color = Color.White.copy(alpha = 0.75f), fontSize = 13.sp, maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        )
+                    }
                 }
             }
         }
@@ -389,6 +483,10 @@ private fun batteryIcon(battery: BatteryState): ImageVector = when {
 private const val ALARM_WITHIN_MS = 24 * 60 * 60_000L
 private const val ICON_PX = 64
 /** The list shows this many, and closes by itself this long after opening. */
-private const val LIST_MAX = 5
+/** The open list is at most this share of the screen's height, and scrolls past it. */
+private const val LIST_HEIGHT_SHARE = 0.5f
+/** An arrival counts if it came this recently, and its pill stays this long after the light. */
+private const val ARRIVAL_FRESH_MS = 3_000L
+private const val ARRIVAL_SHOW_MS = 3_500L
 private const val LIST_OPEN_MS = 20_000L
 private const val UNLOCK_POLL_MS = 500L

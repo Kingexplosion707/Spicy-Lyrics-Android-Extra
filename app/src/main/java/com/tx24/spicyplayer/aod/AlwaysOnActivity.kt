@@ -484,6 +484,10 @@ private fun AlwaysOnContent(live: LiveLyrics, settings: AppSettings, canvas: Boo
         } else {
             ClassicLayout(live, settings, controls, extras, now, shift)
         }
+        // A notification coming in: light round the edge and a pill from the top.
+        if (extras.notifications && settings.aodArrivalAnimation) {
+            AodArrival(extras.hideTextUntilUnlocked, extras.openNotification)
+        }
     }
 }
 

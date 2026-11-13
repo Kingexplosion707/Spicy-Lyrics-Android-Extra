@@ -38,6 +38,16 @@ internal object AodNotifications {
     /** Compose state, main thread. */
     val entries = mutableStateOf<List<Entry>>(emptyList())
     val details = mutableStateOf<List<Detail>>(emptyList())
+    /**
+     * The notification that just came in, for the always-on display's arrival animation, and
+     * when it came: set when a notification is new, or one already there says something new.
+     */
+    val arrival = mutableStateOf<Detail?>(null)
+    val arrivalAt = mutableStateOf(0L)
+    /** Each notification shown and when it was last posted, to tell new ones from old. */
+    private val postedAt = HashMap<String, Long>()
+    private var primed = false
+
     /** A face or fingerprint was given on the always-on display: what they say shows until it closes. */
     val revealed = mutableStateOf(false)
 
@@ -63,7 +73,7 @@ internal object AodNotifications {
             .filter { sbn -> shows(sbn, own) }
             .sortedByDescending { it.postTime }
         val hideAll = !lockScreenShowsContent(context)
-        details.value = shown.take(MAX_DETAILS).mapNotNull { sbn ->
+        val list = shown.take(MAX_DETAILS).mapNotNull { sbn ->
             val n = sbn.notification
             val icon = n.smallIcon ?: return@mapNotNull null
             val private = hideAll || n.visibility == Notification.VISIBILITY_PRIVATE
@@ -83,14 +93,35 @@ internal object AodNotifications {
                 open = n.contentIntent,
             )
         }
-        val list = shown
+        details.value = list
+        noticeArrivals(list)
+        val icons = shown
             .mapNotNull { sbn ->
                 if (!seen.add(sbn.packageName)) return@mapNotNull null
                 val icon = sbn.notification.smallIcon ?: return@mapNotNull null
                 Entry(sbn.packageName, icon)
             }
             .take(MAX_ICONS)
-        entries.value = list
+        entries.value = icons
+    }
+
+    /**
+     * Marks the newest notification that's new (or says something new) as [arrival]. The first
+     * look only learns what's there, so opening the always-on display doesn't count as arrivals.
+     */
+    private fun noticeArrivals(list: List<Detail>) {
+        var newest: Detail? = null
+        for (detail in list) {
+            val before = postedAt[detail.key]
+            if (primed && (before == null || detail.postTime > before) && (newest == null || detail.postTime > newest.postTime)) newest = detail
+        }
+        postedAt.clear()
+        list.forEach { postedAt[it.key] = it.postTime }
+        primed = true
+        newest?.let {
+            arrival.value = it
+            arrivalAt.value = android.os.SystemClock.uptimeMillis()
+        }
     }
 
     private fun shows(sbn: StatusBarNotification, own: String): Boolean {
@@ -130,5 +161,5 @@ internal object AodNotifications {
 
     const val PREF = "aodNotifications"
     private const val MAX_ICONS = 8
-    private const val MAX_DETAILS = 12
+    private const val MAX_DETAILS = 60
 }

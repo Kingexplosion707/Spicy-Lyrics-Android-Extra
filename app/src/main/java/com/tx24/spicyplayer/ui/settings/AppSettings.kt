@@ -243,6 +243,8 @@ class AppSettings(private val prefs: SharedPreferences) {
     var aodPlaylistButton by boolean("aodPlaylistButton", true)
     /** The notification list shows only each app until the phone is unlocked (face unlock, say). */
     var aodHideNotificationText by boolean("aodHideNotificationText", true)
+    /** A notification coming in on the always-on display: light round the edge and a pill with its app. */
+    var aodArrivalAnimation by boolean("aodArrivalAnimation", true)
     /** The song's Canvas behind the always-on display, blurred and darkened. */
     var aodCanvas by boolean("aodCanvas", false)
     /** Play/pause, previous and next on the always-on display. */
