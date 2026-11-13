@@ -49,6 +49,7 @@ Modified by Behnoud.
 - **Haptics to the phone's sound** now hears it through Android's audio capture (its "start recording or casting" prompt, asked when it's switched on), which works where the visualizer gets nothing, as on a Pixel or with Bluetooth audio; declined, it falls back to the visualizer. Settings show a **Live haptics** status with a loudness meter and the hits felt, and a microphone permission turned down for good opens the app's Android settings.
 - The live haptics keep going: a source that stops handing over sound (a failed read, the microphone taken for a moment) starts again by itself within seconds; they keep the processor awake for a minute after the last sound, so the screen going off doesn't stop them; and when Android stops the capture (the screen locking, say), the notification says so and a tap asks to allow it again.
 - **Notification animation** on the always-on display (on by default): when a notification comes in, light runs round the screen's edge and a pill drops in with its app (and what it says, as the lock screen would show it); tap it to open. The notification list now holds every notification, scrolling within half the screen, and stays open while it's scrolled.
+- A song with no lyrics shows its cover large on the always-on display, in the lyrics' room (with its animated cover, if any), as the wallpaper does; in the player look the small cover beside the song steps aside for it.
 - Version **0.20.0**.
 
 ### Lyrics screen

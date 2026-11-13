@@ -556,7 +556,8 @@ private fun PlayerLayout(live: LiveLyrics, settings: AppSettings, controls: Bool
         // As the lyrics screen's header: the cover with the song beside it.
         Row(verticalAlignment = Alignment.CenterVertically) {
             val cover = remember(track.cover) { track.cover?.asImageBitmap() }
-            if (cover != null) {
+            // With no lyrics the cover grows to fill their room below instead (AodLyrics).
+            if (cover != null && !hasNoLyrics(live)) {
                 AodCover(cover, track, settings)
                 Spacer(Modifier.width(14.dp))
             }
@@ -584,7 +585,13 @@ private fun PlayerLayout(live: LiveLyrics, settings: AppSettings, controls: Bool
  * performance mode), and it pauses while the display is off screen.
  */
 @Composable
-private fun AodCover(cover: androidx.compose.ui.graphics.ImageBitmap, track: com.tx24.spicyplayer.playback.BackgroundSession.Track, settings: AppSettings) {
+private fun AodCover(
+    cover: androidx.compose.ui.graphics.ImageBitmap,
+    track: com.tx24.spicyplayer.playback.BackgroundSession.Track,
+    settings: AppSettings,
+    size: androidx.compose.ui.unit.Dp = COVER_DP.dp,
+    corner: androidx.compose.ui.unit.Dp = 12.dp,
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val batterySaver = remember { context.getSystemService(PowerManager::class.java)?.isPowerSaveMode == true }
     val animated = settings.animatedCover && !settings.lowPerformance && !batterySaver
@@ -593,7 +600,7 @@ private fun AodCover(cover: androidx.compose.ui.graphics.ImageBitmap, track: com
         com.tx24.spicyplayer.ui.nowplaying.MotionCoverQuery(track.artist, track.album, track.title),
     )
     var failed by remember(track.key) { mutableStateOf<String?>(null) }
-    Box(Modifier.size(COVER_DP.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp)).graphicsLayer { alpha = 0.9f }) {
+    Box(Modifier.size(size).clip(androidx.compose.foundation.shape.RoundedCornerShape(corner)).graphicsLayer { alpha = 0.9f }) {
         androidx.compose.foundation.Image(
             cover, null,
             contentScale = androidx.compose.ui.layout.ContentScale.Crop,
@@ -611,7 +618,17 @@ private fun AodCover(cover: androidx.compose.ui.graphics.ImageBitmap, track: com
     }
 }
 
-/** The lyrics, by the lyrics screen's renderer in the app's look; empty space with none. */
+/** The song turned out to have no lyrics (not still looking): as on the wallpaper, the cover takes their room. */
+private fun hasNoLyrics(live: LiveLyrics): Boolean {
+    val lyrics = live.lyrics
+    return live.track != null && live.settled && (lyrics == null || lyrics.lines.isEmpty())
+}
+
+/**
+ * The lyrics, by the lyrics screen's renderer in the app's look. A song with no lyrics shows its
+ * cover large in their place instead, as the wallpaper does (with its animated cover, if any);
+ * while they're still being looked for, the room stays empty.
+ */
 @Composable
 private fun androidx.compose.foundation.layout.ColumnScope.AodLyrics(live: LiveLyrics, settings: AppSettings, modifier: Modifier, alpha: Float) {
     val track = live.track
@@ -652,6 +669,21 @@ private fun androidx.compose.foundation.layout.ColumnScope.AodLyrics(live: LiveL
                     focusAnchorFraction = 0.35f,
                     tint = tint,
                 )
+            }
+        }
+    } else if (track != null && hasNoLyrics(live) && track.cover != null) {
+        val cover = remember(track.cover) { track.cover?.asImageBitmap() } ?: return Spacer(Modifier.weight(1f))
+        androidx.compose.foundation.layout.BoxWithConstraints(
+            Modifier.fillMaxWidth().weight(1f).padding(vertical = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            val side = minOf(maxWidth * BIG_COVER_SHARE, maxHeight)
+            androidx.compose.animation.AnimatedVisibility(
+                visible = true,
+                enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(500)) +
+                    androidx.compose.animation.scaleIn(androidx.compose.animation.core.tween(500), initialScale = 0.85f),
+            ) {
+                AodCover(cover, track, settings, side, 24.dp)
             }
         }
     } else {
@@ -802,6 +834,8 @@ private fun android.media.session.PlaybackState.CustomAction.matches(words: List
 
 /** How long the Add to playlist button's answer shows under the controls. */
 private const val PLAYLIST_MESSAGE_MS = 3_500L
+/** A song with no lyrics: its cover's width against the screen's, as on the wallpaper. */
+private const val BIG_COVER_SHARE = 0.85f
 private val LIKE_WORDS = listOf("like", "heart", "favorite", "favourite", "save", "thumb")
 private val SHUFFLE_WORDS = listOf("shuffle")
 private val REPEAT_WORDS = listOf("repeat")
