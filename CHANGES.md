@@ -55,6 +55,7 @@ Modified by Behnoud.
 - Holding a line copies it; the media **volume** in quick settings.
 - **Listening stats** (off until switched on): top songs and artists counted on the phone from any player (`stats/`), never sent anywhere.
 
+- **Lyrics transition** (Scroll & Sync → Song changes, on by default): on a song change the last song's lyrics fade into the next one's instead of vanishing while the new ones load, held still after a skip. **Keep the last lyrics until the first line**: when one song runs into the next (a crossfade, Automix, or the song ending), they stay, still moving, until the new song's first line.
 - This song: **Share song** (its name and Spotify link) and **Look it up** on Genius or YouTube (`SongLinks` in `:core`).
 - Keep the screen on **only while charging**.
 - **Scrobble to ListenBrainz** (off until switched on with your own token): each song heard half of, or four minutes of, from any player, sent when it ends; what can't be sent waits and goes with the next (`stats/Scrobbler.kt`, `ListenBrainz` in `:core`).

@@ -5,7 +5,9 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Animation
 import androidx.compose.material.icons.rounded.Hearing
+import androidx.compose.material.icons.rounded.HourglassBottom
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
@@ -34,6 +36,21 @@ internal fun SongChangeSection(settings: AppSettings) {
             icon = Icons.Rounded.Sync,
         )
         ListeningSyncRow(settings)
+        ToggleRow(
+            label = "Lyrics transition",
+            checked = settings.lyricsSongTransition,
+            onCheckedChange = { settings.lyricsSongTransition = it },
+            description = "On a song change the last song's lyrics fade into the next one's, instead of vanishing while the new ones load. After a skip they hold still until then.",
+            icon = Icons.Rounded.Animation,
+        )
+        ToggleRow(
+            label = "Keep the last lyrics until the first line",
+            checked = settings.lyricsHoldUntilFirstLine,
+            onCheckedChange = { settings.lyricsHoldUntilFirstLine = it },
+            description = "When one song runs into the next (a crossfade, Automix, or the song just ending), the last song's lyrics stay on until the new song's first line is sung.",
+            icon = Icons.Rounded.HourglassBottom,
+            enabled = settings.lyricsSongTransition,
+        )
     }
 }
 
