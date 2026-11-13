@@ -112,6 +112,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -1411,6 +1412,9 @@ private fun LyricsApp(
                             // Under the fully expanded big cover they're drawn at alpha 0.
                             visible = { expansion < 1f },
                             tint = rememberLyricsTint(settings, state.artwork),
+                            songKey = state.title + "\u0000" + state.artist,
+                            songTransition = settings.lyricsSongTransition,
+                            holdUntilFirstLine = settings.lyricsHoldUntilFirstLine,
                         )
                     }
                     // Ambient mode: the lyrics sink into the black under the song docked at the bottom,
@@ -2242,13 +2246,39 @@ private fun LyricsPanel(
     romanizationCredit: String? = null,
     /** The lyrics' colour (Lyrics colour); white draws them as they are. */
     tint: com.tx24.spicyplayer.lyrics.LyricsInk = com.tx24.spicyplayer.lyrics.LyricsInk.White,
+    /** The song the lyrics are for; a change of it is a song change ([songTransition]). */
+    songKey: String? = null,
+    /** Song changes: the last song's lyrics fade into the next one's instead of vanishing. */
+    songTransition: Boolean = false,
+    /**
+     * With [songTransition], when the last song ran into the next one (it was at or past its last
+     * line, as with a crossfade or Automix), its lyrics stay until the new song's first line.
+     */
+    holdUntilFirstLine: Boolean = false,
 ) {
+    val transition = rememberSongTransition(lyrics, songKey, currentTimeMs, songTransition, holdUntilFirstLine)
+    val outgoing = transition.outgoing
     // The loading skeleton: up as soon as the lookup starts, over whatever the panel
     // shows, fading in over 0.2s and out over 0.25s (ease-out).
     Box(modifier) {
+        if (outgoing != null) {
+            // The last song's lyrics, on their own time, fading out as the new ones come in.
+            val outgoingState = remember(outgoing) { LyricsViewState() }
+            LyricsPanelContent(
+                outgoing.lyrics, { outgoing.timeMs() }, {}, romanize, isPlaying && outgoing.runs, activeLineTopPx, centredLiftPx,
+                noticeBottomPx, outgoingState, PinnedFooterMode.Off, { 0f }, config, fontSizeScale, null,
+                Modifier.fillMaxSize().lyricsTint(tint).graphicsLayer { alpha = 1f - transition.progress() },
+                maskScale = maskScale,
+                romanizationMode = romanizationMode,
+                visible = visible,
+            )
+        }
         LyricsPanelContent(
             lyrics, currentTimeMs, onSeek, romanize, isPlaying, activeLineTopPx, centredLiftPx, noticeBottomPx,
-            viewState, pinnedFooter, maskBottomPx, config, fontSizeScale, noticeActions, Modifier.fillMaxSize().lyricsTint(tint),
+            viewState, pinnedFooter, maskBottomPx, config, fontSizeScale, noticeActions,
+            Modifier.fillMaxSize().lyricsTint(tint).let { base ->
+                if (outgoing != null) base.graphicsLayer { alpha = transition.progress() } else base
+            },
             maskScale = maskScale,
             translation = translation,
             translationMode = translationMode,
@@ -2258,7 +2288,7 @@ private fun LyricsPanel(
             visible = visible,
         )
         AnimatedVisibility(
-            visible = lyrics == LyricsState.Loading,
+            visible = lyrics == LyricsState.Loading && outgoing == null,
             enter = fadeIn(tween(200, easing = CssEaseOut)),
             exit = fadeOut(tween(250, easing = CssEaseOut)),
         ) {
@@ -2276,6 +2306,101 @@ private fun LyricsPanel(
         }
     }
 }
+
+/** The last song's lyrics during a song change ([rememberSongTransition]). */
+private class OutgoingLyrics(
+    val lyrics: LyricsState.Ready,
+    /** Where they had got to when the song changed, and when that was (uptime). */
+    private val fromMs: Long,
+    private val atMs: Long,
+    /** They carry on in time (the last song ran into the next); otherwise they hold still. */
+    val runs: Boolean,
+) {
+    fun timeMs(): Long = if (runs) fromMs + (android.os.SystemClock.uptimeMillis() - atMs) else fromMs
+}
+
+private class SongTransition(val outgoing: OutgoingLyrics?, val progress: () -> Float)
+
+/**
+ * Song changes on the lyrics screen. When the song changes while its lyrics show, they stay as
+ * the outgoing lyrics: held still after a skip, carrying on in time when the song ran into the
+ * next one. They give way once the new song's lyrics are ready (or it turns out to have none),
+ * or with [hold], after a run-in, once the new song reaches its first line; then the two cross
+ * over [CROSSFADE_MS].
+ */
+@Composable
+private fun rememberSongTransition(
+    lyrics: LyricsState,
+    songKey: String?,
+    currentTimeMs: () -> Long,
+    enabled: Boolean,
+    hold: Boolean,
+): SongTransition {
+    var outgoing by remember { mutableStateOf<OutgoingLyrics?>(null) }
+    val fade = remember { Animatable(1f) }
+    // The lyrics on screen and the song they're for, and how far into them it last was.
+    val last = remember { arrayOfNulls<Any>(2) }
+    val lastTime = remember { longArrayOf(0L) }
+    val latestLyrics by rememberUpdatedState(lyrics)
+    val latestTime by rememberUpdatedState(currentTimeMs)
+
+    LaunchedEffect(lyrics, songKey) {
+        val shownLyrics = last[0] as? LyricsState.Ready
+        val shownKey = last[1] as? String
+        if (lyrics is LyricsState.Ready) {
+            last[0] = lyrics
+            last[1] = songKey
+        }
+        if (!enabled) {
+            outgoing = null
+            return@LaunchedEffect
+        }
+        if (shownLyrics != null && songKey != null && shownKey != null && songKey != shownKey && outgoing == null) {
+            val at = lastTime[0]
+            val lastLineEnd = shownLyrics.lines.maxOfOrNull { it.endMs } ?: 0L
+            // At or past its last line, it ran into the next song; otherwise it was skipped.
+            val ranOn = at >= lastLineEnd - RAN_ON_WITHIN_MS
+            fade.snapTo(0f)
+            outgoing = OutgoingLyrics(shownLyrics, at, android.os.SystemClock.uptimeMillis(), runs = ranOn)
+        }
+    }
+    // How far into the lyrics on screen it is, a few times a second, for when the song changes.
+    LaunchedEffect(lyrics) {
+        if (lyrics !is LyricsState.Ready) return@LaunchedEffect
+        lastTime[0] = 0L
+        while (true) {
+            val now = latestTime()
+            // A drop to the very start is the next song's clock, not a seek back in this one.
+            if (!(now < 3_000L && lastTime[0] - now > 3_000L)) lastTime[0] = now
+            delay(250L)
+        }
+    }
+    LaunchedEffect(outgoing) {
+        val out = outgoing ?: return@LaunchedEffect
+        val since = android.os.SystemClock.uptimeMillis()
+        while (android.os.SystemClock.uptimeMillis() - since < MAX_HOLD_MS) {
+            val now = latestLyrics
+            if (now is LyricsState.Error || now == LyricsState.Idle) break
+            if (now is LyricsState.Ready) {
+                if (!(hold && out.runs)) break
+                val firstLine = now.lines.firstOrNull { !it.untimed }?.startMs ?: 0L
+                if (latestTime() >= firstLine - FIRST_LINE_LEAD_MS) break
+            }
+            delay(100L)
+        }
+        fade.animateTo(1f, tween(CROSSFADE_MS, easing = CssEaseOut))
+        outgoing = null
+    }
+    return SongTransition(outgoing) { fade.value }
+}
+
+/** Within this of its last line's end, a song that changes ran into the next one. */
+private const val RAN_ON_WITHIN_MS = 4_000L
+/** The new lyrics start coming in this long before their first line. */
+private const val FIRST_LINE_LEAD_MS = 600L
+/** The last song's lyrics never stay longer than this, however long the new song's intro. */
+private const val MAX_HOLD_MS = 45_000L
+private const val CROSSFADE_MS = 650
 
 @Composable
 private fun LyricsPanelContent(

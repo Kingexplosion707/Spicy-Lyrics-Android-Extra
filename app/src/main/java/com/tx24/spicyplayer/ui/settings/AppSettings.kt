@@ -358,6 +358,10 @@ class AppSettings(private val prefs: SharedPreferences) {
     var listeningSync by boolean("listeningSync", false)
     /** Spotify's Automix: resync a moment into each new song ([com.tx24.spicyplayer.playback.AutomixResync]). */
     var resyncAfterSongChange by boolean("resyncAfterSongChange", true)
+    /** The last song's lyrics fade into the next one's on a song change, instead of vanishing. */
+    var lyricsSongTransition by boolean("lyricsSongTransition", true)
+    /** When the last song ran into the next one, its lyrics stay until the new one's first line. */
+    var lyricsHoldUntilFirstLine by boolean("lyricsHoldUntilFirstLine", true)
     /** The line being sung in an ongoing notification, for islands and Live Updates. */
     var lyricsNotification by boolean("lyricsNotification", false)
     /** The lyrics floating over other apps while music plays. */
