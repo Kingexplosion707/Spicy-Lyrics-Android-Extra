@@ -16,7 +16,11 @@ import androidx.compose.runtime.mutableStateOf
 internal object AodNotifications {
     class Entry(val packageName: String, val icon: Icon)
 
-    /** One notification in the list: [title] and [text] null when the lock screen hides them. */
+    /**
+     * One notification in the list. [title] and [text] are what it says; [lockedTitle] and
+     * [lockedText] what the lock screen may show of it while locked (its public version, or
+     * nothing), and [private] whether the lock screen would show only that.
+     */
     class Detail(
         val key: String,
         val packageName: String,
@@ -24,6 +28,9 @@ internal object AodNotifications {
         val icon: Icon,
         val title: String?,
         val text: String?,
+        val lockedTitle: String?,
+        val lockedText: String?,
+        val private: Boolean,
         val postTime: Long,
         val open: PendingIntent?,
     )
@@ -58,17 +65,18 @@ internal object AodNotifications {
             val n = sbn.notification
             val icon = n.smallIcon ?: return@mapNotNull null
             val private = hideAll || n.visibility == Notification.VISIBILITY_PRIVATE
-            // A private one shows its public version, if it gave one, else just its app.
-            val source = if (private) n.publicVersion else n
-            val extras = source?.extras
+            // Locked, a private one shows its public version, if it gave one, else just its app.
+            val locked = n.publicVersion?.extras
             Detail(
                 key = sbn.key,
                 packageName = sbn.packageName,
                 appName = appName(context, sbn),
                 icon = icon,
-                title = extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.takeIf { it.isNotBlank() },
-                text = (extras?.getCharSequence(Notification.EXTRA_TEXT) ?: extras?.getCharSequence(Notification.EXTRA_BIG_TEXT))
-                    ?.toString()?.takeIf { it.isNotBlank() },
+                title = titleOf(n.extras),
+                text = textOf(n.extras),
+                lockedTitle = titleOf(locked),
+                lockedText = textOf(locked),
+                private = private,
                 postTime = sbn.postTime,
                 open = n.contentIntent,
             )
@@ -92,6 +100,13 @@ internal object AodNotifications {
         if (n.extras?.containsKey(Notification.EXTRA_MEDIA_SESSION) == true) return false
         return true
     }
+
+    private fun titleOf(extras: android.os.Bundle?): String? =
+        extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.takeIf { it.isNotBlank() }
+
+    private fun textOf(extras: android.os.Bundle?): String? =
+        (extras?.getCharSequence(Notification.EXTRA_TEXT) ?: extras?.getCharSequence(Notification.EXTRA_BIG_TEXT))
+            ?.toString()?.takeIf { it.isNotBlank() }
 
     private val names = HashMap<String, String>()
 

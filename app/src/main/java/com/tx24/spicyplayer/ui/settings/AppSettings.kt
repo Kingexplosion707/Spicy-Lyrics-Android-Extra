@@ -239,6 +239,10 @@ class AppSettings(private val prefs: SharedPreferences) {
     var aodClockSize by int("aodClockSize", 100, 60..160)
     /** On a Pixel, holding the fingerprint sensor leaves it for the lock screen to unlock. */
     var aodFingerprintUnlock by boolean("aodFingerprintUnlock", true)
+    /** A button with the always-on display's controls that adds the song to the Spotify playlist playing ([com.tx24.spicyplayer.spotify.SpotifyPlaylist]). */
+    var aodPlaylistButton by boolean("aodPlaylistButton", true)
+    /** The notification list shows only each app until the phone is unlocked (face unlock, say). */
+    var aodHideNotificationText by boolean("aodHideNotificationText", true)
     /** The song's Canvas behind the always-on display, blurred and darkened. */
     var aodCanvas by boolean("aodCanvas", false)
     /** Play/pause, previous and next on the always-on display. */
