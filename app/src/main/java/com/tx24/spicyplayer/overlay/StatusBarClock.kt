@@ -79,7 +79,7 @@ internal object StatusBarClock {
         val running = runCatching { Shizuku.pingBinder() }.getOrDefault(false)
         if (!running) return Grant.NotRunning
         if (runCatching { Shizuku.isPreV11() }.getOrDefault(true)) return Grant.Failed
-        if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED && !requestPermission()) return Grant.Denied
+        if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED && !requestShizukuPermission()) return Grant.Denied
         val ok = withContext(Dispatchers.IO) {
             runCatching {
                 // Shizuku's process API is private in its current library; it's reached directly.
@@ -94,7 +94,8 @@ internal object StatusBarClock {
         return if (ok && canWrite(context)) Grant.Ok else Grant.Failed
     }
 
-    private suspend fun requestPermission(): Boolean = suspendCancellableCoroutine { continuation ->
+    /** Asks the user to let the app use Shizuku; true once allowed. */
+    suspend fun requestShizukuPermission(): Boolean = suspendCancellableCoroutine { continuation ->
         val code = 4206
         val listener = object : Shizuku.OnRequestPermissionResultListener {
             override fun onRequestPermissionResult(requestCode: Int, grantResult: Int) {

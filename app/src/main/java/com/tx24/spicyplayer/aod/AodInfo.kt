@@ -88,6 +88,8 @@ internal class AodExtras(
     val clockSize: Int = 100,
     /** The list shows only each app until the phone is unlocked (face unlock, say). */
     val hideTextUntilUnlocked: Boolean = true,
+    /** Asks for a face or fingerprint to show what notifications say. */
+    val revealNotifications: (() -> Unit)? = null,
     /** The Add to playlist button with the controls, and what to do when it's pressed. */
     val addToPlaylist: (suspend () -> String)? = null,
 )
@@ -233,6 +235,7 @@ internal fun AodNotificationIcons(
     onOpen: ((AodNotifications.Detail) -> Unit)? = null,
     align: Alignment.Horizontal = Alignment.CenterHorizontally,
     hideTextUntilUnlocked: Boolean = true,
+    onReveal: (() -> Unit)? = null,
 ) {
     val entries = AodNotifications.entries.value
     val details = AodNotifications.details.value
@@ -269,7 +272,11 @@ internal fun AodNotificationIcons(
             ) {
                 val now = System.currentTimeMillis()
                 // Face unlock (or the fingerprint) with the lock screen still up: what they say shows.
-                val unlocked = rememberDeviceUnlocked()
+                val unlocked = rememberDeviceUnlocked() || AodNotifications.revealed.value
+                // Opened with what they say hidden: Android's own prompt asks for a face or fingerprint.
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    if (!unlocked && details.any { hideTextUntilUnlocked || it.private }) onReveal?.invoke()
+                }
                 details.take(LIST_MAX).forEach { detail ->
                     val full = unlocked || (!hideTextUntilUnlocked && !detail.private)
                     NotificationCard(detail, full, alpha, now) { onOpen?.invoke(detail) }
