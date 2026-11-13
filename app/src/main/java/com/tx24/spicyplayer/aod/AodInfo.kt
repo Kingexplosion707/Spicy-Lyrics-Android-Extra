@@ -86,6 +86,10 @@ internal class AodExtras(
     /** The clock's style and size, in percent. */
     val clockStyle: com.tx24.spicyplayer.ui.settings.AodClockStyle = com.tx24.spicyplayer.ui.settings.AodClockStyle.Light,
     val clockSize: Int = 100,
+    /** The list shows only each app until the phone is unlocked (face unlock, say). */
+    val hideTextUntilUnlocked: Boolean = true,
+    /** The Add to playlist button with the controls, and what to do when it's pressed. */
+    val addToPlaylist: (suspend () -> String)? = null,
 )
 
 internal class BatteryState(val percent: Int, val charging: Boolean)
@@ -228,6 +232,7 @@ internal fun AodNotificationIcons(
     modifier: Modifier = Modifier,
     onOpen: ((AodNotifications.Detail) -> Unit)? = null,
     align: Alignment.Horizontal = Alignment.CenterHorizontally,
+    hideTextUntilUnlocked: Boolean = true,
 ) {
     val entries = AodNotifications.entries.value
     val details = AodNotifications.details.value
@@ -263,7 +268,12 @@ internal fun AodNotificationIcons(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 val now = System.currentTimeMillis()
-                details.take(LIST_MAX).forEach { detail -> NotificationCard(detail, alpha, now) { onOpen?.invoke(detail) } }
+                // Face unlock (or the fingerprint) with the lock screen still up: what they say shows.
+                val unlocked = rememberDeviceUnlocked()
+                details.take(LIST_MAX).forEach { detail ->
+                    val full = unlocked || (!hideTextUntilUnlocked && !detail.private)
+                    NotificationCard(detail, full, alpha, now) { onOpen?.invoke(detail) }
+                }
                 if (details.size > LIST_MAX) {
                     Text(
                         "+${details.size - LIST_MAX} more", color = Color.White.copy(alpha = alpha * 0.6f), fontSize = 12.sp,
@@ -284,9 +294,30 @@ private fun AppIcon(packageName: String, icon: android.graphics.drawable.Icon, a
     Image(bitmap, null, colorFilter = ColorFilter.tint(Color.White.copy(alpha = alpha)), modifier = Modifier.size(size))
 }
 
+/**
+ * Whether the phone is unlocked now, though its lock screen may still be up (face unlock without
+ * going straight in, say). Checked a couple of times a second while shown: Android tells no one.
+ */
+@Composable
+internal fun rememberDeviceUnlocked(): Boolean {
+    val context = LocalContext.current
+    val keyguard = remember { context.getSystemService(android.app.KeyguardManager::class.java) }
+    fun read() = keyguard?.let { !it.isDeviceLocked } ?: false
+    var unlocked by remember { mutableStateOf(read()) }
+    androidx.compose.runtime.LaunchedEffect(keyguard) {
+        while (true) {
+            unlocked = read()
+            kotlinx.coroutines.delay(UNLOCK_POLL_MS)
+        }
+    }
+    return unlocked
+}
+
 /** One notification: its app and when, its title, and a line or two of what it says. */
 @Composable
-private fun NotificationCard(detail: AodNotifications.Detail, alpha: Float, now: Long, onClick: () -> Unit) {
+private fun NotificationCard(detail: AodNotifications.Detail, full: Boolean, alpha: Float, now: Long, onClick: () -> Unit) {
+    val title = if (full) detail.title else detail.lockedTitle
+    val body = if (full) detail.text else detail.lockedText
     val ago = remember(detail.postTime, now / 60_000L) {
         android.text.format.DateUtils.getRelativeTimeSpanString(
             detail.postTime, now, android.text.format.DateUtils.MINUTE_IN_MILLIS, android.text.format.DateUtils.FORMAT_ABBREV_RELATIVE,
@@ -308,16 +339,16 @@ private fun NotificationCard(detail: AodNotifications.Detail, alpha: Float, now:
                 "${detail.appName} · $ago", color = Color.White.copy(alpha = alpha * 0.6f), fontSize = 12.sp,
                 maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
-            if (detail.title == null && detail.text == null) {
+            if (title == null && body == null) {
                 Text("Contents hidden", color = Color.White.copy(alpha = alpha * 0.7f), fontSize = 14.sp)
             }
-            detail.title?.let {
+            title?.let {
                 Text(
                     it, color = Color.White.copy(alpha = alpha), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 )
             }
-            detail.text?.let {
+            body?.let {
                 Text(
                     it, color = Color.White.copy(alpha = alpha * 0.75f), fontSize = 13.sp,
                     maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -353,3 +384,4 @@ private const val ICON_PX = 64
 /** The list shows this many, and closes by itself this long after opening. */
 private const val LIST_MAX = 5
 private const val LIST_OPEN_MS = 20_000L
+private const val UNLOCK_POLL_MS = 500L

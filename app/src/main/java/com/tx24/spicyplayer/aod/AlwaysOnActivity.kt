@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
@@ -128,7 +129,14 @@ class AlwaysOnActivity : ComponentActivity() {
             openNotification = ::openNotification,
             clockStyle = settings.aodClockStyle,
             clockSize = settings.aodClockSize,
+            hideTextUntilUnlocked = settings.aodHideNotificationText,
+            addToPlaylist = if (controls && settings.aodPlaylistButton && com.tx24.spicyplayer.spotify.SpotifyAccount.signedIn(this)) {
+                suspend { com.tx24.spicyplayer.spotify.SpotifyPlaylist.addPlayingToPlaylist(this@AlwaysOnActivity).message }
+            } else {
+                null
+            },
         )
+        watchUnlock()
         if (extras.weather) AodWeather.load(this)
         setContent {
             // Eased, so the light changing doesn't jump the screen.
@@ -212,6 +220,7 @@ class AlwaysOnActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        unwatchUnlock()
         live.stop()
         if (current?.get() === this) current = null
         super.onDestroy()
@@ -248,6 +257,7 @@ class AlwaysOnActivity : ComponentActivity() {
 
     /** Straight to the lock screen, with no animation, so its fingerprint sensor is ready at once. */
     private fun leaveNow() {
+        if (isFinishing) return
         finish()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
@@ -255,6 +265,43 @@ class AlwaysOnActivity : ComponentActivity() {
             @Suppress("DEPRECATION")
             overridePendingTransition(0, 0)
         }
+    }
+
+    /**
+     * Unlocked by the fingerprint or face while it's up (Android unlocks under a screen shown over
+     * the lock screen): it gets out of the way at once, instead of staying over the unlocked phone.
+     */
+    private var sawLocked = false
+    private var lockedListener: Any? = null
+    private val userPresent = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
+            if (sawLocked) leaveNow()
+        }
+    }
+
+    private fun watchUnlock() {
+        val keyguard = getSystemService(android.app.KeyguardManager::class.java) ?: return
+        sawLocked = keyguard.isKeyguardLocked
+        androidx.core.content.ContextCompat.registerReceiver(
+            this, userPresent, android.content.IntentFilter(android.content.Intent.ACTION_USER_PRESENT),
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val listener = android.app.KeyguardManager.KeyguardLockedStateListener { locked ->
+                if (locked) sawLocked = true else if (sawLocked) leaveNow()
+            }
+            runCatching { keyguard.addKeyguardLockedStateListener(mainExecutor, listener) }.onSuccess { lockedListener = listener }
+        }
+    }
+
+    private fun unwatchUnlock() {
+        runCatching { unregisterReceiver(userPresent) }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            (lockedListener as? android.app.KeyguardManager.KeyguardLockedStateListener)?.let { listener ->
+                runCatching { getSystemService(android.app.KeyguardManager::class.java)?.removeKeyguardLockedStateListener(listener) }
+            }
+        }
+        lockedListener = null
     }
 
     /** The touch that started on the sensor, handed on as usual if it turns out not to be a hold. */
@@ -403,7 +450,10 @@ private fun ClassicLayout(live: LiveLyrics, settings: AppSettings, controls: Boo
         AodClock(now, extras.clockStyle, clockSize(64.sp, extras.clockSize), alpha = 0.9f)
         Text(dateFormat.format(Date(now)), color = Color.White.copy(alpha = 0.6f), fontSize = 15.sp)
         AodStatusLine(extras, alpha = 0.6f, modifier = Modifier.padding(top = 10.dp))
-        if (extras.notifications) AodNotificationIcons(alpha = 0.6f, modifier = Modifier.padding(top = 10.dp), onOpen = extras.openNotification)
+        if (extras.notifications) AodNotificationIcons(
+            alpha = 0.6f, modifier = Modifier.padding(top = 10.dp), onOpen = extras.openNotification,
+            hideTextUntilUnlocked = extras.hideTextUntilUnlocked,
+        )
         Spacer(Modifier.height(24.dp))
         val track = live.track
         if (track != null) {
@@ -420,7 +470,7 @@ private fun ClassicLayout(live: LiveLyrics, settings: AppSettings, controls: Boo
         }
         Spacer(Modifier.height(12.dp))
         AodLyrics(live, settings, Modifier.fillMaxWidth().weight(1f), LYRICS_ALPHA)
-        if (controls && track != null) Controls(live)
+        if (controls && track != null) Controls(live, extras.addToPlaylist)
     }
 }
 
@@ -445,7 +495,10 @@ private fun PlayerLayout(live: LiveLyrics, settings: AppSettings, controls: Bool
         Text(dateFormat.format(Date(now)), color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp)
         AodStatusLine(extras, alpha = 0.6f, modifier = Modifier.padding(top = 8.dp), size = 13.sp)
         if (extras.notifications) {
-            AodNotificationIcons(alpha = 0.6f, modifier = Modifier.padding(top = 8.dp), onOpen = extras.openNotification, align = Alignment.Start)
+            AodNotificationIcons(
+                alpha = 0.6f, modifier = Modifier.padding(top = 8.dp), onOpen = extras.openNotification, align = Alignment.Start,
+                hideTextUntilUnlocked = extras.hideTextUntilUnlocked,
+            )
         }
         Spacer(Modifier.height(22.dp))
         // As the lyrics screen's header: the cover with the song beside it.
@@ -469,7 +522,7 @@ private fun PlayerLayout(live: LiveLyrics, settings: AppSettings, controls: Bool
         Spacer(Modifier.height(8.dp))
         AodLyrics(live, settings, Modifier.fillMaxWidth().weight(1f), 1f)
         if (settings.aodProgress && track.durationMs > 0L) ProgressBar(live, track.durationMs)
-        if (controls) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { Controls(live) }
+        if (controls) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { Controls(live, extras.addToPlaylist) }
     }
 }
 
@@ -609,20 +662,51 @@ private fun BlurredCover(cover: android.graphics.Bitmap?, shift: IntOffset) {
  * repeat) on the right, when it offers them.
  */
 @Composable
-private fun Controls(live: LiveLyrics) {
+private fun Controls(live: LiveLyrics, addToPlaylist: (suspend () -> String)? = null) {
     val actions = live.actions
     val like = remember(actions) { actions.firstOrNull { it.matches(LIKE_WORDS) } }
     val mode = remember(actions) { actions.firstOrNull { it.matches(SHUFFLE_WORDS) } ?: actions.firstOrNull { it.matches(REPEAT_WORDS) } }
-    Row(
-        Modifier.padding(top = 12.dp, bottom = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(18.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        PlayerAction(like, live)
-        ControlButton(Icons.Rounded.SkipPrevious, "Previous", 30.dp) { live.skipPrevious() }
-        ControlButton(if (live.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (live.playing) "Pause" else "Play", 40.dp) { live.playPause() }
-        ControlButton(Icons.Rounded.SkipNext, "Next", 30.dp) { live.skipNext() }
-        PlayerAction(mode, live)
+    // Spotify only: the playlist button is about its playlists.
+    val playlist = addToPlaylist?.takeIf { live.playerPackage == "com.spotify.music" }
+    var message by remember { mutableStateOf<String?>(null) }
+    var adding by remember { mutableStateOf(false) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    LaunchedEffect(message) {
+        if (message != null) {
+            delay(PLAYLIST_MESSAGE_MS)
+            message = null
+        }
+    }
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(
+            Modifier.padding(top = 12.dp, bottom = if (message != null) 4.dp else 20.dp),
+            // Closer together with the sixth button, so the row still fits.
+            horizontalArrangement = Arrangement.spacedBy(if (playlist != null) 6.dp else 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            PlayerAction(like, live)
+            ControlButton(Icons.Rounded.SkipPrevious, "Previous", 30.dp) { live.skipPrevious() }
+            ControlButton(if (live.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (live.playing) "Pause" else "Play", 40.dp) { live.playPause() }
+            ControlButton(Icons.Rounded.SkipNext, "Next", 30.dp) { live.skipNext() }
+            PlayerAction(mode, live)
+            if (playlist != null) {
+                ControlButton(Icons.Rounded.PlaylistAdd, "Add to the playlist playing", 24.dp) {
+                    if (!adding) {
+                        adding = true
+                        scope.launch {
+                            message = runCatching { playlist() }.getOrDefault("Couldn't reach Spotify")
+                            adding = false
+                        }
+                    }
+                }
+            }
+        }
+        message?.let {
+            Text(
+                it, color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp, textAlign = TextAlign.Center,
+                modifier = Modifier.padding(bottom = 12.dp),
+            )
+        }
     }
 }
 
@@ -664,6 +748,8 @@ private fun android.media.session.PlaybackState.CustomAction.matches(words: List
     return words.any { it in text }
 }
 
+/** How long the Add to playlist button's answer shows under the controls. */
+private const val PLAYLIST_MESSAGE_MS = 3_500L
 private val LIKE_WORDS = listOf("like", "heart", "favorite", "favourite", "save", "thumb")
 private val SHUFFLE_WORDS = listOf("shuffle")
 private val REPEAT_WORDS = listOf("repeat")

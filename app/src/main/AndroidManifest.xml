@@ -277,5 +277,20 @@
         <receiver
             android:name="com.tx24.spicyplayer.update.UpdateInstallReceiver"
             android:exported="false" />
+        <!-- Spotify's sign-in page comes back here (Settings → Device → Always-on display). -->
+        <activity
+            android:name="com.tx24.spicyplayer.spotify.SpotifyLoginActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:noHistory="true"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="spicylyricsplus" android:host="callback" />
+            </intent-filter>
+        </activity>
     </application>
 </manifest>

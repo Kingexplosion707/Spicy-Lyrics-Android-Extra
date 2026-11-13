@@ -33,6 +33,9 @@ Modified by Behnoud.
 - Tapping the **notification icons** opens a list of what's waiting (app, time, title and a line of text; private ones, or all of them when the lock screen hides what notifications say, show only their app); tapping one unlocks and opens it.
 - **Clock** styles (Thin, Bold, Stacked, Outline and **Liquid glass**) and a **Clock size**.
 - On Pixels, **hold the fingerprint sensor to unlock** (on by default; `AodFingerprint`): a finger resting on the sensor leaves straight for the lock screen, with no animation, so it unlocks.
+- Unlocking with the fingerprint or face while it's up now leaves it at once, instead of it staying over the unlocked phone.
+- **Hide what notifications say until unlocked** (on by default): the list shows only each app until face unlock (or the fingerprint) unlocks the phone, then what they say, though the lock screen is still up.
+- **Add to playlist button** with the controls (Spotify): adds the song to the playlist it's playing from (one Smart Shuffle slipped in, say), unless it's there already. Signs in with your own Spotify app's Client ID (PKCE, no secret), asking only to read what's playing and to add to playlists; Spotify allows it for your own and shared playlists (`spotify/SpotifyAccount.kt`).
 
 ### Haptics (`haptics/`)
 - Pulses snapped to measured drum onsets, downbeats and sung onsets; lyric pulses for line-timed lyrics laid out word by word; unsynced lyrics and interludes give none.
