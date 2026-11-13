@@ -278,6 +278,13 @@ internal fun WallpaperContent(
         // The song's name, and what stands in for lyrics when there are none.
         val textPaint = remember { Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.LEFT } }
         val ready = ui.lyrics
+        // On a song change the last song's lyrics stay, fading out over the new song's.
+        val transition = com.tx24.spicyplayer.lyrics.rememberSongTransition(
+            ready ?: if (track == null || ui.notice != null) LyricsState.Idle else LyricsState.Loading,
+            ui.translation, track?.key, positionMs,
+            settings.lyricsSongTransition, settings.lyricsHoldUntilFirstLine,
+        )
+        val outgoing = transition.outgoing
         Canvas(Modifier.fillMaxSize()) {
             drawIntoCanvas { c ->
                 val canvas = c.nativeCanvas
@@ -289,7 +296,7 @@ internal fun WallpaperContent(
                 if (!showLyrics) return@drawIntoCanvas
                 val message = when {
                     track == null -> WAITING
-                    noLyrics -> null
+                    noLyrics || outgoing != null -> null
                     ready == null -> ui.notice
                     ready.lines.isEmpty() -> NO_LYRICS
                     else -> null
@@ -303,24 +310,47 @@ internal fun WallpaperContent(
         }
 
         // The lyrics, by the lyrics screen's own renderer.
-        if (showLyrics && !still && track != null && ready != null && ready.lines.isNotEmpty()) {
+        if (showLyrics && !still && track != null && (outgoing != null || (ready != null && ready.lines.isNotEmpty()))) {
             val heightDp = with(density) { (if (beside) h - 2 * lyricsTop else h - lyricsTop).coerceAtLeast(1).toDp() }
             val widthDp = with(density) { (w - lyricsLeft).coerceAtLeast(1).toDp() }
-            WallpaperLyrics(
+            val tint = rememberLyricsTint(settings, ui.cover)
+            fun shaped(lyrics: LyricsState.Ready) =
                 // Line by line when power saving asks: each line lights as a whole.
-                lyrics = if (saving.lineByLine && ready.lyricsType == LyricsType.Syllable) ready.copy(lyricsType = LyricsType.Line) else ready,
-                reduced = saving.simplerAnimation,
-                translation = ui.translation,
-                settings = settings,
-                positionMs = positionMs,
-                isPlaying = ui.playing,
-                visible = { ui.visible },
-                durationMs = track.durationMs,
-                modifier = Modifier.offset { IntOffset(lyricsLeft, lyricsTop) }.size(widthDp, heightDp),
-                focusAnchorFraction = if (beside) 0.5f else LYRICS_FOCUS_FRACTION,
-                fontSizeScale = settings.lyricsScale(landscape) * settings.wallpaperLyricsSize / 100f,
-                tint = rememberLyricsTint(settings, ui.cover),
-            )
+                if (saving.lineByLine && lyrics.lyricsType == LyricsType.Syllable) lyrics.copy(lyricsType = LyricsType.Line) else lyrics
+            Box(Modifier.offset { IntOffset(lyricsLeft, lyricsTop) }.size(widthDp, heightDp)) {
+                if (outgoing != null) {
+                    WallpaperLyrics(
+                        lyrics = shaped(outgoing.lyrics),
+                        reduced = saving.simplerAnimation,
+                        translation = outgoing.translation,
+                        settings = settings,
+                        positionMs = outgoing::timeMs,
+                        isPlaying = ui.playing && outgoing.runs,
+                        visible = { ui.visible },
+                        durationMs = Long.MAX_VALUE / 4,
+                        modifier = Modifier.fillMaxSize().graphicsLayer { alpha = transition.outgoingAlpha() },
+                        focusAnchorFraction = if (beside) 0.5f else LYRICS_FOCUS_FRACTION,
+                        fontSizeScale = settings.lyricsScale(landscape) * settings.wallpaperLyricsSize / 100f,
+                        tint = tint,
+                    )
+                }
+                if (ready != null && ready.lines.isNotEmpty()) {
+                    WallpaperLyrics(
+                        lyrics = shaped(ready),
+                        reduced = saving.simplerAnimation,
+                        translation = ui.translation,
+                        settings = settings,
+                        positionMs = positionMs,
+                        isPlaying = ui.playing,
+                        visible = { ui.visible },
+                        durationMs = track.durationMs,
+                        modifier = Modifier.fillMaxSize().graphicsLayer { alpha = transition.incomingAlpha() },
+                        focusAnchorFraction = if (beside) 0.5f else LYRICS_FOCUS_FRACTION,
+                        fontSizeScale = settings.lyricsScale(landscape) * settings.wallpaperLyricsSize / 100f,
+                        tint = tint,
+                    )
+                }
+            }
         }
     }
 }

@@ -75,8 +75,32 @@ internal fun OverlayContent(live: LiveLyrics, prefs: SharedPreferences, visible:
     ) {
         val track = live.track
         val lyrics = live.lyrics
-        if (track != null && lyrics != null && lyrics.lines.isNotEmpty()) {
-            WallpaperLyrics(
+        // The last song's lyrics fade out over the new song's on a song change.
+        val transition = com.tx24.spicyplayer.lyrics.rememberSongTransition(
+            live.lyricsState, live.translation, track?.key, live::positionMs,
+            settings.lyricsSongTransition, settings.lyricsHoldUntilFirstLine,
+        )
+        val outgoing = transition.outgoing
+        if (track != null && (outgoing != null || (lyrics != null && lyrics.lines.isNotEmpty()))) {
+            val frameCap = if (fullRate) 0f else OVERLAY_MAX_FPS
+            if (outgoing != null) {
+                WallpaperLyrics(
+                    lyrics = outgoing.lyrics,
+                    translation = outgoing.translation,
+                    settings = settings,
+                    positionMs = outgoing::timeMs,
+                    isPlaying = live.playing && outgoing.runs,
+                    visible = visible,
+                    durationMs = Long.MAX_VALUE / 4,
+                    modifier = Modifier.fillMaxSize().lyricsTint(ink, brightness).graphicsLayer { alpha = lyricsAlpha * transition.outgoingAlpha() },
+                    focusAnchorFraction = FOCUS_FRACTION,
+                    fontSizeScale = settings.lyricsScale(false) * size.fontScale,
+                    glow = glow,
+                    glowStrength = glowStrength,
+                    maxFrameRate = frameCap,
+                )
+            }
+            if (lyrics != null && lyrics.lines.isNotEmpty()) WallpaperLyrics(
                 lyrics = lyrics,
                 translation = live.translation,
                 settings = settings,
@@ -84,12 +108,12 @@ internal fun OverlayContent(live: LiveLyrics, prefs: SharedPreferences, visible:
                 isPlaying = live.playing,
                 visible = visible,
                 durationMs = track.durationMs,
-                modifier = Modifier.fillMaxSize().lyricsTint(ink, brightness).graphicsLayer { alpha = lyricsAlpha },
+                modifier = Modifier.fillMaxSize().lyricsTint(ink, brightness).graphicsLayer { alpha = lyricsAlpha * transition.incomingAlpha() },
                 focusAnchorFraction = FOCUS_FRACTION,
                 fontSizeScale = settings.lyricsScale(false) * size.fontScale,
                 glow = glow,
                 glowStrength = glowStrength,
-                maxFrameRate = if (fullRate) 0f else OVERLAY_MAX_FPS,
+                maxFrameRate = frameCap,
             )
         } else if (track != null) {
             Text(

@@ -40,7 +40,7 @@ internal fun SongChangeSection(settings: AppSettings) {
             label = "Lyrics transition",
             checked = settings.lyricsSongTransition,
             onCheckedChange = { settings.lyricsSongTransition = it },
-            description = "On a song change the last song's lyrics fade into the next one's, instead of vanishing while the new ones load. After a skip they hold still until then.",
+            description = "On a song change the last song's lyrics fade into the next one's, instead of vanishing while the new ones load. After a skip they hold still until then. Everywhere lyrics show: the lyrics screen, picture-in-picture, the wallpaper, the overlay and the always-on display.",
             icon = Icons.Rounded.Animation,
         )
         ToggleRow(
