@@ -21,6 +21,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <!-- Live haptics from the phone's own sound, through Android's audio capture. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <!-- Live haptics keep hearing with the screen off while sound plays. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Updates: the downloaded APK goes to Android's installer, which asks the user first. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Only for an update downloaded out of view: Android holds its install prompt back until a tap. -->
@@ -310,5 +312,11 @@
             android:exported="false"
             android:excludeFromRecents="true"
             android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
+        <!-- Live haptics: asks Android again to capture the phone's sound, from the notification. -->
+        <activity
+            android:name="com.tx24.spicyplayer.haptics.CaptureConsentActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
     </application>
 </manifest>

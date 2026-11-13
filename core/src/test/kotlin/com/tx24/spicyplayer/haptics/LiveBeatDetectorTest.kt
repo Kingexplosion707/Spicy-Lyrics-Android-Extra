@@ -70,6 +70,25 @@ class LiveBeatDetectorTest {
     }
 
     @Test
+    fun `keeps finding kicks through a long loud song`() {
+        // A minute of a full mix, then a louder chorus: the last stretch must still be felt.
+        val verse = render(40, 500L, hats = true, bass = 0.3f, pad = 0.3f)
+        val chorus = render(30, 500L, hats = true, bass = 0.5f, pad = 0.5f).map { it * 1.4f }.toFloatArray()
+        val found = hits(verse + chorus, LiveBeatDetector())
+        val lateLows = found.filter { it.first > 60_000L && it.second == LiveBeatDetector.Kind.Low }
+        assertTrue("late lows ${lateLows.size}", lateLows.size >= 15)
+    }
+
+    @Test
+    fun `comes back after a quiet passage`() {
+        val loud = render(20, 500L, bass = 0.4f)
+        val quiet = render(10, 500L, bass = 0.4f).map { it * 0.15f }.toFloatArray()
+        val found = hits(loud + quiet, LiveBeatDetector())
+        val inQuiet = found.filter { it.first > 23_000L && it.second == LiveBeatDetector.Kind.Low }
+        assertTrue("quiet lows ${inQuiet.size}", inQuiet.size >= 8)
+    }
+
+    @Test
     fun `hears the hats between the kicks`() {
         val found = hits(render(8, 500L, hats = true), LiveBeatDetector())
         assertTrue("highs in $found", found.count { it.second == LiveBeatDetector.Kind.High } >= 8)
