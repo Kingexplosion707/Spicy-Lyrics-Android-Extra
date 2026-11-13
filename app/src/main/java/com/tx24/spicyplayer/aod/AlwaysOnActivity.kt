@@ -91,10 +91,17 @@ class AlwaysOnActivity : ComponentActivity() {
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         val prefs = getSharedPreferences("ui", MODE_PRIVATE)
-        // As dim as asked (Settings → Device → Always-on dim), the lowest by default.
-        val brightness = prefs.getInt(PREF_BRIGHTNESS, DEFAULT_BRIGHTNESS).coerceIn(1, 100) / 100f
+        // By the light sensor, or the level asked for (Settings → Device → Always-on display).
+        autoBrightness = prefs.getBoolean(AodBrightness.PREF_AUTO, true) && light.available
+        bias = prefs.getInt(AodBrightness.PREF_BIAS, 0).coerceIn(-40, 40)
+        levelState.floatValue = if (autoBrightness) {
+            AodBrightness.levelForLux(DARK_ROOM_LUX, bias)
+        } else {
+            prefs.getInt(AodBrightness.PREF_LEVEL, AodBrightness.DEFAULT_LEVEL).coerceIn(0, 100).toFloat()
+        }
+        fingerprintUnlock = prefs.getBoolean(AodFingerprint.PREF, true) && AodFingerprint.supported(this)
         window.attributes = window.attributes.apply {
-            screenBrightness = brightness
+            screenBrightness = AodBrightness.windowBrightness(levelState.floatValue)
             // The lowest refresh rate the screen offers at its size: dim lyrics drifting by don't
             // need 120 Hz, and an always-on screen runs for hours.
             lowestRefreshRateMode()?.let { preferredDisplayModeId = it }
@@ -118,9 +125,62 @@ class AlwaysOnActivity : ComponentActivity() {
             battery = settings.aodBattery,
             notifications = settings.aodNotifications,
             ringer = settings.aodRinger,
+            openNotification = ::openNotification,
+            clockStyle = settings.aodClockStyle,
+            clockSize = settings.aodClockSize,
         )
         if (extras.weather) AodWeather.load(this)
-        setContent { AlwaysOnContent(live, settings, canvas, controls, extras, onDismiss = ::tapToLeave) }
+        setContent {
+            // Eased, so the light changing doesn't jump the screen.
+            val level by androidx.compose.animation.core.animateFloatAsState(
+                levelState.floatValue, androidx.compose.animation.core.tween(BRIGHTNESS_EASE_MS), label = "aodLevel",
+            )
+            LaunchedEffect(level) { setWindowBrightness(AodBrightness.windowBrightness(level)) }
+            Box(Modifier.fillMaxSize().background(Color.Black).graphicsLayer { alpha = AodBrightness.contentAlpha(level) }) {
+                AlwaysOnContent(live, settings, canvas, controls, extras, onDismiss = ::tapToLeave)
+            }
+        }
+    }
+
+    /** The brightness level now (0 to 100, [AodBrightness]), from the light sensor or the setting. */
+    private val levelState = androidx.compose.runtime.mutableFloatStateOf(AodBrightness.DEFAULT_LEVEL.toFloat())
+    private var autoBrightness = false
+    private var bias = 0
+    private val light by lazy { AodBrightness.LightFollower(this) { lux -> levelState.floatValue = AodBrightness.levelForLux(lux, bias) } }
+
+    private fun setWindowBrightness(value: Float) {
+        val attrs = window.attributes
+        if (kotlin.math.abs(attrs.screenBrightness - value) < 0.0005f) return
+        window.attributes = attrs.apply { screenBrightness = value }
+    }
+
+    /** Opens a notification from the list: unlocking first, as the lock screen's own do. */
+    private fun openNotification(detail: AodNotifications.Detail) {
+        val go = {
+            runCatching { detail.open?.send(this, 0, null, null, null, null, pendingIntentOptions()) }
+            finish()
+        }
+        val keyguard = getSystemService(android.app.KeyguardManager::class.java)
+        if (keyguard?.isKeyguardLocked == true && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            keyguard.requestDismissKeyguard(this, object : android.app.KeyguardManager.KeyguardDismissCallback() {
+                override fun onDismissSucceeded() { go() }
+            })
+        } else {
+            go()
+        }
+    }
+
+    /** Lets the notification's app open from here (Android 14 on asks the sender to say so). */
+    private fun pendingIntentOptions(): Bundle? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return null
+        val options = android.app.ActivityOptions.makeBasic()
+        if (Build.VERSION.SDK_INT >= 36) {
+            options.setPendingIntentBackgroundActivityStartMode(android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_ALWAYS)
+        } else {
+            @Suppress("DEPRECATION")
+            options.setPendingIntentBackgroundActivityStartMode(android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
+        }
+        return options.toBundle()
     }
 
     /** The display mode with this one's size and the lowest refresh rate (not under 30 Hz), if there's a slower one. */
@@ -138,6 +198,7 @@ class AlwaysOnActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         shownState.value = true
+        if (autoBrightness) light.start()
         // The notification icons and the weather as they are now.
         AodNotifications.refresher?.invoke()
         if (AodWeather.enabled(this)) lifecycleScope.launch { AodWeather.refreshIfStale(this@AlwaysOnActivity) }
@@ -146,6 +207,8 @@ class AlwaysOnActivity : ComponentActivity() {
     override fun onPause() {
         super.onPause()
         shownState.value = false
+        light.stop()
+        cancelHold()
     }
 
     override fun onDestroy() {
@@ -154,7 +217,7 @@ class AlwaysOnActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-    /** With the controls shown, touches reach them (and the rest of the screen dismisses it). */
+    /** Play/pause and the rest under the lyrics. */
     private var controls = false
     /** Two taps in a row to leave ([PREF_DOUBLE_TAP]). */
     private var doubleTap = false
@@ -166,11 +229,75 @@ class AlwaysOnActivity : ComponentActivity() {
         if (!doubleTap || now - lastTapAt <= DOUBLE_TAP_MS) finish() else lastTapAt = now
     }
 
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        if (controls) return super.dispatchTouchEvent(ev)
-        if (ev.actionMasked == MotionEvent.ACTION_UP) tapToLeave()
-        return true
+    /** Holding a Pixel's fingerprint sensor leaves for the lock screen, where it unlocks ([AodFingerprint]). */
+    private var fingerprintUnlock = false
+    private var holding = false
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val held = Runnable {
+        holding = false
+        heldDown?.recycle()
+        heldDown = null
+        window.decorView.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
+        leaveNow()
     }
+
+    private fun cancelHold() {
+        holding = false
+        handler.removeCallbacks(held)
+    }
+
+    /** Straight to the lock screen, with no animation, so its fingerprint sensor is ready at once. */
+    private fun leaveNow() {
+        finish()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
+        } else {
+            @Suppress("DEPRECATION")
+            overridePendingTransition(0, 0)
+        }
+    }
+
+    /** The touch that started on the sensor, handed on as usual if it turns out not to be a hold. */
+    private var heldDown: MotionEvent? = null
+
+    private fun replayDown() {
+        heldDown?.let { super.dispatchTouchEvent(it); it.recycle() }
+        heldDown = null
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (!fingerprintUnlock) return super.dispatchTouchEvent(ev)
+        val view = window.decorView
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                heldDown?.recycle()
+                heldDown = null
+                if (AodFingerprint.area(currentDisplay(), view.width, view.height).contains(ev.x, ev.y)) {
+                    holding = true
+                    heldDown = MotionEvent.obtain(ev)
+                    handler.postDelayed(held, HOLD_MS)
+                    return true
+                }
+            }
+            MotionEvent.ACTION_MOVE -> if (holding && !AodFingerprint.area(currentDisplay(), view.width, view.height).contains(ev.x, ev.y)) {
+                // Slid off the sensor: an ordinary touch after all.
+                cancelHold()
+                replayDown()
+            } else if (holding) {
+                return true
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> if (holding) {
+                // Let go before it took: an ordinary tap (a button there still works).
+                cancelHold()
+                replayDown()
+            }
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun currentDisplay(): android.view.Display? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display else windowManager.defaultDisplay
 
     companion object {
         /** Compose state, so the lyrics rest while it's paused and pick up when it's back. Main thread. */
@@ -179,9 +306,11 @@ class AlwaysOnActivity : ComponentActivity() {
         val showing: Boolean get() = shownState.value
         private var current: WeakReference<AlwaysOnActivity>? = null
         private const val MIN_REFRESH_HZ = 30f
-        /** The screen's brightness on it, in percent: 1 is the lowest the screen allows. */
-        const val PREF_BRIGHTNESS = "aodBrightness"
-        const val DEFAULT_BRIGHTNESS = 1
+        /** Until the light sensor first answers, it starts as dim as for a dark room. */
+        private const val DARK_ROOM_LUX = 5f
+        private const val BRIGHTNESS_EASE_MS = 900
+        /** How long a finger rests on the fingerprint sensor before it leaves. */
+        private const val HOLD_MS = 250L
         /** The song's Spotify Canvas behind it, blurred and darkened. */
         const val PREF_CANVAS = "aodCanvas"
         /** Play/pause, previous and next under the lyrics. */
@@ -266,16 +395,15 @@ private fun AlwaysOnContent(live: LiveLyrics, settings: AppSettings, canvas: Boo
 /** The classic look: a big clock and date, what's around them, the song and its lyrics on black. */
 @Composable
 private fun ClassicLayout(live: LiveLyrics, settings: AppSettings, controls: Boolean, extras: AodExtras, now: Long, shift: IntOffset) {
-    val timeFormat = remember { DateFormat.getTimeInstance(DateFormat.SHORT) }
     val dateFormat = remember { DateFormat.getDateInstance(DateFormat.FULL) }
     Column(
         Modifier.fillMaxSize().offset { shift }.padding(top = 72.dp, bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(timeFormat.format(Date(now)), color = Color.White.copy(alpha = 0.9f), fontSize = 64.sp, fontWeight = FontWeight.Light)
+        AodClock(now, extras.clockStyle, clockSize(64.sp, extras.clockSize), alpha = 0.9f)
         Text(dateFormat.format(Date(now)), color = Color.White.copy(alpha = 0.6f), fontSize = 15.sp)
         AodStatusLine(extras, alpha = 0.6f, modifier = Modifier.padding(top = 10.dp))
-        if (extras.notifications) AodNotificationIcons(alpha = 0.6f, modifier = Modifier.padding(top = 10.dp))
+        if (extras.notifications) AodNotificationIcons(alpha = 0.6f, modifier = Modifier.padding(top = 10.dp), onOpen = extras.openNotification)
         Spacer(Modifier.height(24.dp))
         val track = live.track
         if (track != null) {
@@ -303,13 +431,12 @@ private fun ClassicLayout(live: LiveLyrics, settings: AppSettings, controls: Boo
 @Composable
 private fun PlayerLayout(live: LiveLyrics, settings: AppSettings, controls: Boolean, extras: AodExtras, now: Long, shift: IntOffset) {
     val track = live.track ?: return
-    val timeFormat = remember { DateFormat.getTimeInstance(DateFormat.SHORT) }
     val dateFormat = remember { java.text.SimpleDateFormat("EEE, MMM d", java.util.Locale.getDefault()) }
     Column(
         Modifier.fillMaxSize().offset { shift }.padding(top = 48.dp, bottom = 24.dp, start = 24.dp, end = 24.dp),
     ) {
         Row(verticalAlignment = Alignment.Bottom) {
-            Text(timeFormat.format(Date(now)), color = Color.White.copy(alpha = 0.9f), fontSize = 44.sp, fontWeight = FontWeight.Light)
+            AodClock(now, extras.clockStyle, clockSize(44.sp, extras.clockSize), alpha = 0.9f, align = Alignment.Start)
             Spacer(Modifier.weight(1f))
             if (extras.weather) {
                 Column(horizontalAlignment = Alignment.End) { AodWeatherRange(alpha = 0.55f) }
@@ -317,7 +444,9 @@ private fun PlayerLayout(live: LiveLyrics, settings: AppSettings, controls: Bool
         }
         Text(dateFormat.format(Date(now)), color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp)
         AodStatusLine(extras, alpha = 0.6f, modifier = Modifier.padding(top = 8.dp), size = 13.sp)
-        if (extras.notifications) AodNotificationIcons(alpha = 0.6f, modifier = Modifier.padding(top = 8.dp))
+        if (extras.notifications) {
+            AodNotificationIcons(alpha = 0.6f, modifier = Modifier.padding(top = 8.dp), onOpen = extras.openNotification, align = Alignment.Start)
+        }
         Spacer(Modifier.height(22.dp))
         // As the lyrics screen's header: the cover with the song beside it.
         Row(verticalAlignment = Alignment.CenterVertically) {

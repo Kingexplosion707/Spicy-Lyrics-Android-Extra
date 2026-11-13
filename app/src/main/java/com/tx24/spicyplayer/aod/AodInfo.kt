@@ -9,6 +9,21 @@ import android.content.IntentFilter
 import android.media.AudioManager
 import android.os.BatteryManager
 import androidx.compose.foundation.Image
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
@@ -66,6 +81,11 @@ internal class AodExtras(
     val battery: Boolean,
     val notifications: Boolean,
     val ringer: Boolean,
+    /** Opens a notification from the list (unlocking first), or null to keep the list closed. */
+    val openNotification: ((AodNotifications.Detail) -> Unit)? = null,
+    /** The clock's style and size, in percent. */
+    val clockStyle: com.tx24.spicyplayer.ui.settings.AodClockStyle = com.tx24.spicyplayer.ui.settings.AodClockStyle.Light,
+    val clockSize: Int = 100,
 )
 
 internal class BatteryState(val percent: Int, val charging: Boolean)
@@ -197,22 +217,112 @@ internal fun AodWeatherRange(alpha: Float, size: TextUnit = 12.sp) {
     )
 }
 
-/** The waiting notifications' app icons, in a row, white like the status bar's ([AodNotifications]). */
+/**
+ * The waiting notifications' app icons, in a row, white like the status bar's ([AodNotifications]).
+ * Tapped (with [onOpen]), a list of them opens under the row; tapping one opens it, and the list
+ * closes again by itself after a while.
+ */
 @Composable
-internal fun AodNotificationIcons(alpha: Float, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
+internal fun AodNotificationIcons(
+    alpha: Float,
+    modifier: Modifier = Modifier,
+    onOpen: ((AodNotifications.Detail) -> Unit)? = null,
+    align: Alignment.Horizontal = Alignment.CenterHorizontally,
+) {
     val entries = AodNotifications.entries.value
+    val details = AodNotifications.details.value
+    var open by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(open, details) {
+        if (details.isEmpty()) open = false
+        if (open) {
+            kotlinx.coroutines.delay(LIST_OPEN_MS)
+            open = false
+        }
+    }
     if (entries.isEmpty()) return
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-        entries.forEach { entry ->
-            val bitmap = remember(entry.packageName, entry.icon) {
-                runCatching { entry.icon.loadDrawable(context)?.toBitmap(ICON_PX, ICON_PX)?.asImageBitmap() }.getOrNull()
-            } ?: return@forEach
-            Image(
-                bitmap, null,
-                colorFilter = ColorFilter.tint(Color.White.copy(alpha = alpha)),
-                modifier = Modifier.size(18.dp),
+    Column(modifier.fillMaxWidth(), horizontalAlignment = align) {
+        Row(
+            Modifier
+                .clip(RoundedCornerShape(50))
+                .clickable(enabled = onOpen != null && details.isNotEmpty()) { open = !open }
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            entries.forEach { entry -> AppIcon(entry.packageName, entry.icon, alpha, 18.dp) }
+            if (onOpen != null && details.isNotEmpty()) {
+                Icon(
+                    if (open) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, if (open) "Hide notifications" else "Show notifications",
+                    tint = Color.White.copy(alpha = alpha * 0.8f), modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+        AnimatedVisibility(visible = open && onOpen != null, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+            Column(
+                Modifier.fillMaxWidth().padding(top = 8.dp, start = 16.dp, end = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                val now = System.currentTimeMillis()
+                details.take(LIST_MAX).forEach { detail -> NotificationCard(detail, alpha, now) { onOpen?.invoke(detail) } }
+                if (details.size > LIST_MAX) {
+                    Text(
+                        "+${details.size - LIST_MAX} more", color = Color.White.copy(alpha = alpha * 0.6f), fontSize = 12.sp,
+                        modifier = Modifier.align(Alignment.CenterHorizontally),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppIcon(packageName: String, icon: android.graphics.drawable.Icon, alpha: Float, size: androidx.compose.ui.unit.Dp) {
+    val context = LocalContext.current
+    val bitmap = remember(packageName, icon) {
+        runCatching { icon.loadDrawable(context)?.toBitmap(ICON_PX, ICON_PX)?.asImageBitmap() }.getOrNull()
+    } ?: return
+    Image(bitmap, null, colorFilter = ColorFilter.tint(Color.White.copy(alpha = alpha)), modifier = Modifier.size(size))
+}
+
+/** One notification: its app and when, its title, and a line or two of what it says. */
+@Composable
+private fun NotificationCard(detail: AodNotifications.Detail, alpha: Float, now: Long, onClick: () -> Unit) {
+    val ago = remember(detail.postTime, now / 60_000L) {
+        android.text.format.DateUtils.getRelativeTimeSpanString(
+            detail.postTime, now, android.text.format.DateUtils.MINUTE_IN_MILLIS, android.text.format.DateUtils.FORMAT_ABBREV_RELATIVE,
+        ).toString()
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White.copy(alpha = 0.07f * alpha))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Box(Modifier.padding(top = 2.dp)) { AppIcon(detail.packageName, detail.icon, alpha, 20.dp) }
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                "${detail.appName} · $ago", color = Color.White.copy(alpha = alpha * 0.6f), fontSize = 12.sp,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
+            if (detail.title == null && detail.text == null) {
+                Text("Contents hidden", color = Color.White.copy(alpha = alpha * 0.7f), fontSize = 14.sp)
+            }
+            detail.title?.let {
+                Text(
+                    it, color = Color.White.copy(alpha = alpha), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+            }
+            detail.text?.let {
+                Text(
+                    it, color = Color.White.copy(alpha = alpha * 0.75f), fontSize = 13.sp,
+                    maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
@@ -240,3 +350,6 @@ private fun batteryIcon(battery: BatteryState): ImageVector = when {
 /** An alarm further off than this (tomorrow evening, next week) isn't worth a place. */
 private const val ALARM_WITHIN_MS = 24 * 60 * 60_000L
 private const val ICON_PX = 64
+/** The list shows this many, and closes by itself this long after opening. */
+private const val LIST_MAX = 5
+private const val LIST_OPEN_MS = 20_000L
