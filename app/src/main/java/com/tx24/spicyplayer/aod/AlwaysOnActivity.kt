@@ -207,6 +207,8 @@ class AlwaysOnActivity : ComponentActivity() {
         super.onResume()
         shownState.value = true
         if (autoBrightness) light.start()
+        handler.removeCallbacks(lockCheck)
+        handler.post(lockCheck)
         // The notification icons and the weather as they are now.
         AodNotifications.refresher?.invoke()
         if (AodWeather.enabled(this)) lifecycleScope.launch { AodWeather.refreshIfStale(this@AlwaysOnActivity) }
@@ -217,6 +219,7 @@ class AlwaysOnActivity : ComponentActivity() {
         shownState.value = false
         light.stop()
         cancelHold()
+        handler.removeCallbacks(lockCheck)
     }
 
     override fun onDestroy() {
@@ -272,36 +275,31 @@ class AlwaysOnActivity : ComponentActivity() {
      * the lock screen): it gets out of the way at once, instead of staying over the unlocked phone.
      */
     private var sawLocked = false
-    private var lockedListener: Any? = null
     private val userPresent = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
             if (sawLocked) leaveNow()
         }
     }
+    /** Twice a second, whether the lock screen has gone: apps can't subscribe to it, and the broadcast can come late. */
+    private val lockCheck = object : Runnable {
+        override fun run() {
+            val keyguard = getSystemService(android.app.KeyguardManager::class.java) ?: return
+            if (keyguard.isKeyguardLocked) sawLocked = true else if (sawLocked) return leaveNow()
+            handler.postDelayed(this, UNLOCK_CHECK_MS)
+        }
+    }
 
     private fun watchUnlock() {
-        val keyguard = getSystemService(android.app.KeyguardManager::class.java) ?: return
-        sawLocked = keyguard.isKeyguardLocked
+        sawLocked = getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true
         androidx.core.content.ContextCompat.registerReceiver(
             this, userPresent, android.content.IntentFilter(android.content.Intent.ACTION_USER_PRESENT),
             androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
         )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val listener = android.app.KeyguardManager.KeyguardLockedStateListener { locked ->
-                if (locked) sawLocked = true else if (sawLocked) leaveNow()
-            }
-            runCatching { keyguard.addKeyguardLockedStateListener(mainExecutor, listener) }.onSuccess { lockedListener = listener }
-        }
     }
 
     private fun unwatchUnlock() {
         runCatching { unregisterReceiver(userPresent) }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            (lockedListener as? android.app.KeyguardManager.KeyguardLockedStateListener)?.let { listener ->
-                runCatching { getSystemService(android.app.KeyguardManager::class.java)?.removeKeyguardLockedStateListener(listener) }
-            }
-        }
-        lockedListener = null
+        handler.removeCallbacks(lockCheck)
     }
 
     /** The touch that started on the sensor, handed on as usual if it turns out not to be a hold. */
@@ -358,6 +356,7 @@ class AlwaysOnActivity : ComponentActivity() {
         private const val BRIGHTNESS_EASE_MS = 900
         /** How long a finger rests on the fingerprint sensor before it leaves. */
         private const val HOLD_MS = 250L
+        private const val UNLOCK_CHECK_MS = 500L
         /** The song's Spotify Canvas behind it, blurred and darkened. */
         const val PREF_CANVAS = "aodCanvas"
         /** Play/pause, previous and next under the lyrics. */
