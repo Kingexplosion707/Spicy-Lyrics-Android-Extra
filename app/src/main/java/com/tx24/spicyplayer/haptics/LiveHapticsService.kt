@@ -31,8 +31,10 @@ import com.tx24.spicyplayer.power.SaverRule
  * Haptics from live sound, for what has no song analysis (Settings → Device → Haptics), each its
  * own switch:
  *
- * - **Device audio**: what the phone plays (a film, a video, a game), heard through Android's
- *   output visualizer. Rests while Spotify plays: its songs have the music haptics.
+ * - **Device audio**: what the phone plays (a film, a video, a game). Heard through Android's
+ *   audio capture once allowed (its "start recording or casting" prompt; apps that keep their
+ *   sound private stay silent), else its output visualizer. Rests while Spotify plays: its songs
+ *   have the music haptics.
  * - **Microphone**: music from someone else's speaker. Also rests while Spotify plays on this
  *   phone, which the music haptics already follow.
  *
@@ -53,6 +55,16 @@ class LiveHapticsService : Service() {
     @Volatile private var hits = 0
     @Volatile private var problem: String? = null
     private var lastStatus = ""
+    /** How loud the last blocks were, 0..1, for the settings' meter. */
+    @Volatile private var level = 0f
+    /** Android's audio capture, when allowed: what the phone plays, from the apps that share it. */
+    private var projection: android.media.projection.MediaProjection? = null
+    private val statusTick = object : Runnable {
+        override fun run() {
+            publishStatus()
+            main.postDelayed(this, STATUS_TICK_MS)
+        }
+    }
     private val main = Handler(android.os.Looper.getMainLooper())
     private val refresh = object : Runnable {
         override fun run() {
@@ -90,9 +102,16 @@ class LiveHapticsService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        // A capture just allowed in settings comes with this start, once.
+        val grant = takeGrant()
+        val capture = mode == Mode.DeviceAudio && grant != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
         val started = runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val type = if (mode == Mode.Microphone) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                val type = when {
+                    mode == Mode.Microphone -> ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                    capture || projection != null -> ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+                    else -> ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                }
                 startForeground(NOTIFICATION_ID, notification(mode, resting = false), type)
             } else {
                 startForeground(NOTIFICATION_ID, notification(mode, resting = false))
@@ -103,15 +122,44 @@ class LiveHapticsService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        if (capture && grant != null) {
+            projection?.stop()
+            projection = runCatching {
+                getSystemService(android.media.projection.MediaProjectionManager::class.java)?.getMediaProjection(grant.first, grant.second)
+            }.getOrNull()?.also { granted ->
+                granted.registerCallback(object : android.media.projection.MediaProjection.Callback() {
+                    override fun onStop() {
+                        main.post {
+                            if (projection === granted) {
+                                projection = null
+                                // Back to the visualizer.
+                                source?.stop()
+                                source = null
+                                update()
+                            }
+                        }
+                    }
+                }, main)
+            }
+            // A new way to hear: start over with it.
+            source?.stop()
+            source = null
+        }
         foreground = true
         update()
         main.removeCallbacks(refresh)
         main.postDelayed(refresh, STATUS_MS)
+        main.removeCallbacks(statusTick)
+        main.post(statusTick)
         return START_STICKY
     }
 
     override fun onDestroy() {
         main.removeCallbacks(refresh)
+        main.removeCallbacks(statusTick)
+        runCatching { projection?.stop() }
+        projection = null
+        status.value = Status()
         source?.stop()
         source = null
         player.stop()
@@ -144,6 +192,15 @@ class LiveHapticsService : Service() {
     private fun resting(): Boolean =
         (session.isPlaying && session.playerPackage == SPOTIFY) || SaverRule.BackgroundHaptics.stopsNow(this, prefs)
 
+    /** What it's doing, for the settings page. */
+    private fun publishStatus() {
+        val mode = wantedMode(this)
+        val text = mode?.let { statusText(it, resting()) } ?: "Off"
+        level *= LEVEL_FALL
+        status.value = Status(running = mode != null, text = text, level = level.coerceIn(0f, 1f), hits = hits,
+            capturing = projection != null && mode == Mode.DeviceAudio)
+    }
+
     private fun postNotification() {
         val mode = wantedMode(this) ?: return
         val built = notification(mode, resting())
@@ -161,10 +218,21 @@ class LiveHapticsService : Service() {
             val pulse = if (hit.kind == LiveBeatDetector.Kind.Low) MusicPulse.Kick else MusicPulse.Snare
             player.play(pulse, (hit.strength * strength).coerceIn(0.05f, 1f))
         }
-        return when (mode) {
-            Mode.DeviceAudio -> PlaybackSource(detector, onHit)
-            Mode.Microphone -> MicSource(detector, onHit)
+        val current = projection
+        return when {
+            mode == Mode.Microphone -> MicSource(detector, onHit)
+            current != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> CaptureSource(current, detector, onHit)
+            else -> PlaybackSource(detector, onHit)
         }.also { it.start() }
+    }
+
+    /** Takes in a block's loudness, for the meter. */
+    private fun hear(samples: FloatArray, count: Int) {
+        var sum = 0f
+        for (i in 0 until count) sum += samples[i] * samples[i]
+        val rms = kotlin.math.sqrt(sum / count.coerceAtLeast(1))
+        val loud = (rms * 3f).coerceIn(0f, 1f)
+        if (loud > level) level = loud
     }
 
     private abstract class Source(val mode: Mode) {
@@ -238,12 +306,98 @@ class LiveHapticsService : Service() {
                 }
                 if (loud) {
                     quietSince = now
+                    if (problem == NOTHING_HEARD) problem = null
+                    hear(samples, samples.size)
                     detector.frame(samples, samples.size, rate, now)?.let(onHit)
+                } else if (now - quietSince > SILENT_PROBLEM_MS && hits == 0) {
+                    problem = NOTHING_HEARD
                 }
             }
             val idle = now - quietSince > IDLE_AFTER_MS
             if (idle) detector.reset()
             worker.postDelayed(poll, if (idle) IDLE_POLL_MS else POLL_MS)
+        }
+    }
+
+    /**
+     * What the phone plays, through Android's audio capture ([projection]): the media, game and
+     * unlabelled sound of every app that shares it, at 48 kHz in blocks of about 20 ms.
+     */
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.Q)
+    private inner class CaptureSource(
+        private val granted: android.media.projection.MediaProjection,
+        private val detector: LiveBeatDetector,
+        private val onHit: (LiveBeatDetector.Hit) -> Unit,
+    ) : Source(Mode.DeviceAudio) {
+        @Volatile private var stopped = false
+        private var record: AudioRecord? = null
+
+        @SuppressLint("MissingPermission")
+        override fun start() {
+            worker.post {
+                if (stopped || !hasPermission(this@LiveHapticsService)) return@post
+                val config = android.media.AudioPlaybackCaptureConfiguration.Builder(granted)
+                    .addMatchingUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                    .addMatchingUsage(android.media.AudioAttributes.USAGE_GAME)
+                    .addMatchingUsage(android.media.AudioAttributes.USAGE_UNKNOWN)
+                    .build()
+                val format = AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(CAPTURE_RATE)
+                    .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
+                    .build()
+                val min = AudioRecord.getMinBufferSize(CAPTURE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
+                val created = runCatching {
+                    AudioRecord.Builder()
+                        .setAudioFormat(format)
+                        .setBufferSizeInBytes(maxOf(min, CAPTURE_BLOCK * 8))
+                        .setAudioPlaybackCaptureConfig(config)
+                        .build()
+                }.getOrNull()
+                if (created == null || created.state != AudioRecord.STATE_INITIALIZED) {
+                    created?.release()
+                    problem = "Couldn't start capturing the phone's sound"
+                    return@post
+                }
+                record = created
+                if (runCatching { created.startRecording() }.isFailure) {
+                    problem = "Couldn't start capturing the phone's sound"
+                    close()
+                    return@post
+                }
+                val pcm = ShortArray(CAPTURE_BLOCK)
+                val samples = FloatArray(CAPTURE_BLOCK)
+                var quietSince = SystemClock.elapsedRealtime()
+                while (!stopped) {
+                    val read = created.read(pcm, 0, pcm.size)
+                    if (read <= 0) break
+                    var loud = false
+                    for (i in 0 until read) {
+                        samples[i] = pcm[i] / 32768f
+                        if (pcm[i].toInt() != 0) loud = true
+                    }
+                    val now = SystemClock.elapsedRealtime()
+                    if (loud) {
+                        quietSince = now
+                        hear(samples, read)
+                        detector.frame(samples, read, CAPTURE_RATE, now)?.let(onHit)
+                    } else if (now - quietSince > IDLE_AFTER_MS) {
+                        detector.reset()
+                    }
+                }
+                close()
+            }
+        }
+
+        override fun stop() {
+            stopped = true
+            runCatching { record?.stop() }
+        }
+
+        private fun close() {
+            runCatching { record?.stop() }
+            runCatching { record?.release() }
+            record = null
         }
     }
 
@@ -293,6 +447,7 @@ class LiveHapticsService : Service() {
                     val read = created.read(pcm, 0, pcm.size)
                     if (read <= 0) break
                     for (i in 0 until read) samples[i] = pcm[i] / 32768f
+                    hear(samples, read)
                     detector.frame(samples, read, MIC_RATE, SystemClock.elapsedRealtime())?.let(onHit)
                 }
                 close()
@@ -326,18 +481,12 @@ class LiveHapticsService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val title = if (mode == Mode.Microphone) "Haptics from the microphone" else "Haptics from the phone's sound"
-        val text = when {
-            resting && session.isPlaying && session.playerPackage == SPOTIFY -> "Resting while Spotify plays"
-            resting -> "Resting while the battery saver is on"
-            problem != null -> problem!!
-            hits > 0 -> "$hits hits felt so far"
-            mode == Mode.Microphone -> "Listening for music nearby. Nothing is recorded."
-            else -> "Waiting for sound"
-        }
+        val text = statusText(mode, resting)
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.app_glyph)
             .setContentTitle(title)
             .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .addAction(R.drawable.app_glyph, "Stop", stop)
             .setOngoing(true)
             .setSilent(true)
@@ -345,7 +494,28 @@ class LiveHapticsService : Service() {
             .build()
     }
 
+    private fun statusText(mode: Mode, resting: Boolean): String {
+        return when {
+            resting && session.isPlaying && session.playerPackage == SPOTIFY -> "Resting while Spotify plays"
+            resting -> "Resting while the battery saver is on"
+            hits > 0 -> "$hits hits felt so far"
+            problem != null -> problem!!
+            mode == Mode.Microphone -> "Listening for music nearby. Nothing is recorded."
+            projection != null -> "Capturing the phone's sound, waiting for something to play"
+            else -> "Waiting for sound"
+        }
+    }
+
     enum class Mode { DeviceAudio, Microphone }
+
+    /** What the service is doing, for the settings page: its state, how loud, and hits felt. */
+    data class Status(
+        val running: Boolean = false,
+        val text: String = "Off",
+        val level: Float = 0f,
+        val hits: Int = 0,
+        val capturing: Boolean = false,
+    )
 
     companion object {
         /** Haptics to the phone's own sound while Spotify isn't playing. */
@@ -365,8 +535,31 @@ class LiveHapticsService : Service() {
         private const val IDLE_AFTER_MS = 4_000L
         /** How often its notification catches up with what it's hearing. */
         private const val STATUS_MS = 3_000L
+        private const val NOTHING_HEARD = "Hearing nothing: the phone isn't sharing its sound this way. Turn the switch off and on and allow the capture"
+        private const val STATUS_TICK_MS = 250L
+        private const val LEVEL_FALL = 0.7f
+        /** This long in silence with nothing felt, it says the phone isn't sharing its sound. */
+        private const val SILENT_PROBLEM_MS = 15_000L
+        private const val CAPTURE_RATE = 48_000
+        private const val CAPTURE_BLOCK = 1024
         private const val MIC_RATE = 16_000
         private const val MIC_BLOCK = 512
+
+        /** What it's doing now, for the settings page. */
+        val status = kotlinx.coroutines.flow.MutableStateFlow(Status())
+
+        /** The capture just allowed in settings, waiting for the service to take it. */
+        private var grant: Pair<Int, Intent>? = null
+
+        @Synchronized
+        private fun takeGrant(): Pair<Int, Intent>? = grant.also { grant = null }
+
+        /** Starts (or restarts) the service with a capture allowed in settings. */
+        @Synchronized
+        fun startWithCapture(context: Context, resultCode: Int, data: Intent) {
+            grant = resultCode to data
+            sync(context)
+        }
 
         fun hasPermission(context: Context): Boolean =
             ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED

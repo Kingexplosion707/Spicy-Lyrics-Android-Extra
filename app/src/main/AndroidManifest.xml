@@ -19,6 +19,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <!-- Live haptics from the microphone (music from another device). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <!-- Live haptics from the phone's own sound, through Android's audio capture. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <!-- Updates: the downloaded APK goes to Android's installer, which asks the user first. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Only for an update downloaded out of view: Android holds its install prompt back until a tap. -->
@@ -198,7 +200,7 @@
         <service
             android:name="com.tx24.spicyplayer.haptics.LiveHapticsService"
             android:exported="false"
-            android:foregroundServiceType="mediaPlayback|microphone" />
+            android:foregroundServiceType="mediaPlayback|microphone|mediaProjection" />
 
         <!-- The lyrics notification: the line being sung, for islands and Live Updates. -->
         <service
