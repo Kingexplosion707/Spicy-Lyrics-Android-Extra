@@ -34,6 +34,8 @@ Modified by Behnoud.
 - **Clock** styles (Thin, Bold, Stacked, Outline and **Liquid glass**) and a **Clock size**.
 - On Pixels, **hold the fingerprint sensor to unlock** (on by default; `AodFingerprint`): a finger resting on the sensor leaves straight for the lock screen, with no animation, so it unlocks.
 - Unlocking with the fingerprint or face while it's up now leaves it at once, instead of it staying over the unlocked phone.
+- Holding the fingerprint sensor now brings up Android's own unlock over it (its fingerprint prompt, or the PIN with the fingerprint still accepted). **Fingerprint spot**: where the sensor is is read from the phone through Shizuku (`dumpsys fingerprint`) or set by touching it once, instead of guessed.
+- With what notifications say hidden, opening the list asks for a face or fingerprint in Android's own prompt, then shows them until it closes: the lock screen's face unlock doesn't run under it.
 - **Hide what notifications say until unlocked** (on by default): the list shows only each app until face unlock (or the fingerprint) unlocks the phone, then what they say, though the lock screen is still up.
 - **Add to playlist button** with the controls (Spotify): adds the song to the playlist it's playing from (one Smart Shuffle slipped in, say), unless it's there already. Signs in with your own Spotify app's Client ID (PKCE, no secret), asking only to read what's playing and to add to playlists; Spotify allows it for your own and shared playlists (`spotify/SpotifyAccount.kt`).
 

@@ -37,6 +37,8 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import android.content.Intent
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Key
+import androidx.compose.material.icons.rounded.MyLocation
+import kotlinx.coroutines.launch
 import androidx.compose.material.icons.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.VisibilityOff
 import com.tx24.spicyplayer.spotify.SpotifyAccount
@@ -248,10 +250,11 @@ internal fun AlwaysOnContent(settings: AppSettings) {
                 label = "Hold the fingerprint sensor to unlock",
                 checked = settings.aodFingerprintUnlock,
                 onCheckedChange = { settings.aodFingerprintUnlock = it },
-                description = "Resting a finger on the sensor goes straight to the lock screen, which unlocks with it.",
+                description = "Resting a finger on the sensor brings up Android's unlock, which takes the same finger (lift and press again if it doesn't).",
                 icon = Icons.Rounded.Fingerprint,
                 enabled = on,
             )
+            if (settings.aodFingerprintUnlock) FingerprintSpotRow(on)
         }
         ToggleRow(
             label = "Only while charging",
@@ -359,6 +362,44 @@ private fun SpotifyAccountRows() {
                     }
                 })
             }
+        }
+    }
+}
+
+/**
+ * Where the fingerprint sensor is ([AodFingerprint]): read from the phone through Shizuku, or set
+ * by touching it; until then a guess.
+ */
+@Composable
+private fun FingerprintSpotRow(on: Boolean) {
+    val context = LocalContext.current
+    var seen by remember { mutableIntStateOf(0) }
+    LifecycleResumeEffect(Unit) {
+        seen++
+        onPauseOrDispose { }
+    }
+    val found = remember(seen) { AodFingerprint.found(context) }
+    var message by remember { mutableStateOf<String?>(null) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    SettingRow(
+        label = "Fingerprint spot",
+        description = message ?: if (found) "Set. Find or set it again if holding the sensor doesn't work." else
+            "Guessed. Find it with Shizuku running, or set it by touching the sensor.",
+        icon = Icons.Rounded.MyLocation,
+        enabled = on,
+        stacked = true,
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(SpicySpacing.S2)) {
+            SpicyButton("Find with Shizuku", enabled = on, onClick = {
+                scope.launch {
+                    message = AodFingerprint.findWithShizuku(context).message
+                    seen++
+                }
+            })
+            SpicyButton("Set by touch", enabled = on, onClick = {
+                message = null
+                context.startActivity(Intent(context, com.tx24.spicyplayer.aod.FingerprintSpotActivity::class.java))
+            })
         }
     }
 }

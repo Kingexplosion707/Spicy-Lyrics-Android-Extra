@@ -38,6 +38,8 @@ internal object AodNotifications {
     /** Compose state, main thread. */
     val entries = mutableStateOf<List<Entry>>(emptyList())
     val details = mutableStateOf<List<Detail>>(emptyList())
+    /** A face or fingerprint was given on the always-on display: what they say shows until it closes. */
+    val revealed = mutableStateOf(false)
 
     /** Rebuilds [entries] from the listener while it's connected (the display asks as it comes up). */
     @Volatile var refresher: (() -> Unit)? = null

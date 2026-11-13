@@ -112,6 +112,7 @@ class AlwaysOnActivity : ComponentActivity() {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
+        AodNotifications.revealed.value = false
         live = LiveLyrics(this)
         live.start()
         // The Canvas stays off while the phone's battery saver is on.
@@ -130,6 +131,7 @@ class AlwaysOnActivity : ComponentActivity() {
             clockStyle = settings.aodClockStyle,
             clockSize = settings.aodClockSize,
             hideTextUntilUnlocked = settings.aodHideNotificationText,
+            revealNotifications = ::revealNotifications,
             addToPlaylist = if (controls && settings.aodPlaylistButton && com.tx24.spicyplayer.spotify.SpotifyAccount.signedIn(this)) {
                 suspend { com.tx24.spicyplayer.spotify.SpotifyPlaylist.addPlayingToPlaylist(this@AlwaysOnActivity).message }
             } else {
@@ -178,6 +180,39 @@ class AlwaysOnActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Asks for a face or fingerprint (Android's own prompt) before the notification list shows
+     * what they say: the lock screen's face unlock doesn't run while this is over it.
+     */
+    private var asking = false
+
+    private fun revealNotifications() {
+        if (asking || AodNotifications.revealed.value || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        asking = true
+        val prompt = android.hardware.biometrics.BiometricPrompt.Builder(this)
+            .setTitle("Show notifications")
+            .setSubtitle("Look at the phone or touch the sensor")
+            .setAllowedAuthenticators(
+                android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                    android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_WEAK,
+            )
+            .setNegativeButton("Cancel", mainExecutor) { _, _ -> asking = false }
+            .setConfirmationRequired(false)
+            .build()
+        runCatching {
+            prompt.authenticate(android.os.CancellationSignal(), mainExecutor, object : android.hardware.biometrics.BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: android.hardware.biometrics.BiometricPrompt.AuthenticationResult) {
+                    asking = false
+                    AodNotifications.revealed.value = true
+                }
+
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    asking = false
+                }
+            })
+        }.onFailure { asking = false }
+    }
+
     /** Lets the notification's app open from here (Android 14 on asks the sender to say so). */
     private fun pendingIntentOptions(): Bundle? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return null
@@ -223,6 +258,7 @@ class AlwaysOnActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        AodNotifications.revealed.value = false
         unwatchUnlock()
         live.stop()
         if (current?.get() === this) current = null
@@ -250,7 +286,20 @@ class AlwaysOnActivity : ComponentActivity() {
         heldDown?.recycle()
         heldDown = null
         window.decorView.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
-        leaveNow()
+        askToUnlock()
+    }
+
+    /**
+     * Asks Android to unlock: on a Pixel it brings up its fingerprint prompt over this (or the
+     * PIN, with the fingerprint still accepted), and once unlocked this goes. Without a secure
+     * lock it just goes.
+     */
+    private fun askToUnlock() {
+        val keyguard = getSystemService(android.app.KeyguardManager::class.java)
+        if (keyguard?.isKeyguardLocked != true || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return leaveNow()
+        keyguard.requestDismissKeyguard(this, object : android.app.KeyguardManager.KeyguardDismissCallback() {
+            override fun onDismissSucceeded() { leaveNow() }
+        })
     }
 
     private fun cancelHold() {
@@ -317,14 +366,14 @@ class AlwaysOnActivity : ComponentActivity() {
             MotionEvent.ACTION_DOWN -> {
                 heldDown?.recycle()
                 heldDown = null
-                if (AodFingerprint.area(currentDisplay(), view.width, view.height).contains(ev.x, ev.y)) {
+                if (AodFingerprint.area(this, currentDisplay(), view.width, view.height).contains(ev.x, ev.y)) {
                     holding = true
                     heldDown = MotionEvent.obtain(ev)
                     handler.postDelayed(held, HOLD_MS)
                     return true
                 }
             }
-            MotionEvent.ACTION_MOVE -> if (holding && !AodFingerprint.area(currentDisplay(), view.width, view.height).contains(ev.x, ev.y)) {
+            MotionEvent.ACTION_MOVE -> if (holding && !AodFingerprint.area(this, currentDisplay(), view.width, view.height).contains(ev.x, ev.y)) {
                 // Slid off the sensor: an ordinary touch after all.
                 cancelHold()
                 replayDown()
@@ -451,7 +500,7 @@ private fun ClassicLayout(live: LiveLyrics, settings: AppSettings, controls: Boo
         AodStatusLine(extras, alpha = 0.6f, modifier = Modifier.padding(top = 10.dp))
         if (extras.notifications) AodNotificationIcons(
             alpha = 0.6f, modifier = Modifier.padding(top = 10.dp), onOpen = extras.openNotification,
-            hideTextUntilUnlocked = extras.hideTextUntilUnlocked,
+            hideTextUntilUnlocked = extras.hideTextUntilUnlocked, onReveal = extras.revealNotifications,
         )
         Spacer(Modifier.height(24.dp))
         val track = live.track
@@ -496,7 +545,7 @@ private fun PlayerLayout(live: LiveLyrics, settings: AppSettings, controls: Bool
         if (extras.notifications) {
             AodNotificationIcons(
                 alpha = 0.6f, modifier = Modifier.padding(top = 8.dp), onOpen = extras.openNotification, align = Alignment.Start,
-                hideTextUntilUnlocked = extras.hideTextUntilUnlocked,
+                hideTextUntilUnlocked = extras.hideTextUntilUnlocked, onReveal = extras.revealNotifications,
             )
         }
         Spacer(Modifier.height(22.dp))
