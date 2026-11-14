@@ -97,6 +97,9 @@ internal class WallpaperUi {
     var xOffset by mutableStateOf(0.5f)
     /** The phone's battery saver is on (for power saving set to follow it). */
     var batterySaver by mutableStateOf(false)
+    /** The phone is locked (or the screen off): the unlock animation's locked look ([UnlockMotion]). */
+    var locked by mutableStateOf(false)
+    var unlockStyle by mutableStateOf(com.tx24.spicyplayer.ui.settings.UnlockAnimation.Off)
 }
 
 /**

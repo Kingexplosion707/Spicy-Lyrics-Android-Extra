@@ -43,6 +43,7 @@ import androidx.compose.material.icons.rounded.FormatSize
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.PauseCircle
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material.icons.rounded.Rectangle
 import android.Manifest
@@ -86,6 +87,23 @@ internal fun WallpaperSection(settings: AppSettings, showPickerButton: Boolean =
             icon = Icons.Rounded.MusicNote,
         )
         WallpaperLookRows(settings)
+        SettingRow(
+            label = "Unlock animation",
+            description = when (settings.wallpaperUnlockAnimation) {
+                UnlockAnimation.Off -> "Off. Or the wallpaper waits in a locked look (dimmed) and springs to life as you unlock."
+                UnlockAnimation.Zoom -> "Zoomed in and dimmed while locked; it settles back as you unlock."
+                UnlockAnimation.Rise -> "Lowered and dimmed while locked; it rises into place as you unlock."
+                UnlockAnimation.Focus -> "Blurred and dimmed while locked; it comes into focus as you unlock."
+            } + " It plays once the phone unlocks: Android doesn't tell wallpapers how far along the swipe is.",
+            icon = Icons.Rounded.LockOpen,
+        ) {
+            SpicySelect(
+                value = settings.wallpaperUnlockAnimation.name,
+                options = UnlockAnimation.entries.map { it.name },
+                labels = UnlockAnimation.entries.map { it.label },
+                onChange = { settings.wallpaperUnlockAnimation = UnlockAnimation.valueOf(it) },
+            )
+        }
         IdlePictureRow()
         PowerSavingRows(settings)
         SettingRow(
