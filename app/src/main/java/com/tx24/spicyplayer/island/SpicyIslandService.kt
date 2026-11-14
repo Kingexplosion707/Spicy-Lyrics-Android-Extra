@@ -25,13 +25,18 @@ import com.tx24.spicyplayer.lyrics.TimedLine
 import com.tx24.spicyplayer.lyrics.spicy.models.LineRole
 import com.tx24.spicyplayer.lyrics.spicy.models.LyricsType
 import com.tx24.spicyplayer.playback.LiveLyrics
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /**
  * Spicy Lyrics on the Essentials island, as an island provider (Essentials asks once to allow it,
  * then lists it in Island settings with its other items). While Essentials is bound:
  *
- * - the compact pill shows the cover and the line being sung;
- * - the line (when the island peeks, as it does for a new song) shows the line and the next one;
+ * - the compact pill shows the cover and the line being sung, scrolling a few words at a time with
+ *   the singing so long lines aren't cut off, ahead of Essentials' own music player while playing;
+ * - the line (when the island peeks) shows a longer part of it, scrolling the same way;
  * - the expanded island ([IslandLyricsView]) shows the lyrics word-synced in Spicy Lyrics' style,
  *   with background vocals, a second singer on the right and translations, plus the progress and
  *   the controls. A tapped line or a tap on the progress moves the song; the cover and song open
@@ -48,7 +53,9 @@ class SpicyIslandService : ComposeIslandProviderService() {
     private val main = Handler(Looper.getMainLooper())
     private var live: LiveLyrics? = null
     private var lastPublished: String? = null
-    private var peekedFor: String? = null
+    private var visualsFor: String? = null
+    private var visualsJob: kotlinx.coroutines.Job? = null
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
     private var coverFor: Any? = null
     private var coverIcon: Bitmap? = null
     private val tick = Runnable { publish() }
@@ -72,6 +79,7 @@ class SpicyIslandService : ComposeIslandProviderService() {
 
     override fun onDestroy() {
         stopFollowing(clear = false)
+        scope.cancel()
         super.onDestroy()
     }
 
@@ -93,6 +101,10 @@ class SpicyIslandService : ComposeIslandProviderService() {
         live?.stop()
         live = null
         current = null
+        visualsJob?.cancel()
+        visualsFor = null
+        canvasUrl = null
+        motionUrl = null
         lastPublished = null
         if (clear) runCatching { host?.publish(IslandPayload()) }
     }
@@ -116,15 +128,15 @@ class SpicyIslandService : ComposeIslandProviderService() {
         val group = groups.getOrNull(index)
         // Between lines (an instrumental break) the pill shows a note instead of a finished line.
         val between = group != null && now > group.endMs + BREAK_MS && groups.getOrNull(index + 1)?.let { now < it.startMs - LEAD_MS } != false
-        val lineText = when {
-            group == null || between -> null
-            else -> group.lead.text()
-        }
-        val nextText = groups.getOrNull(index + 1)?.lead?.text()
-        val compactText = lineText ?: if (synced && groups.isNotEmpty()) "♪" else track.title
-        val lineStart = lineText ?: track.title
-        val lineEnd = if (lineText != null) nextText.orEmpty() else track.artist
-        val state = "${track.key}|$compactText|$lineStart|$lineEnd|${follower.playing}"
+        val sung = if (group == null || between) null else group.lead
+        // Long lines scroll with the singing: the pill and the line show the part being sung,
+        // moving on a few words at a time, so nothing is cut off.
+        val compactWindow = sung?.let { IslandLyrics.window(it, now, COMPACT_CHARS) }
+        val lineWindow = sung?.let { IslandLyrics.window(it, now, LINE_CHARS) }
+        val compactText = compactWindow?.text ?: if (synced && groups.isNotEmpty()) "♪" else clip(track.title, COMPACT_CHARS)
+        val lineStart = lineWindow?.text ?: track.title
+        val lineEnd = if (sung != null) "" else track.artist
+        val state = "${track.key}|$compactText|$lineStart|$lineEnd|${follower.playing}|$canvasUrl|$motionUrl"
         if (state != lastPublished) {
             lastPublished = state
             val icon = coverIcon(track.cover)
@@ -134,10 +146,14 @@ class SpicyIslandService : ComposeIslandProviderService() {
                         key = ITEM,
                         compact = listOfNotNull(
                             icon?.let { IslandCellPayload(key = "$ITEM.art", iconId = "art", tone = IslandTone.NONE) },
-                            IslandCellPayload(key = "$ITEM.line", text = clip(compactText, 32), tone = IslandTone.NONE),
+                            IslandCellPayload(key = "$ITEM.line", text = compactText, tone = IslandTone.NONE),
                         ),
                         line = IslandLinePayload(start = clip(lineStart, 120), end = clip(lineEnd, 120), iconId = icon?.let { "art" }, tone = IslandTone.NONE),
-                        expanded = IslandExpandedPayload(heightDp = 300),
+                        expanded = IslandExpandedPayload(heightDp = 330),
+                        // Ahead of Essentials' own music player (and everything but calls,
+                        // notifications and alerts) while a song is on, so the lyrics stay in the pill.
+                        priority = PRIORITY,
+                        priorityOverride = if (follower.playing) PRIORITY_PLAYING else null,
                         interactions = IslandInteractionsPayload(
                             onTap = IslandAction(IslandActionType.EXPAND_ITEM, ITEM),
                             onLongPress = IslandAction(IslandActionType.OPEN_APP),
@@ -146,19 +162,43 @@ class SpicyIslandService : ComposeIslandProviderService() {
                 ),
             )
             runCatching { handle.publish(payload, icon?.let { mapOf("art" to it) }.orEmpty()) }
-            // A new song peeks once, so its first line shows (Essentials allows one every 10 s).
-            if (peekedFor != track.key && lineText != null) {
-                peekedFor = track.key
-                runCatching { handle.peek(ITEM, 4_000L) }
-            }
         }
-        // The next look: when the next line starts (or this one ends), and at least every few
-        // seconds while playing, in case the song was moved in the player.
+        if (visualsFor != track.key) lookUpVisuals(track)
+        // The next look: when the next part of the line, the next line or a break begins, and at
+        // least every few seconds while playing, in case the song was moved in the player.
         if (follower.playing && synced && groups.isNotEmpty()) {
             val upcoming = groups.getOrNull(index + 1)?.startMs?.minus(LEAD_MS)
             val ends = group?.endMs?.plus(BREAK_MS)?.takeIf { it > now }
-            val wait = listOfNotNull(upcoming, ends).filter { it > now }.minOrNull()?.minus(now) ?: RECHECK_MS
+            val wait = listOfNotNull(upcoming, ends, compactWindow?.nextMs, lineWindow?.nextMs)
+                .filter { it > now }.minOrNull()?.minus(now) ?: RECHECK_MS
             main.postDelayed(tick, wait.coerceIn(60L, RECHECK_MS))
+        }
+    }
+
+    /** The Canvas and the animated cover for the song, looked up once per song, for the expanded view. */
+    private fun lookUpVisuals(track: com.tx24.spicyplayer.playback.BackgroundSession.Track) {
+        visualsFor = track.key
+        canvasUrl = null
+        motionUrl = null
+        visualsJob?.cancel()
+        visualsJob = scope.launch {
+            val canvas = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    val meta = com.tx24.spicyplayer.network.data.spotify.LocalTrackMetadata(track.title, track.artist, track.album, track.durationMs)
+                    val spotify = com.tx24.spicyplayer.network.data.spotify.SharedSpotify
+                    spotify.extras(cacheDir).trackIds(meta, track.request.spotifyTrackId)
+                        .firstNotNullOfOrNull { spotify.canvas(cacheDir).find(it) }
+                }.getOrNull()
+            }
+            val motion = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    com.tx24.spicyplayer.ui.nowplaying.MotionCovers.finder(this@SpicyIslandService)
+                        .find(com.tx24.spicyplayer.ui.nowplaying.leadArtist(track.artist), track.album, track.title)
+                }.getOrNull()
+            }
+            if (visualsFor != track.key) return@launch
+            canvasUrl = canvas
+            motionUrl = motion
         }
     }
 
@@ -191,7 +231,12 @@ class SpicyIslandService : ComposeIslandProviderService() {
     companion object {
         const val PREF = "essentialsIsland"
         private const val ITEM = "lyrics"
-        private const val ICON_PX = 96
+        private const val ICON_PX = 64
+        /** How much of a line the pill shows at once, and the line when the island peeks. */
+        private const val COMPACT_CHARS = 16
+        private const val LINE_CHARS = 38
+        private const val PRIORITY = 29
+        private const val PRIORITY_PLAYING = 12
         /** A line counts as begun this long before its first word, so the change lands on time. */
         const val LEAD_MS = 150L
         /** This long after a line ends with nothing sung, it's a break. */
@@ -200,6 +245,9 @@ class SpicyIslandService : ComposeIslandProviderService() {
 
         /** The follower the expanded view reads (the service's own). */
         @Volatile private var current: LiveLyrics? = null
+        /** The song's Canvas and animated cover, for the expanded view. */
+        internal var canvasUrl by androidx.compose.runtime.mutableStateOf<String?>(null)
+        internal var motionUrl by androidx.compose.runtime.mutableStateOf<String?>(null)
 
         fun enabled(context: Context): Boolean =
             context.getSharedPreferences("ui", Context.MODE_PRIVATE).getBoolean(PREF, true)
@@ -252,6 +300,47 @@ internal object IslandLyrics {
         }
         return out
     }
+
+    /** The part of a line shown at once: its text, and when the next part starts (null: the last). */
+    class Window(val text: String, val nextMs: Long?)
+
+    /**
+     * The part of [line] being sung at [positionMs], at most [maxChars] long: the line split at
+     * word boundaries into parts that fit, each shown from its first word's start (spread over the
+     * line's time when only the line is timed). A short line is shown whole.
+     */
+    fun window(line: TimedLine, positionMs: Long, maxChars: Int): Window {
+        val full = line.text()
+        if (full.length <= maxChars || line.words.isEmpty()) return Window(clipTo(full, maxChars), null)
+        class Part(val text: String, val startMs: Long)
+        val parts = ArrayList<Part>()
+        val chars = full.length.coerceAtLeast(1)
+        var builder = StringBuilder()
+        var partStart = line.startMs
+        var offset = 0
+        val wordTimed = line.words.any { it.endMs > it.startMs } && !line.lineTimed
+        for ((n, w) in line.words.withIndex()) {
+            val word = w.text.trim()
+            val joiner = if (builder.isEmpty() || w.attached) "" else " "
+            val at = if (wordTimed) w.startMs else line.startMs + (line.endMs - line.startMs) * offset / chars
+            if (builder.isNotEmpty() && builder.length + joiner.length + word.length > maxChars && !w.attached) {
+                parts += Part(builder.toString(), partStart)
+                builder = StringBuilder()
+                partStart = at
+                builder.append(word)
+            } else {
+                if (builder.isEmpty()) partStart = if (n == 0) line.startMs else at
+                builder.append(joiner).append(word)
+            }
+            offset += joiner.length + word.length
+        }
+        if (builder.isNotEmpty()) parts += Part(builder.toString(), partStart)
+        val i = parts.indexOfLast { it.startMs <= positionMs + SpicyIslandService.LEAD_MS }.coerceAtLeast(0)
+        return Window(clipTo(parts[i].text, maxChars), parts.getOrNull(i + 1)?.startMs?.minus(SpicyIslandService.LEAD_MS))
+    }
+
+    private fun clipTo(text: String, max: Int): String =
+        if (text.length <= max) text else text.take(max - 1).trimEnd() + "…"
 
     fun indexAt(groups: List<Group>, positionMs: Long): Int =
         groups.indexOfLast { it.startMs <= positionMs + SpicyIslandService.LEAD_MS }.coerceAtLeast(0)
