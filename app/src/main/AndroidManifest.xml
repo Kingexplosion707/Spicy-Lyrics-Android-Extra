@@ -49,6 +49,9 @@
 
     <!-- Makes media players visible (Android 11+) so their custom-action icons can be loaded. -->
     <queries>
+        <!-- SuperShade Plus, which shows the lyrics as a live activity in its shade. -->
+        <package android:name="com.supershade" />
+        <package android:name="com.supershade.debug" />
         <intent>
             <action android:name="android.media.browse.MediaBrowserService" />
         </intent>
@@ -318,5 +321,15 @@
             android:exported="false"
             android:excludeFromRecents="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <!-- SuperShade Plus asks for the lyrics for its live activity, and to float them out as the overlay. -->
+        <receiver
+            android:name="com.tx24.spicyplayer.shade.SuperShadeReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.behnoud.spicylyrics.action.SHADE_REQUEST" />
+                <action android:name="com.behnoud.spicylyrics.action.SHADE_STOP" />
+                <action android:name="com.behnoud.spicylyrics.action.SHADE_OVERLAY" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
