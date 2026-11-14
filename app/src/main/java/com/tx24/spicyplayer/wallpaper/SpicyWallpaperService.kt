@@ -162,7 +162,48 @@ class SpicyWallpaperService : WallpaperService() {
                 android.content.IntentFilter(android.os.PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
                 androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
             )
+            // The unlock animation: locked with the screen off, unlocked once the phone is.
+            ui.unlockStyle = readUnlockStyle()
+            ui.locked = keyguardLocked()
+            prefs.registerOnSharedPreferenceChangeListener(unlockStyleListener)
+            androidx.core.content.ContextCompat.registerReceiver(
+                app, lockReceiver,
+                android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_OFF).apply { addAction(android.content.Intent.ACTION_USER_PRESENT) },
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
+            )
         }
+
+        private val unlockStyleListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == PREF_UNLOCK_ANIMATION) ui.unlockStyle = readUnlockStyle()
+        }
+
+        private fun readUnlockStyle() = runCatching {
+            com.tx24.spicyplayer.ui.settings.UnlockAnimation.valueOf(prefs.getString(PREF_UNLOCK_ANIMATION, null) ?: "Off")
+        }.getOrDefault(com.tx24.spicyplayer.ui.settings.UnlockAnimation.Off)
+
+        private fun keyguardLocked(): Boolean =
+            app.getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true
+
+        private val lockReceiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
+                when (intent.action) {
+                    android.content.Intent.ACTION_SCREEN_OFF -> ui.locked = true
+                    android.content.Intent.ACTION_USER_PRESENT -> unlocked()
+                }
+            }
+        }
+
+        /** The phone just unlocked: the animation plays, with the host drawing for its length even if nothing plays. */
+        private fun unlocked() {
+            if (!ui.locked) return
+            ui.locked = false
+            if (ui.unlockStyle == com.tx24.spicyplayer.ui.settings.UnlockAnimation.Off) return
+            host?.setActive(true)
+            main.removeCallbacks(settleHost)
+            main.postDelayed(settleHost, UNLOCK_ANIMATION_MS)
+        }
+
+        private val settleHost = Runnable { host?.setActive(visible && session.isPlaying) }
 
         private val batterySaverReceiver = object : android.content.BroadcastReceiver() {
             override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
@@ -176,6 +217,9 @@ class SpicyWallpaperService : WallpaperService() {
             releaseHost()
             releaseVisuals()
             runCatching { app.unregisterReceiver(batterySaverReceiver) }
+            runCatching { app.unregisterReceiver(lockReceiver) }
+            prefs.unregisterOnSharedPreferenceChangeListener(unlockStyleListener)
+            main.removeCallbacks(settleHost)
             session.stop()
             scope.cancel()
             super.onDestroy()
@@ -185,6 +229,11 @@ class SpicyWallpaperService : WallpaperService() {
             if (visible != this.visible && !isPreview) WallpaperPresence.engineVisible(visible)
             this.visible = visible
             ui.visible = visible
+            // Shown again: locked if the lock screen is up; unlocked without the broadcast coming
+            // (no lock screen set, say), it plays now.
+            if (visible && !isPreview) {
+                if (keyguardLocked()) ui.locked = true else if (ui.locked) unlocked()
+            }
             host?.let {
                 it.setActive(visible && session.isPlaying)
                 return
@@ -501,13 +550,15 @@ class SpicyWallpaperService : WallpaperService() {
             if (width <= 0 || height <= 0) return
             val created = runCatching {
                 WallpaperHost(app, holder.surface, width, height, app.resources.displayMetrics.densityDpi) {
-                    WallpaperContent(
-                        ui = ui,
-                        prefs = prefs,
-                        positionMs = session::positionMs,
-                        onBackgroundFailed = ::backgroundFailed,
-                        onCoverFailed = ::coverFailed,
-                    )
+                    UnlockMotion(ui.unlockStyle, ui.locked) {
+                        WallpaperContent(
+                            ui = ui,
+                            prefs = prefs,
+                            positionMs = session::positionMs,
+                            onBackgroundFailed = ::backgroundFailed,
+                            onCoverFailed = ::coverFailed,
+                        )
+                    }
                 }
             }.onFailure { android.util.Log.w(TAG, "No Compose host for the wallpaper; drawing by hand", it) }.getOrNull()
             if (created == null) {
@@ -825,6 +876,10 @@ class SpicyWallpaperService : WallpaperService() {
 
     companion object {
         private const val TAG = "SpicyWallpaper"
+        /** The unlock animation's style (Settings → Device → Live wallpaper; [UnlockMotion]). */
+        const val PREF_UNLOCK_ANIMATION = "wallpaperUnlockAnimation"
+        /** How long the host keeps drawing for it, with nothing else moving. */
+        private const val UNLOCK_ANIMATION_MS = 1_600L
         private const val WAITING = "Play something to see its lyrics here"
         private const val NO_LYRICS = "No lyrics for this song"
         private const val LOOKUP_FAILED = "Couldn't load lyrics"

@@ -50,6 +50,7 @@ Modified by Behnoud.
 - The live haptics keep going: a source that stops handing over sound (a failed read, the microphone taken for a moment) starts again by itself within seconds; they keep the processor awake for a minute after the last sound, so the screen going off doesn't stop them; and when Android stops the capture (the screen locking, say), the notification says so and a tap asks to allow it again.
 - **Notification animation** on the always-on display (on by default): when a notification comes in, light runs round the screen's edge and a pill drops in with its app (and what it says, as the lock screen would show it); tap it to open. The notification list now holds every notification, scrolling within half the screen, and stays open while it's scrolled.
 - A song with no lyrics shows its cover large on the always-on display, in the lyrics' room (with its animated cover, if any), as the wallpaper does; in the player look the small cover beside the song steps aside for it.
+- **Unlock animation** for the live wallpaper (Device → Live wallpaper, off by default): Zoom, Rise or Focus. While the phone is locked the wallpaper holds a locked look (zoomed in, lowered or blurred, and dimmed) and springs to its usual look once it unlocks (`UnlockMotion`). Android doesn't tell a wallpaper how far along the unlock swipe is, so it plays when the unlock lands rather than following the finger.
 - Version **0.20.0**.
 
 ### Lyrics screen

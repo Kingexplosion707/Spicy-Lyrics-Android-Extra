@@ -245,6 +245,8 @@ class AppSettings(private val prefs: SharedPreferences) {
     var aodHideNotificationText by boolean("aodHideNotificationText", true)
     /** A notification coming in on the always-on display: light round the edge and a pill with its app. */
     var aodArrivalAnimation by boolean("aodArrivalAnimation", true)
+    /** The live wallpaper's animation as the phone unlocks; off by default. */
+    var wallpaperUnlockAnimation by enum("wallpaperUnlockAnimation", UnlockAnimation.Off)
     /** The song's Canvas behind the always-on display, blurred and darkened. */
     var aodCanvas by boolean("aodCanvas", false)
     /** Play/pause, previous and next on the always-on display. */
@@ -559,6 +561,14 @@ enum class ControlsHideDelay(val label: String, val millis: Long) {
 enum class AodStyle(val label: String) {
     Classic("Clock"),
     Player("Player"),
+}
+
+/** The live wallpaper's unlock animation ([com.tx24.spicyplayer.wallpaper.UnlockMotion]). */
+enum class UnlockAnimation(val label: String) {
+    Off("Off"),
+    Zoom("Zoom"),
+    Rise("Rise"),
+    Focus("Focus"),
 }
 
 enum class AodClockStyle(val label: String) {
