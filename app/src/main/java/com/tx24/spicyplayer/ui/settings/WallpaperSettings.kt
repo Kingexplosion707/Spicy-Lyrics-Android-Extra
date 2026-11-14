@@ -156,6 +156,13 @@ internal fun LyricsNotificationSection(settings: AppSettings) {
             description = "With SuperShade Plus installed, its shade shows the lyrics as a live activity: word-synced in this app's style, with the animated cover and the Canvas behind them. Its pin floats them out as the lyrics overlay, with the overlay's settings.",
             icon = Icons.Rounded.PictureInPictureAlt,
         )
+        ToggleRow(
+            label = "Lyrics on the Essentials island",
+            checked = settings.essentialsIsland,
+            onCheckedChange = { settings.essentialsIsland = it },
+            description = "With Essentials installed, allow Spicy Lyrics in its Island settings: the pill shows the line being sung, and expanding it shows the lyrics word-synced, with controls.",
+            icon = Icons.Rounded.PictureInPictureAlt,
+        )
     }
 }
 

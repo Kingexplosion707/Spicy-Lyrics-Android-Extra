@@ -122,6 +122,8 @@ android {
 
     buildFeatures {
         compose = true
+        // The Essentials island's provider interface.
+        aidl = true
         buildConfig = true
         resValues = true
     }

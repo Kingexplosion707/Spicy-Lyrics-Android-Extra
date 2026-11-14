@@ -407,6 +407,8 @@ class AppSettings(private val prefs: SharedPreferences) {
     var overlayHideOnWallpaper by boolean("overlayHideOnWallpaper", true)
     /** SuperShade Plus may show the lyrics as a live activity in its shade ([com.tx24.spicyplayer.shade.SuperShadeBridge]). */
     var superShadeLiveActivity by boolean("superShadeLiveActivity", true)
+    /** The lyrics on the Essentials island, as its island provider ([com.tx24.spicyplayer.island.SpicyIslandService]). */
+    var essentialsIsland by boolean("essentialsIsland", true)
     /** Hide the status bar clock while the status bar lyrics show (needs Shizuku once). */
     var overlayHideClock by boolean("overlayHideClock", false)
     /** A floating button that opens the quick settings (the song's and the output's delay). */
