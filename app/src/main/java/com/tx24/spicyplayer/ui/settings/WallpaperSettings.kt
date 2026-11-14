@@ -39,6 +39,8 @@ import androidx.compose.material.icons.rounded.ScreenRotation
 import androidx.compose.material.icons.rounded.Schedule
 import com.tx24.spicyplayer.aod.AlwaysOnService
 import androidx.compose.material.icons.rounded.PictureInPictureAlt
+import androidx.compose.material.icons.rounded.Straighten
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.FormatSize
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.PauseCircle
@@ -56,6 +58,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalContext
 import com.tx24.spicyplayer.ui.components.SettingRow
+import com.tx24.spicyplayer.ui.components.SpicyBipolarSlider
 import com.tx24.spicyplayer.ui.components.SettingsSection
 import com.tx24.spicyplayer.ui.components.SpicyButton
 import com.tx24.spicyplayer.ui.components.SpicySelect
@@ -163,6 +166,45 @@ internal fun LyricsNotificationSection(settings: AppSettings) {
             description = "With Essentials installed, allow Spicy Lyrics in its Island settings: the pill shows the line being sung, and expanding it shows the lyrics word-synced, with controls.",
             icon = Icons.Rounded.PictureInPictureAlt,
         )
+        if (settings.essentialsIsland) {
+            SettingRow(
+                label = "Island lyrics",
+                description = if (settings.islandBehaviour == "Always") {
+                    "Always shown while a song plays, ahead of the island's other items (calls and notifications still come first); the others share what room is left."
+                } else {
+                    "Placed by the order in Essentials' Island settings, like its other items."
+                },
+                icon = Icons.Rounded.Tune,
+            ) {
+                SpicySelect(
+                    value = settings.islandBehaviour,
+                    options = listOf("Always", "Order"),
+                    labels = listOf("Always on top", "Island order"),
+                    onChange = { settings.islandBehaviour = it },
+                )
+            }
+            SettingRow(
+                label = "Lyrics width in the island",
+                description = "How much of the line the pill shows at once, in letters; the rest scrolls in as it's sung. Narrower fits beside the clock and other icons.",
+                icon = Icons.Rounded.Straighten,
+                stacked = true,
+            ) {
+                SpicyBipolarSlider(
+                    value = settings.islandWidth,
+                    range = 6..28,
+                    step = 1,
+                    onValueChange = { settings.islandWidth = it },
+                    default = 12,
+                )
+            }
+            ToggleRow(
+                label = "Cover in the island",
+                checked = settings.islandCover,
+                onCheckedChange = { settings.islandCover = it },
+                description = "The song's cover beside the lyrics in the pill. Off by default, as Essentials shows its own cover bubble.",
+                icon = Icons.Rounded.Image,
+            )
+        }
     }
 }
 

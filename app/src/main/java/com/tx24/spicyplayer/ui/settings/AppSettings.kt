@@ -409,6 +409,12 @@ class AppSettings(private val prefs: SharedPreferences) {
     var superShadeLiveActivity by boolean("superShadeLiveActivity", true)
     /** The lyrics on the Essentials island, as its island provider ([com.tx24.spicyplayer.island.SpicyIslandService]). */
     var essentialsIsland by boolean("essentialsIsland", true)
+    /** The cover beside the lyrics in the island's pill (Essentials shows its own cover bubble). */
+    var islandCover by boolean("islandCover", false)
+    /** How many characters of the line the pill shows at once; narrower fits beside more. */
+    var islandWidth by int("islandWidth", 12, 6..28)
+    /** "Always": ahead of everything but calls and notifications while playing; "Order": the island's own order. */
+    var islandBehaviour by string("islandBehaviour", "Always")
     /** Hide the status bar clock while the status bar lyrics show (needs Shizuku once). */
     var overlayHideClock by boolean("overlayHideClock", false)
     /** A floating button that opens the quick settings (the song's and the output's delay). */
