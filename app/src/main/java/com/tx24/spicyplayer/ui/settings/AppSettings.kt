@@ -405,6 +405,8 @@ class AppSettings(private val prefs: SharedPreferences) {
     var overlayHideInLandscape by boolean("overlayHideInLandscape", false)
     /** The overlay steps aside while the Spicy live wallpaper shows (the home screen). */
     var overlayHideOnWallpaper by boolean("overlayHideOnWallpaper", true)
+    /** SuperShade Plus may show the lyrics as a live activity in its shade ([com.tx24.spicyplayer.shade.SuperShadeBridge]). */
+    var superShadeLiveActivity by boolean("superShadeLiveActivity", true)
     /** Hide the status bar clock while the status bar lyrics show (needs Shizuku once). */
     var overlayHideClock by boolean("overlayHideClock", false)
     /** A floating button that opens the quick settings (the song's and the output's delay). */
