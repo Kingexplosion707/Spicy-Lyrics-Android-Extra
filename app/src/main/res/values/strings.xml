@@ -42,4 +42,6 @@
     <string name="always_on_text">The lyrics show when the screen turns off</string>
     <string name="battery_saver_resting">Resting while battery saver is on</string>
     <string name="always_on_launch_channel">Always-on display</string>
+    <string name="island_label">Spicy Lyrics</string>
+    <string name="island_description">The line being sung in the pill, and the lyrics word-synced with controls when expanded.</string>
 </resources>

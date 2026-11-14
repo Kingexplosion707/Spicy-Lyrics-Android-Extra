@@ -39,3 +39,8 @@
 # Crash traces stay readable with the mapping file.
 -keepattributes SourceFile, LineNumberTable
 -renamesourcefileattribute SourceFile
+
+# The Essentials island's payloads go over the wire as Gson JSON, read by field name, and its
+# binder interfaces are matched by name.
+-keep class com.sameerasw.island.sdk.** { *; }
+-keepclassmembers class com.sameerasw.island.sdk.** { *; }

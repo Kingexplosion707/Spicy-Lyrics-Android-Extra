@@ -43,6 +43,9 @@ internal class BackgroundSession(context: Context) {
     fun pause() { core?.pause() }
     fun skipNext() { core?.skipNext() }
     fun skipPrevious() { core?.skipPrevious() }
+    fun seekTo(positionMs: Long) { core?.seekTo(positionMs) }
+    /** The player's own now-playing screen, where its media session offers one. */
+    val sessionActivity: android.app.PendingIntent? get() = core?.sessionActivity
     /** The player's own buttons (like, shuffle, ...) as it publishes them now. */
     val customActions: List<android.media.session.PlaybackState.CustomAction> get() = core?.customActions.orEmpty()
     fun sendCustomAction(action: String) { core?.sendCustomAction(action) }
@@ -163,6 +166,14 @@ private class SessionCore(private val app: Context) {
     fun pause() { controller?.transportControls?.pause() }
     fun skipNext() { controller?.transportControls?.skipToNext() }
     fun skipPrevious() { controller?.transportControls?.skipToPrevious() }
+    /** Moves the player to [positionMs], and the clock with it so lyrics follow at once. */
+    fun seekTo(positionMs: Long) {
+        val session = controller ?: return
+        val target = positionMs.coerceAtLeast(0L)
+        clock.seekTo(target, android.os.SystemClock.elapsedRealtime())
+        session.transportControls.seekTo(target)
+    }
+    val sessionActivity: android.app.PendingIntent? get() = controller?.sessionActivity
 
     val customActions: List<android.media.session.PlaybackState.CustomAction>
         get() = (heldPlayback ?: controller?.playbackState)?.customActions.orEmpty()

@@ -52,6 +52,8 @@
         <!-- SuperShade Plus, which shows the lyrics as a live activity in its shade. -->
         <package android:name="com.supershade" />
         <package android:name="com.supershade.debug" />
+        <!-- Essentials, whose island shows the lyrics: its signing key is pinned when it's allowed. -->
+        <package android:name="com.sameerasw.essentials" />
         <intent>
             <action android:name="android.media.browse.MediaBrowserService" />
         </intent>
@@ -170,6 +172,22 @@
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:theme="@style/Theme.SpicyLyricsMobile" />
+
+        <!-- The lyrics on the Essentials island. Essentials binds it only after the user allows it
+             in its Island settings, and the service answers only Essentials (signature-pinned). -->
+        <service
+            android:name="com.tx24.spicyplayer.island.SpicyIslandService"
+            android:enabled="@bool/island_provider_supported"
+            android:exported="true"
+            android:label="@string/island_label"
+            tools:ignore="ExportedService">
+            <intent-filter>
+                <action android:name="com.sameerasw.island.PROVIDER" />
+            </intent-filter>
+            <meta-data android:name="com.sameerasw.island.provider.label" android:value="@string/island_label" />
+            <meta-data android:name="com.sameerasw.island.provider.description" android:value="@string/island_description" />
+            <meta-data android:name="com.sameerasw.island.provider.priority" android:value="52" />
+        </service>
 
         <service
             android:name="com.tx24.spicyplayer.overlay.LyricsOverlayService"

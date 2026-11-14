@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The Essentials island needs Android 8 or later. -->
+    <bool name="island_provider_supported">false</bool>
+</resources>

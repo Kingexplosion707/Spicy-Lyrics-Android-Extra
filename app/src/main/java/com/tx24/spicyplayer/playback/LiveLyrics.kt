@@ -68,6 +68,9 @@ internal class LiveLyrics(context: Context) {
     fun playPause() = session.playPause()
     fun skipNext() = session.skipNext()
     fun skipPrevious() = session.skipPrevious()
+    fun seekTo(positionMs: Long) = session.seekTo(positionMs)
+    /** The player's own now-playing screen, where it offers one. */
+    val sessionActivity: android.app.PendingIntent? get() = session.sessionActivity
 
     /** Presses one of the player's own buttons; its new state shows once the player publishes it. */
     fun sendCustomAction(action: String) {
