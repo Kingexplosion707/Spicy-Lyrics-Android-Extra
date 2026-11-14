@@ -186,7 +186,7 @@
             </intent-filter>
             <meta-data android:name="com.sameerasw.island.provider.label" android:value="@string/island_label" />
             <meta-data android:name="com.sameerasw.island.provider.description" android:value="@string/island_description" />
-            <meta-data android:name="com.sameerasw.island.provider.priority" android:value="52" />
+            <meta-data android:name="com.sameerasw.island.provider.priority" android:value="29" />
         </service>
 
         <service

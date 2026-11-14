@@ -45,11 +45,13 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.asImageBitmap
@@ -129,6 +131,19 @@ internal fun IslandLyricsView(
             .clip(RoundedCornerShape(corner))
             .background(Color.Black),
     ) {
+        // The song's Canvas behind it all (held still while paused), under a veil for the text.
+        val canvas = SpicyIslandService.canvasUrl
+        var canvasFailed by remember(canvas) { androidx.compose.runtime.mutableStateOf(false) }
+        if (canvas != null && !canvasFailed && !powerSave) {
+            com.tx24.spicyplayer.ui.nowplaying.CrossfadingMotionVideo(
+                url = canvas,
+                onFailed = { canvasFailed = true },
+                modifier = Modifier.matchParentSize(),
+                cropFromTop = 0.5f,
+                held = !playing,
+            )
+            Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.35f), Color.Black.copy(alpha = 0.7f)))))
+        }
         Column(Modifier.fillMaxWidth().padding(horizontal = padding).padding(bottom = 14.dp)) {
             Spacer(Modifier.height(camera))
             Spacer(Modifier.height(6.dp))
@@ -139,6 +154,18 @@ internal fun IslandLyricsView(
                         .clickable(onClickLabel = "Open the player", onClick = onOpenPlayer),
                 ) {
                     if (cover != null) Image(cover, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    // The animated cover over the still one, where the song has one.
+                    val motion = SpicyIslandService.motionUrl
+                    var motionFailed by remember(motion) { androidx.compose.runtime.mutableStateOf(false) }
+                    if (motion != null && !motionFailed && !powerSave) {
+                        com.tx24.spicyplayer.ui.nowplaying.MotionCoverVideo(
+                            url = motion,
+                            visible = true,
+                            onFailed = { motionFailed = true },
+                            modifier = Modifier.fillMaxSize(),
+                            held = !playing,
+                        )
+                    }
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f).clickable(onClickLabel = "Open the player", onClick = onOpenPlayer)) {
