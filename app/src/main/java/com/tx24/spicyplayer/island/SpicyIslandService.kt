@@ -62,7 +62,13 @@ class SpicyIslandService : ComposeIslandProviderService() {
 
     private val prefs: SharedPreferences by lazy { getSharedPreferences("ui", Context.MODE_PRIVATE) }
     private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == PREF) main.post { if (enabled(this)) follow() else stopFollowing(clear = true) }
+        when (key) {
+            PREF -> main.post { if (enabled(this)) follow() else stopFollowing(clear = true) }
+            PREF_COVER, PREF_WIDTH, PREF_BEHAVIOUR -> main.post {
+                lastPublished = null
+                publish()
+            }
+        }
     }
 
     override fun onAttached(host: IslandHostHandle, info: HostInfo) {
@@ -131,29 +137,33 @@ class SpicyIslandService : ComposeIslandProviderService() {
         val sung = if (group == null || between) null else group.lead
         // Long lines scroll with the singing: the pill and the line show the part being sung,
         // moving on a few words at a time, so nothing is cut off.
-        val compactWindow = sung?.let { IslandLyrics.window(it, now, COMPACT_CHARS) }
+        val compactChars = prefs.getInt(PREF_WIDTH, 12).coerceIn(6, 28)
+        val withCover = prefs.getBoolean(PREF_COVER, false)
+        val alwaysOnTop = prefs.getString(PREF_BEHAVIOUR, "Always") != "Order"
+        val compactWindow = sung?.let { IslandLyrics.window(it, now, compactChars) }
         val lineWindow = sung?.let { IslandLyrics.window(it, now, LINE_CHARS) }
-        val compactText = compactWindow?.text ?: if (synced && groups.isNotEmpty()) "♪" else clip(track.title, COMPACT_CHARS)
+        val compactText = compactWindow?.text ?: if (synced && groups.isNotEmpty()) "♪" else clip(track.title, compactChars)
         val lineStart = lineWindow?.text ?: track.title
         val lineEnd = if (sung != null) "" else track.artist
-        val state = "${track.key}|$compactText|$lineStart|$lineEnd|${follower.playing}|$canvasUrl|$motionUrl"
+        val state = "${track.key}|$compactText|$lineStart|$lineEnd|${follower.playing}|$canvasUrl|$motionUrl|$withCover|$alwaysOnTop"
         if (state != lastPublished) {
             lastPublished = state
             val icon = coverIcon(track.cover)
+            val pillIcon = icon?.takeIf { withCover }
             val payload = IslandPayload(
                 items = listOf(
                     IslandItemPayload(
                         key = ITEM,
                         compact = listOfNotNull(
-                            icon?.let { IslandCellPayload(key = "$ITEM.art", iconId = "art", tone = IslandTone.NONE) },
+                            pillIcon?.let { IslandCellPayload(key = "$ITEM.art", iconId = "art", tone = IslandTone.NONE) },
                             IslandCellPayload(key = "$ITEM.line", text = compactText, tone = IslandTone.NONE),
                         ),
-                        line = IslandLinePayload(start = clip(lineStart, 120), end = clip(lineEnd, 120), iconId = icon?.let { "art" }, tone = IslandTone.NONE),
+                        line = IslandLinePayload(start = clip(lineStart, 120), end = clip(lineEnd, 120), iconId = pillIcon?.let { "art" }, tone = IslandTone.NONE),
                         expanded = IslandExpandedPayload(heightDp = 330),
                         // Ahead of Essentials' own music player (and everything but calls,
                         // notifications and alerts) while a song is on, so the lyrics stay in the pill.
                         priority = PRIORITY,
-                        priorityOverride = if (follower.playing) PRIORITY_PLAYING else null,
+                        priorityOverride = if (follower.playing && alwaysOnTop) PRIORITY_PLAYING else null,
                         interactions = IslandInteractionsPayload(
                             onTap = IslandAction(IslandActionType.EXPAND_ITEM, ITEM),
                             onLongPress = IslandAction(IslandActionType.OPEN_APP),
@@ -161,7 +171,7 @@ class SpicyIslandService : ComposeIslandProviderService() {
                     ),
                 ),
             )
-            runCatching { handle.publish(payload, icon?.let { mapOf("art" to it) }.orEmpty()) }
+            runCatching { handle.publish(payload, pillIcon?.let { mapOf("art" to it) }.orEmpty()) }
         }
         if (visualsFor != track.key) lookUpVisuals(track)
         // The next look: when the next part of the line, the next line or a break begins, and at
@@ -230,13 +240,15 @@ class SpicyIslandService : ComposeIslandProviderService() {
 
     companion object {
         const val PREF = "essentialsIsland"
+        private const val PREF_COVER = "islandCover"
+        private const val PREF_WIDTH = "islandWidth"
+        private const val PREF_BEHAVIOUR = "islandBehaviour"
         private const val ITEM = "lyrics"
         private const val ICON_PX = 64
         /** How much of a line the pill shows at once, and the line when the island peeks. */
-        private const val COMPACT_CHARS = 16
         private const val LINE_CHARS = 38
         private const val PRIORITY = 29
-        private const val PRIORITY_PLAYING = 12
+        private const val PRIORITY_PLAYING = 11
         /** A line counts as begun this long before its first word, so the change lands on time. */
         const val LEAD_MS = 150L
         /** This long after a line ends with nothing sung, it's a break. */
