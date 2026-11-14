@@ -55,6 +55,8 @@ internal object SuperShadeBridge {
     private var live: LiveLyrics? = null
     private var app: Context? = null
     private var sentLyricsFor: String? = null
+    /** The translation last sent with them, so a translation arriving later is sent too. */
+    private var sentTranslation: Any? = null
     private var visualsFor: String? = null
     private var visualsJob: Job? = null
     private var canvasUrl: String? = null
@@ -89,6 +91,7 @@ internal object SuperShadeBridge {
         live?.stop()
         live = null
         sentLyricsFor = null
+        sentTranslation = null
         visualsFor = null
         canvasUrl = null
         motionUrl = null
@@ -171,10 +174,16 @@ internal object SuperShadeBridge {
                 },
             )
             val lyrics = current.lyrics
-            if (track != null && lyrics != null && (full || sentLyricsFor != track.key)) {
-                putExtra("lyrics", lyricsJson(lyrics))
+            val translation = current.translation
+            if (track != null && lyrics != null && (full || sentLyricsFor != track.key || sentTranslation !== translation)) {
+                putExtra("lyrics", lyricsJson(lyrics, translation, prefs.getBoolean("romanize", false)))
                 sentLyricsFor = track.key
+                sentTranslation = translation
             }
+            // How the lyrics screen shows translations and romanization, so the shade shows them alike.
+            putExtra("translation_mode", prefs.getString("translationMode", "UnderLine"))
+            putExtra("romanize", prefs.getBoolean("romanize", false))
+            putExtra("romanization_mode", prefs.getString("romanizationMode", "Replace"))
             putExtra("canvas_url", canvasUrl)
             putExtra("motion_url", motionUrl)
             // The overlay's look, so the shade's lyrics match it, and whether it's floating now.
@@ -196,16 +205,18 @@ internal object SuperShadeBridge {
     }
 
     /**
-     * The lyrics as compact JSON: the type and each line's times, role and words, each word as
-     * `[text, start, end, attached]`.
+     * The lyrics as compact JSON: the type and each line's times, role, singer side, translation
+     * and words, each word as `[text, start, end, attached, romanized?]`.
      */
-    private fun lyricsJson(lyrics: LyricsState.Ready): String {
+    private fun lyricsJson(lyrics: LyricsState.Ready, translation: com.tx24.spicyplayer.translation.TranslationResult?, romanize: Boolean): String {
         val lines = JSONArray()
-        for (line in lyrics.lines) {
+        for ((index, line) in lyrics.lines.withIndex()) {
             if (line.untimed && lyrics.lyricsType != com.tx24.spicyplayer.lyrics.spicy.models.LyricsType.Static) continue
             val words = JSONArray()
             for (word in line.words) {
-                words.put(JSONArray().put(word.text).put(word.startMs).put(word.endMs).put(if (word.attached) 1 else 0))
+                val entry = JSONArray().put(word.text).put(word.startMs).put(word.endMs).put(if (word.attached) 1 else 0)
+                if (romanize) word.romanized?.let { entry.put(it) }
+                words.put(entry)
             }
             lines.put(
                 JSONObject()
@@ -215,7 +226,11 @@ internal object SuperShadeBridge {
                     .put("op", line.oppositeAligned)
                     .put("lt", line.lineTimed)
                     .put("w", words)
-                    .apply { line.translation?.let { put("tr", it) } },
+                    .apply {
+                        // The translation the lyrics screen shows: the chosen provider's, else the source's own.
+                        (translation?.texts?.getOrNull(index) ?: line.translation)?.let { put("tr", it) }
+                        line.agent?.let { put("ag", it) }
+                    },
             )
         }
         return JSONObject().put("type", lyrics.lyricsType.name).put("lines", lines).toString()
