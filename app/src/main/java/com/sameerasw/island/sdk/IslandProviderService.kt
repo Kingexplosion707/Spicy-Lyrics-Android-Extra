@@ -82,7 +82,12 @@ abstract class IslandProviderService : Service() {
                 return
             }
             onRequestSurface(itemKey, parsed) { surface ->
-                callback.onSurface(Bundle().apply { putParcelable(SurfaceRequest.RESULT_PACKAGE, surface) })
+                callback.onSurface(
+                    Bundle().apply {
+                        // Surfaces exist from Android 11; before it there's never one to send.
+                        if (android.os.Build.VERSION.SDK_INT >= 30) putParcelable(SurfaceRequest.RESULT_PACKAGE, surface)
+                    },
+                )
             }
         }
 
