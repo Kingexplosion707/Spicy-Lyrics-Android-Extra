@@ -208,7 +208,7 @@ class SpicyIslandService : ComposeIslandProviderService() {
             if (text.length <= max) text else text.take(max - 1).trimEnd() + "…"
 
         /** Opens the player's own now-playing screen, else the player app. */
-        fun openPlayer(context: Context, live: LiveLyrics): Boolean {
+        internal fun openPlayer(context: Context, live: LiveLyrics): Boolean {
             live.sessionActivity?.let { session ->
                 val sent = runCatching {
                     if (Build.VERSION.SDK_INT >= 34) {
