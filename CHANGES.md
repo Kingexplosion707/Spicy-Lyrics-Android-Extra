@@ -1,6 +1,6 @@
 # Changes in Spicy Lyrics Plus
 
-Spicy Lyrics Plus is a modified version of [Spicy Lyrics Mobile](https://github.com/spicylyrics/mobile) 0.19.0 by TheX24 and contributors. As the [AGPL-3.0](LICENSE) asks of modified versions, this file lists what was changed and when. The original's own history is in its [releases](https://github.com/spicylyrics/mobile/releases).
+Spicy Lyrics Plus is a modified version of [Spicy Lyrics Mobile](https://github.com/spicylyrics/mobile) 0.20.0 by TheX24 and contributors. As the [AGPL-3.0](LICENSE) asks of modified versions, this file lists what was changed and when. The original's own history is in its [releases](https://github.com/spicylyrics/mobile/releases).
 
 ## November 2026 — based on Spicy Lyrics Mobile 0.19.0
 
@@ -113,3 +113,7 @@ Modified by Behnoud.
 - CI builds share one signing key and count their version up, so they install as updates: from the DEBUG_KEYSTORE_BASE64 secret, or else one made once and kept in the repository's Actions cache (kept from expiring by the scheduled update check).
 - Every change to main is also published as an optimised (R8) build, a prerelease the in-app updater offers (`android-ci.yml`).
 - New Spicy Lyrics Mobile releases are merged in by `tools/upstream_sync.sh`, run every six hours by `upstream-sync.yml`, which opens an issue when one needs a hand.
+
+## Updates from Spicy Lyrics Mobile
+
+- 2026-11-15: Spicy Lyrics Mobile 0.20.0 merged in, with every Plus change kept.

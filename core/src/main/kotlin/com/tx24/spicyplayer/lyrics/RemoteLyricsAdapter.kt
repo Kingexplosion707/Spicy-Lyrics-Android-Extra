@@ -18,12 +18,16 @@ object RemoteLyricsAdapter {
     private val lrcStamp = Regex("\\[(\\d{1,3}):(\\d{1,2})(?:[.:](\\d{1,4}))?]")
     private val lrcOffset = Regex("^\\[offset:\\s*([+-]?\\d+)\\s*]\\s*$", RegexOption.IGNORE_CASE)
 
-    /** [romanize]: false leaves the words the source didn't romanize as they are (the widget shows none). */
+    /**
+     * [romanize]: false leaves the words the source didn't romanize as they are (the widget shows none).
+     * [writtenJapanese] picks the on-device Japanese spelling ([RomanizationService.romanize]).
+     */
     fun render(
         selection: RemoteLyricsSelection,
         durationMs: Long,
         splitBackgroundVocals: Boolean = true,
         romanize: Boolean = true,
+        writtenJapanese: Boolean = true,
     ): LyricsState.Ready {
         val payload = selection.payload
         val attribution = payload.attribution
@@ -59,11 +63,20 @@ object RemoteLyricsAdapter {
         require(unromanized.isNotEmpty()) { "Selected lyrics contain no displayable text" }
         // On-device romanization fills only the words the source left unromanized.
         val romanized = if (!romanize) unromanized else {
-            val computed = RomanizationService.romanize(unromanized.map { line -> line.words.map(TimedWord::text) })
+            val computed = RomanizationService.romanize(
+                unromanized.map { line -> line.words.map(TimedWord::text) },
+                unromanized.map { line -> line.words.map(TimedWord::attached) },
+                writtenJapanese,
+            )
             unromanized.mapIndexed { l, line ->
                 line.copy(words = line.words.mapIndexed { w, word -> word.copy(romanized = word.romanized ?: computed[l][w]) })
             }
         }
+            // A background vocal's romanization and translation lose the parentheses around them.
+            .map { line ->
+                if (line.role != LineRole.BACKGROUND) line
+                else line.copy(words = WrappingParens.stripRomanization(line.words), translation = line.translation?.let(WrappingParens::strip))
+            }
         // Lines timed only as a whole are drawn as line-synced, which wraps between words. They
         // are split after romanizing, so a line read as one span keeps its romaji's spaces.
         val lineTimed = if (selection.quality == RemoteLyricsQuality.WORD_SYNCED) MixedSync.lineTimed(romanized) else null

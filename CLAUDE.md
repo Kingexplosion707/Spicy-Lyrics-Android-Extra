@@ -22,7 +22,6 @@ Windows / PowerShell (use `./gradlew` from Git Bash):
 - Unit tests are plain JVM JUnit4. Provider, parser, blend and clock tests live in `:core` (`:core:test`) and need no Android SDK; the rest are in `:app` (`testDebugUnitTest`), where `unitTests.isReturnDefaultValues = true` turns Android logging and clock calls into no-ops. XML parsing in tests uses kxml2.
 - The live-network tests skip themselves unless you opt in: `RUN_SPICY_LYRICS_PROVIDER_TEST=1` (also needs `SPICY_LYRICS_CLIENT_KEY` in the environment) and `RUN_AMLL_NETWORK_TEST=1`. `RUN_MOTION_COVER_TEST=1` checks that the Apple Music animated-cover lookup still works. `RUN_SPOTIFY_CANVAS_TEST=1` checks that the Spotify Canvas lookup service still answers. `RUN_ALL_SOURCES_TEST=1` asks every source for a few well-known songs and prints a table (run with `--info`); use it to check which APIs still work.
 - `SPICY_LYRICS_CLIENT_KEY` is read from a git-ignored root `.env` into `BuildConfig`. It must be a publishable `sl_pk_` key, never a secret `sl_sk_` key. Users can override it in Settings → Sources.
-- `server/canvas/` is a Cloudflare Worker at `canvas.tx24.dev` that 0.14.4 asks for Spotify Canvas; it now forwards to Spicy Lyrics' Canvas service, which later versions ask directly. Keep it up until 0.14.4 is gone (`npm test` there, no Android needed).
 
 ## More docs
 

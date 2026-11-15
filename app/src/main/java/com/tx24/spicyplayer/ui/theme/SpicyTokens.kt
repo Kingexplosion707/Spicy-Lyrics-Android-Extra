@@ -149,6 +149,33 @@ object SpicyGlass {
      * `--material-regular-blur: blur(12px)` on what's behind. The fill and edges are drawn on
      * top by the glass itself; the tint is only for phones that can't blur (before Android 12).
      */
+    /**
+     * The view buttons' shared capsule: `rgba(255,255,255,.08)` over a 24px blur, a `.1` ring, a
+     * `.22` top edge. The darker layer under the fill stands in for the web's `brightness(.8)`, so
+     * white glyphs stay legible over a bright cover.
+     */
+    val CapsuleFill = Color.White.copy(alpha = 0.08f)
+    val CapsuleDim = Color.Black.copy(alpha = 0.12f)
+    val CapsuleRing = Color.White.copy(alpha = 0.10f)
+    val CapsuleEdgeTop = Color.White.copy(alpha = 0.22f)
+
+    /** `0 12px 28px -12px`, in the same colour as the circles' cast. */
+    val CapsuleCastOffsetY = 12.dp
+    val CapsuleCastBlur = 28.dp
+    val CapsuleCastSpread = (-12).dp
+
+    /** A toggle that is on: its white disc's opacity, and while it's held. */
+    const val KnockoutOpacity = 0.82f
+    const val KnockoutPressedOpacity = 0.94f
+
+    val capsuleMaterial = HazeStyle(
+        backgroundColor = Color.Black,
+        tints = emptyList(),
+        blurRadius = 24.dp,
+        noiseFactor = 0f,
+        fallbackTint = HazeTint(Color.Black.copy(alpha = 0.3f)),
+    )
+
     val material = HazeStyle(
         // Haze paints this under the blurred copy; the page is black.
         backgroundColor = Color.Black,

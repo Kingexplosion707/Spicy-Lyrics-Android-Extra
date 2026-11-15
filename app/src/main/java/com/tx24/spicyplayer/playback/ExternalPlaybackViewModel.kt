@@ -71,7 +71,9 @@ import com.tx24.spicyplayer.network.data.spotify.AudioAnalysis
 import com.tx24.spicyplayer.network.data.spotify.LocalTrackMetadata
 import com.tx24.spicyplayer.network.data.spotify.SharedSpotify
 import com.tx24.spicyplayer.network.data.spotify.SpotifyTrackCandidate
-import com.tx24.spicyplayer.lyrics.spicy.canvas.kawarp.BackgroundSpeed
+import com.tx24.spicyplayer.network.data.spotify.StaticPace
+import com.tx24.spicyplayer.lyrics.spicy.canvas.kawarp.MotionSource
+import com.tx24.spicyplayer.lyrics.spicy.canvas.kawarp.TrackMotion
 import com.tx24.spicyplayer.ui.nowplaying.SessionCustomAction
 import com.tx24.spicyplayer.ui.nowplaying.TrackDirection
 import com.tx24.spicyplayer.ui.settings.CustomSourceForm
@@ -239,6 +241,8 @@ data class PlayerUiState(
     val splitBackgroundVocals: Boolean = true,
     /** Live captions: YouTube's captions, word by word, for songs no source has. */
     val liveCaptions: Boolean = false,
+    val keepLyricsLonger: Boolean = false,
+    val writtenRomaji: Boolean = true,
     /** The user's own sources, in the order they were added; their place in the lookup is in [sourcePolicy]. */
     val customSources: List<CustomLyricsSource> = emptyList(),
     /** The player's queue, when it shares one; empty otherwise. */
@@ -291,6 +295,8 @@ data class TrackExtrasWanted(
     val releaseYear: Boolean = false,
     val artistHeader: Boolean = false,
     val beats: Boolean = false,
+    /** The song's loudness, for the scroll of lyrics without timing. */
+    val staticPace: Boolean = false,
 )
 
 class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(application) {
@@ -339,6 +345,8 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         humanRomanizations = lyricsBackend.humanRomanizations,
         splitBackgroundVocals = lyricsBackend.splitBackgroundVocals,
         liveCaptions = lyricsBackend.liveCaptionsEnabled,
+        keepLyricsLonger = lyricsBackend.keepLyricsLonger,
+        writtenRomaji = lyricsBackend.writtenRomaji,
         switchedOffSources = lyricsBackend.switchedOffSources,
         ownKeyHint = runtimeApiKey.takeIf { it.isNotBlank() }?.let(SpicyLyricsKey::hint),
     ))
@@ -745,6 +753,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
     private var canvasTrackId: String? = null
     /** The playing song's audio analysis, for the beat-reactive background. */
     @Volatile private var audioAnalysis: AudioAnalysis? = null
+    private var staticPace: Pair<AudioAnalysis, StaticPace?>? = null
     /** The last music haptics built: from which analysis, in which style and HapticBeat options. */
     @Volatile private var musicHaptics: MusicHapticsCache? = null
 
@@ -1470,6 +1479,8 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
             humanRomanizations = lyricsBackend.humanRomanizations,
             splitBackgroundVocals = lyricsBackend.splitBackgroundVocals,
             liveCaptions = lyricsBackend.liveCaptionsEnabled,
+            keepLyricsLonger = lyricsBackend.keepLyricsLonger,
+            writtenRomaji = lyricsBackend.writtenRomaji,
             switchedOffSources = lyricsBackend.switchedOffSources,
         )
         // The playing song's Spotify link may have come or gone: look it up again if so.
@@ -1779,7 +1790,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
     private fun searchedMatchInfo(request: LyricsLookupRequest, attempts: List<ProviderAttempt>): String {
         val track = LocalTrackMetadata(request.title, request.artist, request.album, request.durationSeconds * 1_000L)
         SharedSpotify.resolver.remembered(track)?.track?.candidate?.let { match ->
-            return "Spotify search: ${match.title} · ${match.artists.joinToString()} (${match.id})"
+            return "Matched on Spotify: ${match.title} · ${match.artists.joinToString()} (${match.id})"
         }
         return if (attempts.any { it.outcome == ProviderAttemptOutcome.NEEDS_MATCH }) {
             "Spotify search found no confident match"
@@ -1894,7 +1905,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         synchronized(renderedCache) { renderedCache[selection] }
             ?.takeIf { !usesDuration || it.durationMs == durationMs }
             ?.let { return it.lyrics }
-        val lyrics = RemoteLyricsAdapter.render(selection, durationMs, lyricsBackend.splitBackgroundVocals)
+        val lyrics = RemoteLyricsAdapter.render(selection, durationMs, lyricsBackend.splitBackgroundVocals, writtenJapanese = lyricsBackend.writtenRomaji)
         synchronized(renderedCache) { renderedCache[selection] = RenderedLyrics(durationMs, lyrics) }
         return lyrics
     }
@@ -1939,6 +1950,19 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         if (enabled && mutableState.value.lyrics !is LyricsState.Ready) loadLyrics()
     }
 
+    fun setWrittenRomaji(enabled: Boolean) {
+        lyricsBackend.writtenRomaji = enabled
+        mutableState.value = mutableState.value.copy(writtenRomaji = enabled)
+        // Every rendered copy was spelled the other way.
+        synchronized(renderedCache) { renderedCache.clear() }
+        synchronized(humanCache) { humanCache.clear() }
+        val selection = shownSelection ?: return
+        val request = shownRequest ?: return
+        val lyrics = runCatching { rendered(selection, request.durationSeconds * 1_000L) }.getOrNull() ?: return
+        mutableState.value = mutableState.value.copy(lyrics = lyrics)
+        if (lyricsBackend.humanRomanizations) humanize(selection, lyrics, currentLyricsKey, request)
+    }
+
     fun setSplitBackgroundVocals(enabled: Boolean) {
         lyricsBackend.splitBackgroundVocals = enabled
         mutableState.value = mutableState.value.copy(splitBackgroundVocals = enabled)
@@ -1950,6 +1974,11 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         val lyrics = runCatching { rendered(selection, request.durationSeconds * 1_000L) }.getOrNull() ?: return
         mutableState.value = mutableState.value.copy(lyrics = lyrics)
         if (lyricsBackend.humanRomanizations) humanize(selection, lyrics, currentLyricsKey, request)
+    }
+
+    fun setKeepLyricsLonger(enabled: Boolean) {
+        lyricsBackend.keepLyricsLonger = enabled
+        mutableState.value = mutableState.value.copy(keepLyricsLonger = enabled)
     }
 
     fun setHumanRomanizations(enabled: Boolean) {
@@ -2133,6 +2162,8 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
                 humanRomanizations = kept.humanRomanizations,
                 splitBackgroundVocals = kept.splitBackgroundVocals,
                 liveCaptions = kept.liveCaptions,
+                keepLyricsLonger = kept.keepLyricsLonger,
+                writtenRomaji = kept.writtenRomaji,
                 sourceDisclosure = kept.sourceDisclosure,
                 switchedOffSources = kept.switchedOffSources,
                 ownKeyHint = kept.ownKeyHint,
@@ -2361,7 +2392,8 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         val wanted = screenExtrasWanted.let { if (mutableState.value.calibratingDelay) it.copy(beats = true) else it }
         val added = (wanted.releaseYear && !extrasWanted.releaseYear) ||
             (wanted.artistHeader && !extrasWanted.artistHeader) ||
-            (wanted.beats && !extrasWanted.beats)
+            (wanted.beats && !extrasWanted.beats) ||
+            (wanted.staticPace && !extrasWanted.staticPace)
         extrasWanted = wanted
         if (added) loadExtras()
     }
@@ -2383,13 +2415,24 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
     /** The player's own position at [elapsedRealtimeMs], with no delay taken off. */
     fun playerPositionAt(elapsedRealtimeMs: Long): Long = clock.positionAt(elapsedRealtimeMs)
 
-    /**
-     * How fast the background should move right now by the song's beats and loudness, or null when
-     * there is no analysis for it (the background then keeps its normal speed).
-     */
-    fun backgroundSpeed(): Float? {
+    private var motionTrack: Pair<AudioAnalysis, TrackMotion>? = null
+
+    /** What the moving background reads each frame: the song's energy model and the playback position. */
+    val backgroundMotion = MotionSource(
+        track = {
+            val analysis = audioAnalysis
+            if (analysis == null) null
+            else motionTrack?.takeIf { it.first === analysis }?.second
+                ?: TrackMotion(analysis).also { motionTrack = analysis to it }
+        },
+        positionSeconds = { currentPositionMs() / 1000f },
+    )
+
+    /** The playing song's pace for lyrics without timing, or null while there's no analysis for it. */
+    fun staticPace(): StaticPace? {
         val analysis = audioAnalysis ?: return null
-        return BackgroundSpeed.at(currentPositionMs() / 1000f, analysis)
+        staticPace?.takeIf { it.first === analysis }?.let { return it.second }
+        return StaticPace.of(analysis).also { staticPace = analysis to it }
     }
 
     /**
@@ -2493,7 +2536,8 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
             artistHeaderPending = wanted.artistHeader && request != null,
         )
         val needYear = wanted.releaseYear && sessionYear == null
-        if (request == null || !(needYear || wanted.artistHeader || wanted.beats)) return
+        val needAnalysis = wanted.beats || wanted.staticPace
+        if (request == null || !(needYear || wanted.artistHeader || needAnalysis)) return
         // Skipping through songs, only the one that stays is looked up.
         val skipping = SystemClock.elapsedRealtime() - lastTrackChangeAt < TRACK_SETTLE_MS
         extrasJob = viewModelScope.launch {
@@ -2501,7 +2545,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
             val track = LocalTrackMetadata(request.title, request.artist, request.album, request.durationSeconds * 1_000L)
             val trackIds = withContext(Dispatchers.IO) { spotifyExtras.trackIds(track, request.spotifyTrackId) }
             val trackId = trackIds.firstOrNull()
-            if (wanted.beats && trackId != null) launch {
+            if (needAnalysis && trackId != null) launch {
                 audioAnalysis = withContext(Dispatchers.IO) { spotifyExtras.audioAnalysis(trackId) }
             }
             if (wanted.artistHeader) launch {

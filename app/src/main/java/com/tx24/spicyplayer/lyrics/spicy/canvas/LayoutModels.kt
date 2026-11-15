@@ -20,7 +20,11 @@ internal data class WordLayout(
     /** Original total width of the word (including all fragments). */
     val fullWordWidth: Float = 0f,
     /** Horizontal start position of this fragment within the full word. */
-    val startXOffset: Float = 0f
+    val startXOffset: Float = 0f,
+    /** A row piece cut into letters: how many letters the piece has ([charIndex] is this one's). 0 for a whole piece. */
+    val charCount: Int = 0,
+    /** A row piece's grow point across its width: 0 left, 1 right, 0.5 centre (a syllable grows from the side it joins). */
+    val anchor: Float = 0.5f,
 )
 
 /**

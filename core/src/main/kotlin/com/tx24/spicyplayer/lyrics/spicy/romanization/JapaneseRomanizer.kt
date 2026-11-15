@@ -12,7 +12,7 @@ import com.atilika.kuromoji.ipadic.Tokenizer
 object JapaneseRomanizer : Romanizer {
     override val script = Script.JAPANESE
 
-    private val tokenizer: Tokenizer? by lazy {
+    internal val tokenizer: Tokenizer? by lazy {
         try { Tokenizer() } catch (t: Throwable) { null }
     }
 
@@ -24,6 +24,19 @@ object JapaneseRomanizer : Romanizer {
             tokens(tk, text).joinToString(" ") { token -> KanaRomanizer.romanize(token.spoken()) }
         } catch (t: Throwable) {
             KanaRomanizer.romanize(text)
+        }
+    }
+
+    /**
+     * One line's [syllables] in the written spelling ([WrittenJapanese]): long vowels as written,
+     * endings kept on their word. [attached] says which syllables continue the word before them.
+     */
+    fun romanizeLineWritten(syllables: List<String>, attached: List<Boolean>? = null): List<String> {
+        val tk = tokenizer ?: return syllables.map(WrittenJapanese::kanaOnly)
+        return try {
+            WrittenJapanese.line(tk, syllables, attached)
+        } catch (t: Throwable) {
+            syllables.map(WrittenJapanese::kanaOnly)
         }
     }
 

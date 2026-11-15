@@ -1,5 +1,7 @@
 package com.tx24.spicyplayer.lyrics.spicy
 
+import com.tx24.spicyplayer.lyrics.spicy.animation.BloomMotion
+
 /** Whether a word's syllables are drawn as one word, filling evenly from its first syllable to its last. */
 enum class SyllableMerge(val label: String) {
     Off("Off"),
@@ -10,6 +12,21 @@ enum class SyllableMerge(val label: String) {
     /** Only words long enough, merged, for the held-word letter emphasis. */
     Held("Held words only"),
 }
+
+/** How a romanization row timed by syllable lights up under its line. */
+enum class RomanizationHighlight(val label: String) {
+    /** Each syllable fills from its start to its end as it's sung. */
+    Sweep("Sweep"),
+    /** Each syllable brightens whole while it's sung. */
+    Word("Word by word"),
+}
+
+/**
+ * The "no pace known" default, one shared instance: a lambda written in a default argument is a new
+ * object on every call, which made every `ScrollConfig()` unequal to the last and, through the
+ * layout cache key, re-measured the lyrics on every recomposition.
+ */
+private val NO_STATIC_PACE: () -> com.tx24.spicyplayer.network.data.spotify.StaticPace? = { null }
 
 /** How the lyrics follow the song and answer a tap. None of it changes how lines are measured. */
 data class ScrollConfig(
@@ -25,6 +42,16 @@ data class ScrollConfig(
      * their scrolling to the user.
      */
     val staticSongMs: Long = 0L,
+    /**
+     * The song's pace for static lyrics, once known: the lyrics hold through quiet intros, outros
+     * and breaks. Null (or until it arrives) they move evenly over [staticSongMs].
+     */
+    val staticPace: () -> com.tx24.spicyplayer.network.data.spotify.StaticPace? = NO_STATIC_PACE,
+    /**
+     * Bloom's early scroll (the floating window): its timed scroll sets off early enough to reach
+     * a line as it's sung, in place of Early Scroll's lead.
+     */
+    val bloomEarly: Boolean = false,
 ) {
     companion object {
         /** Players fade audio in for about this long after a seek, swallowing a line's first syllable. */
@@ -33,41 +60,34 @@ data class ScrollConfig(
 }
 
 data class RenderConfig(
-    val simpleLyricsMode: Boolean,
-    /** Already scoped to a fullscreen, non-compact surface by the caller. */
-    val minimalLyricsMode: Boolean,
-    /**
-     * The Apple Music style (see `animation/AppleMusicMotion`): its own wipe, word rise, held-word
-     * letters, line fades and scroll. Simple and Minimal don't apply with it.
-     */
-    val appleMusic: Boolean = false,
-    val refreshedSimple: Boolean = false,
-    /** Mixed.css `--gradient-alpha`: 1 under `.SimpleLyricsMode`. Background vocals keep 0.6. */
-    val gradientAlphaBright: Float = if (simpleLyricsMode) 1f else 0.85f,
-    /** `--gradient-alpha-end` on words and letters: 0.3 under `.SimpleLyricsMode`. */
-    val gradientAlphaDim: Float = if (simpleLyricsMode) 0.3f else 0.5f,
-    /** A whole line's `--gradient-alpha-end` (line-synced lyrics), `!important` in every mode. */
-    val lineGradientAlphaDim: Float = 0.35f,
+    /** The Bloom look (see `animation/BloomMotion`) instead of Spring. */
+    val bloom: Boolean = false,
+    /** Fade Away Previous Lines; already scoped to a fullscreen, non-compact surface by the caller. */
+    val minimalLyricsMode: Boolean = false,
+    /** A word's lit colour (`--gradient-alpha`). */
+    val gradientAlphaBright: Float = if (bloom) BloomMotion.LIT else 0.85f,
+    /** A word's unlit colour (`--gradient-alpha-end`). */
+    val gradientAlphaDim: Float = if (bloom) BloomMotion.UNLIT else 0.5f,
+    /** A whole line's unlit colour in line-synced lyrics. */
+    val lineGradientAlphaDim: Float = if (bloom) BloomMotion.UNLIT else 0.35f,
+    /** A background line's lit and unlit colours. */
+    val backgroundAlphaBright: Float = if (bloom) BloomMotion.BACKGROUND_LIT else 0.6f,
+    val backgroundAlphaDim: Float = if (bloom) BloomMotion.UNLIT else 0.3f,
     val opacityActive: Float = 1f,
-    /** `--Vocal-NotSung-opacity` / `--Vocal-Sung-opacity`; Minimal's own values live in the animator. */
-    val opacityNotSung: Float = if (simpleLyricsMode) 0.45f else 0.51f,
-    val opacitySung: Float = if (simpleLyricsMode) 0.35f else 0.497f,
-    /** Simple mode deliberately keeps the distance blur. */
+    /** `--Vocal-NotSung-opacity` / `--Vocal-Sung-opacity`. Bloom dims by tone instead, so its lines stay at 1. */
+    val opacityNotSung: Float = if (bloom) 1f else 0.51f,
+    val opacitySung: Float = if (bloom) 1f else 0.497f,
     val distanceBlurEnabled: Boolean = true,
     /** False drops every glow halo (the Glow setting, low performance mode). */
     val glowEnabled: Boolean = true,
     /** How strong every glow is drawn: its brightness and spread. 1 is the desktop amount. */
     val glowStrength: Float = 1f,
-    /** Minimal is a line-visibility layer and does not disable word/letter motion. */
+    /** Fade Away Previous Lines is a line-visibility layer and does not disable word/letter motion. */
     val lettersEnabled: Boolean = true,
-    val letterDurationThresholdMs: Long = if (simpleLyricsMode && !refreshedSimple) 1050L else 1000L,
-    val letterMaxLength: Int = when {
-        // The Apple Music style picks its held words itself (AppleMusicMotion.emphasizes).
-        appleMusic -> Int.MAX_VALUE
-        refreshedSimple && simpleLyricsMode -> 7
-        simpleLyricsMode -> 12
-        else -> Int.MAX_VALUE
-    },
+    val letterDurationThresholdMs: Long = 1000L,
+    /** Held words split into letters have at least and at most this many letters. */
+    val letterMinLength: Int = if (bloom) 2 else 1,
+    val letterMaxLength: Int = if (bloom) 7 else Int.MAX_VALUE,
     val syllableMerge: SyllableMerge = SyllableMerge.Off,
     /** A merged held word's letters keep each syllable's own pace instead of an even one. */
     val syllablePace: Boolean = false,
@@ -88,28 +108,20 @@ data class RenderConfig(
     val keepOverlappingLines: Boolean = true,
     /** How bright the lines not being sung are, against their usual brightness (Other lines). */
     val otherLinesOpacity: Float = 1f,
+    val romanizationHighlight: RomanizationHighlight = RomanizationHighlight.Sweep,
+    /**
+     * The rows under a line move like the lyrics: a romanization row timed by syllable rises,
+     * swells and glows with the words above it, and a translation row sweeps with the line.
+     */
+    val animatedUnderRows: Boolean = false,
     val scroll: ScrollConfig = ScrollConfig(),
 ) {
-    val isRefreshedSimple: Boolean get() = refreshedSimple && simpleLyricsMode && !appleMusic
-    /** The brighter unsung tail applies only inside the line being sung. */
-    val activeGradientAlphaDim: Float get() = if (isRefreshedSimple) 0.4f else gradientAlphaDim
-    val isSimple: Boolean get() = simpleLyricsMode
+    val isBloom: Boolean get() = bloom
     val isMinimal: Boolean get() = minimalLyricsMode
-    val isAppleMusic: Boolean get() = appleMusic
 
     companion object {
-        val FULL = RenderConfig(false, false)
-        val SIMPLE = RenderConfig(true, false)
-        val MINIMAL = RenderConfig(false, true)
-
-        fun create(
-            simpleLyricsMode: Boolean,
-            minimalLyricsMode: Boolean,
-            fullscreen: Boolean = true,
-            compact: Boolean = false,
-        ) = RenderConfig(
-            simpleLyricsMode = simpleLyricsMode,
-            minimalLyricsMode = minimalLyricsMode && fullscreen && !compact,
-        )
+        val FULL = RenderConfig()
+        val BLOOM = RenderConfig(bloom = true)
+        val MINIMAL = RenderConfig(minimalLyricsMode = true)
     }
 }

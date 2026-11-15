@@ -8,9 +8,9 @@ data class LetterAnimState(
     val scale: Float,
     val yOffset: Float,
     val glow: Float,
-    /** Sideways offset in lyric font sizes; only the Apple Music style's held words spread apart. */
+    /** Bloom: the sideways push of a held word's letter, in em of its own text. */
     val xOffset: Float = 0f,
-    /** The Apple Music style's glow radius, in lyric font sizes. */
+    /** Bloom: the glow's blur radius, in em of the letter's own text. */
     val glowRadius: Float = 0f,
 )
 
@@ -47,14 +47,26 @@ data class LineAnimState(
     /** Every glow halo is suppressed (low performance mode), not just distance blur. */
     val suppressShadows: Boolean = false,
     val state: ElementState = ElementState.NotSung,
-    /** The Apple Music style's background vocals: how far open (0 folded away and taking no room, 1 open). */
+    /** Background Vocal Pop-Out: how far open a background line is (0 folded away and taking no room, 1 open). */
     val presence: Float = 1f,
     /** Where [presence] is headed; the scroll aims at the layout that leaves. */
     val presenceGoal: Float = presence,
-    /** The Apple Music style: how lit an ended line still is, 1 just ended → 0 back to the unsung colour. */
+    /** Bloom: how lit the line's text is, 1 lit → 0 back at rest (a sung line dimming, a line-synced line fading). */
     val lit: Float = 0f,
+    /** Bloom with animated rows: how lit the line's whole-line rows are (see [lit], but its own timing). */
+    val rowLit: Float = 0f,
     /** Interlude dots: the whole group's breathing, about its middle, on top of [scale]. */
     val groupScale: Float = 1f,
+    /**
+     * Animated rows: the under-line romanization's words animated as words of their own, by
+     * word of the line. Empty when the row isn't animated.
+     */
+    val rowWordStates: List<WordAnimState> = emptyList(),
+    /**
+     * Word-by-word romanization highlight: per word of the line a pair, how lit it is (0 dim,
+     * 1 sung, 2 being sung) and its glow. Empty when the row doesn't use it.
+     */
+    val rowHighlight: List<Float> = emptyList(),
 )
 
 /**
@@ -63,12 +75,15 @@ data class LineAnimState(
 enum class ElementState { NotSung, Active, Sung }
 
 /**
- * A line's measured sizes in px, for Refreshed Simple's single fill edge: each word's text width,
- * the [gap] after every word but the last, each held word's letters, and the text's font size.
+ * A line's measured sizes in px, for Bloom's single fill edge: each word's text width, the [gap]
+ * after every word but the last, each held word's letters, and the text's font size; and per word,
+ * the wrapped row it starts on and how many letters it draws.
  */
 class LineSweepGeometry(
     val wordWidths: FloatArray,
     val gap: Float,
     val letterWidths: Array<FloatArray?>,
     val fontPx: Float,
+    val rows: IntArray = IntArray(wordWidths.size),
+    val letterCounts: IntArray = IntArray(wordWidths.size),
 )

@@ -157,7 +157,11 @@ import com.tx24.spicyplayer.ui.nowplaying.MiniCreditLine
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.style.TextOverflow
 import com.tx24.spicyplayer.lyrics.spicy.canvas.LyricsLayoutCalculator
+import com.tx24.spicyplayer.ui.components.CAPSULE_PAD
+import com.tx24.spicyplayer.ui.components.CapsuleButton
 import com.tx24.spicyplayer.ui.components.GlassButton
+import com.tx24.spicyplayer.ui.components.GlassCapsule
+import com.tx24.spicyplayer.ui.components.LocalGroupedControls
 import com.tx24.spicyplayer.ui.components.LocalBackdrop
 import com.tx24.spicyplayer.ui.nowplaying.SessionCustomAction
 import com.tx24.spicyplayer.ui.nowplaying.SlidingAlignment
@@ -414,6 +418,8 @@ private class FloatingAction(
     val label: String,
     val keep: Int,
     val onClick: () -> Unit,
+    /** Whether a toggle is on; null for a button that only acts. The grouped look shows it as a knocked-out disc. */
+    val toggled: Boolean? = null,
     /** Draws the glyph; takes the icon's size as drawn for a 48dp button and scales it. */
     val icon: @Composable (scaled: (Float) -> Dp) -> Unit,
 )
@@ -436,28 +442,53 @@ internal fun fitButtons(width: Dp, count: Int, minSize: Dp, maxSize: Dp, minGap:
 /** The buttons in [width], with the ones that don't fit behind a More button at the row's end. */
 @Composable
 private fun FloatingButtons(actions: List<FloatingAction>, width: Dp, minSize: Dp, maxSize: Dp, minGap: Dp, maxGap: Dp) {
-    val fit = fitButtons(width, actions.size, minSize, maxSize, minGap, maxGap)
+    val grouped = LocalGroupedControls.current
+    // One capsule holds the buttons: it takes a little of the width, and the buttons sit closer, since
+    // only a toggle that is on shows where its circle ends.
+    val fit = if (grouped) {
+        fitButtons(width - maxSize * (2 * CAPSULE_PAD), actions.size, minSize, maxSize, GROUPED_MIN_GAP, GROUPED_MAX_GAP)
+    } else {
+        fitButtons(width, actions.size, minSize, maxSize, minGap, maxGap)
+    }
     val kept = if (fit.slots >= actions.size) actions.toSet()
     else actions.sortedByDescending { it.keep }.take(fit.slots - 1).toSet()
     val overflow = actions.filter { it !in kept }
     fun icon(dp: Float) = fit.size * (dp / FLOATING_SIZE.value)
+    if (grouped) {
+        GlassCapsule {
+            Row(Modifier.padding(fit.size * CAPSULE_PAD), horizontalArrangement = Arrangement.spacedBy(fit.gap)) {
+                actions.filter { it in kept }.forEach { action ->
+                    CapsuleButton(onClick = action.onClick, contentDescription = action.label, size = fit.size, toggled = action.toggled) { action.icon(::icon) }
+                }
+                if (overflow.isNotEmpty()) MoreButton(overflow, fit.size, grouped = true)
+            }
+        }
+        return
+    }
     Row(horizontalArrangement = Arrangement.spacedBy(fit.gap)) {
         actions.filter { it in kept }.forEach { action ->
             GlassButton(onClick = action.onClick, contentDescription = action.label, size = fit.size) { action.icon(::icon) }
         }
-        if (overflow.isNotEmpty()) MoreButton(overflow, fit.size)
+        if (overflow.isNotEmpty()) MoreButton(overflow, fit.size, grouped = false)
     }
 }
 
 /** A glass button that opens a menu of [actions], each with its glyph and name. */
 @Composable
-private fun MoreButton(actions: List<FloatingAction>, size: Dp) {
+private fun MoreButton(actions: List<FloatingAction>, size: Dp, grouped: Boolean) {
     // Drives the open and close animation; the popup stays up until the close finishes.
     val menu = remember { MutableTransitionState(false) }
     val haptics = LocalHapticFeedback.current
     Box {
-        GlassButton(onClick = { menu.targetState = !menu.targetState }, contentDescription = "More", size = size) {
-            MoreGlyph(Modifier.size(size * (24f / FLOATING_SIZE.value)))
+        val toggle = { menu.targetState = !menu.targetState }
+        if (grouped) {
+            CapsuleButton(onClick = toggle, contentDescription = "More", size = size) {
+                MoreGlyph(Modifier.size(size * (24f / FLOATING_SIZE.value)))
+            }
+        } else {
+            GlassButton(onClick = toggle, contentDescription = "More", size = size) {
+                MoreGlyph(Modifier.size(size * (24f / FLOATING_SIZE.value)))
+            }
         }
         if (menu.currentState || menu.targetState) {
             val margin = with(LocalDensity.current) { SpicySpacing.S2.roundToPx() }
@@ -546,8 +577,9 @@ private fun floatingActions(
 ): List<FloatingAction> = buildList {
     if (romanizeAvailable) {
         // Shows what a tap switches to: "A" to go back, the kana mark to romanize.
-        add(FloatingAction(if (romanized) "Show original lyrics" else "Romanize lyrics", keep = 80, onToggleRomanize) { icon ->
-            if (romanized) {
+        add(FloatingAction(if (romanized) "Show original lyrics" else "Romanize lyrics", keep = 80, onToggleRomanize, toggled = romanized) { icon ->
+            // The capsule shows "on" as a knocked-out disc, so the glyph stays the same there.
+            if (romanized && !LocalGroupedControls.current) {
                 Image(rememberVectorPainter(SpicyGlyphs.DisableRomanization), null, Modifier.size(icon(23f)))
             } else {
                 Image(rememberVectorPainter(SpicyGlyphs.EnableRomanization), null, Modifier.size(icon(23f)))
@@ -557,7 +589,7 @@ private fun floatingActions(
     // In groups: the lyric text (romanize, translate), the view, the app's tools, the player's own
     // buttons, then settings.
     controls.onTranslate?.let { toggle ->
-        add(FloatingAction(if (controls.translated) "Turn translation off" else "Translate", keep = 78, toggle) { icon ->
+        add(FloatingAction(if (controls.translated) "Turn translation off" else "Translate", keep = 78, toggle, toggled = controls.translated) { icon ->
             if (controls.translating) {
                 // A spinning ring in the glyph's place until the translation lands.
                 val turn by rememberInfiniteTransition(label = "translating").animateFloat(
@@ -574,8 +606,8 @@ private fun floatingActions(
     if (showResync) add(FloatingAction("Resync lyrics", keep = 30, controls.onResync) { icon ->
         ResyncGlyph(Modifier.size(icon(23f)))
     })
-    if (showExpand) add(FloatingAction(if (expanded) "Show lyrics" else "Show the cover", keep = 70, onToggleExpanded) { icon ->
-        ExpandGlyph(expanded, Modifier.size(icon(23f)))
+    if (showExpand) add(FloatingAction(if (expanded) "Show lyrics" else "Show the cover", keep = 70, onToggleExpanded, toggled = expanded) { icon ->
+        ExpandGlyph(expanded && !LocalGroupedControls.current, Modifier.size(icon(23f)))
     })
     if (onSwapSide != null) add(FloatingAction("Move the cover to the other side", keep = 60, onSwapSide) { icon ->
         SwapSideGlyph(coverOnRight, Modifier.size(icon(23f)))
@@ -600,8 +632,8 @@ private fun floatingActions(
         })
     }
     controls.onRotate?.let { rotate ->
-        add(FloatingAction(if (controls.rotated) "Back to portrait" else "Turn to landscape", keep = 25, rotate) { icon ->
-            RotateGlyph(controls.rotated, Modifier.size(icon(23f)))
+        add(FloatingAction(if (controls.rotated) "Back to portrait" else "Turn to landscape", keep = 25, rotate, toggled = controls.rotated) { icon ->
+            RotateGlyph(controls.rotated && !LocalGroupedControls.current, Modifier.size(icon(23f)))
         })
     }
     if (onEnterPip != null) add(FloatingAction("Picture-in-picture", keep = 20, onEnterPip) { icon ->
@@ -817,6 +849,9 @@ private val CONTROLS_MAX_WIDTH = 560.dp
 private val COVER_BUTTON_MAX = 40.dp
 private val COVER_BUTTON_MIN = 32.dp
 private val COVER_BUTTON_GAP = 6.dp
+/** The gaps between buttons inside the grouped capsule. */
+private val GROUPED_MIN_GAP = 4.dp
+private val GROUPED_MAX_GAP = 10.dp
 /** The one-row landscape bar ([ControlsBar]). */
 private val BAR_MIDDLE_WIDTH = 360.dp
 private val BAR_SKIP_WIDTH = 36.dp

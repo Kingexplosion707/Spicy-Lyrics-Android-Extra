@@ -57,6 +57,7 @@ import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.BatterySaver
 import androidx.compose.material.icons.rounded.Notes
+import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.UnfoldMore
 import androidx.compose.material.icons.automirrored.rounded.CallMerge
 
@@ -91,7 +92,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AutoFixOff
 import androidx.compose.material.icons.rounded.Animation
 import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material.icons.rounded.Style
@@ -118,6 +118,7 @@ import com.tx24.spicyplayer.lyrics.spicy.canvas.PinnedFooterMode
 import androidx.compose.material.icons.rounded.BlurOn
 import androidx.compose.material.icons.rounded.Flare
 import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.IosShare
@@ -330,42 +331,25 @@ internal fun MoreOptions(summary: String, content: @Composable () -> Unit) {
 internal fun LyricsContent(state: PlayerUiState, viewModel: ExternalPlaybackViewModel, settings: AppSettings) {
     LyricsLookRow(settings)
     SettingRow(
-        label = "Lyrics Style",
-        description = "How the lyrics look and move. Apple Music lifts words as they're sung, with a soft wipe, and has lines follow one after another.",
+        label = "Renderer Visual Style",
+        description = "How the lyrics look and move. Spring is the default; Bloom fills each line behind one soft edge.",
         icon = Icons.Rounded.Style,
+        searchDescription = "Lyrics Style. Simple Lyrics Mode, Refreshed Simple Lyrics, Apple Music style. Spring, Bloom.",
     ) {
         SpicySelect(
-            value = settings.lyricsStyle.name,
-            options = LyricsStyle.entries.map { it.name },
-            labels = LyricsStyle.entries.map { it.label },
-            onChange = { settings.lyricsStyle = LyricsStyle.valueOf(it) },
+            value = settings.rendererStyle.name,
+            options = RendererStyle.entries.map { it.name },
+            labels = RendererStyle.entries.map { it.label },
+            onChange = { settings.rendererStyle = RendererStyle.valueOf(it) },
         )
     }
-    // Simple, Minimal and the word motion are the Spicy Lyrics style's own.
-    val spicyStyle = settings.lyricsStyle == LyricsStyle.Spicy
     ToggleRow(
-        label = "Simple Lyrics Mode",
-        checked = settings.simpleLyricsMode,
-        onCheckedChange = { settings.simpleLyricsMode = it },
-        description = "Remove extra visual effects from lyrics.",
-        icon = Icons.Rounded.AutoFixOff,
-        enabled = spicyStyle,
-    )
-    ToggleRow(
-        label = "Refreshed Simple Lyrics",
-        checked = settings.refreshedSimpleLyrics,
-        onCheckedChange = { settings.refreshedSimpleLyrics = it },
-        description = "Softer fill, flowing letters and rippling scroll.",
-        icon = Icons.Rounded.AutoFixOff,
-        enabled = spicyStyle && settings.simpleLyricsMode,
-    )
-    ToggleRow(
-        label = "Minimal Lyrics Mode",
+        label = "Fade Away Previous Lines",
         checked = settings.minimalLyricsMode,
         onCheckedChange = { settings.minimalLyricsMode = it },
         description = "Hides sung lyrics lines.",
         icon = Icons.Rounded.VisibilityOff,
-        enabled = spicyStyle,
+        searchDescription = "Minimal Lyrics Mode. Hides sung lyrics lines.",
     )
     ToggleRow(
         label = "Original word motion",
@@ -373,7 +357,6 @@ internal fun LyricsContent(state: PlayerUiState, viewModel: ExternalPlaybackView
         onCheckedChange = { settings.originalWordMotion = it },
         description = "The desktop amount of grow and lift on sung words. Off: ${AppSettings.WORD_MOTION_BOOST}×, which reads better on a phone.",
         icon = Icons.Rounded.Height,
-        enabled = spicyStyle,
     )
     SettingsSection("Text") {
         SettingRow(
@@ -653,13 +636,19 @@ internal fun ScrollSyncContent(state: PlayerUiState, viewModel: ExternalPlayback
             description = "Show an arrow when the active lyric is outside the viewport.",
             icon = Icons.Rounded.VerticalAlignCenter,
         )
-        ToggleRow(
+        SettingRow(
             label = "Auto-scroll Unsynced Lyrics",
-            checked = settings.staticAutoScroll,
-            onCheckedChange = { settings.staticAutoScroll = it },
-            description = "Lyrics without timing scroll through at the song's pace, from top to bottom.",
+            description = "Lyrics without timing scroll through with the song. Basic holds through quiet intros, outros and breaks, using Spotify's analysis of the song.",
+            searchDescription = "Lyrics without timing scroll through at the song's pace, from top to bottom.",
             icon = Icons.Rounded.SwapVert,
-        )
+        ) {
+            SpicySelect(
+                value = settings.staticAutoScroll.name,
+                options = StaticAutoScroll.entries.map { it.name },
+                labels = StaticAutoScroll.entries.map { it.label },
+                onChange = { settings.staticAutoScroll = StaticAutoScroll.valueOf(it) },
+            )
+        }
     }
 }
 
@@ -824,7 +813,7 @@ internal fun BackgroundContent(settings: AppSettings, viewModel: ExternalPlaybac
                 label = "Move with the Music",
                 checked = settings.beatReactiveBackground && !settings.staticBackground && !settings.lowPerformance,
                 onCheckedChange = { settings.beatReactiveBackground = it },
-                description = "Speed the background up and down with the song's tempo, loudness and beats, where Spotify has them.",
+                description = "Let the background flow faster and swell in the loud parts of the song, where Spotify has them.",
                 icon = Icons.Rounded.GraphicEq,
                 enabled = !settings.staticBackground && !settings.lowPerformance,
             )
@@ -873,6 +862,13 @@ internal fun NowPlayingContent(settings: AppSettings, viewModel: ExternalPlaybac
             onChange = { settings.releaseYearPosition = ReleaseYearPosition.valueOf(it) },
         )
     }
+    ToggleRow(
+        label = "Up Next",
+        checked = settings.nextUpCard,
+        onCheckedChange = { settings.nextUpCard = it },
+        description = "In the last 30 seconds of a song, show the one queued next at the bottom of the lyrics.",
+        icon = Icons.Rounded.SkipNext,
+    )
     ToggleRow(
         label = "Animated Cover",
         checked = settings.animatedCover && !settings.lowPerformance,
@@ -1032,6 +1028,13 @@ internal fun ControlsContent(settings: AppSettings) {
     )
     LyricsGestureRows(settings)
     SettingsSection("Floating Buttons") {
+        ToggleRow(
+            label = "Grouped view controls",
+            checked = settings.groupedControls,
+            onCheckedChange = { settings.groupedControls = it },
+            description = "The buttons share one frosted capsule. Toggles fill in white while on, and the arrow back to the current line matches. Off gives each its own circle.",
+            icon = Icons.Rounded.Widgets,
+        )
         ToggleRow(
             label = "Player buttons",
             checked = settings.playerButtons,
@@ -1461,7 +1464,7 @@ internal fun SourcesContent(state: PlayerUiState, viewModel: ExternalPlaybackVie
             icon = Icons.Rounded.ClosedCaption,
         )
     }
-    MoreOptions("Custom sources, background vocals in brackets, your own Spicy Lyrics key") {
+    MoreOptions("Custom sources, background vocals in brackets, keeping lyrics longer, your own Spicy Lyrics key") {
         CustomSourcesSection(state, viewModel)
         SettingsSection("Reading lyrics") {
             ToggleRow(
@@ -1470,6 +1473,13 @@ internal fun SourcesContent(state: PlayerUiState, viewModel: ExternalPlaybackVie
                 checked = state.splitBackgroundVocals,
                 onCheckedChange = viewModel::setSplitBackgroundVocals,
                 icon = Icons.Rounded.RecordVoiceOver,
+            )
+            ToggleRow(
+                label = "Keep lyrics longer",
+                description = "Found lyrics are kept for 30 days instead of 3, so they still show offline. Off, a newly uploaded TTML arrives sooner.",
+                checked = state.keepLyricsLonger,
+                onCheckedChange = viewModel::setKeepLyricsLonger,
+                icon = Icons.Rounded.Storage,
             )
         }
         SettingsSection("Spicy Lyrics key") {

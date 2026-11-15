@@ -22,7 +22,9 @@ object SharedSpotify {
         .build()
     private val gson = Gson()
     private val catalog = AnonymousSpotifyCatalogSearch(client, gson)
-    val resolver = SpotifyTrackResolver(catalog)
+    /** Needs a key from whoever has one; until then the resolver goes straight to [catalog]. */
+    val trackSearch = SpicyTrackSearch(client, gson)
+    val resolver = SpotifyTrackResolver(catalog, trackSearch, BiniLinkIds(client, gson))
 
     @Volatile private var extras: SpotifyTrackExtras? = null
     @Volatile private var canvas: SpotifyCanvasFinder? = null

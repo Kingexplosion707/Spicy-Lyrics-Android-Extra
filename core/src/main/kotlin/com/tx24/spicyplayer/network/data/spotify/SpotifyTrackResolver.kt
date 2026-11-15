@@ -12,7 +12,13 @@ import kotlinx.coroutines.sync.withLock
  * last few matches are remembered and a track already being searched is waited for, not searched
  * twice.
  */
-class SpotifyTrackResolver(private val catalogSearch: SpotifyCatalogSearch) {
+class SpotifyTrackResolver(
+    private val catalogSearch: SpotifyCatalogSearch,
+    /** Asked first; [catalogSearch] and the matcher take over when it has no exact match. */
+    private val trackSearch: SpicyTrackSearch? = null,
+    /** Asked first for an ISRC; [catalogSearch] takes over when it doesn't say. */
+    private val idLinks: BiniLinkIds? = null,
+) {
     private val recent = object : LinkedHashMap<LocalTrackMetadata, SpotifyTrackResolution.Matched>(16, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<LocalTrackMetadata, SpotifyTrackResolution.Matched>) = size > RECENT
     }
@@ -43,13 +49,18 @@ class SpotifyTrackResolver(private val catalogSearch: SpotifyCatalogSearch) {
     suspend fun search(query: String): List<SpotifyTrackCandidate> = catalogSearch.search(query)
 
     /** The track's ISRC, for sources that look songs up by it. */
-    suspend fun isrc(trackId: String): String? = catalogSearch.isrc(trackId)
+    suspend fun isrc(trackId: String): String? = idLinks?.isrc(trackId) ?: catalogSearch.isrc(trackId)
 
     /** The match already made for [track], without searching; null if none was made lately. */
     fun remembered(track: LocalTrackMetadata): SpotifyTrackResolution.Matched? = synchronized(recent) { recent[track] }
 
     private suspend fun search(track: LocalTrackMetadata): SpotifyTrackResolution {
         val startedAt = System.nanoTime()
+        trackSearch?.match(track)?.let { match ->
+            synchronized(recent) { recent[track] = match }
+            CoreLog.d("SpotifyMatch") { "track=\"${track.title}\" by \"${track.artist}\" lookupMs=${(System.nanoTime() - startedAt) / 1_000_000} track search: ${match.track.candidate.id} +${match.alternates.size}" }
+            return match
+        }
         val candidates = catalogSearch.search(track)
         val result = SpotifyTrackMatcher.resolve(track, candidates)
         if (result is SpotifyTrackResolution.Matched) synchronized(recent) { recent[track] = result }

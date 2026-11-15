@@ -12,6 +12,8 @@ import com.tx24.spicyplayer.network.data.*
 import com.tx24.spicyplayer.network.data.providers.*
 import com.tx24.spicyplayer.network.data.spotify.AnonymousSpotifyCatalogSearch
 import com.tx24.spicyplayer.network.data.spotify.SharedSpotify
+import com.tx24.spicyplayer.network.data.spotify.BiniLinkIds
+import com.tx24.spicyplayer.network.data.spotify.SpicyTrackSearch
 import com.tx24.spicyplayer.network.data.spotify.SpotifyTrackResolver
 import com.tx24.spicyplayer.network.service.LyricsService
 import com.tx24.spicyplayer.platform.CoreLog
@@ -33,6 +35,7 @@ internal class NextLyricsBackend(context: Context, clientKey: String) {
         CoreLog.sink = { level, tag, message ->
             if (level == CoreLog.Level.WARN) Log.w(tag, message) else Log.d(tag, message)
         }
+        SharedSpotify.trackSearch.apiKey = clientKey
     }
 
     private val diskCache = File(context.cacheDir, "lyrics")
@@ -162,7 +165,7 @@ internal class NextLyricsBackend(context: Context, clientKey: String) {
     }
 
     /**
-     * The last final pick for [request]: kept [CACHE_DAYS] days,
+     * The last final pick for [request]: kept [CACHE_DAYS] days ([LONG_CACHE_DAYS] for lyrics found, with [keepLyricsLonger]),
      * "no lyrics" included, errors never. Only reused while the sources, their order, switches and
      * sync types are the ones it was picked under, since others could pick differently.
      * [manualSpotifyId], a Spotify ID the user set for the song, has picks of its own.
@@ -189,7 +192,7 @@ internal class NextLyricsBackend(context: Context, clientKey: String) {
         if (found == null && resolution !is RemoteLyricsResolution.NotFound) return
         val stored = StoredPick(
             version = CACHE_VERSION,
-            expiresAt = System.currentTimeMillis() + CACHE_DAYS * 86_400_000L,
+            expiresAt = System.currentTimeMillis() + (if (found != null && keepLyricsLonger) LONG_CACHE_DAYS else CACHE_DAYS) * 86_400_000L,
             order = enabledOrder(),
             sourceId = found?.selection?.source?.id,
             payload = found?.selection?.payload,
@@ -345,7 +348,7 @@ internal class NextLyricsBackend(context: Context, clientKey: String) {
             client: OkHttpClient,
             gson: Gson,
             clientKey: String,
-            spotifyResolver: SpotifyTrackResolver = SpotifyTrackResolver(AnonymousSpotifyCatalogSearch(client, gson)),
+            spotifyResolver: SpotifyTrackResolver = SpotifyTrackResolver(AnonymousSpotifyCatalogSearch(client, gson), SpicyTrackSearch(client, gson, clientKey), BiniLinkIds(client, gson)),
             geniusPages: GeniusSongPages = GeniusSongPages(client, gson),
             lrcRedSynced: MutableMap<String, Long> = ConcurrentHashMap(),
         ): Set<RemoteLyricsProvider> {
@@ -382,7 +385,7 @@ internal class NextLyricsBackend(context: Context, clientKey: String) {
         /** The most one request to a source may take, body included. */
         internal const val LOOKUP_CALL_TIMEOUT_S = 20L
         /** Bump when payload conversion changes, so stale conversions are refetched. */
-        private const val CACHE_VERSION = 37
+        private const val CACHE_VERSION = 38
         private const val LIVE_CAPTIONS = "liveCaptions"
         /** Outcomes that are no answer at all: a later lookup may get one. */
         private val UNANSWERED = setOf(
@@ -400,6 +403,8 @@ internal class NextLyricsBackend(context: Context, clientKey: String) {
         private const val NETEASE_ID = "netease"
         private val APP_USER_AGENT = "Spicy Lyrics Mobile ${BuildConfig.VERSION_NAME} (${BuildConfig.APPLICATION_ID})"
         private const val CACHE_DAYS = 3
+        /** What a found pick is kept for with [keepLyricsLonger]; "no lyrics" stays at [CACHE_DAYS], so a new upload shows up soon. */
+        private const val LONG_CACHE_DAYS = 30
         /** Custom sources start after every built-in one. */
         private const val CUSTOM_PRIORITY = 1_000
         internal const val SWITCHED_OFF = "switchedOff"
@@ -496,6 +501,16 @@ internal class NextLyricsBackend(context: Context, clientKey: String) {
     var splitBackgroundVocals: Boolean
         get() = preferences.getBoolean("splitBackgroundVocals", true)
         set(value) = preferences.edit().putBoolean("splitBackgroundVocals", value).apply()
+
+    /** Found lyrics are kept 30 days instead of 3: fewer lookups, and they still show offline. Off, a new TTML arrives sooner. */
+    var keepLyricsLonger: Boolean
+        get() = preferences.getBoolean("keepLyricsLonger", false)
+        set(value) = preferences.edit().putBoolean("keepLyricsLonger", value).apply()
+
+    /** On-device Japanese romaji spelled as lyric pages write it (kyou); off, as said with macrons (kyō). */
+    var writtenRomaji: Boolean
+        get() = preferences.getBoolean("writtenRomaji", true)
+        set(value) = preferences.edit().putBoolean("writtenRomaji", value).apply()
 
     /** Human-written romanizations from Genius over the on-device ones (off until asked for: it asks Genius). */
     var humanRomanizations: Boolean

@@ -6,6 +6,7 @@ import android.content.pm.ActivityInfo
 import com.tx24.spicyplayer.ui.settings.LocalAppIcon
 import com.tx24.spicyplayer.ui.settings.AppIcon
 import com.tx24.spicyplayer.ui.settings.SettingsPage
+import com.tx24.spicyplayer.ui.settings.StaticAutoScroll
 import com.tx24.spicyplayer.ui.components.LocalPopupPalette
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
@@ -50,6 +51,9 @@ import com.tx24.spicyplayer.haptics.LyricHapticTimes
 import com.tx24.spicyplayer.ui.components.SpicyButton
 import com.tx24.spicyplayer.ui.components.SpicyButtonStyle
 import com.tx24.spicyplayer.ui.components.SpicyModal
+import com.tx24.spicyplayer.ui.nowplaying.NextUpCard
+import com.tx24.spicyplayer.playback.NextUp
+import com.tx24.spicyplayer.playback.QueueEntry
 import com.tx24.spicyplayer.ui.components.SpicyToastHost
 import com.tx24.spicyplayer.ui.lyricsmanager.LyricsManagerModal
 import com.tx24.spicyplayer.ui.components.SpicyModalActions
@@ -143,7 +147,11 @@ import com.tx24.spicyplayer.lyrics.spicy.canvas.ActiveLineDirection
 import com.tx24.spicyplayer.lyrics.spicy.canvas.PinnedFooterMode
 import com.tx24.spicyplayer.ui.profile.ProfileModal
 import com.tx24.spicyplayer.lyrics.spicy.canvas.PinnedLyricsFooter
+import com.tx24.spicyplayer.ui.components.CAPSULE_PAD
+import com.tx24.spicyplayer.ui.components.CapsuleButton
 import com.tx24.spicyplayer.ui.components.GlassButton
+import com.tx24.spicyplayer.ui.components.GlassCapsule
+import com.tx24.spicyplayer.ui.components.LocalGroupedControls
 import com.tx24.spicyplayer.ui.settings.LyricsFont
 import com.tx24.spicyplayer.ui.settings.LyricsFontFile
 import androidx.compose.ui.text.font.FontFamily
@@ -227,7 +235,7 @@ import com.tx24.spicyplayer.ui.nowplaying.TrackDirection
 import androidx.compose.animation.core.spring
 import com.tx24.spicyplayer.ui.settings.AppSettings
 import com.tx24.spicyplayer.ui.settings.SystemBarsMode
-import com.tx24.spicyplayer.ui.settings.LyricsStyle
+import com.tx24.spicyplayer.ui.settings.RendererStyle
 import com.tx24.spicyplayer.lyrics.spicy.canvas.LyricsLayoutCalculator
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
@@ -377,6 +385,7 @@ class LyricsActivity : ComponentActivity() {
                 ProvideTouchHaptics(settings.touchHaptics) {
                     CompositionLocalProvider(
                         LocalUiAnimations provides (settings.uiAnimations && !settings.lowPerformance),
+                        LocalGroupedControls provides settings.groupedControls,
                         LocalPopupPalette provides settings.popupTheme.palette,
                         LocalAppIcon provides settings.appIcon,
                     ) {
@@ -774,19 +783,18 @@ private fun LyricsApp(
     // Elsewhere, where a touch leaves the controls alone: the cover's gestures, credit links.
     val revealGuard = remember { ControlsRevealGuard() }
     // Built fresh, not copied: the mode-dependent defaults are worked out in the constructor.
-    val appleMusicStyle = settings.lyricsStyle == LyricsStyle.AppleMusic
+    val bloom = settings.rendererStyle == RendererStyle.Bloom
     val renderConfig = RenderConfig(
-        // Simple and Minimal are Spicy Lyrics' modes; the Apple Music style has its own look.
-        simpleLyricsMode = settings.simpleLyricsMode && !appleMusicStyle,
-        minimalLyricsMode = settings.minimalLyricsMode && !appleMusicStyle,
-        appleMusic = appleMusicStyle,
-        refreshedSimple = settings.refreshedSimpleLyrics && settings.simpleLyricsMode && !appleMusicStyle,
+        bloom = bloom,
+        minimalLyricsMode = settings.minimalLyricsMode,
         wordMotionBoost = settings.wordMotionBoost,
         wideDuetPadding = settings.duetLinePadding,
         creditsFollowLastLine = settings.creditsFollowLastLine,
         refinedCredits = settings.refinedCredits,
-        backgroundPop = settings.backgroundPop && !appleMusicStyle,
+        backgroundPop = settings.backgroundPop,
         keepOverlappingLines = settings.keepOverlappingLines,
+        romanizationHighlight = settings.romanizationHighlight,
+        animatedUnderRows = settings.animatedUnderRows,
         syllableMerge = settings.syllableMerge,
         syllablePace = settings.syllablePace,
         distanceBlurEnabled = settings.distanceBlur && !lowPerformance,
@@ -797,7 +805,9 @@ private fun LyricsApp(
             leadMs = if (settings.scrollLeadEnabled) settings.scrollLeadMs.coerceAtLeast(0).toLong() else 0L,
             smooth = settings.smoothScrolling,
             seekFadeCompensation = settings.seekFadeCompensation,
-            staticSongMs = if (settings.staticAutoScroll) state.durationMs else 0L,
+            staticSongMs = if (settings.staticAutoScroll != StaticAutoScroll.Off) state.durationMs else 0L,
+            staticPace = viewModel::staticPace,
+            bloomEarly = inPip,
         ),
     )
     var showSettings by remember { mutableStateOf(false) }
@@ -972,6 +982,8 @@ private fun LyricsApp(
         releaseYear = settings.releaseYearPosition != ReleaseYearPosition.Off,
         artistHeader = backgroundType.usesArtistHeader,
         beats = beatReactive || musicHapticsOn,
+        staticPace = settings.staticAutoScroll == StaticAutoScroll.Basic &&
+            (state.lyrics as? LyricsState.Ready)?.lyricsType == LyricsType.Static,
     )
     LaunchedEffect(extrasWanted) { viewModel.setTrackExtrasWanted(extrasWanted) }
     // Vibrates with the beats while the song plays and the app is in front with the screen on.
@@ -1139,6 +1151,29 @@ private fun LyricsApp(
                 // while the bottom controls show (they'd move under a finger otherwise). The lyrics
                 // fade out above them.
                 var pinnedHeightPx by remember { mutableIntStateOf(0) }
+                // Up Next: the song queued after this one, for the last stretch of this one. It
+                // sits where the pinned credits do, and the lyrics fade out above it.
+                var nextUpHeightPx by remember { mutableIntStateOf(0) }
+                val queuedNext = remember(state.queue) { NextUp.nextEntry(state.queue) }
+                var heldNext by remember { mutableStateOf<QueueEntry?>(null) }
+                LaunchedEffect(queuedNext) { if (queuedNext != null) heldNext = queuedNext }
+                var nextUpDue by remember { mutableStateOf(false) }
+                LaunchedEffect(settings.nextUpCard, queuedNext != null, state.durationMs, state.isPlaying, state.title) {
+                    if (!settings.nextUpCard || queuedNext == null) {
+                        nextUpDue = false
+                        return@LaunchedEffect
+                    }
+                    while (true) {
+                        nextUpDue = NextUp.due(viewModel.currentPositionMs(), state.durationMs)
+                        delay(NEXT_UP_TICK_MS)
+                    }
+                }
+                val nextUpActive by animateFloatAsState(
+                    if (nextUpDue && queuedNext != null && !overlayOpen && !ambient && !inPip && expansion == 0f) 1f else 0f,
+                    tween(280),
+                    label = "nextUp",
+                )
+                val nextUpClearPx = with(LocalDensity.current) { 24.dp.toPx() }
                 val pinnedGapPx = with(LocalDensity.current) { PINNED_FOOTER_GAP.toPx() }
                 val pinnedClearPx = with(LocalDensity.current) { 8.dp.toPx() }
                 // While the controls show, the scroll-to-active button keeps clear of them.
@@ -1281,7 +1316,7 @@ private fun LyricsApp(
                         blurDp = settings.backgroundBlurFor(backgroundType),
                         artistHeaderUrl = state.artistHeaderUrl,
                         artistHeaderPending = state.artistHeaderPending,
-                        speed = if (beatReactive) viewModel::backgroundSpeed else null,
+                        motion = if (beatReactive) viewModel.backgroundMotion else null,
                         refined = settings.refinedBackground,
                         followMotionUrl = followMotionUrl?.takeIf { it != failedFollowMotionUrl },
                         onFollowMotionFailed = {
@@ -1404,7 +1439,11 @@ private fun LyricsApp(
                             // Pinned credits fade out under the controls, so while those show the
                             // credits go back to the end of the lyrics.
                             pinnedFooter = if (controlsVisible && bottomBar) PinnedFooterMode.Off else pinnedFooter,
-                            maskBottomPx = { if (pinnedHeightPx > 0) pinnedGapPx + pinnedHeightPx + pinnedClearPx else 0f },
+                            maskBottomPx = {
+                                val credits = if (pinnedHeightPx > 0) pinnedGapPx + pinnedHeightPx + pinnedClearPx else 0f
+                                val card = if (nextUpHeightPx > 0) pinnedGapPx + credits + nextUpHeightPx + nextUpClearPx else 0f
+                                maxOf(credits, card * nextUpActive)
+                            },
                             config = renderConfig,
                             fontSizeScale = lyricsFontScale,
                             noticeActions = noticeActions,
@@ -1633,6 +1672,18 @@ private fun LyricsApp(
                         modifier = Modifier.align(Alignment.BottomCenter),
                     )
                 }
+                NextUpCard(
+                    entry = queuedNext ?: heldNext,
+                    shown = { nextUpActive * (1f - if (bottomBar) controlsShown else 0f) },
+                    onHeight = { nextUpHeightPx = it },
+                    modifier = Modifier
+                        .align(if (landscape) Alignment.BottomStart else Alignment.BottomCenter)
+                        .padding(belowTop)
+                        .inLyricsBox()
+                        .graphicsLayer {
+                            translationY = -(pinnedGapPx + if (pinnedHeightPx > 0) pinnedHeightPx + pinnedClearPx else 0f)
+                        },
+                )
                 // Over the controls' shade rather than under it, so neither blurs nor covers them.
                 PinnedLyricsFooter(
                     state = lyricsViewState,
@@ -1978,6 +2029,7 @@ private val PIP_LINE_TOP = 14.dp
 
 /** Pinned credits' distance above the controls or the screen's edge (20px + 1.25rem). */
 private val PINNED_FOOTER_GAP = 20.dp
+private const val NEXT_UP_TICK_MS = 500L
 /** The cover stage's side swap: out, then in, drifting this share of the screen's width. */
 private const val STAGE_SWAP_OUT_MS = 160
 private const val STAGE_SWAP_IN_MS = 420
@@ -2020,14 +2072,47 @@ private fun ScrollToActiveButton(
     val above = shownDirection == ActiveLineDirection.Above
     val rotation by animateFloatAsState(if (above) 180f else 0f, tween(200), label = "scrollToActiveArrow")
     if (alpha == 0f && !visible) return
+    val grouped = LocalGroupedControls.current
+    val label = if (above) "Scroll up to active lyric" else "Scroll down to active lyric"
     BoxWithConstraints(modifier.fillMaxSize()) {
         val density = LocalDensity.current
         // clamp(2rem, 8cqh, 6rem) from the lyrics' top or bottom edge.
         val edge = (maxHeight * 0.08f).coerceIn(32.dp, 96.dp)
         val top = with(density) { topPx.toDp() } + edge
+        val arrow = @Composable {
+            Icon(
+                Icons.Rounded.KeyboardArrowDown,
+                null,
+                Modifier.size(28.dp).graphicsLayer { rotationZ = rotation },
+                tint = SpicyColors.TextPrimary,
+            )
+        }
+        if (grouped) {
+            // A one-button capsule in the bottom corner, above the controls, whichever way the line
+            // is: the arrow turns to point there.
+            GlassCapsule(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 24.dp - 48.dp * CAPSULE_PAD)
+                    .graphicsLayer {
+                        translationY = -(bottomPx() + edge.toPx())
+                        this.alpha = alpha
+                        scaleX = scale
+                        scaleY = scale
+                    },
+            ) {
+                CapsuleButton(
+                    onClick = { if (visible) onClick() },
+                    contentDescription = label,
+                    size = 48.dp,
+                    modifier = Modifier.padding(48.dp * CAPSULE_PAD),
+                ) { arrow() }
+            }
+            return@BoxWithConstraints
+        }
         GlassButton(
             onClick = { if (visible) onClick() },
-            contentDescription = if (above) "Scroll up to active lyric" else "Scroll down to active lyric",
+            contentDescription = label,
             size = 48.dp,
             modifier = Modifier
                 .align(if (above) Alignment.BottomEnd else Alignment.TopEnd)
@@ -2038,14 +2123,7 @@ private fun ScrollToActiveButton(
                     scaleX = scale
                     scaleY = scale
                 },
-        ) {
-            Icon(
-                Icons.Rounded.KeyboardArrowDown,
-                null,
-                Modifier.size(28.dp).graphicsLayer { rotationZ = rotation },
-                tint = SpicyColors.TextPrimary,
-            )
-        }
+        ) { arrow() }
     }
 }
 
@@ -2362,10 +2440,10 @@ private fun LyricsPanelContent(
                     )
                 }
             }
-            val rendererLines = remember(originalLines, config.isMinimal, config.isSimple) {
+            val rendererLines = remember(originalLines, config.isMinimal, config.isBloom) {
                 buildDisplayTimeline(originalLines, minimalMode = config.isMinimal, holdThroughShortGaps = when (lyrics.lyricsType) {
-                    LyricsType.Syllable -> config.isMinimal
-                    LyricsType.Line -> config.isSimple
+                    LyricsType.Syllable -> config.isMinimal || config.isBloom
+                    LyricsType.Line -> config.isBloom
                     else -> false
                 })
             }

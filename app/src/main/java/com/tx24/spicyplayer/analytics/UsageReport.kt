@@ -3,6 +3,7 @@ package com.tx24.spicyplayer.analytics
 import com.tx24.spicyplayer.ui.nowplaying.LoopKind
 import com.tx24.spicyplayer.ui.nowplaying.StageArt
 import com.tx24.spicyplayer.ui.settings.AppSettings
+import com.tx24.spicyplayer.ui.settings.StaticAutoScroll
 
 /** How often the settings snapshot and the usage counts go out. */
 const val DAILY_INTERVAL_MS = 24 * 60 * 60 * 1000L
@@ -68,9 +69,7 @@ fun dailyUsageData(counts: Map<String, Int>): Map<String, Any> {
 /** Which settings are in use, by name and value; never a typed-in value (font names, keys). */
 fun configSnapshot(settings: AppSettings): Map<String, Any> = with(settings) {
     mapOf(
-        "lyrics_style" to lyricsStyle.name,
-        "simple_mode" to simpleLyricsMode,
-        "refreshed_simple_lyrics" to refreshedSimpleLyrics,
+        "renderer_style" to rendererStyle.name,
         "minimal_mode" to minimalLyricsMode,
         "original_word_motion" to originalWordMotion,
         "lyrics_size" to lyricsSizePortrait,
@@ -91,7 +90,8 @@ fun configSnapshot(settings: AppSettings): Map<String, Any> = with(settings) {
         "scroll_lead_ms" to scrollLeadMs,
         "seek_fade_compensation" to seekFadeCompensation,
         "smooth_scrolling" to smoothScrolling,
-        "static_auto_scroll" to staticAutoScroll,
+        "static_auto_scroll" to (staticAutoScroll != StaticAutoScroll.Off),
+        "static_auto_scroll_mode" to staticAutoScroll.name,
         "distance_blur" to distanceBlur,
         "glow" to glow,
         "low_performance" to lowPerformance,
@@ -148,6 +148,7 @@ fun configSnapshot(settings: AppSettings): Map<String, Any> = with(settings) {
         "quick_settings_button" to quickSettingsButton,
         "lyrics_manager_button" to lyricsManagerButton,
         "queue_button" to queueButton,
+        "grouped_controls" to groupedControls,
         "source_button" to sourceButton,
         "player_buttons" to playerButtons,
         "romanize_button" to romanizeButton,

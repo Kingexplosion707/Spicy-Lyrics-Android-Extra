@@ -67,7 +67,8 @@ import com.tx24.spicyplayer.ui.nowplaying.rememberMotionCoverStream
 import com.tx24.spicyplayer.ui.settings.AppSettings
 import com.tx24.spicyplayer.ui.settings.LyricsFont
 import com.tx24.spicyplayer.ui.settings.LyricsFontFile
-import com.tx24.spicyplayer.ui.settings.LyricsStyle
+import com.tx24.spicyplayer.ui.settings.RendererStyle
+import com.tx24.spicyplayer.ui.settings.StaticAutoScroll
 import com.tx24.spicyplayer.ui.settings.WallpaperCover
 import androidx.compose.ui.draw.clipToBounds
 import com.tx24.spicyplayer.translation.TranslationPresentation
@@ -385,18 +386,17 @@ internal fun WallpaperLyrics(
     /** The most frames a second the lyrics draw; 0 for every frame. */
     maxFrameRate: Float = 0f,
 ) {
-    val appleMusicStyle = settings.lyricsStyle == LyricsStyle.AppleMusic
     val config = RenderConfig(
-        simpleLyricsMode = settings.simpleLyricsMode && !appleMusicStyle,
-        minimalLyricsMode = settings.minimalLyricsMode && !appleMusicStyle,
-        appleMusic = appleMusicStyle,
-        refreshedSimple = settings.refreshedSimpleLyrics && settings.simpleLyricsMode && !appleMusicStyle,
+        bloom = settings.rendererStyle == RendererStyle.Bloom,
+        minimalLyricsMode = settings.minimalLyricsMode,
         wordMotionBoost = if (reduced) 0f else settings.wordMotionBoost,
         wideDuetPadding = settings.duetLinePadding,
         creditsFollowLastLine = settings.creditsFollowLastLine,
         refinedCredits = settings.refinedCredits,
-        backgroundPop = settings.backgroundPop && !appleMusicStyle && !reduced,
+        backgroundPop = settings.backgroundPop && !reduced,
         keepOverlappingLines = settings.keepOverlappingLines,
+        romanizationHighlight = settings.romanizationHighlight,
+        animatedUnderRows = settings.animatedUnderRows && !reduced,
         syllableMerge = settings.syllableMerge,
         syllablePace = settings.syllablePace,
         distanceBlurEnabled = settings.distanceBlur && !settings.lowPerformance && !reduced,
@@ -407,16 +407,16 @@ internal fun WallpaperLyrics(
             leadMs = if (settings.scrollLeadEnabled) settings.scrollLeadMs.coerceAtLeast(0).toLong() else 0L,
             smooth = settings.smoothScrolling,
             seekFadeCompensation = settings.seekFadeCompensation,
-            staticSongMs = if (settings.staticAutoScroll) durationMs else 0L,
+            staticSongMs = if (settings.staticAutoScroll != StaticAutoScroll.Off) durationMs else 0L,
         ),
     )
     // Prepared off the main thread: new lyrics arriving mid-transition don't stall its frames.
-    val prepared by androidx.compose.runtime.produceState<Pair<List<Line>, List<Line>>?>(null, lyrics.lines, config.isMinimal, config.isSimple, lyrics.lyricsType) {
+    val prepared by androidx.compose.runtime.produceState<Pair<List<Line>, List<Line>>?>(null, lyrics.lines, config.isMinimal, config.isBloom, lyrics.lyricsType) {
         value = withContext(Dispatchers.Default) {
             val original = toRendererLines(lyrics)
             original to buildDisplayTimeline(original, minimalMode = config.isMinimal, holdThroughShortGaps = when (lyrics.lyricsType) {
                 LyricsType.Syllable -> config.isMinimal
-                LyricsType.Line -> config.isSimple
+                LyricsType.Line -> config.isBloom
                 else -> false
             })
         }

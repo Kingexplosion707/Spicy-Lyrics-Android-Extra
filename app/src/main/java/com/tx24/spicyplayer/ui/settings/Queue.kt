@@ -7,6 +7,12 @@ import com.tx24.spicyplayer.ui.components.LocalUiAnimations
 import androidx.compose.ui.graphics.Color
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.animation.core.Animatable
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.delay
 
 import androidx.compose.runtime.LaunchedEffect
 
@@ -67,12 +73,54 @@ import dev.chrisbanes.haze.HazeState
  * have one; none let other apps reorder or remove songs. [modifier] gives it its height: it
  * scrolls itself.
  */
+/** What the queue list shows: a section label or a song. */
+private sealed interface QueueItem {
+    val key: String
+
+    class Label(val text: String, override val key: String) : QueueItem
+    class Song(val entry: QueueEntry, override val key: String) : QueueItem
+}
+
+/**
+ * The queue as list rows: the played songs under "Earlier" (when there are any), the playing one,
+ * then "Up next". The player gives no other sections. A player may list one queue id twice (a
+ * song queued twice), and the list's keys must differ.
+ */
+private fun queueItems(queue: List<QueueEntry>): List<QueueItem> {
+    val seen = HashMap<Long, Int>()
+    val current = queue.indexOfFirst { it.current }
+    val out = ArrayList<QueueItem>(queue.size + 2)
+    queue.forEachIndexed { i, entry ->
+        if (current > 0 && i == 0) out += QueueItem.Label("Earlier", "label-earlier")
+        if (current >= 0 && i == current + 1) out += QueueItem.Label("Up next", "label-next")
+        val n = (seen[entry.id] ?: 0) + 1
+        seen[entry.id] = n
+        out += QueueItem.Song(entry, if (n == 1) entry.id.toString() else "${entry.id}#$n")
+    }
+    return out
+}
+
+/**
+ * The player's queue, a screen of quick settings: the playing song marked and scrolled to, a tap
+ * on another jumping there (or saying the player won't). Rows keep their place by queue id, so
+ * they slide to new ones when the list changes, and the first rows rise in one after another when
+ * it opens. Only players that share their queue have one; none let other apps reorder or remove
+ * songs. [modifier] gives it its height: it scrolls itself.
+ */
 @Composable
 fun QueueList(state: PlayerUiState, viewModel: ExternalPlaybackViewModel, onJumped: () -> Unit, modifier: Modifier = Modifier) {
-    val current = state.queue.indexOfFirst { it.current }.coerceAtLeast(0)
+    val items = remember(state.queue) { queueItems(state.queue) }
+    val current = items.indexOfFirst { it is QueueItem.Song && it.entry.current }.coerceAtLeast(0)
     // Opens with the playing song near the top, one before it in view.
-    val list = rememberLazyListState(initialFirstVisibleItemIndex = (current - 1).coerceAtLeast(0))
+    val firstShown = (current - 1).coerceAtLeast(0)
+    val list = rememberLazyListState(initialFirstVisibleItemIndex = firstShown)
     val animate = LocalUiAnimations.current
+    // Only the rows there when it opens rise in turn; ones scrolled to later just appear.
+    var opening by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        delay(OPEN_CASCADE_MS)
+        opening = false
+    }
     // The next song starting while the queue is open: follow it if it's out of view.
     LaunchedEffect(current) {
         val visible = list.layoutInfo.visibleItemsInfo.map { it.index }
@@ -87,23 +135,50 @@ fun QueueList(state: PlayerUiState, viewModel: ExternalPlaybackViewModel, onJump
         }
         return
     }
-    // A player may list one queue id twice (a song queued twice), and the list's keys must differ.
-    val keys = remember(state.queue) {
-        val seen = HashMap<Long, Int>()
-        state.queue.map { entry ->
-            val n = (seen[entry.id] ?: 0) + 1
-            seen[entry.id] = n
-            if (n == 1) entry.id.toString() else "${entry.id}#$n"
-        }
-    }
     LazyColumn(modifier.fillMaxWidth(), state = list, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        itemsIndexed(state.queue, key = { i, _ -> keys[i] }) { _, entry ->
-            QueueRow(entry, if (animate) Modifier.animateItem() else Modifier) {
-                viewModel.skipToQueueItem(entry.id)
-                onJumped()
+        itemsIndexed(items, key = { _, item -> item.key }) { index, item ->
+            val place = if (animate) Modifier.animateItem() else Modifier
+            val rank = index - firstShown
+            val cascade = if (opening && animate && rank in 0 until OPEN_CASCADE_ROWS) rank else -1
+            when (item) {
+                is QueueItem.Label -> QueueLabel(item.text, place.cascaded(cascade))
+                is QueueItem.Song -> QueueRow(item.entry, place.cascaded(cascade)) {
+                    viewModel.skipToQueueItem(item.entry.id)
+                    onJumped()
+                }
             }
         }
     }
+}
+
+private const val OPEN_CASCADE_ROWS = 8
+private const val OPEN_CASCADE_STEP_MS = 40L
+private const val OPEN_CASCADE_MS = 900L
+
+/** Fades and lifts in after [rank] steps; a negative [rank] is already there. */
+@Composable
+private fun Modifier.cascaded(rank: Int): Modifier {
+    val shown = remember { Animatable(if (rank >= 0) 0f else 1f) }
+    LaunchedEffect(Unit) {
+        if (shown.value < 1f) {
+            delay(rank * OPEN_CASCADE_STEP_MS)
+            shown.animateTo(1f, tween(260, easing = SpicyMotion.Standard))
+        }
+    }
+    val lift = with(LocalDensity.current) { 14.dp.toPx() }
+    return graphicsLayer {
+        alpha = shown.value
+        translationY = (1f - shown.value) * lift
+    }
+}
+
+@Composable
+private fun QueueLabel(text: String, modifier: Modifier) {
+    Text(
+        text,
+        modifier = modifier.fillMaxWidth().padding(start = SpicySpacing.S3, top = 10.dp, bottom = 2.dp),
+        style = SpicyType.Footnote.copy(color = SpicyColors.TextTertiary, fontWeight = FontWeight.SemiBold),
+    )
 }
 
 @Composable
@@ -144,13 +219,13 @@ private fun QueueRow(entry: QueueEntry, modifier: Modifier, onClick: () -> Unit)
 
 /** The entry's cover: the bitmap the player sent, else its URI, else a note. */
 @Composable
-private fun QueueCover(entry: QueueEntry) {
+internal fun QueueCover(entry: QueueEntry, size: androidx.compose.ui.unit.Dp = 40.dp) {
     val shape = RoundedCornerShape(6.dp)
-    Box(Modifier.size(40.dp).clip(shape).background(SpicyColors.TintBgPressed), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(size).clip(shape).background(SpicyColors.TintBgPressed), contentAlignment = Alignment.Center) {
         val bitmap = remember(entry.icon) { entry.icon?.asImageBitmap() }
         when {
-            bitmap != null -> Image(bitmap, null, Modifier.size(40.dp), contentScale = ContentScale.Crop)
-            entry.iconUri != null -> AsyncImage(entry.iconUri, null, Modifier.size(40.dp), contentScale = ContentScale.Crop)
+            bitmap != null -> Image(bitmap, null, Modifier.size(size), contentScale = ContentScale.Crop)
+            entry.iconUri != null -> AsyncImage(entry.iconUri, null, Modifier.size(size), contentScale = ContentScale.Crop)
             else -> Icon(Icons.Rounded.MusicNote, null, tint = SpicyColors.TextTertiary, modifier = Modifier.size(18.dp))
         }
     }
