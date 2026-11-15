@@ -27,7 +27,7 @@ class RomanizerTest {
     }
 
     @Test fun hanOnlySongIsPinyin() {
-        assertEquals(listOf(listOf("xīn")), RomanizationService.romanize(listOf(listOf("心"))))
+        assertEquals(listOf(listOf("Xīn")), RomanizationService.romanize(listOf(listOf("心"))))
     }
 
     @Test fun latinIsLeftAlone() {
@@ -42,25 +42,28 @@ class RomanizerTest {
     @Test fun syllableSplitJapaneseUsesLineContext() {
         // Some lyrics split 段々堕ちてく one character per syllable; read alone, 々 and 堕 stay unromanized.
         val syllables = listOf("段", "々", "堕", "ち", "て", "く", "I", "Q", "ク", "ソ", "ワ", "ロ")
-        val out = RomanizationService.romanize(listOf(syllables)).single()
+        val out = RomanizationService.romanize(listOf(syllables), writtenJapanese = false).single()
         // 段々 / 堕ち / て / く: a syllable that starts a word carries a leading space.
         assertEquals(listOf("dan", "dan", " o", "chi", " te", " ku"), out.take(6))
+        // Written, the endings stay on their word.
+        val written = RomanizationService.romanize(listOf(syllables)).single()
+        assertEquals(listOf("Dan", "dan", " o", "chi", "te", " ku"), written.take(6))
         assertTrue(out.none { it != null && it.any { c -> c in '぀'..'鿿' } })
     }
 
-    @Test fun koreanMatchesAromanizeTranscription() {
-        // Expected values from aromanize-js 1.0.0 "RevisedRomanizationTranscription".
+    @Test fun koreanReadsBySound() {
         mapOf(
-            "사랑해" to "saranghae", "좋아" to "joha", "없어" to "eopseo", "한국어 노래" to "hangugeo norae",
-            "밤하늘" to "bamhaneul", "괜찮아" to "gwaenchanha", "꽃잎" to "kkochip",
+            "사랑해" to "saranghae", "좋아" to "joa", "없어" to "eopseo", "한국어 노래" to "hangugeo norae",
+            "밤하늘" to "bamhaneul", "괜찮아" to "gwaenchana", "꽃잎" to "kkochip", "신라" to "silla", "같이" to "gachi",
         ).forEach { (hangul, roman) -> assertEquals(hangul, roman, KoreanRomanizer.romanize(hangul)) }
     }
 
-    @Test fun chineseMatchesSpicyLyricsPinyin() {
-        // Expected values from pinyin 4.0.0, pinyin(text, { segment: false, group: true }).join("-").
+    @Test fun chineseReadsByWord() {
         mapOf(
-            "你好 world" to "nǐ-hǎo- world", "了" to "le", "的" to "de", "长" to "cháng",
+            "你好 world" to "nǐ hǎo world", "了" to "le", "的" to "de", "长" to "cháng",
             "还" to "huán", "着" to "zháo", "為" to "wéi",
+            // A character with several readings takes its word's.
+            "行走" to "xíng zǒu", "长大" to "zhǎng dà", "重复" to "chóng fù",
         ).forEach { (han, roman) -> assertEquals(han, roman, PinyinRomanizer.romanize(han)) }
     }
 
@@ -90,5 +93,57 @@ class RomanizerTest {
         // 々 repeats the kanji before it; a bracketed reading is the kanji's, said once.
         assertEquals(listOf("san", "san"), line("燦", "々"))
         assertEquals(listOf("itan", "kabu", "ke ba"), line("異端", "傾(かぶ)", "けば"))
+    }
+
+    private fun written(vararg syllables: String, attached: List<Boolean>? = null) =
+        RomanizationService.romanize(listOf(syllables.toList()), attached?.let(::listOf)).single().map { it.orEmpty() }
+
+    /** As [written], in a song whose other lines have kana, so its kanji read as Japanese. */
+    private fun japanese(vararg syllables: String, attached: List<Boolean>? = null) =
+        RomanizationService.romanize(listOf(syllables.toList(), listOf("の")), attached?.let { listOf(it, listOf(false)) })
+            .first().map { it.orEmpty() }
+
+    @Test fun japaneseIsSpelledAsWritten() {
+        assertEquals(listOf("Watashi wa"), written("私は"))
+        assertEquals(listOf("Toukyou e"), written("東京へ"))
+        assertEquals(listOf("Koohii"), written("コーヒー"))
+        // Endings stay on their word, and を is wo.
+        assertEquals(listOf("Kimi no namae wo yonde ita"), written("君の名前を呼んでいた"))
+        // The spelling as said is still there.
+        assertEquals("tōkyō e", RomanizationService.romanize(listOf(listOf("東京へ")), writtenJapanese = false).single().single())
+    }
+
+    @Test fun spacedJapaneseSyllablesReadAsOneLine() {
+        // A space after every syllable must not make the dictionary read each kanji alone.
+        assertEquals(listOf("Se", "kai"), japanese("世 ", "界").map(String::trim))
+        assertEquals(listOf("Se", "kai"), japanese("世", "界", attached = listOf(false, false)).map(String::trim))
+        assertEquals(listOf("Gen", "jitsu"), japanese("現 ", "実").map(String::trim))
+    }
+
+    @Test fun hyphenatedJapaneseStaysJoined() {
+        assertEquals(listOf("Doki-doki"), written("ドキ-ドキ"))
+        assertEquals(listOf("Doki-", "doki"), written("ドキ-", "ドキ"))
+    }
+
+    @Test fun japaneseSignsAreWrittenOut() {
+        assertEquals(listOf("Sonna koto"), written("ｿﾝﾅこと"))
+        assertEquals(listOf("\"Ai\""), japanese("『愛』"))
+    }
+
+    @Test fun koreanReadsAcrossSyllableSeams() {
+        assertEquals(listOf("Ga", "chi"), written("같", "이", attached = listOf(false, true)))
+        assertEquals(listOf("Meong", "neun"), written("먹", "는", attached = listOf(false, true)))
+        // Not across two words.
+        assertEquals(listOf("Meok", "neun"), written("먹", "는", attached = listOf(false, false)))
+    }
+
+    @Test fun cyrillicPicksItsTable() {
+        assertEquals(listOf("Ya tebya lyublyu"), written("Я тебя люблю"))
+        assertEquals(listOf("Kyiv"), written("Київ"))
+        assertEquals("shchi", CyrillicRomanizer.romanize("щи"))
+    }
+
+    @Test fun onlyRomanizedFirstWordsAreCapitalized() {
+        assertEquals(listOf("", " ai"), japanese("Oh", "愛", attached = listOf(false, false)))
     }
 }

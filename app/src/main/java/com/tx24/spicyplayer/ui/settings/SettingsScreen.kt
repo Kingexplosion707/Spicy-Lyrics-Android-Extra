@@ -652,7 +652,7 @@ private fun PageSkeleton(page: SettingsPage) {
             SettingsSkeleton(rows = 1, cards = true)
             SettingsSkeleton(rows = 5)
         }
-        SettingsPage.Lyrics -> SettingsSkeleton(rows = 11)
+        SettingsPage.Lyrics -> SettingsSkeleton(rows = 9)
         SettingsPage.Translation -> SettingsSkeleton(rows = 6)
         SettingsPage.ScrollSync -> SettingsSkeleton(rows = 9)
         SettingsPage.Background -> SettingsSkeleton(rows = 4)
@@ -687,15 +687,10 @@ private fun HomeGroups(state: PlayerUiState, settings: AppSettings, updater: Upd
             Icons.Rounded.TextFields,
             SettingsPage.Lyrics.title,
             listOfNotNull(
-                when {
-                    settings.lyricsStyle == LyricsStyle.AppleMusic -> "Apple Music style"
-                    settings.simpleLyricsMode && settings.minimalLyricsMode -> "Simple and Minimal"
-                    settings.simpleLyricsMode -> "Simple"
-                    settings.minimalLyricsMode -> "Minimal"
-                    else -> null
-                },
-                (if (settings.originalWordMotion) "Original word motion" else "Boosted word motion")
-                    .takeIf { settings.lyricsStyle == LyricsStyle.Spicy },
+                settings.rendererStyle.name,
+                "fading away sung lines".takeIf { settings.minimalLyricsMode },
+                (if (settings.originalWordMotion) "original word motion" else "boosted word motion")
+                    .takeIf { settings.rendererStyle == RendererStyle.Spring },
                 "${settings.lyricsSizePortrait}% text".takeIf { settings.lyricsSizePortrait != 100 },
                 when (settings.lyricsFont) {
                     LyricsFont.Default -> null

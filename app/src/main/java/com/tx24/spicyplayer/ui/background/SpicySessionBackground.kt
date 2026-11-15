@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import com.tx24.spicyplayer.lyrics.spicy.canvas.DynamicBackgroundView
 import com.tx24.spicyplayer.lyrics.spicy.canvas.kawarp.KawarpBackground
+import com.tx24.spicyplayer.lyrics.spicy.canvas.kawarp.MotionSource
 import com.tx24.spicyplayer.ui.nowplaying.SessionArtwork
 import com.tx24.spicyplayer.ui.nowplaying.loadSessionArtwork
 import com.tx24.spicyplayer.ui.nowplaying.rememberSessionArtwork
@@ -36,8 +37,8 @@ import kotlinx.coroutines.launch
  * The page's background, of the chosen [type], from the artwork the remote session publishes.
  *
  * The artist-header types show [artistHeaderUrl], or the cover when the artist has none; while
- * [artistHeaderPending] they keep what they show. [speed] is how fast the moving background
- * should go while playing (null: the normal speed).
+ * [artistHeaderPending] they keep what they show. [motion] drives the moving background
+ * from the song's energy while playing (null: the normal speed).
  */
 @Composable
 fun SpicySessionBackground(
@@ -55,7 +56,7 @@ fun SpicySessionBackground(
     blurDp: Int = 0,
     artistHeaderUrl: String? = null,
     artistHeaderPending: Boolean = false,
-    speed: (() -> Float?)? = null,
+    motion: MotionSource? = null,
     /** Cover Art only: the record's animated cover, played over the still one. */
     motionCoverUrl: String? = null,
     onMotionCoverFailed: () -> Unit = {},
@@ -76,7 +77,7 @@ fun SpicySessionBackground(
     @Composable
     fun background(type: BackgroundType, modifier: Modifier, retired: Boolean) = BackgroundOfType(
         artwork, artworkUri, isPlaying, modifier, type, animate && !retired, blurDp, artistHeaderUrl,
-        artistHeaderPending, speed, motionCoverUrl, onMotionCoverFailed, hasSession, refined, retired,
+        artistHeaderPending, motion, motionCoverUrl, onMotionCoverFailed, hasSession, refined, retired,
         followMotionUrl, onFollowMotionFailed, motionCoverHeld, customColor, photo,
     )
     if (!refined) {
@@ -135,7 +136,7 @@ private fun BackgroundOfType(
     blurDp: Int,
     artistHeaderUrl: String?,
     artistHeaderPending: Boolean,
-    speed: (() -> Float?)?,
+    motion: MotionSource?,
     motionCoverUrl: String?,
     onMotionCoverFailed: () -> Unit,
     hasSession: Boolean,
@@ -169,7 +170,7 @@ private fun BackgroundOfType(
                     isPlaying = isPlaying,
                     animate = animate,
                     blurIntensity = blurDp,
-                    speed = speed,
+                    motion = motion,
                     // Held still (or on its way out), it shows the cover.
                     videoFrames = rememberMotionFrames(followMotionUrl?.takeIf { animate }, onFollowMotionFailed),
                 )

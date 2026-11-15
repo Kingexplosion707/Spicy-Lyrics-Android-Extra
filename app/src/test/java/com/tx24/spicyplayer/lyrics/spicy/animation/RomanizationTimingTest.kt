@@ -16,9 +16,9 @@ import org.junit.Test
 class RomanizationTimingTest {
     // Tests inspect synchronous word progress; line tween coroutines need no frame loop here.
     private fun animator(config: RenderConfig) = LyricsAnimator(CoroutineScope(Job().apply { cancel() }), config)
-    private val configs = listOf(RenderConfig.FULL, RenderConfig.SIMPLE,
+    private val configs = listOf(RenderConfig.FULL, RenderConfig.BLOOM,
         RenderConfig.MINIMAL,
-        RenderConfig.FULL.copy(appleMusic = true))
+        RenderConfig.BLOOM.copy(minimalLyricsMode = true))
     private val lines = listOf(
         Line(listOf(Word("ちょう", 1000, 1500, romanizedText = "chou"),
             Word("だい", 1500, 2000, isPartOfWord = true, romanizedText = "dai"),

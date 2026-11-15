@@ -1,7 +1,6 @@
 package com.tx24.spicyplayer.lyrics.spicy.canvas
 
 import com.tx24.spicyplayer.lyrics.spicy.RenderConfig
-import com.tx24.spicyplayer.lyrics.spicy.animation.AppleMusicMotion
 import com.tx24.spicyplayer.lyrics.spicy.animation.ElementState
 
 internal sealed interface LyricPaintPlan {
@@ -17,19 +16,19 @@ internal fun lyricPaintPlan(
     config: RenderConfig,
     /** The NotSung colour: a word's `--gradient-alpha-end`, or a whole line's in line-synced lyrics. */
     dimAlpha: Float = config.gradientAlphaDim,
-    /** The Apple Music style: how lit a just-ended line still is (LineAnimState.lit). */
+    /** Bloom: how lit the line still is (LineAnimState.lit). */
     lit: Float = 0f,
 ): LyricPaintPlan {
     if (state == ElementState.Active) return LyricPaintPlan.ActiveGradient
     val stateAlpha = when {
-        // The Apple Music style dims every line but the active one alike, sung or not.
-        config.isAppleMusic -> {
-            val dim = if (isBackground) AppleMusicMotion.BACKGROUND_DIM_ALPHA else AppleMusicMotion.DIM_ALPHA
-            val bright = if (isBackground) AppleMusicMotion.BACKGROUND_BRIGHT_ALPHA else AppleMusicMotion.BRIGHT_ALPHA
+        // Bloom rests every line at one dim tone, sung or not; a sung line dims back to it.
+        config.isBloom -> {
+            val dim = if (isBackground) config.backgroundAlphaDim else dimAlpha
+            val bright = if (isBackground) config.backgroundAlphaBright else config.gradientAlphaBright
             dim + (bright - dim) * lit
         }
-        isBackground && state == ElementState.NotSung -> 0.3f
-        isBackground -> 0.6f
+        isBackground && state == ElementState.NotSung -> config.backgroundAlphaDim
+        isBackground -> config.backgroundAlphaBright
         state == ElementState.NotSung -> dimAlpha
         else -> config.gradientAlphaBright
     }

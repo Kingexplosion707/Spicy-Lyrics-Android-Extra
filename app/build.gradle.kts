@@ -4,7 +4,7 @@ plugins {
 }
 
 /** This release's version code; CI debug builds build on it (see androidComponents). */
-val BASE_VERSION_CODE = 32
+val BASE_VERSION_CODE = 33
 /** The run number of an optimised build from main (android-ci.yml), else null. */
 val plusBuild: Int? = System.getenv("PLUS_BUILD")?.toIntOrNull()
 

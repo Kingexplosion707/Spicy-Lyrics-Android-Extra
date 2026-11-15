@@ -257,7 +257,7 @@ fun spicyOriginName(raw: String?): String = when (raw?.trim()?.lowercase()?.repl
     "spotify", "spotify_lyrics", "spt" -> "Spotify"
     "uns", "unison" -> "Unison"
     "spicy", "spicy_lyrics", "community", "spl" -> "Spicy Lyrics Community"
-    null, "" -> "Spicy Lyrics"
+    null, "", "unknown" -> "Spicy Lyrics"
     else -> raw.trim()
 }
 

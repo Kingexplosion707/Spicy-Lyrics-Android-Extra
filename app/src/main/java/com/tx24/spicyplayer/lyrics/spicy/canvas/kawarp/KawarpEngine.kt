@@ -45,6 +45,11 @@ class KawarpEngine(options: KawarpOptions) {
         return accumulatedTime
     }
 
+    /** Continues the warp clock from [time], when another clock hands over. */
+    fun seedTime(time: Float) {
+        if (time.isFinite()) accumulatedTime = time
+    }
+
     fun startTransition(nowMs: Long) {
         isTransitioning = true
         transitionStartMs = nowMs

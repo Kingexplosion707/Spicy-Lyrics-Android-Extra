@@ -8,7 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class StaticLinesTest {
-    private val config = RenderConfig(false, false)
+    private val config = RenderConfig()
     private val layouts = emptyList<LineLayout>()
 
     private fun anim(opacity: Float, active: Boolean = false) =

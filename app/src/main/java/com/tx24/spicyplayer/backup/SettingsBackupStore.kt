@@ -47,6 +47,8 @@ class SettingsBackupStore(private val context: Context) {
                 prefs.all.keys.filter { it !in kept }.forEach(::remove)
                 restored.forEach { (key, value) -> put(key, value) }
             }.commit()
+            // An older backup carries settings under their old names.
+            if (name == "ui") AppSettings.migrateStored(prefs)
         }
         // The live wallpaper's picture for when nothing plays, if the backup carries one.
         SettingsBackup.decodeFiles(text)[FILE_IDLE_PICTURE]?.let { data ->
@@ -72,6 +74,7 @@ class SettingsBackupStore(private val context: Context) {
                 "sourceOrder" to String::class, "sourcesOff" to Set::class, "pairsOn" to Set::class,
                 "pairsOff" to Set::class, "syncTypesOff" to Set::class,
                 "humanRomanizations" to Boolean::class, "liveCaptions" to Boolean::class,
+                "writtenRomaji" to Boolean::class, "keepLyricsLonger" to Boolean::class,
                 "disclosed" to Set::class, "switchedOff" to Set::class,
             )
             "translation" -> mapOf(

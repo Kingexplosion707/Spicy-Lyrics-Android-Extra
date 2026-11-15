@@ -15,8 +15,8 @@ private const val MINIMAL_INTERLUDE_THRESHOLD_MS = 5_000L
  * the song's StartTime is 12.4s, when the lead vocal comes in. TTML carries no song StartTime,
  * so it is taken from the first lead line's own words.
  *
- * [holdThroughShortGaps] stretches each line's end over short gaps; it's on in
- * Minimal Lyrics Mode for word-synced lyrics and in Simple Lyrics Mode for line-synced ones.
+ * [holdThroughShortGaps] stretches each line's end over short gaps; it's on under Bloom, and with
+ * Fade Away Previous Lines for word-synced lyrics.
  */
 fun buildDisplayTimeline(lines: List<Line>, minimalMode: Boolean, holdThroughShortGaps: Boolean = false): List<Line> {
     if (lines.isEmpty()) return emptyList()

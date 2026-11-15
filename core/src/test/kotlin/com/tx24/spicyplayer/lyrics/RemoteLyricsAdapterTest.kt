@@ -29,7 +29,7 @@ class RemoteLyricsAdapterTest {
     }
 
     @Test fun keepsTtmlRomanization() {
-        val ttml = """<tt xmlns="http://www.w3.org/ns/ttml" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" itunes:timing="word"><head><metadata><iTunesMetadata xmlns="http://music.apple.com/lyric-ttml-internal"><translations><translation xml:lang="ja-Latn"><text for="L1"><span>ko</span><span>re</span></text></translation></translations></iTunesMetadata></metadata></head><body><div><p begin="0s" end="2s" itunes:key="L1"><span begin="0s" end="1s">こ</span><span begin="1s" end="2s">れ</span></p></div></body></tt>"""
+        val ttml = """<tt xmlns="http://www.w3.org/ns/ttml" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" itunes:timing="word"><head><metadata><iTunesMetadata xmlns="http://music.apple.com/lyric-ttml-internal"><transliterations><transliteration xml:lang="ja-Latn"><text for="L1"><span begin="0s" end="1s">ko</span><span begin="1s" end="2s">re</span></text></transliteration></transliterations></iTunesMetadata></metadata></head><body><div><p begin="0s" end="2s" itunes:key="L1"><span begin="0s" end="1s">こ</span><span begin="1s" end="2s">れ</span></p></div></body></tt>"""
         val selection = RemoteLyricsSelection(
             LyricsSourceDescriptor("example", "Example", 1, emptySet()),
             RemoteLyricsPayload(ttmlLyrics = ttml),
@@ -49,10 +49,10 @@ class RemoteLyricsAdapterTest {
         )
         val plain = synced.copy(payload = RemoteLyricsPayload(plainLyrics = "사랑\nhello"), quality = RemoteLyricsQuality.PLAIN)
 
-        assertEquals("sarang", RemoteLyricsAdapter.render(synced, 5_000).lines.single().words.joinToString("") { it.romanized.orEmpty() })
+        assertEquals("Sarang", RemoteLyricsAdapter.render(synced, 5_000).lines.single().words.joinToString("") { it.romanized.orEmpty() })
         val static = RemoteLyricsAdapter.render(plain, 5_000)
         assertEquals(LyricsType.Static, static.lyricsType)
-        assertEquals(listOf("sarang", null), static.lines.map { line -> line.words.joinToString("") { it.romanized.orEmpty() }.ifEmpty { null } })
+        assertEquals(listOf("Sarang", null), static.lines.map { line -> line.words.joinToString("") { it.romanized.orEmpty() }.ifEmpty { null } })
     }
 
     @Test fun lineTimedTextIsSplitSoItCanWrap() {

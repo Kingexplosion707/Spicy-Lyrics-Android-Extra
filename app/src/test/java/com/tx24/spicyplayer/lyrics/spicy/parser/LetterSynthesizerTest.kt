@@ -92,12 +92,12 @@ class LetterSynthesizerTest {
         val perfect = com.tx24.spicyplayer.lyrics.spicy.models.Line(
             listOf(Word("per", 0, 1500), Word("fect", 1500, 1800, isPartOfWord = true)), 0,
         )
-        val apple = RenderConfig.FULL.copy(syllableMerge = SyllableMerge.Full, syllablePace = true, appleMusic = true)
-        val word = LetterSynthesizer.apply(listOf(perfect), apple, romanized = false).single().words.single()
+        val bloom = RenderConfig.BLOOM.copy(syllableMerge = SyllableMerge.Full, syllablePace = true)
+        val word = LetterSynthesizer.apply(listOf(perfect), bloom, romanized = false).single().words.single()
         assertEquals("perfect", word.letters.joinToString("") { it.char })
-        // "per" takes 1.5s over 3 letters, "fect" 0.3s over 4.
-        assertEquals(listOf(0L, 500L, 1000L, 1500L, 1575L, 1650L, 1725L), word.letters.map { it.startMs })
-        assertEquals(1800L, word.letters.last().endMs)
+        // Over the word's window (21 ms to 1840 ms): "per" takes its 1.5s over 3 letters, "fect" its 0.3s over 4.
+        assertEquals(listOf(21L, 526L, 1031L, 1536L, 1612L, 1688L, 1764L), word.letters.map { it.startMs })
+        assertEquals(1840L, word.letters.last().endMs)
 
         // A trimmed window is shared out, not taken off the last syllable.
         val paced = RenderConfig.FULL.copy(syllableMerge = SyllableMerge.Full, syllablePace = true)
@@ -107,8 +107,8 @@ class LetterSynthesizerTest {
         assertEquals(true, fect.last().endMs - fect.first().startMs > 200L)
 
         // Off, the letters share the word evenly, as before.
-        val even = LetterSynthesizer.apply(listOf(perfect), apple.copy(syllablePace = false), romanized = false).single().words.single()
-        assertEquals(listOf(0L, 257L, 514L, 771L, 1028L, 1285L, 1542L), even.letters.map { it.startMs })
+        val even = LetterSynthesizer.apply(listOf(perfect), bloom.copy(syllablePace = false), romanized = false).single().words.single()
+        assertEquals(listOf(21L, 280L, 540L, 800L, 1060L, 1320L, 1580L), even.letters.map { it.startMs })
     }
 
     // A Chinese syllable after the first romanizes with a leading space (it starts a word of its
@@ -161,5 +161,22 @@ class LetterSynthesizerTest {
             RenderConfig.FULL.copy(syllableMerge = SyllableMerge.Full), false,
         )
         assertEquals(listOf("sunset"), merged.map { it.text })
+    }
+
+    @Test
+    fun `a held word's row is split into the romanization's own letters over the word's window`() {
+        val config = RenderConfig.FULL
+        // One held kanji, 1500 ms: the lyric shows a single letter, its romaji row three.
+        val held = LetterSynthesizer.apply(
+            listOf(com.tx24.spicyplayer.lyrics.spicy.models.Line(words = listOf(Word("彩", 0, 1500, romanizedText = "iro")), startMs = 0, endMs = 1500)),
+            config, romanized = false,
+        ).single().words.single()
+        assertEquals(1, held.letters.size)
+        val row = LetterSynthesizer.rowWord(held, "iro", config)
+        assertEquals(listOf("i", "r", "o"), row.letters.map { it.char })
+        // The same window the word got, trimmed once and not twice.
+        assertEquals(held.startMs, row.startMs)
+        assertEquals(held.endMs, row.endMs)
+        assertEquals(0L to 1500L, LetterSynthesizer.sungSpan(held, config))
     }
 }

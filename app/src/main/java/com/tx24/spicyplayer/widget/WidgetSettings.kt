@@ -45,6 +45,8 @@ internal data class WidgetSettings(
         SMALL("Small", 17f, 13f, 11f),
         MEDIUM("Medium", 21f, 15f, 12f),
         LARGE("Large", 25f, 18f, 14f),
+        /** For a widget as big as a tablet's screen, where Large still reads small. */
+        EXTRA_LARGE("Extra large", 34f, 24f, 18f),
     }
 }
 

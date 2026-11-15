@@ -62,8 +62,7 @@ internal enum class LyricsLook(val label: String) {
     fun apply(settings: AppSettings) {
         if (this == Choose) return
         // Every look starts from the same plain page.
-        settings.lyricsStyle = if (this == AppleMusic) LyricsStyle.AppleMusic else LyricsStyle.Spicy
-        settings.simpleLyricsMode = this == Quiet
+        settings.rendererStyle = if (this == AppleMusic || this == Quiet) RendererStyle.Bloom else RendererStyle.Spring
         settings.minimalLyricsMode = false
         settings.lyricsCentered = this == Karaoke
         settings.lyricsWeight = when (this) {

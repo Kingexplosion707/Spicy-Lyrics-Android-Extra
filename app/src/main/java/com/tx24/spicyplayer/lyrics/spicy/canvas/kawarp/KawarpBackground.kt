@@ -228,8 +228,8 @@ fun KawarpBackground(
     isPlaying: Boolean = true,
     animate: Boolean = true,
     blurIntensity: Int = 60,
-    /** How fast to move while playing, read every frame; null (or returning null) is the normal speed. */
-    speed: (() -> Float?)? = null,
+    /** What drives the flow from the song's energy, read every frame; null is the normal speed. */
+    motion: MotionSource? = null,
     /**
      * Small frames of a video to follow instead of the cover (the animated cover), or null. Once
      * one has come in they own the page; when they stop (null again) the cover crossfades back.
@@ -255,8 +255,10 @@ fun KawarpBackground(
     var nextAlbum by remember { mutableStateOf(blackAlbum) }
     var frameTick by remember { mutableLongStateOf(0L) }
 
-    // Paused: a tenth of the speed. Playing: the song's beat-driven speed where there is one, else 1.
-    val latestSpeed by rememberUpdatedState(speed)
+    // Paused: a tenth of the speed. Playing: the song's energy sets the flow where there is an analysis.
+    val latestMotion by rememberUpdatedState(motion)
+    val motionClock = remember { MotionClock() }
+    var motionDriving by remember { mutableStateOf(false) }
 
     // dynamicBackground.ts bumps transitionDuration 500 → 1000 after 2×500ms.
     LaunchedEffect(Unit) {
@@ -367,11 +369,21 @@ fun KawarpBackground(
         // Still (low performance mode): frames only while a new cover fades in.
         while (animate || engine.blendFactor(System.currentTimeMillis()) < 1f) {
             // Paused, once slowed to a tenth of the speed, 20 frames a second look the same.
-            if (!isPlayingUpdated && engine.currentAnimationSpeed < PAUSED_SPEED_SETTLED &&
+            val settled = if (latestMotion != null) motionClock.play < PLAY_SETTLED else engine.currentAnimationSpeed < PAUSED_SPEED_SETTLED
+            if (!isPlayingUpdated && settled &&
                 engine.blendFactor(System.currentTimeMillis()) >= 1f) delay(PAUSED_FRAME_MS)
             withFrameNanos { now ->
-                engine.targetAnimationSpeed = if (isPlayingUpdated) latestSpeed?.invoke() ?: 1f else 0.1f
-                if (last != 0L) engine.tick((now - last) / 1_000_000_000f)
+                val source = latestMotion
+                val dt = if (last != 0L) (now - last) / 1_000_000_000f else 0f
+                if (source != null) {
+                    // Taking over from the plain clock: pick up where the field is.
+                    if (!motionDriving) { motionClock.seed(engine.accumulatedTime); motionDriving = true }
+                    motionClock.step(dt, source.positionSeconds(), isPlayingUpdated, source.track())
+                } else {
+                    if (motionDriving) { engine.seedTime(motionClock.time); motionDriving = false }
+                    engine.targetAnimationSpeed = if (isPlayingUpdated) 1f else 0.1f
+                    if (last != 0L) engine.tick(dt)
+                }
                 last = now
                 frameTick = now // invalidate the Canvas
             }
@@ -413,12 +425,12 @@ fun KawarpBackground(
             @Suppress("UNUSED_EXPRESSION") frameTick
             val blend = shownBlend(System.currentTimeMillis())
             shader.setFloatUniform("uResolution", size.width, size.height)
-            shader.setFloatUniform("uTime", engine.accumulatedTime)
+            shader.setFloatUniform("uTime", if (motionDriving) motionClock.time else engine.accumulatedTime)
             shader.setFloatUniform("uBlend", blend)
             shader.setFloatUniform("uIntensity", SPICY_OPTIONS.warpIntensity)
             shader.setFloatUniform("uSaturation", SPICY_OPTIONS.saturation)
             shader.setFloatUniform("uDithering", SPICY_OPTIONS.dithering)
-            shader.setFloatUniform("uScale", SPICY_OPTIONS.scale)
+            shader.setFloatUniform("uScale", SPICY_OPTIONS.scale * if (motionDriving) motionClock.scale else 1f)
             shader.setInputShader("texCur", texCur)
             shader.setInputShader("texNext", texNext)
             drawRect(brush = shaderBrush)
@@ -520,3 +532,5 @@ internal const val CANVAS_HEIGHT = 150
 private const val PAUSED_FRAME_MS = 50L
 /** The paused speed (0.1) counts as reached below this. */
 private const val PAUSED_SPEED_SETTLED = 0.12f
+/** The music clock counts as paused below this share of play. */
+private const val PLAY_SETTLED = 0.02f

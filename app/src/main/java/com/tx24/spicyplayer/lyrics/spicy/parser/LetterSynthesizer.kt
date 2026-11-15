@@ -25,7 +25,9 @@ object LetterSynthesizer {
             if (line.isInterlude || line.isSongwriter || line.translationReplaces || line.lineTimed) {
                 line
             } else {
-                line.copy(words = mergeSyllables(line.words, config, romanized).map { synthesize(it, config, romanized) })
+                val words = mergeSyllables(line.words, config, romanized)
+                line.copy(words = if (config.isBloom) bloomWords(words, config, romanized, line.isBackground)
+                    else words.map { synthesize(it, config, romanized, line.isBackground) })
             }
         }
     }
@@ -38,15 +40,7 @@ object LetterSynthesizer {
      */
     internal fun mergeSyllables(words: List<Word>, config: RenderConfig, romanized: Boolean): List<Word> {
         if (config.syllableMerge == SyllableMerge.Off) return words
-        val runs = mutableListOf<MutableList<Word>>()
-        for (word in words) {
-            if (word.isPartOfWord && runs.isNotEmpty() && !startsNewWord(runs.last().last(), word)) {
-                runs.last() += word
-            } else {
-                runs += mutableListOf(word)
-            }
-        }
-        return runs.flatMap { run ->
+        return runs(words).flatMap { run ->
             if (run.size == 1 || config.syllableMerge == SyllableMerge.Steady && !joinsEvenly(run)) return@flatMap run
             val first = run.first()
             val merged = first.copy(
@@ -57,9 +51,60 @@ object LetterSynthesizer {
                 romanizedText = if (run.any { it.romanizedText != null }) run.joinToString("") { it.romanizedText ?: it.text } else null,
                 syllables = run,
             )
-            if (config.syllableMerge == SyllableMerge.Held && !isLetterCapable(merged, config, romanized)) run else listOf(merged)
+            if (config.syllableMerge == SyllableMerge.Held && !isLetterCapable(merged, config, romanized, background = false)) run else listOf(merged)
         }
     }
+
+    /** [words] in runs: a word, then the syllables glued to it ([Word.isPartOfWord]) that don't start one of their own. */
+    private fun runs(words: List<Word>): List<MutableList<Word>> {
+        val runs = mutableListOf<MutableList<Word>>()
+        for (word in words) {
+            if (word.isPartOfWord && runs.isNotEmpty() && !startsNewWord(runs.last().last(), word)) {
+                runs.last() += word
+            } else {
+                runs += mutableListOf(word)
+            }
+        }
+        return runs
+    }
+
+    /**
+     * For each of [words], the index of the first word of the run it belongs to (see [runs]): a
+     * word sung in several syllables shares one held-word swell, and its fill edge goes by the
+     * whole word's length.
+     */
+    fun runStarts(words: List<Word>): IntArray {
+        val starts = IntArray(words.size)
+        var i = 0
+        for (run in runs(words)) {
+            val first = i
+            repeat(run.size) { starts[i++] = first }
+        }
+        return starts
+    }
+
+    /**
+     * Bloom judges a word sung in syllables as a whole: it's split into letters when the whole
+     * word has two to seven of them and lasts a second or more from its first syllable's start to
+     * its last one's end. Each syllable keeps its own letters and timing; the animator swells them
+     * together. Background vocals are never split.
+     */
+    private fun bloomWords(words: List<Word>, config: RenderConfig, romanized: Boolean, background: Boolean): List<Word> =
+        runs(words).flatMap { run ->
+            if (run.size == 1) return@flatMap listOf(synthesize(run[0], config, romanized, background))
+            val counts = run.map { GraphemeSegmenter.segment(display(it, romanized)).size }
+            val whole = run.first().copy(
+                text = run.joinToString("") { display(it, romanized) },
+                romanizedText = null,
+                endMs = run.maxOf { it.endMs },
+            )
+            val splits = isLetterCapable(whole, config, romanized = false, background = background) &&
+                run.none { RtlDetector.isRtl(display(it, romanized)) }
+            run.mapIndexed { i, part ->
+                if (splits && counts[i] > 0) split(part, config, romanized)
+                else if (part.isLetterGroup) part.copy(isLetterGroup = false, letters = emptyList()) else part
+            }
+        }
 
     /**
      * Whether [next], glued to [prev] with no space, is still a word of its own: across a hyphen,
@@ -124,48 +169,63 @@ object LetterSynthesizer {
     // letters are split over the trimmed text too, one per drawn letter.
     private fun display(word: Word, romanized: Boolean) = if (romanized) (word.romanizedText ?: word.text).trim() else word.text
 
-    // No lower length bound: even a single-character
-    // held word (e.g. "I", "oh") gets the letter treatment if held long enough.
-    private fun isLetterCapable(word: Word, config: RenderConfig, romanized: Boolean): Boolean {
+    // Spring has no lower length bound: even a single-character held word (e.g. "I", "oh") gets
+    // the letter treatment if held long enough. Bloom splits only two to seven letters, and never
+    // a background vocal.
+    private fun isLetterCapable(word: Word, config: RenderConfig, romanized: Boolean, background: Boolean): Boolean {
         val display = display(word, romanized)
-        if (config.isAppleMusic) {
-            return config.lettersEnabled && com.tx24.spicyplayer.lyrics.spicy.animation.AppleMusicMotion.emphasizes(
-                display, GraphemeSegmenter.segment(display).size, word.duration,
-            )
-        }
         return config.lettersEnabled &&
-            word.duration >= (if (config.isRefreshedSimple) 1000L else config.letterDurationThresholdMs) &&
-            GraphemeSegmenter.segment(display).size in (if (config.isRefreshedSimple) 2..minOf(7, config.letterMaxLength) else 1..config.letterMaxLength) &&
+            !(config.isBloom && background) &&
+            word.duration >= config.letterDurationThresholdMs &&
+            GraphemeSegmenter.segment(display).size in config.letterMinLength..config.letterMaxLength &&
             !RtlDetector.isRtl(display)
     }
 
-    private fun synthesize(word: Word, config: RenderConfig, romanized: Boolean): Word {
-        val display = display(word, romanized)
-        val graphemes = GraphemeSegmenter.segment(display)
-        val len = graphemes.size
-
-        if (!isLetterCapable(word, config, romanized)) {
+    private fun synthesize(word: Word, config: RenderConfig, romanized: Boolean, background: Boolean = false): Word {
+        if (!isLetterCapable(word, config, romanized, background)) {
             return if (word.isLetterGroup) word.copy(isLetterGroup = false, letters = emptyList()) else word
         }
+        return split(word, config, romanized)
+    }
 
-        // The word and its letters share one emphasis window: normal mode trims the tail by
-        // 250ms; Simple shifts its start by 21ms and its end by 40ms. Refreshed keeps that full
-        // window, with no additional trim.
-        // The Apple Music style times its letters off the word's own window.
-        val subStartMs = if (config.isSimple) -21L else 0L
-        val subEndMs = when {
-            config.isAppleMusic -> 0L
-            config.isSimple -> -40L
-            else -> 250L
-        }
-        val windowStart = word.startMs - subStartMs
-        val windowEnd = (word.endMs - subEndMs).coerceAtLeast(windowStart + 1L)
+    /** How far a held word's emphasis window starts and ends after the word itself. */
+    private fun windowShift(config: RenderConfig): Pair<Long, Long> =
+        // Spring trims the tail by 250ms; Bloom starts 21ms and ends 40ms later.
+        if (config.isBloom) 21L to 40L else 0L to -250L
+
+    /** [word] split into timed letters over its emphasis window. */
+    private fun split(word: Word, config: RenderConfig, romanized: Boolean): Word {
+        val graphemes = GraphemeSegmenter.segment(display(word, romanized))
+        val (shiftStart, shiftEnd) = windowShift(config)
+        val windowStart = word.startMs + shiftStart
+        val windowEnd = (word.endMs + shiftEnd).coerceAtLeast(windowStart + 1L)
 
         // Every character — including punctuation — is split into its own timed letter and
         // animated identically; punctuation isn't excluded.
         val letters = bySyllable(word, graphemes, windowStart, windowEnd, config, romanized)
             ?: evenly(graphemes, windowStart, windowEnd)
         return word.copy(startMs = windowStart, endMs = windowEnd, isLetterGroup = true, letters = letters)
+    }
+
+    /**
+     * The word an under-line row draws for [word]: its romanization [text] as a word of its own,
+     * timed as the word is and split into letters by the same rules, so the row animates exactly
+     * as a line of that text would. [word] has already been through [synthesize], which moved a
+     * held word's times to its letters' window; they're put back first.
+     */
+    fun rowWord(word: Word, text: String, config: RenderConfig): Word {
+        val (start, end) = sungSpan(word, config)
+        return synthesize(
+            word.copy(text = text, romanizedText = text, startMs = start, endMs = end, isLetterGroup = false, letters = emptyList()),
+            config, romanized = true,
+        )
+    }
+
+    /** When [word] is sung: its times, with a held word's moved window put back. */
+    fun sungSpan(word: Word, config: RenderConfig): Pair<Long, Long> {
+        if (!word.isLetterGroup) return word.startMs to word.endMs
+        val (shiftStart, shiftEnd) = windowShift(config)
+        return (word.startMs - shiftStart) to (word.endMs - shiftEnd)
     }
 
     private fun evenly(graphemes: List<String>, from: Long, to: Long): List<Letter> {

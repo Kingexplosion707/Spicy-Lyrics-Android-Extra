@@ -37,7 +37,12 @@ class AppSettings(private val prefs: SharedPreferences) {
     private val all = mutableListOf<Setting<*>>()
     // `coverStage` and `bigCoverCanvas` are only read now, by [stageArt] and [bigCoverArt], but an
     // older backup still restores them.
-    private val types = mutableMapOf<String, KClass<*>>("coverStage" to Boolean::class, "bigCoverCanvas" to Boolean::class)
+    private val types = mutableMapOf<String, KClass<*>>(
+        "coverStage" to Boolean::class, "bigCoverCanvas" to Boolean::class, "staticAutoScroll" to Boolean::class,
+    ).apply { putAll(RendererStyleMigration.oldKeys) }
+
+    // Before the settings below read their values.
+    init { migrateStored(prefs) }
 
     /** The type each setting is stored as, by key, so a restore can turn away the wrong one. */
     val storedTypes: Map<String, KClass<*>> get() = types
@@ -47,12 +52,13 @@ class AppSettings(private val prefs: SharedPreferences) {
 
     /** Romanized lyrics where the song has them; the floating button, not a settings row. */
     var romanize by boolean("romanize", false)
-    var romanizationMode by enum("romanizationMode", com.tx24.spicyplayer.lyrics.spicy.romanization.RomanizationMode.Replace)
+    var romanizationMode by enum("romanizationMode", com.tx24.spicyplayer.lyrics.spicy.romanization.RomanizationMode.UnderLine)
     var translationMode by enum("translationMode", com.tx24.spicyplayer.translation.TranslationMode.UnderLine)
+    var romanizationHighlight by enum("romanizationHighlight", com.tx24.spicyplayer.lyrics.spicy.RomanizationHighlight.Sweep)
+    var animatedUnderRows by boolean("animatedUnderRows", false)
 
-    var lyricsStyle by enum("lyricsStyle", LyricsStyle.Spicy)
-    var simpleLyricsMode by boolean("simpleLyricsMode", false)
-    var refreshedSimpleLyrics by boolean("refreshedSimpleLyrics", false)
+    var rendererStyle by enum(RendererStyleMigration.KEY, RendererStyle.Spring)
+    /** Shown as "Fade Away Previous Lines"; the key keeps its old name. */
     var minimalLyricsMode by boolean("minimalLyricsMode", false)
     var originalWordMotion by boolean("originalWordMotion", false)
     /**
@@ -105,6 +111,7 @@ class AppSettings(private val prefs: SharedPreferences) {
     /** A song ending on a duet line sung from the right has its credits there too. */
     var creditsFollowLastLine by boolean("creditsFollowLastLine", false)
     var refinedCredits by boolean("refinedCredits", true)
+    var nextUpCard by boolean("nextUpCard", true)
     /** "Translation from" and "Romanization from" in the credits. */
     var textCredits by boolean("textCredits", true)
     var backgroundPop by boolean("backgroundPop", false)
@@ -116,8 +123,17 @@ class AppSettings(private val prefs: SharedPreferences) {
     var scrollLeadEnabled by boolean("scrollLeadEnabled", false)
     var scrollLeadMs by int("scrollLeadMs", 250, 0..800)
     var smoothScrolling by boolean("smoothScrolling", false)
-    /** Unsynced lyrics scroll through at the song's pace, top to bottom over its length. */
-    var staticAutoScroll by boolean("staticAutoScroll", true)
+    /**
+     * Unsynced lyrics scroll through with the song, top to bottom. It was an on/off switch
+     * (`staticAutoScroll`): until the choice is saved, on reads as [StaticAutoScroll.Basic].
+     */
+    var staticAutoScroll by setting(
+        "staticAutoScrollMode", String::class,
+        {
+            runCatching { enumValueOf<StaticAutoScroll>(prefs.getString("staticAutoScrollMode", null)!!) }.getOrNull()
+                ?: if (read { prefs.getBoolean("staticAutoScroll", true) } == false) StaticAutoScroll.Off else StaticAutoScroll.Basic
+        },
+    ) { prefs.edit().putString("staticAutoScrollMode", it.name).apply() }
     var seekFadeCompensation by boolean("seekFadeCompensation", true)
 
     var distanceBlur by boolean("distanceBlur", true)
@@ -426,6 +442,8 @@ class AppSettings(private val prefs: SharedPreferences) {
     var lyricsManagerButton by boolean("lyricsManagerButton", false)
     /** A floating button that opens the queue (it's always in quick settings); shown while the player shares one. */
     var queueButton by boolean("queueButton", false)
+    /** The view buttons share one frosted capsule, toggles showing "on" as a knocked-out disc. */
+    var groupedControls by boolean("groupedControls", true)
     /** A floating button that opens the song's lyrics source choice (it's always in quick settings). */
     var sourceButton by boolean("sourceButton", false)
     /** The player's own extra actions (like, shuffle modes, …) as floating buttons. */
@@ -493,6 +511,21 @@ class AppSettings(private val prefs: SharedPreferences) {
     companion object {
         /** Sung words grow and lift this much more than the desktop amount, which reads better on a phone. */
         const val WORD_MOTION_BOOST = 1.25f
+
+        /** Carries settings saved under older names over to the current ones, in place. */
+        fun migrateStored(prefs: SharedPreferences) {
+            val edit = RendererStyleMigration.migrate(prefs.all)
+            if (edit.isEmpty) return
+            prefs.edit().apply {
+                edit.remove.forEach(::remove)
+                edit.set.forEach { (key, value) ->
+                    when (value) {
+                        is Boolean -> putBoolean(key, value)
+                        else -> putString(key, value.toString())
+                    }
+                }
+            }.commit()
+        }
     }
 }
 
@@ -542,6 +575,13 @@ const val MAX_BACKGROUND_BLUR = 67
 const val DEFAULT_DYNAMIC_BLUR = 60
 
 /** How long the controls stay after the last touch before they fade. */
+/** How lyrics without timing follow the song: not at all, or paced by when the song is quiet. */
+enum class StaticAutoScroll(val label: String) {
+    Off("Off"),
+    /** Holds through quiet intros, outros and breaks of a few seconds; evenly over the song when there's no analysis. */
+    Basic("Basic"),
+}
+
 /** The floating window's shapes, as width:height; [Custom] takes `AppSettings.pipCustomRatio`. */
 enum class PipShape(val label: String, val width: Int, val height: Int) {
     Wide("Wide (16:9)", 16, 9),
@@ -607,12 +647,6 @@ enum class AmbientDelay(val label: String, val millis: Long) {
 enum class PanelSide { Left, Right }
 
 enum class ReleaseYearPosition(val label: String) { Off("Off"), Left("Left"), Right("Right") }
-
-/** How the lyrics look and move: Spicy Lyrics' own, or like Apple Music's. */
-enum class LyricsStyle(val label: String) {
-    Spicy("Spicy Lyrics"),
-    AppleMusic("Apple Music"),
-}
 
 /** Lyric text sizes to pick from in one step, against the default, which follows the screen width. */
 enum class LyricsSize(val percent: Int, val label: String) {

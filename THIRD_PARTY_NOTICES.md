@@ -13,14 +13,10 @@ Spicy Lyrics Plus is licensed under the [GNU Affero General Public License, vers
 | [@kawarp/core](https://github.com/better-lyrics/kawarp) 1.2.2, Copyright (c) 2026 Better Lyrics | The animated background | MIT |
 | [cubic-spline](https://github.com/morganherlocker/cubic-spline), Copyright (c) 2014 Morgan Herlocker | Spline interpolation for word animation | MIT |
 | [spr](https://github.com/Fraktality/spr), Copyright (c) 2023 Fractality | Spring simulation | MIT |
-| [pinyin](https://github.com/hotoo/pinyin) 4.0.0, Copyright (c) 闲耘 | Chinese romanization and its character dictionary (`app/src/main/resources/romanization/pinyin.txt`) | MIT |
+| [pinyin](https://github.com/hotoo/pinyin) 4.0.0, Copyright (c) 闲耘 | Chinese romanization, its character dictionary (`core/src/main/resources/romanization/pinyin.txt`) and its word dictionary (`core/src/main/resources/romanization/pinyin-phrases.txt`) | MIT |
 | [kuroshiro](https://github.com/hexenq/kuroshiro) 1.2.0, Copyright (c) 2015-2021 Hexen Qi | Japanese romanization rules and Hepburn table | MIT |
 | [aromanize-js](https://github.com/fujaru/aromanize-js), Copyright (c) 2017 Fajar Chandra | Korean romanization rules | MIT |
 | Lyrica's lrcmux adapter | The LRCMux lyrics source | MIT |
-| [AMLL](https://github.com/Steve-xmh/applemusic-like-lyrics) by Steve-xmh and contributors | The Apple Music style's word rise, held-word emphasis and folding background vocals | AGPL-3.0 |
-| [am-lyrics](https://github.com/binimum/am-lyrics) by binimum | The Apple Music style's line fades, blur, soft wipe edge and staggered scroll | MPL-2.0 |
-| [YouLy+](https://github.com/ibratabian17/YouLyPlus), Copyright (c) 2025 Ibra Al Tabian | The Apple Music style's line fades and blur | MIT |
-| [accompanist-lyrics-ui](https://github.com/6xingyv/accompanist-lyrics-ui) by 6xingyv | The Apple Music style's interlude dots | Apache-2.0 |
 | [Essentials](https://github.com/sameerasw/essentials) by sameerasw | The island provider SDK (`com.sameerasw.island.sdk`), bundled so the lyrics can show on the Essentials island | AGPL-3.0 |
 | [AirLyrics](https://github.com/AirLyrics/AirLyrics), Copyright (c) 2026 AndSi-327 | The lyrics overlay's window: dragging, locking, touches passing through, keeping its place as a share of the screen, hiding when paused, and its notification controls | MIT |
 

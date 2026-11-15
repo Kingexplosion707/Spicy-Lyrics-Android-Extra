@@ -1,5 +1,6 @@
 package com.tx24.spicyplayer.lyrics.spicy.canvas
 
+import com.tx24.spicyplayer.lyrics.spicy.animation.BloomMotion
 import com.tx24.spicyplayer.lyrics.spicy.models.LyricsType
 
 internal data class ContentSlot(val startPx: Float, val widthPx: Float)
@@ -23,12 +24,11 @@ internal data class LyricsLayoutMetrics(
     /**
      * The space between two lyric lines, on top of the row height. It follows the text size so a
      * new line always reads as further away than a wrapped row of the same line; a width-based
-     * 1cqw was only ~14% of the text and the two looked the same.
+     * 1cqw was only ~14% of the text and the two looked the same. Spring's is a quarter tighter
+     * than Bloom's.
      */
-    val lineGapPx = baseFontSizeSp * density * 0.4f * LyricsLayoutCalculator.lineGapScale
-    fun lineGapPx(refreshedSimple: Boolean) = if (refreshedSimple)
-        baseFontSizeSp * density * com.tx24.spicyplayer.lyrics.spicy.animation.RefreshedMotion.GAP_EM * LyricsLayoutCalculator.lineGapScale
-        else lineGapPx
+    fun lineGapPx(bloom: Boolean) = baseFontSizeSp * density *
+        (if (bloom) BloomMotion.GAP_EM else BloomMotion.SPRING_GAP_EM) * LyricsLayoutCalculator.lineGapScale
     val lineHeightMultiplier = 1.1818182f
 
     fun lineHeightPx(fontSizeSp: Float): Float = fontSizeSp * density * lineHeightMultiplier

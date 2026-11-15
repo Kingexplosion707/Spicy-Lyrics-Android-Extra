@@ -30,6 +30,16 @@ object KanaRomanizer {
         return out.replace("aー", "ā").replace("iー", "ī").replace("uー", "ū").replace("eー", "ē").replace("oー", "ō")
     }
 
+    /**
+     * Hepburn with long vowels as they are written: ー repeats its vowel (コーヒー → koohii) and
+     * nothing is folded into a macron (とうきょう → toukyou).
+     */
+    fun written(kana: String): String = buildString {
+        for (c in romanize(kana).trim()) append(MACRONS[c] ?: c)
+    }
+
+    private val MACRONS = mapOf('ā' to "aa", 'ī' to "ii", 'ū' to "uu", 'ē' to "ee", 'ō' to "oo")
+
     private val HATSU = Regex("[んン](?=[あいうえおアイウエオぁぃぅぇぉァィゥェォやゆよヤユヨゃゅょャュョ])")
     private val TSU = Regex("([っッ])([bcdfghijklmnopqrstuvwyz])")
 

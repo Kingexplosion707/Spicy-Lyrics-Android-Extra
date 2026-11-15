@@ -59,8 +59,10 @@ private object Paths {
 
     /** The app's screen. */
     val Screen = nodes("M6 4h12a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3Z")
-    val Cover = nodes("M7.25 9.5h2.5a1.25 1.25 0 0 1 1.25 1.25v2.5a1.25 1.25 0 0 1-1.25 1.25h-2.5A1.25 1.25 0 0 1 6 13.25v-2.5A1.25 1.25 0 0 1 7.25 9.5Z")
-    val Arrow = nodes("M14 12h4m-1.75-1.75L18 12l-1.75 1.75")
+
+    // The cover on one side and the arrow to the other, no frame round them.
+    val Cover = nodes("M5 8h4a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2Z")
+    val Arrow = nodes("M14.5 12H21m-3-3 3 3-3 3")
 
     /** The floating window, in the screen's bottom-right corner. */
     val Window = nodes("M12.5 11h3a1.5 1.5 0 0 1 1.5 1.5v2a1.5 1.5 0 0 1-1.5 1.5h-3a1.5 1.5 0 0 1-1.5-1.5v-2a1.5 1.5 0 0 1 1.5-1.5Z")
@@ -72,10 +74,10 @@ private object Paths {
     )
 
     // A lyric sheet in front of another.
-    val BackSheet = nodes("M8 3h8.5A2.5 2.5 0 0 1 19 5.5V16")
+    val BackSheet = nodes("M8.5 3H17a2.5 2.5 0 0 1 2.5 2.5v11")
     val FrontSheet = nodes(
-        "M7.5 6h6a2.5 2.5 0 0 1 2.5 2.5v10a2.5 2.5 0 0 1-2.5 2.5h-6a2.5 2.5 0 0 1-2.5-2.5v-10a2.5 2.5 0 0 1 2.5-2.5Z" +
-            "M8 10.5h5M8 14h5M8 17.5h3",
+        "M6.5 7.5h6A2.5 2.5 0 0 1 15 10v8.5a2.5 2.5 0 0 1-2.5 2.5h-6A2.5 2.5 0 0 1 4 18.5V10a2.5 2.5 0 0 1 2.5-2.5Z" +
+            "M7.5 12.5h4M7.5 16.5h4",
     )
 
     // 文 and A, one path each.
@@ -87,8 +89,8 @@ private object Paths {
     val SourceChosen = nodes("M8 12a2.5 2.5 0 1 1-5 0a2.5 2.5 0 1 1 5 0ZM11.5 12h9")
 
     // The songs to come, and the play mark for the one up next.
-    val QueueLines = nodes("M4 5h14M4 10.5h14M4 16h7")
-    val QueuePlay = nodes("M15.5 14v5.5l4.75-2.75Z")
+    val QueueLines = nodes("M3.5 6h8.5M3.5 12h8.5M3.5 18h17")
+    val QueuePlay = nodes("M16 4.5v7l5-3.5Z")
 
     // A phone, and the two arcs that turn it.
     val Phone = nodes("M10.5 5.5h3a2.5 2.5 0 0 1 2.5 2.5v8a2.5 2.5 0 0 1-2.5 2.5h-3A2.5 2.5 0 0 1 8 16V8a2.5 2.5 0 0 1 2.5-2.5Z")
@@ -125,14 +127,11 @@ private object Paths {
     const val BOTTOM_KNOB = 15.5f
 }
 
-/** How strongly the script a romanize tap leaves is drawn. */
-private const val DIM = 0.4f
-
-// A and ア are both "a": the script a tap switches to is drawn at full strength, the one it
-// leaves dimmed. Each letter is one path, so where its strokes meet a dimmed one isn't drawn
-// twice (two overlapping translucent strokes would show a brighter dot there).
-private const val LATIN_A = "M2.5 18 6.75 6 11 18M4 14h5.5"
-private const val KANA_A = "M13.5 6.5h8L19 9.75M17.25 9.75v1.75c0 2.75-1.25 5-3.75 6.5"
+// Each romanize button is one glyph, the script a tap switches to: a kana takes the lyrics back to
+// their own script, and a Latin A under a macron, the mark romanized text is full of, romanizes them.
+private const val KANA = "M6.5 8h10M11.5 4.5c-.6 4.5-.3 10.5 1 15" +
+    "M16 11c-1.5 4.25-4.75 7.5-7.5 7.5-1.5 0-2.5-1-2.5-2.5 0-2.5 3-4.5 7-4.5 3.5 0 5.75 1.75 5.75 4.25 0 2-1.5 3.5-4.25 4"
+private const val MACRON_A = "M6 20.5 12 7.5l6 13M8.5 16h7M8 3.5h8"
 
 internal val GlyphEase = CubicBezierEasing(0.23f, 1f, 0.32f, 1f)
 
@@ -146,19 +145,16 @@ internal object SpicyGlyphs {
     val LyricsManager = glyph(Paths.BackSheet, Paths.FrontSheet)
     val Queue = glyph(Paths.QueueLines, Paths.QueuePlay)
     val Source = glyph(Paths.SourceOthers, Paths.SourceChosen)
-    val DisableRomanization = dimmable(DIM to nodes(LATIN_A), 1f to nodes(KANA_A))
-    val EnableRomanization = dimmable(1f to nodes(LATIN_A), DIM to nodes(KANA_A))
+    val DisableRomanization = glyph(nodes(KANA))
+    val EnableRomanization = glyph(nodes(MACRON_A))
 
-    private fun glyph(vararg paths: List<PathNode>): ImageVector = dimmable(*paths.map { 1f to it }.toTypedArray())
-
-    private fun dimmable(vararg paths: Pair<Float, List<PathNode>>): ImageVector =
+    private fun glyph(vararg paths: List<PathNode>): ImageVector =
         ImageVector.Builder(defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
             .apply {
-                paths.forEach { (alpha, path) ->
+                paths.forEach { path ->
                     addPath(
                         path,
                         stroke = SolidColor(SpicyPalette.Neutral.TextPrimary),
-                        strokeAlpha = alpha,
                         strokeLineWidth = 2f,
                         strokeLineCap = StrokeCap.Round,
                         strokeLineJoin = StrokeJoin.Round,
@@ -211,16 +207,15 @@ internal fun ExpandGlyph(expanded: Boolean, modifier: Modifier) {
 }
 
 /**
- * The screen with the cover on the side it's on now and an arrow to the other: when the cover
- * moves, it slides across and the arrow turns to point back.
+ * The cover on the side it's on now and an arrow to the other: when the cover moves, it slides
+ * across and the arrow turns to point back.
  */
 @Composable
 internal fun SwapSideGlyph(coverOnRight: Boolean, modifier: Modifier) {
     val side by animateFloatAsState(if (coverOnRight) 1f else 0f, tween(250, easing = GlyphEase), label = "swapSide")
     Image(lineGlyph { _, _ ->
-        LinePath(Paths.Screen)
-        Group(translationX = 7f * side) { LinePath(Paths.Cover) }
-        Group(rotation = 180f * side, pivotX = 16f, pivotY = 12f, translationX = -8f * side) { LinePath(Paths.Arrow) }
+        Group(translationX = 10f * side) { LinePath(Paths.Cover) }
+        Group(rotation = 180f * side, pivotX = 17.75f, pivotY = 12f, translationX = -11.5f * side) { LinePath(Paths.Arrow) }
     }, null, modifier)
 }
 

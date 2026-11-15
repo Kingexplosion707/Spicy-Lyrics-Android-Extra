@@ -11,6 +11,9 @@ import com.tx24.spicyplayer.lyrics.spicy.RenderConfig
 import com.tx24.spicyplayer.lyrics.spicy.models.Line
 import com.tx24.spicyplayer.lyrics.spicy.models.LyricsType
 import com.tx24.spicyplayer.lyrics.spicy.models.Word
+import com.tx24.spicyplayer.lyrics.spicy.RomanizationHighlight
+import com.tx24.spicyplayer.lyrics.spicy.parser.LetterSynthesizer
+import com.tx24.spicyplayer.translation.romanizationNote
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.PI
@@ -32,7 +35,7 @@ import kotlin.math.sin
  *   (200ms cubic-bezier(0.61,1,0.88,1)); distance blur is recomputed only when the active
  *   line index changes.
  *
- * Refreshed Simple computes word and letter poses directly from time, including sung tails.
+ * Bloom works its word and letter poses out from the time alone, sung tails included.
  * Springs are [SpringSimulation] (exact spr.lua port); dt is in **seconds**, positions in ms.
  */
 class LyricsAnimator(
@@ -68,14 +71,14 @@ class LyricsAnimator(
     init { rebuildModeSplines() }
 
     private fun rebuildModeSplines() {
-        val simple = config.isSimple
-        yOffsetSpline = if (simple) spline(0f to 0.01f, 1f to -0.033f)
+        val bloom = config.isBloom
+        yOffsetSpline = if (bloom) spline(0f to 0.01f, 1f to -0.033f)
             else spline(0f to 0.01f, 0.9f to -1f / 60f, 1f to 0f)
-        letterScaleSpline = if (simple) spline(0f to 0.95f, 0.7f to 1.07f, 1f to 1f)
+        letterScaleSpline = if (bloom) spline(0f to 0.95f, 0.7f to 1.07f, 1f to 1f)
             else spline(0f to 0.95f, 0.7f to 1.175f, 1f to 1f)
-        letterYOffsetSpline = if (simple) spline(0f to 0.01f, 0.9f to -1f / 62f, 1f to 0f)
+        letterYOffsetSpline = if (bloom) spline(0f to 0.01f, 0.9f to -1f / 62f, 1f to 0f)
             else spline(0f to 0.01f, 0.9f to -1f / 56f, 1f to 0f)
-        dotOpacitySpline = spline(0f to (if (simple) 0.27f else 0.35f), 0.6f to 1f, 1f to 1f)
+        dotOpacitySpline = spline(0f to (if (bloom) 0.27f else 0.35f), 0.6f to 1f, 1f to 1f)
     }
 
     internal companion object {
@@ -97,6 +100,10 @@ class LyricsAnimator(
         const val DOT_OPACITY_FREQUENCY = 1f
         const val DOT_OPACITY_DAMPING = 0.5f
 
+        /** Added to a line's index to key the springs of its under-line row apart from the line's own. */
+        const val ROW_KEY = 1 shl 20
+        val NO_HIGHLIGHT: List<Float> = emptyList()
+
         // Line-mode whole-line glow spring.
         const val LINE_GLOW_FREQUENCY = 1f
         const val LINE_GLOW_DAMPING = 0.5f
@@ -110,17 +117,6 @@ class LyricsAnimator(
 
         /** Dots collapse this long before their line ends (lyrics.ts preHiddenDotLineMs). */
         const val PRE_HIDDEN_DOT_LINE_MS = 500L
-        /** Position shift applied in simple mode (Animate: `- 33.5`). */
-        const val SIMPLE_MODE_POSITION_SHIFT_MS = 33.5f
-
-        // Simple-mode letter effect strength (lyrics.ts SimpleLyricsMode_LetterEffectsStrengthConfig).
-        const val SIMPLE_LETTER_LONGER_THAN_MS = 1500L
-        const val SIMPLE_LONGER_SCALE = 1.103f
-        const val SIMPLE_LONGER_Y_OFFSET = 0.45f
-        const val SIMPLE_LONGER_GLOW = 0.4f
-        const val SIMPLE_SHORTER_SCALE = 1.09f
-        const val SIMPLE_SHORTER_Y_OFFSET = 0.1f
-        const val SIMPLE_SHORTER_GLOW = 0.285f
 
         val OPACITY_EASING = CubicBezierEasing(0.61f, 1f, 0.88f, 1f)
         val SCALE_EASING = CubicBezierEasing(0.37f, 0f, 0.63f, 1f)
@@ -157,8 +153,8 @@ class LyricsAnimator(
         val POP_FADE_EASING = CubicBezierEasing(0f, 0f, 0.58f, 1f)
         /** Folded, a background line is this size. */
         const val POP_FOLDED_SCALE = 0.8f
-        /** The Apple Music style's background line is done opening or folding once this close and this slow. */
-        const val PRESENCE_SETTLE = 0.0005f
+        /** A folding background line moves this far (of the room it gives back) up under its lead. */
+        const val BACKGROUND_FOLDED_SHIFT = 0.3f
         val EASE_IN_OUT = CubicBezierEasing(0.42f, 0f, 0.58f, 1f)
         const val MINIMAL_SUNG_SCALE = 0.95f
         const val MINIMAL_NOT_SUNG_SCALE = 0.965f
@@ -166,18 +162,20 @@ class LyricsAnimator(
         const val MINIMAL_AFTER_ACTIVE_OPACITY = 0.45f
         /** CSS `ease`. */
         val CSS_EASE = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1f)
-        /** The Apple Music style keeps a sung line's words moving this long after it ends (held-word letters settling). */
-        const val APPLE_SETTLE_MS = 15_000L
-        /**
-         * An em of CSS `blur()` deviation as the shadow radius the renderer takes, in desktop px:
-         * 56px to the em, and a shadow's radius is about √3 of its deviation.
-         */
-        const val APPLE_BLUR_CSS_PX_PER_EM = 56f * 1.73f
         const val DOT_GROUP_EXPANSION_MS = 300
         const val DOT_GROUP_COLLAPSE_MS = 400
 
         fun spline(vararg points: Pair<Float, Float>) =
             CubicSplineInterpolator(points.map { AnimationPoint(it.first, it.second) })
+
+        /**
+         * A background line's opacity for how far open it is: it shows only once its room has
+         * mostly opened, and is gone before it closes, so it's never squeezed half-visible.
+         */
+        fun backgroundAlpha(presence: Float): Float {
+            val x = ((presence - 0.3f) / 0.7f).coerceIn(0f, 1f)
+            return x * x * (3f - 2f * x)
+        }
     }
 
     /** Word/letter-group container springs, snapped to resting on creation (reference lazy-init). */
@@ -214,6 +212,13 @@ class LyricsAnimator(
     private val cachedLineGradient = mutableMapOf<Int, Float>()
     private val cachedLineGlow = mutableMapOf<Int, Float>()
 
+    /** The under-line row's words (see [LetterSynthesizer.rowWord]) and their frozen states, per line. */
+    private val rowWordsCache = mutableMapOf<Int, List<Word>>()
+    private val cachedRowStates = mutableMapOf<Int, List<WordAnimState>>()
+
+    /** Word-by-word row highlight easing per active line: pairs of (lit level, glow) per word. */
+    private val rowHighlights = mutableMapOf<Int, FloatArray>()
+
     /**
      * The lines the word caches were built from. Lines get rebuilt (romanization switched on,
      * letters re-synthesized) with different words and letter counts, so the per-word caches and
@@ -237,12 +242,13 @@ class LyricsAnimator(
         cachedWordStates.clear()
         cachedLineGradient.clear()
         cachedLineGlow.clear()
-        appleFinalStates.clear()
+        rowWordsCache.clear()
+        cachedRowStates.clear()
+        rowHighlights.clear()
         presenceAnims.clear()
-        presenceSprings.clear()
         popFadeAnims.clear()
         popLeads = null
-        appleOrdinalsFor = null
+        clearBloom()
         blurringLastLine = -1
         blurAmounts = FloatArray(0)
     }
@@ -261,8 +267,17 @@ class LyricsAnimator(
         lyricsType: LyricsType = LyricsType.Syllable,
         /** Original word timings for romanization below a whole-line translation replacement. */
         romanizationLines: List<Line>? = null,
-        /** Refreshed Simple: the measured widths of a line's words and letters, for the fill's edge. */
+        /** Bloom: the measured widths of a line's words and letters, for the fill's edge. */
         lineGeometry: ((Int) -> LineSweepGeometry?)? = null,
+        /** Bloom: the same for a line's animated romanization row. */
+        rowGeometry: ((Int) -> LineSweepGeometry?)? = null,
+        /** The line the scroll is moving to, if any: under Bloom it grows to full size as the scroll brings it in. */
+        scrollTarget: Int? = null,
+        /**
+         * Bloom's early scroll: lines above this one that have finished singing count as sung,
+         * though their time runs on to the next line. -1 for none.
+         */
+        earlySungBefore: Int = -1,
     ): List<LineAnimState> {
         if (lines.isEmpty()) return emptyList()
 
@@ -281,23 +296,27 @@ class LyricsAnimator(
             cachedFor = lines
             cachedRomanizationFor = romanizationLines
             cachedWordStates.clear()
-            appleFinalStates.clear()
+            rowWordsCache.clear()
+            cachedRowStates.clear()
+            rowHighlights.clear()
             wordSpringsMap.clear()
             letterSpringsMap.clear()
             dotSpringsMap.clear()
             presenceAnims.clear()
-            presenceSprings.clear()
             popFadeAnims.clear()
             popLeads = null
+            clearBloom()
         }
 
         val processedPosition = currentTimeMs.toDouble() -
-            if (config.isSimple) SIMPLE_MODE_POSITION_SHIFT_MS.toDouble() else 0.0
+            if (config.isBloom) BloomMotion.POSITION_SHIFT_MS else 0.0
 
         if (blurAmounts.size != lines.size) blurAmounts = FloatArray(lines.size)
 
-        val states = lines.map { elementState(processedPosition, it.startMs, it.endMs) }
-        if (config.isAppleMusic) return animateAppleMusic(lines, states, processedPosition, deltaTime, suppressBlur, lyricsType, romanizationLines)
+        val states = lines.mapIndexed { i, line ->
+            val state = elementState(processedPosition, line.startMs, line.endMs)
+            if (state == ElementState.Active && i < earlySungBefore && processedPosition >= sungEnd(line)) ElementState.Sung else state
+        }
         // Minimal's `.LyricsContent:not(.HideLineBlur)` rules drop out while the user scrolls.
         val minimalLook = config.isMinimal && !suppressBlur
         // `.LyricsContent:not(:has(.line.Active)):not(:has(.line.NotSung))`: the song is over.
@@ -323,13 +342,17 @@ class LyricsAnimator(
             // line — the renderer treats every non-active line's words identically regardless of
             // Sung/NotSung, so line opacity can go back to tracking lineState alone.
             val stillFinalizing = lineState == ElementState.Sung &&
-                (shouldFinalize(lines, lineIdx, processedPosition) || !isSettled(cachedWordStates[lineIdx]))
+                (shouldFinalize(lines, lineIdx, processedPosition) || !isSettled(cachedWordStates[lineIdx]) ||
+                    cachedRowStates[lineIdx]?.let { !isSettled(it) } == true)
             // A sung line that ends while one above it is still being sung (overlapping lines,
             // background vocals) stays on screen, dimmed, instead of fading out early.
             val keptAfterActive = config.keepOverlappingLines && lineState == ElementState.Sung && !line.isInterlude &&
                 firstActive in 0 until lineIdx
             val afterActive = keptAfterActive || !config.keepOverlappingLines && states.getOrNull(lineIdx - 1) == ElementState.Active
             val opacity = animateLineOpacity(lineIdx, line, lineState, isActive, lyricsType, minimalLook, allSung, afterActive)
+            // Bloom: how lit the line's text is, for a sung line dimming back to rest and for a
+            // line-synced line lighting up as a whole.
+            val lit = if (config.isBloom && !line.isInterlude && !line.isSongwriter) bloomTone(lineIdx, isActive, lyricsType) else 0f
             val lineScale = when {
                 line.isInterlude -> animateInterludeScale(lineIdx, line, processedPosition, isActive)
                 // Mixed.css `.Fullscreen.MinimalLyricsMode .line:not(.musical-line)`.
@@ -338,6 +361,10 @@ class LyricsAnimator(
                     lineState == ElementState.Sung -> MINIMAL_SUNG_SCALE
                     else -> MINIMAL_NOT_SUNG_SCALE
                 })
+                // Bloom: lines rest a little smaller and grow as the scroll brings them in.
+                config.isBloom && !line.isSongwriter && !line.isBackground ->
+                    bloomScale(lineIdx, isActive || scrollTarget == lineIdx)
+                config.isBloom -> 1f
                 // Line-mode active line scales to 1.05 (CSS: data-lyrics-type="Line" .line.Active).
                 lyricsType == LyricsType.Line && !line.isSongwriter ->
                     animateTweenScale(lineIdx, if (isActive) LyricsLayoutCalculator.ACTIVE_LINE_SCALE else 1f)
@@ -354,7 +381,7 @@ class LyricsAnimator(
                     ElementState.Active -> {
                         val pct = progress(processedPosition, line.startMs, line.endMs)
                         // A line with no timing of its own is lit whole: there's nothing to wipe by.
-                        val whole = config.isSimple || line.untimed
+                        val whole = config.isBloom || line.untimed
                         lineGradient = if (whole) 100f else pct * 100f
                         if (whole) {
                             lineGlow = 0f
@@ -366,24 +393,24 @@ class LyricsAnimator(
                             lineGlow = spring.step(deltaTime)
                         }
                     }
-                    ElementState.NotSung -> lineGradient = if (config.isSimple || line.untimed) 100f else -20f
+                    ElementState.NotSung -> lineGradient = if (config.isBloom || line.untimed) 100f else -20f
                     ElementState.Sung -> lineGradient = 100f
                 }
                 cachedLineGradient[lineIdx] = lineGradient
                 cachedLineGlow[lineIdx] = lineGlow
                 wordStates = if (isActive && romanization != null) {
-                    if (config.isRefreshedSimple) refreshedLine(romanization.words, processedPosition, line.isBackground, null)
+                    if (config.isBloom) bloomLine(lineIdx + ROW_KEY, romanization.words, processedPosition, line, null)
                     else romanization.words.mapIndexed { wordIdx, word ->
                         animateWord(word, processedPosition, deltaTime, lineIdx, wordIdx)
                     }
                 } else emptyList()
             } else {
                 wordStates = when {
-                    config.isRefreshedSimple && !line.isSongwriter -> {
-                        if (line.isInterlude) animateInterludeDots(line, processedPosition, deltaTime, lineIdx, finalize = false)
-                        else refreshedLine(line.words,
+                    config.isBloom && !line.isSongwriter -> {
+                        if (line.isInterlude) bloomDots(line, processedPosition)
+                        else bloomLine(lineIdx, line.words,
                             if (lineState == ElementState.NotSung) Double.NEGATIVE_INFINITY else processedPosition,
-                            line.isBackground, lineGeometry?.invoke(lineIdx))
+                            line, lineGeometry, endMs = if (lineIdx < earlySungBefore) minOf(line.endMs, sungEnd(line)) else line.endMs)
                     }
                     line.isSongwriter -> cachedWordStates.getOrPut(lineIdx) {
                         line.words.map { songwriterWordState(it) }
@@ -422,6 +449,56 @@ class LyricsAnimator(
                 }
             }
 
+            if (config.animatedUnderRows && !config.isBloom && lyricsType == LyricsType.Syllable && !line.isInterlude && !line.isSongwriter) {
+                // The translation row under a word-synced line sweeps over the line's whole time.
+                when (lineState) {
+                    ElementState.Active -> {
+                        val pct = progress(processedPosition, line.startMs, line.endMs)
+                        lineGradient = pct * 100f
+                        val spring = lineGlowSprings.getOrPut(lineIdx) {
+                            SpringSimulation(lineGlowSpline.at(0f), LINE_GLOW_FREQUENCY, LINE_GLOW_DAMPING)
+                        }
+                        spring.setGoal(lineGlowSpline.at(pct))
+                        lineGlow = spring.step(deltaTime)
+                    }
+                    ElementState.NotSung -> { lineGradient = -20f; lineGlow = 0f }
+                    ElementState.Sung -> { lineGradient = 100f; lineGlow = 0f }
+                }
+                cachedLineGradient[lineIdx] = lineGradient
+                cachedLineGlow[lineIdx] = lineGlow
+            }
+
+            var rowWordStates: List<WordAnimState> = emptyList()
+            var rowHighlight = NO_HIGHLIGHT
+            if (lyricsType == LyricsType.Syllable && !line.isInterlude && !line.isSongwriter && !line.lineTimed) {
+                val noteLine = romanizationLines?.getOrNull(lineIdx) ?: line
+                if (config.animatedUnderRows) {
+                    // The under-line romanization is a line of its own: its words run through the same
+                    // springs as the lyrics, each held one split into its own letters.
+                    val rowWords = rowWordsCache.getOrPut(lineIdx) {
+                        romanizationNote(noteLine)?.pieces?.map { LetterSynthesizer.rowWord(it.word, it.text, config) } ?: emptyList()
+                    }
+                    if (rowWords.isNotEmpty()) rowWordStates = when {
+                        // Under Bloom the row moves as the line's words do: one fill edge along it, each piece
+                        // lifting as it is sung, held ones swelling, all coming back down once the line ends.
+                        config.isBloom -> bloomRow(lineIdx, rowWords, processedPosition, line, lineState, rowGeometry,
+                            endMs = if (lineIdx < earlySungBefore) minOf(line.endMs, sungEnd(line)) else line.endMs)
+                        lineState == ElementState.Active -> rowWords.mapIndexed { i, word ->
+                            animateWord(word, processedPosition, deltaTime, lineIdx + ROW_KEY, i)
+                        }.also { cachedRowStates[lineIdx] = it }
+                        stillFinalizing -> rowWords.mapIndexed { i, word ->
+                            finalizeWord(word, deltaTime, lineIdx + ROW_KEY, i)
+                        }.also { cachedRowStates[lineIdx] = it }
+                        else -> {
+                            cachedRowStates.remove(lineIdx)
+                            emptyList()
+                        }
+                    }
+                } else if (config.romanizationHighlight == RomanizationHighlight.Word && lineState == ElementState.Active) {
+                    rowHighlight = stepRowHighlight(lineIdx, noteLine, processedPosition, deltaTime)
+                } else rowHighlights.remove(lineIdx)
+            }
+
             val blur = if (!config.distanceBlurEnabled || suppressBlur || isActive || minimalLook && keptAfterActive) 0f
                 else blurAmounts.getOrElse(lineIdx) { 0f }
 
@@ -433,10 +510,14 @@ class LyricsAnimator(
                 scale = if (presence == 1f) lineScale else lineScale * (folded + (1f - folded) * presence),
                 presence = presence,
                 presenceGoal = presenceGoal,
-                groupScale = if (config.isRefreshedSimple && line.isInterlude)
-                    RefreshedMotion.dotBreath(processedPosition - line.startMs, line.duration) else 1f,
+                groupScale = if (config.isBloom && line.isInterlude)
+                    BloomMotion.dotGroup(processedPosition - line.startMs, line.duration, PRE_HIDDEN_DOT_LINE_MS).scale else 1f,
+                lit = lit,
+                rowLit = if (config.isBloom && config.animatedUnderRows && !line.isInterlude && !line.isSongwriter) bloomRowTone(lineIdx, isActive) else 0f,
                 isActive = isActive,
                 wordStates = wordStates,
+                rowWordStates = rowWordStates,
+                rowHighlight = rowHighlight,
                 isBackground = line.isBackground,
                 isSongwriter = line.isSongwriter,
                 lineGradientPercent = lineGradient,
@@ -490,7 +571,7 @@ class LyricsAnimator(
             if (target == 1f) coroutineScope.launch { fade.snapTo(1f) }
             else coroutineScope.launch { fade.animateTo(0f, tween(POP_FADE_MS, easing = POP_FADE_EASING)) }
         }
-        val alpha = if (target == 1f) AppleMusicMotion.backgroundAlpha(presence.value) else fade.value
+        val alpha = if (target == 1f) backgroundAlpha(presence.value) else fade.value
         return PopPresence(presence.value, target, alpha)
     }
 
@@ -507,249 +588,8 @@ class LyricsAnimator(
     /** Each background line's fade as it closes under Background Vocal Pop-Out. */
     private val popFadeAnims = mutableMapOf<Int, Animatable<Float, AnimationVector1D>>()
 
-    // ── The Apple Music style ───────────────────────────────────────────────────────
-
-    /** The line the Apple Music style measures distances from: the last one sung, kept through gaps. */
-    private var appleActiveLine = -1
-    /** Each line's place among the lead lines (background vocals share their lead's). */
-    private var appleOrdinals = IntArray(0)
-    private var appleOrdinalsFor: List<Line>? = null
-    /** Each background line's lead line (same group), or -1. */
-    private var appleLeads = IntArray(0)
-    private val appleFinalStates = mutableMapOf<Int, List<WordAnimState>>()
+    /** Each background line's openness under Background Vocal Pop-Out. */
     private val presenceAnims = mutableMapOf<Int, Animatable<Float, AnimationVector1D>>()
-    /** Each background line's openness in the Apple Music style, on the scroll's spring. */
-    private val presenceSprings = mutableMapOf<Int, SpringSimulation>()
-    private val blurAnims = mutableMapOf<Int, Animatable<Float, AnimationVector1D>>()
-    private val litAnims = mutableMapOf<Int, Animatable<Float, AnimationVector1D>>()
-
-    /**
-     * Every line in the Apple Music style. Its words are worked out from the time alone
-     * ([AppleMusicMotion]), so only the line fades and size changes are tweened.
-     */
-    private fun animateAppleMusic(
-        lines: List<Line>,
-        states: List<ElementState>,
-        t: Double,
-        deltaTime: Float,
-        userScrolling: Boolean,
-        lyricsType: LyricsType,
-        romanizationLines: List<Line>?,
-    ): List<LineAnimState> {
-        if (appleOrdinalsFor !== lines) {
-            appleOrdinalsFor = lines
-            var ordinal = -1
-            appleOrdinals = IntArray(lines.size) { i ->
-                val line = lines[i]
-                if (!line.isBackground && !line.isInterlude) ordinal++
-                ordinal.coerceAtLeast(0)
-            }
-            appleLeads = IntArray(lines.size) { i ->
-                val line = lines[i]
-                if (!line.isBackground || line.groupId == null) -1
-                else lines.indices.firstOrNull { j ->
-                    lines[j].groupId == line.groupId && !lines[j].isBackground && !lines[j].isInterlude
-                } ?: -1
-            }
-            appleActiveLine = -1
-            presenceSprings.clear()
-            popFadeAnims.clear()
-            blurAnims.clear()
-            litAnims.clear()
-        }
-        // The last lead line being sung; through a gap, the one sung last.
-        lines.indices.lastOrNull { i ->
-            states[i] == ElementState.Active && !lines[i].isBackground && !lines[i].isInterlude && !lines[i].isSongwriter
-        }?.let { appleActiveLine = it }
-        val activeOrdinal = appleOrdinals.getOrElse(appleActiveLine) { -1 }
-
-        return lines.mapIndexed { lineIdx, line ->
-            val romanization = if (line.translationReplaces && lyricsType == LyricsType.Syllable) romanizationLines?.getOrNull(lineIdx) else null
-            val lineState = states[lineIdx]
-            val isActive = !line.isSongwriter && lineState == ElementState.Active
-            // Before any line has been sung, distances count from just above the first.
-            val lyricsType = if (line.translationReplaces || line.lineTimed && lyricsType == LyricsType.Syllable) LyricsType.Line else lyricsType
-            val signed = appleOrdinals[lineIdx] - activeOrdinal
-            val away = if (isActive) 0 else abs(signed).coerceAtLeast(1)
-
-            val opacityTarget = when {
-                line.isSongwriter -> 0.6f
-                line.isInterlude -> if (isActive) 1f else 0f
-                away == 0 -> 1f
-                else -> (AppleMusicMotion.lineOpacity(away, userScrolling) * config.otherLinesOpacity).coerceAtMost(1f)
-            }
-            val opacityAnim = lineOpacityAnims.getOrPut(lineIdx) { Animatable(opacityTarget) }
-            if (opacityAnim.targetValue != opacityTarget) {
-                val spec = if (line.isInterlude) tween<Float>(MUSICAL_LINE_TRANSITION_MS, easing = OPACITY_EASING)
-                    else tween(AppleMusicMotion.OPACITY_MS, easing = CSS_EASE)
-                coroutineScope.launch { opacityAnim.animateTo(opacityTarget, spec) }
-            }
-
-            val lineScale = when {
-                line.isInterlude -> animateInterludeScale(lineIdx, line, t, isActive)
-                line.isSongwriter -> 1f
-                else -> {
-                    val target = if (isActive) 1f else AppleMusicMotion.INACTIVE_SCALE
-                    val anim = lineScaleAnims.getOrPut(lineIdx) { Animatable(target) }
-                    if (anim.targetValue != target) {
-                        val ms = if (target == 1f) AppleMusicMotion.SCALE_IN_MS else AppleMusicMotion.SCALE_OUT_MS
-                        coroutineScope.launch { anim.animateTo(target, tween(ms, easing = CSS_EASE)) }
-                    }
-                    anim.value
-                }
-            }
-
-            // Background vocals open while they or their lead are sung, and stay open until a later
-            // line starts: the last one then folds as the next opens, with the scroll, in one move.
-            val lead = if (line.isBackground) appleLeads[lineIdx] else -1
-            val sung = line.isBackground && (lineState == ElementState.Active || (lead >= 0 && states[lead] == ElementState.Active))
-            val presenceTarget = if (!line.isBackground) 1f else {
-                val wasOpen = presenceSprings[lineIdx]?.goal == 1f
-                val kept = wasOpen && lineState == ElementState.Sung &&
-                    (lead < 0 || states[lead] == ElementState.Sung) && !movedOn(lines, states, lineIdx)
-                if (sung || kept) 1f else 0f
-            }
-            val presence = if (!line.isBackground) 1f else {
-                val spring = presenceSprings.getOrPut(lineIdx) {
-                    SpringSimulation(presenceTarget, AppleMusicMotion.SCROLL_FREQUENCY_HZ, AppleMusicMotion.SCROLL_DAMPING)
-                }
-                spring.setGoal(presenceTarget)
-                val before = spring.current
-                val now = spring.step(deltaTime.coerceAtMost(AppleMusicMotion.SCROLL_MAX_STEP_S))
-                if (abs(now - presenceTarget) < PRESENCE_SETTLE && abs(now - before) < PRESENCE_SETTLE) {
-                    spring.setGoal(presenceTarget, replacePosition = true)
-                    presenceTarget
-                } else now
-            }
-
-            val wordStates = when {
-                isActive && romanization != null -> romanization.words.mapIndexed { i, word -> appleWordState(word, i, romanization, t) }
-                lyricsType == LyricsType.Line && !line.isInterlude -> emptyList()
-                line.isSongwriter -> cachedWordStates.getOrPut(lineIdx) { line.words.map { songwriterWordState(it) } }
-                line.isInterlude -> appleDots(line, t)
-                // Not reached yet: at rest. Long done: risen and still.
-                t < line.startMs -> cachedWordStates.getOrPut(lineIdx) {
-                    line.words.mapIndexed { i, word -> appleWordState(word, i, line, Double.NEGATIVE_INFINITY) }
-                }
-                t > line.endMs + APPLE_SETTLE_MS -> appleFinalStates.getOrPut(lineIdx) {
-                    line.words.mapIndexed { i, word -> appleWordState(word, i, line, Double.POSITIVE_INFINITY) }
-                }
-                else -> line.words.mapIndexed { i, word -> appleWordState(word, i, line, t) }
-            }
-
-            // Background vocals stay sharp while their line is sung.
-            val blurTarget = when {
-                !config.distanceBlurEnabled || userScrolling || isActive || line.isInterlude -> 0f
-                sung -> 0f
-                else -> AppleMusicMotion.blurEm(if (signed == 0) -1 else signed) * APPLE_BLUR_CSS_PX_PER_EM *
-                    (if (line.isBackground) AppleMusicMotion.BACKGROUND_BLUR_SHARE else 1f)
-            }
-            val blurAnim = blurAnims.getOrPut(lineIdx) { Animatable(blurTarget) }
-            if (blurAnim.targetValue != blurTarget) {
-                // A touch scroll clears it at once; otherwise lines soften and sharpen smoothly.
-                if (userScrolling) coroutineScope.launch { blurAnim.snapTo(blurTarget) }
-                else coroutineScope.launch { blurAnim.animateTo(blurTarget, tween(AppleMusicMotion.BLUR_FADE_MS, easing = CSS_EASE)) }
-            }
-            val blur = blurAnim.value
-
-            // Lit while sung; after, the words dim back over LINE_SETTLE_MS instead of at once.
-            val litTarget = if (lineState == ElementState.Active) 1f else 0f
-            val litAnim = litAnims.getOrPut(lineIdx) { Animatable(0f) }
-            if (litAnim.targetValue != litTarget) {
-                if (litTarget == 1f) coroutineScope.launch { litAnim.snapTo(1f) }
-                else coroutineScope.launch { litAnim.animateTo(0f, tween(AppleMusicMotion.LINE_SETTLE_MS, easing = CSS_EASE)) }
-            }
-
-            val folded = AppleMusicMotion.BACKGROUND_FOLDED_SCALE
-            LineAnimState(
-                opacity = opacityAnim.value * (if (line.isBackground) AppleMusicMotion.backgroundAlpha(presence) else 1f),
-                blur = blur,
-                scale = if (line.isBackground) lineScale * (folded + (1f - folded) * presence) else lineScale,
-                isActive = isActive,
-                wordStates = wordStates,
-                isBackground = line.isBackground,
-                isSongwriter = line.isSongwriter,
-                // Line-synced lyrics light up whole.
-                lineGradientPercent = if (lineState == ElementState.NotSung) -20f else 100f,
-                lineGlow = 0f,
-                suppressShadows = !config.glowEnabled,
-                state = lineState,
-                presence = presence,
-                presenceGoal = presenceTarget,
-                lit = if (lineState == ElementState.Sung) litAnim.value else 0f,
-                groupScale = if (line.isInterlude) AppleMusicMotion.Dots(line.duration.toFloat()).scale((t - line.startMs).toFloat()) else 1f,
-            )
-        }
-    }
-
-    /**
-     * A word in the Apple Music style at [t]: its wipe as plain progress (0..100, the renderer adds
-     * the soft edge), its rise, and for a held word its letters' emphasis. Infinite [t] gives the
-     * resting and the finished pose.
-     */
-    private fun appleWordState(word: Word, index: Int, line: Line, t: Double): WordAnimState {
-        val state = elementState(t, word.startMs, word.endMs)
-        val progress = progress(t, word.startMs, word.endMs)
-        val lineEnd = if (t >= line.endMs) line.endMs else null
-        val lift = AppleMusicMotion.WORD_LIFT_EM * (if (line.isBackground) 2f else 1f) *
-            AppleMusicMotion.wordRise(t, word.startMs, word.endMs, lineEnd)
-        // The letter synthesizer only splits the words this style emphasizes.
-        if (word.isLetterGroup && word.letters.isNotEmpty()) {
-            val count = word.letters.size
-            val last = index == line.words.lastIndex
-            val span = (word.endMs - word.startMs).coerceAtLeast(1L).toDouble()
-            // The fill crosses each letter in its own time, so a merged word keeps its syllables' pace.
-            val filled = word.letters.sumOf { progress(t, it.startMs, it.endMs).toDouble() }.toFloat() / count
-            return WordAnimState(
-                scale = 1f, yOffset = -lift, glow = 0f,
-                gradientPosition = filled * 100f,
-                state = state,
-                isLetterGroup = true,
-                letterStates = List(count) { i ->
-                    val pose = AppleMusicMotion.emphasisLetter(t, word.startMs, word.endMs, i, count, last, line.isBackground,
-                        at = (word.letters[i].startMs - word.startMs) / span)
-                    LetterAnimState(
-                        gradientPosition = filled * 100f,
-                        scale = pose.scale,
-                        yOffset = pose.yOffset - lift,
-                        glow = pose.glow,
-                        xOffset = pose.xOffset,
-                        glowRadius = pose.glowRadiusEm,
-                    )
-                },
-            )
-        }
-        return WordAnimState(
-            scale = 1f,
-            yOffset = -lift,
-            glow = 0f,
-            gradientPosition = progress * 100f,
-            state = state,
-            isLetterGroup = false,
-        )
-    }
-
-    /**
-     * An instrumental break's three dots in the Apple Music style: they light in turn, while the
-     * group breathes as one ([LineAnimState.groupScale]); the line's own scale opens its room.
-     */
-    private fun appleDots(line: Line, t: Double): List<WordAnimState> {
-        val dots = AppleMusicMotion.Dots(line.duration.toFloat())
-        val at = (t - line.startMs).toFloat()
-        val alpha = dots.alpha(at)
-        val state = elementState(t, line.startMs, line.endMs)
-        return List(3) { i ->
-            WordAnimState(
-                scale = 1f,
-                yOffset = 0f,
-                // 'glow' carries a dot's opacity for the interlude draw.
-                glow = alpha * dots.dotAlpha(i, at),
-                dotGlow = 0f,
-                gradientPosition = if (state == ElementState.Sung) 100f else 0f,
-                state = state,
-            )
-        }
-    }
 
     // ── Line-level pieces ───────────────────────────────────────────────────────────
 
@@ -769,11 +609,13 @@ class LyricsAnimator(
             // Reference: bg-lines have NO opacity override — they use the standard .line state
             // opacities; only their gradient alphas differ (0.6/0.3, applied in the renderer).
             minimalLook && allSung -> config.opacitySung
+            // Bloom dims by tone, so the lines still to come and a finished line kept beside the
+            // one being sung keep full opacity.
             minimalLook -> when (lineState) {
                 ElementState.Active -> config.opacityActive
-                ElementState.NotSung -> MINIMAL_NOT_SUNG_OPACITY
+                ElementState.NotSung -> if (config.isBloom) 1f else MINIMAL_NOT_SUNG_OPACITY
                 // A finished line below an active one stays faint.
-                ElementState.Sung -> if (afterActive) MINIMAL_AFTER_ACTIVE_OPACITY else 0f
+                ElementState.Sung -> if (!afterActive) 0f else if (config.isBloom) 1f else MINIMAL_AFTER_ACTIVE_OPACITY
             }
             else -> when (lineState) {
                 ElementState.Active -> config.opacityActive
@@ -813,12 +655,7 @@ class LyricsAnimator(
             // The collapse (1→0, at pre-hidden) uses a slower 0.4s dip-then-overshoot
             // curve; expansion (0→1, on activation) keeps the default line-transition tween.
             val duration = if (target == 0f) DOT_GROUP_COLLAPSE_MS else DOT_GROUP_EXPANSION_MS
-            // The Apple Music style's dots already swell before they go (AppleMusicMotion.Dots).
-            val easing = when {
-                config.isAppleMusic -> CSS_EASE
-                target == 0f -> DOT_GROUP_COLLAPSE_EASING
-                else -> SCALE_EASING
-            }
+            val easing = if (target == 0f) DOT_GROUP_COLLAPSE_EASING else SCALE_EASING
             coroutineScope.launch {
                 animatable.animateTo(target, tween(duration, easing = easing))
             }
@@ -878,8 +715,7 @@ class LyricsAnimator(
         val springs = wordSprings(lineIndex, wordIndex)
         val wordState = elementState(processedPosition, word.startMs, word.endMs)
         val percentage = progress(processedPosition, word.startMs, word.endMs)
-        val simple = config.isSimple
-        val gradientBase = if (simple) -50f else -20f
+        val gradientBase = -20f
 
         val targetScale: Float
         val targetYOffset: Float
@@ -919,10 +755,9 @@ class LyricsAnimator(
         } else emptyList()
 
         return WordAnimState(
-            // Simple mode: word scale and glow springs do nothing.
-            scale = if (simple) 1f else currentScale,
+            scale = currentScale,
             yOffset = currentYOffset,
-            glow = if (simple) 0f else currentGlow,
+            glow = currentGlow,
             gradientPosition = targetGradientPos,
             state = wordState,
             isLetterGroup = isLetterGroup,
@@ -930,56 +765,233 @@ class LyricsAnimator(
         )
     }
 
+    // ── Bloom ───────────────────────────────────────────────────────────────────────
+
+    /** Bloom: each line's tone animation (0 at rest, 1 lit), and its size. */
+    private val toneAnims = mutableMapOf<Int, Animatable<Float, AnimationVector1D>>()
+    /** Bloom's animated rows: the tone of a line's whole-line rows (translation, plain romanization). */
+    private val rowToneAnims = mutableMapOf<Int, Animatable<Float, AnimationVector1D>>()
+    /** Each line's word runs ([LetterSynthesizer.runStarts]), for the words list they were worked out from. */
+    private val runStartsCache = mutableMapOf<Int, Pair<List<Word>, IntArray>>()
+    /** A sung line's words once they've come to rest, and from when: reused from then on. */
+    private val bloomFinal = mutableMapOf<Int, Pair<Double, List<WordAnimState>>>()
+    /** A line still to come is at rest, whatever the time: worked out once. */
+    private val bloomRest = mutableMapOf<Int, List<WordAnimState>>()
+
+    private fun clearBloom() {
+        toneAnims.clear()
+        rowToneAnims.clear()
+        runStartsCache.clear()
+        bloomFinal.clear()
+        bloomRest.clear()
+    }
+
     /**
-     * A line in Refreshed Simple, computed from time alone. One soft edge runs along the whole
-     * line, so the fill never stops at the end of a word; held words' letters swell, spread,
-     * lift and glow one after another, and no word floats higher than the one before it.
+     * How lit a line's text is under Bloom: lit while it's sung; after, a word-synced line dims
+     * back to rest a moment after it ends, while a line-synced one fades up and down as a whole.
      */
-    private fun refreshedLine(words: List<Word>, t: Double, background: Boolean, geometry: LineSweepGeometry?): List<WordAnimState> {
-        val fits = geometry != null && geometry.wordWidths.size == words.size && geometry.fontPx > 0f
-        var x = FloatArray(0)
-        var edges = DoubleArray(0)
-        val fade = if (fits) geometry!!.fontPx * RefreshedMotion.EDGE_EM else 0f
-        if (fits) {
-            // The words laid end to end, each box holding the space after it.
-            val box = FloatArray(words.size) {
-                geometry!!.wordWidths[it] + if (it < words.lastIndex && !words[it + 1].isPartOfWord) geometry.gap else 0f
-            }
-            x = FloatArray(words.size)
-            var run = 0f
-            for (i in words.indices) { x[i] = run; run += box[i] }
-            edges = RefreshedMotion.sweepEdges(
-                x, box, LongArray(words.size) { words[it].startMs },
-                LongArray(words.size) { words[it].endMs }, fade, t,
-            )
-        }
-        var floatCap = 1f
-        return words.mapIndexed { index, word ->
-            val state = elementState(t, word.startMs, word.endMs)
-            floatCap = minOf(floatCap, RefreshedMotion.wordFloat(t, word.startMs, word.endMs))
-            val width = if (fits) geometry!!.wordWidths[index] else 0f
-            val swept = fits && width > 0f
-            val wordPos = if (swept) RefreshedMotion.sweepPosition(edges[index], x[index], width, fade)
-                else -50f + 150f * progress(t, word.startMs, word.endMs)
-            val group = word.isLetterGroup && word.letters.isNotEmpty()
-            val letters = if (!group) emptyList() else {
-                val strength = RefreshedMotion.waveStrength(word.duration, index == words.lastIndex)
-                val letterWidths = geometry?.letterWidths?.getOrNull(index)?.takeIf { swept && it.size == word.letters.size }
-                var lx = 0f
-                word.letters.mapIndexed { li, letter ->
-                    val position = if (letterWidths != null) {
-                        RefreshedMotion.sweepPosition(edges[index], x[index] + lx, letterWidths[li], fade).also { lx += letterWidths[li] }
-                    } else -50f + 150f * progress(t, letter.startMs, letter.endMs)
-                    val pose = RefreshedMotion.letter(t, word.letters.first().startMs, li, word.letters.size,
-                        strength, background, ((position + 50f) / 150f).coerceIn(0f, 1f))
-                    LetterAnimState(
-                        gradientPosition = position, scale = pose.scale, yOffset = pose.y, xOffset = pose.x,
-                        glow = pose.glow, glowRadius = pose.radius,
-                    )
+    private fun bloomTone(lineIdx: Int, isActive: Boolean, lyricsType: LyricsType): Float {
+        val target = if (isActive) 1f else 0f
+        val anim = toneAnims.getOrPut(lineIdx) { Animatable(target) }
+        if (anim.targetValue != target) {
+            val lineSynced = lyricsType == LyricsType.Line
+            when {
+                target == 1f && !lineSynced -> coroutineScope.launch { anim.snapTo(1f) }
+                target == 1f -> coroutineScope.launch { anim.animateTo(1f, tween(BloomMotion.LINE_LIGHT_MS, easing = BloomMotion.LINE_TONE_EASE)) }
+                lineSynced -> coroutineScope.launch { anim.animateTo(0f, tween(BloomMotion.LINE_DIM_MS, easing = BloomMotion.LINE_TONE_EASE)) }
+                else -> coroutineScope.launch {
+                    anim.animateTo(0f, tween(BloomMotion.DIM_MS, delayMillis = BloomMotion.DIM_DELAY_MS, easing = BloomMotion.DIM_EASE))
                 }
             }
-            WordAnimState(scale = 1f, yOffset = RefreshedMotion.wordOffset(floatCap), glow = 0f,
-                gradientPosition = wordPos, state = state, isLetterGroup = group, letterStates = letters)
+        }
+        return anim.value
+    }
+
+    /**
+     * How lit a line's whole-line rows are under Bloom, whatever the line's own kind: they come up
+     * in 0.3 s as the line starts, and go back down a moment after it ends, as a word-synced
+     * line's words do.
+     */
+    private fun bloomRowTone(lineIdx: Int, isActive: Boolean): Float {
+        val target = if (isActive) 1f else 0f
+        val anim = rowToneAnims.getOrPut(lineIdx) { Animatable(target) }
+        if (anim.targetValue != target) {
+            val spec = if (isActive) tween<Float>(BloomMotion.LINE_LIGHT_MS, easing = BloomMotion.LINE_TONE_EASE)
+                else tween(BloomMotion.DIM_MS, delayMillis = BloomMotion.DIM_DELAY_MS, easing = BloomMotion.DIM_EASE)
+            coroutineScope.launch { anim.animateTo(target, spec) }
+        }
+        return anim.value
+    }
+
+    /**
+     * The animated romanization row under Bloom: its pieces run like a line's words ([bloomLine]),
+     * from the line's start until they have settled back down after its end. Empty before and after.
+     */
+    private fun bloomRow(
+        lineIdx: Int, words: List<Word>, t: Double, line: Line, lineState: ElementState,
+        geometryOf: ((Int) -> LineSweepGeometry?)?, endMs: Long,
+    ): List<WordAnimState> {
+        if (lineState == ElementState.NotSung) return emptyList()
+        val key = lineIdx + ROW_KEY
+        val states = bloomLine(key, words, t, line, geometryOf?.let { f -> { k: Int -> f(k - ROW_KEY) } }, endMs)
+        // Settled and sung: the plain row says the same.
+        return if (lineState == ElementState.Sung && bloomFinal.containsKey(key)) emptyList() else states
+    }
+
+    /** A line's size under Bloom: full while it's [focused], a little smaller at rest. */
+    private fun bloomScale(lineIdx: Int, focused: Boolean): Float {
+        val target = if (focused) 1f else BloomMotion.INACTIVE_SCALE
+        val anim = lineScaleAnims.getOrPut(lineIdx) { Animatable(target) }
+        if (anim.targetValue != target) {
+            val spec = if (focused) tween<Float>(BloomMotion.SCALE_IN_MS, BloomMotion.SCALE_IN_DELAY_MS, BloomMotion.SCALE_EASE)
+                else tween(BloomMotion.SCALE_OUT_MS, BloomMotion.SCALE_OUT_DELAY_MS, BloomMotion.SCALE_EASE)
+            coroutineScope.launch { anim.animateTo(target, spec) }
+        }
+        return anim.value
+    }
+
+    /**
+     * A word-synced line under Bloom at [t] (-infinity before it starts), from the time alone. One
+     * soft edge runs along the whole line; words lift as they start and never above the one before
+     * them; a held word's letters swell one after another, a word sung in syllables as one. Once the
+     * line ends, everything settles back down on the spring it lifted on.
+     */
+    private fun bloomLine(
+        key: Int, words: List<Word>, t: Double, line: Line, geometryOf: ((Int) -> LineSweepGeometry?)?,
+        /** When the line counts as sung, after which its words settle. */
+        endMs: Long = line.endMs,
+    ): List<WordAnimState> {
+        if (t == Double.NEGATIVE_INFINITY) bloomRest[key]?.let { return it }
+        // Settling only moves on with the time, so the rest pose holds from when it was first
+        // reached; earlier (a seek back) the line settles again.
+        if (t < endMs) bloomFinal.remove(key)
+        else bloomFinal[key]?.let { (from, states) -> if (t >= from) return states }
+        val geometry = geometryOf?.invoke(key)
+        val n = words.size
+        val fits = geometry != null && geometry.wordWidths.size == n && geometry.fontPx > 0f
+        val fontPx = geometry?.fontPx ?: 0f
+        val fade = if (fits) fontPx * BloomMotion.FADE_EM else 0f
+        val runStarts = runStartsCache[key]?.takeIf { it.first === words }?.second
+            ?: LetterSynthesizer.runStarts(words).also { runStartsCache[key] = words to it }
+        fun isGroup(i: Int) = words[i].isLetterGroup && words[i].letters.isNotEmpty()
+
+        // The words laid end to end on one strip, each box holding the space after it.
+        val x = FloatArray(n)
+        val spans = arrayOfNulls<BloomMotion.Span>(n)
+        if (fits) {
+            val g = geometry!!
+            val box = FloatArray(n) { g.wordWidths[it] + if (it < n - 1 && !words[it + 1].isPartOfWord) g.gap else 0f }
+            var run = 0f
+            for (i in 0 until n) { x[i] = run; run += box[i] }
+            // The letters of the whole word each word belongs to.
+            val wordLetters = IntArray(n)
+            for (i in 0 until n) wordLetters[runStarts[i]] += g.letterCounts.getOrElse(i) { 0 }
+            var prev = -1
+            for (i in 0 until n) {
+                if (box[i] <= 0f) continue
+                val rowStart = prev < 0 || g.rows.getOrElse(i) { 0 } > g.rows.getOrElse(prev) { 0 }
+                val rowEnd = i == n - 1 || g.rows.getOrElse(i + 1) { 0 } > g.rows.getOrElse(i) { 0 }
+                spans[i] = BloomMotion.Span(x[i], box[i],
+                    BloomMotion.reach(wordLetters[runStarts[i]], isGroup(i), rowEnd), rowStart, rowEnd)
+                prev = i
+            }
+        }
+        // A merged word's letters keep their syllables' pace: the light crosses each in its time.
+        fun letterX(i: Int): FloatArray? = geometry?.letterWidths?.getOrNull(i)?.takeIf { fits && it.size == words[i].letters.size }
+        val edges = if (!fits) DoubleArray(n) { Double.NEGATIVE_INFINITY } else BloomMotion.sweepEdges(
+            spans, LongArray(n) { words[it].startMs }, LongArray(n) { words[it].endMs }, fade, t,
+        ) { i ->
+            val word = words[i]
+            val widths = letterX(i)
+            if (!config.syllablePace || word.syllables.size < 2 || !isGroup(i) || widths == null) null
+            else {
+                val starts = FloatArray(widths.size)
+                for (j in 1 until widths.size) starts[j] = starts[j - 1] + widths[j - 1]
+                BloomMotion.pacedShare(LongArray(word.letters.size) { word.letters[it].startMs },
+                    LongArray(word.letters.size) { word.letters[it].endMs }, starts, widths, t)
+            }
+        }
+
+        // Once the line ends its words settle back down.
+        val ended = t >= endMs
+        val liftLeft = if (ended) 1.0 - BloomMotion.lift(t - endMs) else 1.0
+        // A word sung in several syllables swells as one: worked out once over all its letters.
+        val flames = HashMap<Int, BloomMotion.Flame>()
+        val flameOffsets = IntArray(n)
+        fun flameOf(i: Int): BloomMotion.Flame {
+            val first = runStarts[i]
+            return flames.getOrPut(first) {
+                var last = first
+                while (last + 1 < n && runStarts[last + 1] == first) last++
+                val members = (first..last).filter(::isGroup)
+                var offset = 0
+                val widths = ArrayList<Float>()
+                for (m in members) {
+                    flameOffsets[m] = offset
+                    offset += words[m].letters.size
+                    val w = letterX(m)
+                    words[m].letters.indices.forEach { widths += if (w != null && fontPx > 0f) w[it] / fontPx else 0f }
+                }
+                val head = words[members.first()]
+                val start = head.letters.first().startMs
+                val end = members.maxOf { words[it].endMs }
+                BloomMotion.flame(t - start, end - head.startMs, offset, widths.toFloatArray())
+            }
+        }
+
+        var settled = ended && liftLeft == 0.0 && t >= (words.maxOfOrNull { it.endMs } ?: 0L) + BloomMotion.RUSH_MS
+        var floatCap = 1.0
+        val states = words.mapIndexed { i, word ->
+            val state = elementState(t, word.startMs, word.endMs)
+            val swept = spans[i] != null
+            val width = if (fits) geometry!!.wordWidths[i] else 0f
+            val wordPos = if (swept) BloomMotion.gradientPosition(edges[i], x[i], width, fade)
+                else -50f + 150f * progress(t, word.startMs, word.endMs)
+            if (!isGroup(i)) {
+                floatCap = minOf(floatCap, BloomMotion.lift(t - word.startMs))
+                return@mapIndexed WordAnimState(scale = 1f, yOffset = (-BloomMotion.LIFT_EM * floatCap * liftLeft).toFloat(),
+                    glow = 0f, gradientPosition = wordPos, state = state)
+            }
+            val whole = flameOf(i)
+            val flame = whole.slice(flameOffsets[i], word.letters.size)
+            if (whole.rest != 1) settled = false
+            val widths = letterX(i)
+            var lx = 0f
+            val letters = word.letters.mapIndexed { li, letter ->
+                // The line's edge where it can be measured; otherwise one letter after another.
+                val position = if (widths != null) {
+                    BloomMotion.gradientPosition(edges[i], x[i] + lx, widths[li], fade).also { lx += widths[li] }
+                } else -50f + 150f * progress(t, letter.startMs, letter.endMs)
+                LetterAnimState(
+                    gradientPosition = position,
+                    scale = flame.scale(li),
+                    yOffset = (flame.y(li) * liftLeft).toFloat(),
+                    xOffset = flame.x(li),
+                    glow = flame.glow(li) * BloomMotion.letterTone(position),
+                    glowRadius = BloomMotion.GLOW_RADIUS_EM,
+                )
+            }
+            // A split word's letters lift one by one instead of the word.
+            WordAnimState(scale = 1f, yOffset = 0f, glow = 0f, gradientPosition = wordPos, state = state,
+                isLetterGroup = true, letterStates = letters)
+        }
+        if (settled) bloomFinal[key] = t to states
+        if (t == Double.NEGATIVE_INFINITY) bloomRest[key] = states
+        return states
+    }
+
+    /** An interlude's three dots under Bloom: they fade in, fill in turn, and leave with the group. */
+    private fun bloomDots(line: Line, t: Double): List<WordAnimState> {
+        val elapsed = t - line.startMs
+        val group = BloomMotion.dotGroup(elapsed, line.duration, PRE_HIDDEN_DOT_LINE_MS)
+        val state = elementState(t, line.startMs, line.endMs)
+        return List(3) { index ->
+            WordAnimState(
+                scale = 1f, yOffset = 0f,
+                // 'glow' carries a dot's opacity for the interlude draw.
+                glow = BloomMotion.dotOpacity(elapsed, line.duration, index, 3, PRE_HIDDEN_DOT_LINE_MS) * group.opacity,
+                gradientPosition = 0f, state = state,
+            )
         }
     }
 
@@ -991,8 +1003,7 @@ class LyricsAnimator(
         lineIndex: Int,
         wordIndex: Int,
     ): List<LetterAnimState> {
-        val simple = config.isSimple
-        val gradientBase = if (simple) -50f else -20f
+        val gradientBase = -20f
 
         // 4b/4c: NotSung/Sung word inside an Active line — letters chase resting/final targets.
         if (wordState != ElementState.Active) {
@@ -1024,8 +1035,6 @@ class LyricsAnimator(
             }
         }
 
-        val wordDuration = word.endMs - word.startMs
-
         return word.letters.mapIndexed { k, letter ->
             val letterState = elementState(processedPosition, letter.startMs, letter.endMs)
 
@@ -1035,18 +1044,10 @@ class LyricsAnimator(
             var targetGlow = glowSpline.at(0f)
 
             if (activeLetterIndex != -1) {
-                // Simple mode blends by whole-word progress with strength multipliers; full mode
-                // by the active letter's own progress.
-                val percentageCount = if (simple)
-                    progress(processedPosition, word.startMs, word.endMs) else activeLetterPercentage
-                val longer = wordDuration > SIMPLE_LETTER_LONGER_THAN_MS
-                val scaleMult = if (simple) (if (longer) SIMPLE_LONGER_SCALE else SIMPLE_SHORTER_SCALE) else 1f
-                val yOffMult = if (simple) (if (longer) SIMPLE_LONGER_Y_OFFSET else SIMPLE_SHORTER_Y_OFFSET) else 1f
-                val glowMult = if (simple) (if (longer) SIMPLE_LONGER_GLOW else SIMPLE_SHORTER_GLOW) else 1f
-
-                val baseScale = letterScaleSpline.at(percentageCount) * scaleMult
-                val baseYOffset = letterYOffsetSpline.at(percentageCount) * yOffMult
-                val baseGlow = glowSpline.at(percentageCount) * glowMult
+                // Blended by the active letter's own progress.
+                val baseScale = letterScaleSpline.at(activeLetterPercentage)
+                val baseYOffset = letterYOffsetSpline.at(activeLetterPercentage)
+                val baseGlow = glowSpline.at(activeLetterPercentage)
 
                 val restingScale = letterScaleSpline.at(0f)
                 val restingYOffset = letterYOffsetSpline.at(0f)
@@ -1061,9 +1062,9 @@ class LyricsAnimator(
                 targetGlow = restingGlow + (baseGlow - restingGlow) * glowFalloff
             }
 
-            // Overrides (reference order): NotSung letters reset to resting (full mode only);
-            // Sung letters in a word with no active letter hold GlowSpline.at(SungLetterGlow).
-            if (letterState == ElementState.NotSung && !simple) {
+            // Overrides: NotSung letters reset to resting; Sung letters in a word with no active
+            // letter hold GlowSpline.at(SungLetterGlow).
+            if (letterState == ElementState.NotSung) {
                 targetScale = letterScaleSpline.at(0f)
                 targetYOffset = letterYOffsetSpline.at(0f)
                 targetGlow = glowSpline.at(0f)
@@ -1126,11 +1127,10 @@ class LyricsAnimator(
             }
         } else emptyList()
 
-        val simple = config.isSimple
         return WordAnimState(
-            scale = if (simple) 1f else currentScale,
+            scale = currentScale,
             yOffset = currentYOffset,
-            glow = if (simple) 0f else currentGlow,
+            glow = currentGlow,
             gradientPosition = 100f,
             state = ElementState.Sung,
             isLetterGroup = isLetterGroup,
@@ -1147,13 +1147,6 @@ class LyricsAnimator(
         lineIndex: Int,
         finalize: Boolean,
     ): List<WordAnimState> {
-        if (config.isRefreshedSimple) return (0 until 3).map { index ->
-            WordAnimState(
-                scale = 1f, yOffset = 0f,
-                glow = RefreshedMotion.dotAlpha(processedPosition - line.startMs, line.duration, index),
-                gradientPosition = 0f, state = elementState(processedPosition, line.startMs, line.endMs),
-            )
-        }
         // Dot timing: each dot ends slightly early (applier: dotPadding = -550/3 per dot).
         val span = ((line.duration - 550L).coerceAtLeast(90L)).toFloat() / 3f
         return (0 until 3).map { dotIdx ->
@@ -1177,10 +1170,10 @@ class LyricsAnimator(
             springs.opacity.setGoal(sample(dotOpacitySpline))
 
             WordAnimState(
-                scale = if (config.isSimple) 1f else springs.scale.step(deltaTime),
-                yOffset = if (config.isSimple) 0f else springs.yOffset.step(deltaTime),
+                scale = springs.scale.step(deltaTime),
+                yOffset = springs.yOffset.step(deltaTime),
                 glow = springs.opacity.step(deltaTime),   // 'glow' carries dot opacity for the base draw
-                dotGlow = if (config.isSimple) 0f else springs.glow.step(deltaTime),
+                dotGlow = springs.glow.step(deltaTime),
                 gradientPosition = if (state == ElementState.Sung) 100f else 0f,
                 state = state,
             )
@@ -1191,13 +1184,11 @@ class LyricsAnimator(
 
     /** Initial resting state for a word that has never been animated (reference build-time styles). */
     private fun restingWordState(word: Word): WordAnimState {
-        val simple = config.isSimple
-        val gradientBase = if (simple) -50f else -20f
+        val gradientBase = -20f
         val isLetterGroup = word.isLetterGroup && word.letters.isNotEmpty()
         return WordAnimState(
-            // Simple mode's applyer leaves a word's scale and lift unset until the animator reaches it.
-            scale = if (simple) 1f else scaleSpline.at(0f),
-            yOffset = if (simple) 0f else yOffsetSpline.at(0f),
+            scale = scaleSpline.at(0f),
+            yOffset = yOffsetSpline.at(0f),
             glow = 0f,
             gradientPosition = gradientBase,
             state = ElementState.NotSung,
@@ -1224,17 +1215,60 @@ class LyricsAnimator(
         letterStates = emptyList(),
     )
 
+    /**
+     * The word-by-word romanization highlight of an active line, eased over time: a word being
+     * sung is lit whole (level 2) with a glow, then settles to the line's lit colour (1) once
+     * sung; the words ahead stay dim (0). Lighting up is quick and settling slow.
+     */
+    private fun stepRowHighlight(lineIdx: Int, noteLine: Line, t: Double, deltaTime: Float): List<Float> {
+        val words = noteLine.words
+        // Per word: lit level, its speed, glow, its speed. Each eases to its target without
+        // overshoot, so a word fades up as it's sung and fades back down after, never snaps.
+        var eased = rowHighlights[lineIdx]
+        if (eased == null || eased.size != words.size * 4) {
+            eased = FloatArray(words.size * 4)
+            rowHighlights[lineIdx] = eased
+        }
+        fun ease(at: Int, target: Float, omega: Float) {
+            val accel = omega * omega * (target - eased[at]) - 2f * omega * eased[at + 1]
+            eased[at + 1] += accel * deltaTime
+            eased[at] = (eased[at] + eased[at + 1] * deltaTime).coerceIn(0f, 2f)
+        }
+        val out = FloatArray(words.size * 2)
+        words.forEachIndexed { i, word ->
+            val (start, end) = LetterSynthesizer.sungSpan(word, config)
+            val state = elementState(t, start, end)
+            val p = progress(t, start, end)
+            val litTarget = when (state) { ElementState.Active -> 2f; ElementState.Sung -> 1f; ElementState.NotSung -> 0f }
+            val glowTarget = when {
+                state != ElementState.Active -> 0f
+                p < 0.15f -> p / 0.15f
+                p <= 0.6f -> 1f
+                else -> (1f - p) / 0.4f
+            }
+            // Fading up takes about a third of a second, settling back to the line's colour about a second.
+            ease(i * 4, litTarget, if (litTarget == 2f) 9f else if (litTarget == 1f) 3.5f else 6f)
+            ease(i * 4 + 2, glowTarget, 8f)
+            out[i * 2] = eased[i * 4]
+            out[i * 2 + 1] = eased[i * 4 + 2].coerceAtLeast(0f)
+        }
+        return out.asList()
+    }
+
     // ── Spring lookup ───────────────────────────────────────────────────────────────
 
     /** Drops what a line remembers of being sung, so it animates from the start the next time. */
     private fun forgetLine(lineIdx: Int) {
         cachedWordStates.remove(lineIdx)
+        cachedRowStates.remove(lineIdx)
+        rowHighlights.remove(lineIdx)
         cachedLineGradient.remove(lineIdx)
         cachedLineGlow.remove(lineIdx)
         lineGlowSprings.remove(lineIdx)
-        wordSpringsMap.keys.removeAll { it / 100000L == lineIdx.toLong() }
-        letterSpringsMap.keys.removeAll { it / 1000000L == lineIdx.toLong() }
+        wordSpringsMap.keys.removeAll { it / 100000L == lineIdx.toLong() || it / 100000L == (lineIdx + ROW_KEY).toLong() }
+        letterSpringsMap.keys.removeAll { it / 1000000L == lineIdx.toLong() || it / 1000000L == (lineIdx + ROW_KEY).toLong() }
         dotSpringsMap.keys.removeAll { it / 3L == lineIdx.toLong() }
+        bloomFinal.remove(lineIdx)
     }
 
     private fun wordSprings(lineIndex: Int, wordIndex: Int): WordSprings =
@@ -1246,6 +1280,9 @@ class LyricsAnimator(
         ) { LetterSprings() }
 
     // ── Helpers ─────────────────────────────────────────────────────────────────────
+
+    /** Where a line's own singing ends: its time may run on to the next line. */
+    private fun sungEnd(line: Line): Long = line.words.maxOfOrNull { it.endMs } ?: line.endMs
 
     private fun elementState(t: Double, startMs: Long, endMs: Long): ElementState = when {
         t < startMs -> ElementState.NotSung

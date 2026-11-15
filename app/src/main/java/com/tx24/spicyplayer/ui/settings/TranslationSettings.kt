@@ -2,6 +2,10 @@ package com.tx24.spicyplayer.ui.settings
 
 import com.tx24.spicyplayer.ui.components.SpicyGlyphs
 import androidx.compose.material.icons.rounded.Translate
+import androidx.compose.material.icons.rounded.Spellcheck
+import androidx.compose.material.icons.rounded.Highlight
+import androidx.compose.material.icons.rounded.Animation
+import com.tx24.spicyplayer.lyrics.spicy.RomanizationHighlight
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.ViewAgenda
 import androidx.compose.material.icons.rounded.AutoAwesome
@@ -50,6 +54,17 @@ internal fun RomanizationTranslationContent(state: PlayerUiState, viewModel: Ext
             SpicySelect(settings.romanizationMode.name, RomanizationMode.entries.map { it.name },
                 { settings.romanizationMode = RomanizationMode.valueOf(it) }, labels = RomanizationMode.entries.map { it.label })
         }
+        SettingRow("Romanization Highlight",
+            description = if (settings.animatedUnderRows) "Animated rows light up like the lyrics." else "How the row under a line lights up.",
+            icon = Icons.Rounded.Highlight, enabled = !settings.animatedUnderRows,
+            searchDescription = "How a romanization row under a line lights up in word-synced lyrics: a sweep along each syllable, or each syllable brightening whole while it's sung.") {
+            SpicySelect(settings.romanizationHighlight.name, RomanizationHighlight.entries.map { it.name },
+                { settings.romanizationHighlight = RomanizationHighlight.valueOf(it) }, labels = RomanizationHighlight.entries.map { it.label },
+                enabled = !settings.animatedUnderRows)
+        }
+        ToggleRow("Animated Romanization and Translation", settings.animatedUnderRows, { settings.animatedUnderRows = it },
+            description = "Move the rows under a line like the lyrics.", icon = Icons.Rounded.Animation,
+            searchDescription = "The rows under each line move like the lyrics: a romanization row rises, swells and glows syllable by syllable, and a translation row sweeps with its line. Overrides Romanization Highlight.")
         ToggleRow("Human romanizations", state.humanRomanizations, viewModel::setHumanRomanizations,
             description = "Use matching romanizations from Genius, or NetEase while it's on.", icon = Icons.Rounded.People,
             searchDescription = "Use a romanization written by people on Genius, or on NetEase while it's on as a source, where it lines up with the lyrics, for readings no romanizer can guess. Asks Genius.")
@@ -67,7 +82,10 @@ internal fun RomanizationTranslationContent(state: PlayerUiState, viewModel: Ext
                 labels = languages.map { it.second })
         }
     }
-    MoreOptions("The romanize and translate buttons, how translations show, the provider, Genius translations") {
+    MoreOptions("The romanize and translate buttons, Japanese spelling, how translations show, the provider, Genius translations") {
+        ToggleRow("Japanese as written", state.writtenRomaji, viewModel::setWrittenRomaji,
+            description = "Spell romaji like lyric pages do (kyou). Off writes it as said (kyō).", icon = Icons.Rounded.Spellcheck,
+            searchDescription = "Spell on-device Japanese romaji the way lyric pages write it: long vowels as written (kyou, toukyou), endings kept on their word. Off spells it as said, with macrons (kyō, tōkyō).")
         ToggleRow("Romanize button", settings.romanizeButton, { settings.romanizeButton = it },
             description = "Show the romanize button.", icon = SpicyGlyphs.EnableRomanization,
             searchDescription = "Show the button that romanizes lyrics, on songs that have them.")
