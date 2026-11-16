@@ -54,7 +54,7 @@ internal class NextLyricsBackend(context: Context, clientKey: String) {
     private val builtIn: Set<RemoteLyricsProvider> = createProviders(
         client, gson, clientKey, SharedSpotify.resolver, geniusPages,
         lrcRedSynced = ConcurrentHashMap(lrcRedSyncs.all.mapNotNull { (isrc, at) -> (at as? Long)?.let { isrc to it } }.toMap()),
-    )
+    ) + com.tx24.spicyplayer.ivlyrics.IvLyricsProvider(context)
     private val lrcRed = builtIn.filterIsInstance<LrcRedLyricsProvider>().single()
     private val cooldowns = ProviderCooldownTracker()
     // Custom sources come and go, so these are rebuilt with them ([rebuild]).

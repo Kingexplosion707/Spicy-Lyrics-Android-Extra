@@ -1,0 +1,157 @@
+package kr.ivlis.ivlyricsandroid;
+
+import android.content.Context;
+
+import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Locale;
+
+final class RawResponseDiskCache {
+    // v2 invalidates sync-data responses that may contain contributor identity
+    // fields written by older builds.
+    private static final int VERSION = 2;
+    private static final char[] HEX_DIGITS = "0123456789abcdef".toCharArray();
+
+    private final File directory;
+    private final File cacheRoot;
+    private final long maxAgeMs;
+
+    RawResponseDiskCache(Context context, String namespace, int maxEntries) {
+        this(context, namespace, maxEntries, DiskCachePolicy.MAX_AGE_MS);
+    }
+
+    RawResponseDiskCache(Context context, String namespace, int maxEntries, long maxAgeMs) {
+        File root = context.getApplicationContext().getFilesDir();
+        this.cacheRoot = new File(root, "lyrics_cache");
+        this.directory = new File(cacheRoot, safeNamespace(namespace));
+        // Retention is governed by the shared one-year / 10 GiB policy.
+        // Keep the argument for source compatibility with existing callers.
+        this.maxAgeMs = Math.max(0L, maxAgeMs);
+    }
+
+    synchronized String get(String key) {
+        File file = fileForKey(key);
+        if (!file.isFile()) {
+            return "";
+        }
+        try {
+            JSONObject object = new JSONObject(readUtf8(file));
+            if (object.optInt("version", 0) != VERSION) {
+                return "";
+            }
+            long savedAtMs = object.optLong("savedAtMs", 0L);
+            if (maxAgeMs > 0L
+                    && (savedAtMs <= 0L || System.currentTimeMillis() - savedAtMs > maxAgeMs)) {
+                file.delete();
+                return "";
+            }
+            String value = object.optString("body", "");
+            if (value.isEmpty()) {
+                return "";
+            }
+            file.setLastModified(System.currentTimeMillis());
+            return value;
+        } catch (Exception ignored) {
+            file.delete();
+            return "";
+        }
+    }
+
+    synchronized void put(String key, String body) {
+        if (key == null || key.trim().isEmpty() || body == null || body.trim().isEmpty()) {
+            return;
+        }
+        try {
+            if (!directory.exists() && !directory.mkdirs()) {
+                return;
+            }
+            JSONObject object = new JSONObject();
+            object.put("version", VERSION);
+            object.put("cacheKey", key);
+            object.put("savedAtMs", System.currentTimeMillis());
+            object.put("body", body);
+
+            File file = fileForKey(key);
+            File temp = new File(directory, file.getName() + ".tmp");
+            writeUtf8(temp, object.toString());
+            if (!temp.renameTo(file)) {
+                writeUtf8(file, object.toString());
+                temp.delete();
+            }
+            DiskCachePolicy.schedulePrune(cacheRoot);
+        } catch (Exception ignored) {
+        }
+    }
+
+    synchronized void remove(String key) {
+        if (key == null || key.trim().isEmpty()) {
+            return;
+        }
+        File file = fileForKey(key);
+        if (file.isFile()) {
+            file.delete();
+        }
+    }
+
+    synchronized void clear() {
+        File[] files = directory.listFiles();
+        if (files == null) {
+            return;
+        }
+        for (File file : files) {
+            if (file.isFile()) {
+                file.delete();
+            }
+        }
+    }
+
+    private File fileForKey(String key) {
+        return new File(directory, sha256(key) + ".json");
+    }
+
+    private static String readUtf8(File file) throws Exception {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        try (FileInputStream input = new FileInputStream(file)) {
+            int read;
+            while ((read = input.read(buffer)) != -1) {
+                output.write(buffer, 0, read);
+            }
+        }
+        return new String(output.toByteArray(), StandardCharsets.UTF_8);
+    }
+
+    private static void writeUtf8(File file, String value) throws Exception {
+        try (FileOutputStream output = new FileOutputStream(file)) {
+            output.write(value.getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    private static String safeNamespace(String namespace) {
+        String value = namespace == null ? "" : namespace.trim().toLowerCase(Locale.ROOT);
+        value = value.replaceAll("[^a-z0-9_-]", "_");
+        return value.isEmpty() ? "raw" : value;
+    }
+
+    private static String sha256(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest((value == null ? "" : value).getBytes(StandardCharsets.UTF_8));
+            char[] encoded = new char[bytes.length * 2];
+            for (int index = 0; index < bytes.length; index++) {
+                int valueByte = bytes[index] & 0xff;
+                encoded[index * 2] = HEX_DIGITS[valueByte >>> 4];
+                encoded[index * 2 + 1] = HEX_DIGITS[valueByte & 0x0f];
+            }
+            return new String(encoded);
+        } catch (Exception ignored) {
+            return Integer.toHexString((value == null ? "" : value).hashCode());
+        }
+    }
+}

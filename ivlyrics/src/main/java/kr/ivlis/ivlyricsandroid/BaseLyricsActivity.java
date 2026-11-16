@@ -1,0 +1,19986 @@
+package kr.ivlis.ivlyricsandroid;
+
+import android.animation.ValueAnimator;
+import android.app.Activity;
+import android.accessibilityservice.AccessibilityServiceInfo;
+import android.app.AlertDialog;
+import android.app.PendingIntent;
+import android.app.PictureInPictureParams;
+import android.app.RemoteAction;
+import android.content.ActivityNotFoundException;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.PackageInstaller;
+import android.content.pm.ActivityInfo;
+import android.content.res.ColorStateList;
+import android.content.res.Configuration;
+import android.database.ContentObserver;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.LinearGradient;
+import android.graphics.Outline;
+import android.graphics.Paint;
+import android.graphics.Rect;
+import android.graphics.Shader;
+import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.Icon;
+import android.graphics.drawable.RippleDrawable;
+import android.media.AudioDeviceCallback;
+import android.media.AudioDeviceInfo;
+import android.media.AudioManager;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
+import android.provider.Settings;
+import android.text.Editable;
+import android.text.InputType;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.TextPaint;
+import android.text.TextUtils;
+import android.text.TextWatcher;
+import android.text.method.LinkMovementMethod;
+import android.text.style.ClickableSpan;
+import android.text.style.ReplacementSpan;
+import android.util.Rational;
+import android.view.Choreographer;
+import android.view.Gravity;
+import android.view.DragEvent;
+import android.view.HapticFeedbackConstants;
+import android.view.KeyEvent;
+import android.view.MotionEvent;
+import android.view.VelocityTracker;
+import android.view.View;
+import android.view.ViewConfiguration;
+import android.view.ViewGroup;
+import android.view.ViewOutlineProvider;
+import android.view.ViewParent;
+import android.view.accessibility.AccessibilityManager;
+import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.animation.DecelerateInterpolator;
+import android.view.Window;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
+import android.view.WindowManager;
+import android.widget.FrameLayout;
+import android.widget.ScrollView;
+import android.widget.Button;
+import android.widget.HorizontalScrollView;
+import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.PopupWindow;
+import android.widget.ProgressBar;
+import android.widget.ScrollView;
+import android.widget.SeekBar;
+import android.widget.Switch;
+import android.widget.CheckBox;
+import android.widget.TextView;
+import android.widget.Toast;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.text.DateFormat;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class BaseLyricsActivity extends Activity implements
+        NowPlayingService.Listener,
+        LyricsRepository.Callback,
+        LyricsRepository.ManualLrclibCallback,
+        AiLyricsRepository.Callback,
+        FuriganaRepository.Callback,
+        YouTubeBackgroundRepository.Callback {
+    public static final String EXTRA_OPEN_LYRICS_PAGE = "kr.ivlis.ivlyricsandroid.OPEN_LYRICS_PAGE";
+    private static final String EXTRA_DEBUG_LYRICS_LOADING_PROVIDER =
+            "kr.ivlis.ivlyricsandroid.DEBUG_LYRICS_LOADING_PROVIDER";
+    private static final int MAX_LOG_LINES = 180;
+    private static final long PREVIEW_INTERLUDE_MIN_DURATION_MS = 500L;
+    private static final long PREVIEW_TRAILING_INTERLUDE_DELAY_MS = 3_500L;
+    private static final long EMPTY_LYRICS_PREVIEW_VISIBLE_MS = 3_000L;
+    private static final String SETTINGS_TAB_GENERAL = "general";
+    private static final String SETTINGS_TAB_LYRICS = "lyrics";
+    private static final String SETTINGS_TAB_PROVIDERS = "providers";
+    private static final String SETTINGS_TAB_APPEARANCE = "appearance";
+    private static final String SETTINGS_TAB_PLAYER = "player";
+    private static final String SETTINGS_TAB_AI = "ai";
+    private static final String SETTINGS_TAB_SYSTEM = "system";
+    private static final String SETTINGS_TAB_CURRENT_TRACK = "current_track";
+    private static final String SETTINGS_ROUTE_HOME = "home";
+    private static final String SETTINGS_UI_PREFS = "settings_ui";
+    private static final String KEY_SETTINGS_THEME = "theme";
+    private static final String KEY_SETTINGS_PREVIEW_PREFIX = "preview_open_";
+    /** Typography follows its main-screen / lyrics-page switch in the preview. */
+    private static final int SETTINGS_PREVIEW_TYPOGRAPHY = 100;
+    private static final String LYRICS_POPUP_TAB_LANGUAGE = "language";
+    private static final String LYRICS_POPUP_TAB_SYNC = "sync";
+    private static final String LYRICS_POPUP_TAB_VIDEO = "video";
+    private static final String LYRICS_POPUP_TAB_BACKGROUND = "background";
+    private static final String LYRICS_POPUP_TAB_LRCLIB = "lrclib";
+    private static final String CREATOR_PROFILE_ENDPOINT = "https://lyrics.api.ivl.is/user/creator-profile";
+    private static final String SYNC_DATA_SPOTIFY_ORIGIN = "https://xpui.app.spotify.com";
+    private static final String SYNC_DATA_SPOTIFY_REFERER = "https://xpui.app.spotify.com/";
+    private static final String UI_HINTS_PREFS = "ui_hints";
+    private static final String RESEARCH_PREFS = "research_preferences";
+    private static final String UPDATE_PREFS = "app_updates";
+    private static final String KEY_LYRICS_META_MENU_TIP_SHOWN = "lyrics_meta_menu_tip_shown";
+    private static final String KEY_RESEARCH_TOKEN_CONSENT_V1 = "token_consent_v1";
+    private static final String KEY_LAST_AUTO_UPDATE_CHECK_MS = "last_auto_update_check_ms";
+    private static final long AUTO_UPDATE_CHECK_INTERVAL_MS = 24L * 60L * 60L * 1000L;
+    private static final int ONBOARDING_STEP_COUNT = 3;
+    private static final int LYRICS_PAGE_TOP_PADDING_EXPANDED_DP = 46;
+    private static final int LYRICS_PAGE_TOP_PADDING_COMPACT_DP = 22;
+    private static final int LYRICS_PAGE_TOP_PADDING_SHRINK_DISTANCE_DP = 120;
+    private static final int LYRICS_PIP_ASPECT_WIDTH = 16;
+    private static final int LYRICS_PIP_ASPECT_HEIGHT = 9;
+    private static final int LYRICS_PIP_STAGE_WIDTH_DP = 640;
+    private static final int LYRICS_PIP_STAGE_HEIGHT_DP = 360;
+    private static final int LYRICS_PIP_STAGE_SQUARE_DP = 480;
+    private static final float PIP_PINCH_TRIGGER_SCALE = 0.72f;
+    private static final int PIP_PINCH_TRIGGER_DISTANCE_DP = 56;
+    private static final long REMOTE_SEEK_STEP_MS = 5_000L;
+    private static final long REMOTE_SEEK_LARGE_STEP_MS = 30_000L;
+    private static final long PENDING_SEEK_HOLD_MS = 2_500L;
+    private static final long PENDING_SEEK_ACK_TOLERANCE_MS = 2_500L;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Runnable emptyLyricsPreviewClearRunnable = this::clearExpiredEmptyLyricsPreview;
+    private final List<String> logLines = new ArrayList<>();
+    private final Map<String, TextView> speakerColorValueViews = new LinkedHashMap<>();
+    private final Map<String, View> speakerColorSwatches = new LinkedHashMap<>();
+    private final Rect mainPageRevealClip = new Rect();
+    // Set while the resting lyrics page hides this player page entirely (see coverMainPage).
+    private View coveredMainPage;
+    private final ExecutorService seekExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService updateExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService aiModelExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService creatorPrivacyExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService researchMediaExecutor = Executors.newFixedThreadPool(2);
+    private final PollinationsAuthClient pollinationsAuthClient = new PollinationsAuthClient();
+    private AudioManager audioManager;
+    private AudioDeviceCallback audioDeviceCallback;
+    private LyricsRepository lyricsRepository;
+    private AiLyricsRepository aiLyricsRepository;
+    private FuriganaRepository furiganaRepository;
+    private YouTubeBackgroundRepository youtubeBackgroundRepository;
+    private CreatorSupportRepository creatorSupportRepository;
+    private UpdateChecker updateChecker;
+    private AiLyricsSettings aiLyricsSettings;
+    private LyricsProviderSettings lyricsProviderSettings;
+    private CreatorPrivacyRepository creatorPrivacyRepository;
+    private CloudSettingsRepository cloudSettingsRepository;
+
+    private LyricsView lyricsView;
+    private LyricsView landscapeLyricsView;
+    private LyricsView pictureInPictureLyricsView;
+    private PlayerProgressView playerProgressView;
+    private PlayerBackgroundView backgroundView;
+    private PlayerBackgroundView pictureInPictureBackgroundView;
+    private YouTubeBackgroundView youtubeBackgroundView;
+    private FrameLayout rootView;
+    private FrameLayout mainPage;
+    private FrameLayout lyricsPage;
+    private LinearLayout landscapeContentRow;
+    private LinearLayout landscapePlayerPane;
+    private FrameLayout landscapeLyricsPane;
+    private FrameLayout inAppBrowserPage;
+    private FrameLayout inAppBrowserSheet;
+    private int inAppBrowserTopInsetPx;
+    private FrameLayout inAppBrowserLoadingView;
+    private FrameLayout inAppBrowserHandleTouchTarget;
+    private View inAppBrowserHandleView;
+    private FrameLayout settingsPanel;
+    private FrameLayout pictureInPicturePage;
+    private VinylPlayerModeView vinylPlayerModeView;
+    /** Kept across content rebuilds: the page it holds takes a moment to load. */
+    private MotionLyricsModeView motionLyricsModeView;
+    private ScaledPictureInPictureFrameLayout pictureInPictureStage;
+    private FrameLayout spotifySetupPanel;
+    private ScrollView spotifySetupScrollView;
+    private ImageView artworkView;
+    private ImageView lyricsArtworkView;
+    private ImageView pictureInPictureArtworkView;
+    private TextView titleView;
+    private TextView artistView;
+    private TextView lyricsTitleView;
+    private TextView lyricsArtistView;
+    private TextView lyricsContributorView;
+    private ProviderAttributionView lyricsProviderAttributionView;
+    private ProviderAttributionView landscapeLyricsProviderAttributionView;
+    private TextView pictureInPictureTitleView;
+    private TextView pictureInPictureArtistView;
+    private AccessibleWebView inAppBrowserWebView;
+    private MainLyricPreviewView lyricPreviewView;
+    private TextView sourceView;
+    private TextView statusView;
+    private TextView debugProgressView;
+    private TextView elapsedView;
+    private TextView remainingView;
+    private TextView overlayPermissionButton;
+    private TextView spotifyDetectionPermissionButton;
+    private TextView logView;
+    private TextView aiSettingsStatusView;
+    private TextView providerSummaryView;
+    private TextView pollinationsAuthStatusView;
+    private TextView pollinationsAuthCodeView;
+    private TextView pollinationsAuthConnectButton;
+    private TextView pollinationsAuthDisconnectButton;
+    private TextView pollinationsAuthOpenButton;
+    private TextView pollinationsAuthTestButton;
+    private TextView selectedLanguageRuleView;
+    private TextView globalSyncOffsetValueView;
+    private TextView globalSyncOffsetDescriptionView;
+    private TextView lyricsSyncOffsetValueView;
+    private TextView lyricsSyncOffsetDescriptionView;
+    private TextView bluetoothSyncOffsetValueView;
+    private TextView bluetoothSyncOffsetDescriptionView;
+    private TextView videoSyncOffsetValueView;
+    private TextView videoSyncOffsetDescriptionView;
+    private TextView videoTimingShareButton;
+    private boolean videoTimingShareInFlight;
+    private TextView lyricsLanguageButton;
+    private TextView permissionButton;
+    private PopupWindow lyricsMetaTipPopup;
+    private PopupWindow lyricsMetaMenuPopup;
+    private ScrollView lyricsMetaMenuScrollView;
+    private AlertDialog tmiDialog;
+    private AlertDialog researchTokenConsentDialog;
+    private AlertDialog firstLanguagePromptDialog;
+    private LinearLayout tmiDialogBody;
+    private TextView tmiDialogRegenerateButton;
+    private AiLyricsRepository.TmiInfo currentTmiInfo;
+    private float tmiTextScale = 1f;
+    private boolean tmiRequestInFlight;
+    private TransportButtonView playPauseButton;
+    private View landscapeControlsContainer;
+    private ImageButton landscapeMenuButton;
+    private LinearLayout debugPanel;
+    private LinearLayout lyricsLanguageSettingsPanel;
+    /** The track panel the current-track settings menu holds; a rebuilt lyrics page brings a new one. */
+    private LinearLayout settingsTrackPanel;
+    /** What the page can turn into, at the head of the track panel: PiP, LP mode and motion lyrics. */
+    private LinearLayout playerModeRow;
+    private View pipModeTile;
+    private View vinylModeTile;
+    private View motionModeTile;
+    private LinearLayout lyricsPopupTabButtonsContainer;
+    private LinearLayout lyricsLanguageSettingsContent;
+    private LinearLayout lyricsSyncSettingsContent;
+    private LinearLayout videoSyncSettingsContent;
+    private LinearLayout lyricsBackgroundSettingsContent;
+    private LinearLayout lyricsBackgroundModeButtonsContainer;
+    private LinearLayout lyricsManualSearchContent;
+    private LinearLayout lyricsManualSearchResultsContainer;
+    private LinearLayout lyricsSupplementLoadingIndicator;
+    private LinearLayout landscapeLyricsSupplementLoadingIndicator;
+    private LinearLayout lyricsPageContent;
+    private LinearLayout lyricPreviewContainer;
+    private LinearLayout landscapeHeroContainer;
+    private LinearLayout landscapeMetaContainer;
+    private LinearLayout providerDetailsContainer;
+    private View providerBaseUrlGroup, providerModelGroup, providerAdvancedGroup;
+    private boolean providerDetailsExpanded = true;
+    private boolean localAiDetailsExpanded;
+    private LocalAiSettingsView localAiSettingsView;
+    private EditText settingsSearchInput;
+    private LinearLayout settingsSearchResults;
+    private View lyricsBackgroundShade;
+    private LinearLayout providerButtonsContainer;
+    private LinearLayout lyricsProviderSettingsContainer;
+    private EditText lrclibPlaybackEndpointInput;
+    private Runnable pendingLrclibEndpointSave;
+    private View pollinationsAuthGroup;
+    private TextView uiLanguageSelectButton;
+    private TextView outputLanguageSelectButton;
+    private TextView sourceLanguageSelectButton;
+    private ScrollView settingsScrollView;
+    // Redesigned settings (home list → menus, search, theme, live preview).
+    private SettingsKit settingsKit;
+    private String settingsRoute = SETTINGS_ROUTE_HOME;
+    private TextView currentTrackSettingsSummary;
+    /** Settings are fading out; a rebuild that lands meanwhile must not bring them back. */
+    private boolean settingsPanelClosing;
+    private final Map<String, Integer> settingsScrollMemory = new HashMap<>();
+    private final Map<String, LinearLayout> settingsMenuPages = new LinkedHashMap<>();
+    private final Map<String, List<String>> settingsMenuSections = new LinkedHashMap<>();
+    private final List<SettingsSection> settingsSections = new ArrayList<>();
+    private final List<SettingsSearchEntry> settingsSearchEntries = new ArrayList<>();
+    private final List<SettingsConditionalRow> settingsConditionalRows = new ArrayList<>();
+    private String settingsBuildingMenu = "";
+    private String settingsBuildingSection = "";
+    private LinearLayout settingsShell;
+    private LinearLayout settingsHomePage;
+    private LinearLayout settingsHomeMenus;
+    private ImageButton settingsNavBackButton;
+    private ImageButton settingsThemeButton;
+    private ImageButton settingsSearchClearButton;
+    private TextView settingsNavTitle;
+    private View settingsNavDivider;
+    private LinearLayout settingsPreviewHost;
+    private Button settingsPreviewToggle;
+    private SettingsPreviewView settingsPreviewView;
+    private boolean settingsPreviewInline;
+    private SettingsKit.Choice pronunciationNotationChoice;
+    private SettingsKit.Choice lyricsAlignmentChoice;
+    private SettingsKit.Choice karaokeDisplayGranularityChoice;
+    private SettingsKit.Choice karaokeMotionStyleChoice;
+    private SettingsKit.Choice pipOrientationChoice;
+    private SettingsKit.Choice pipLyricsAlignmentChoice;
+    private SettingsKit.Choice backgroundModeChoice;
+    private SettingsKit.Choice videoFallbackChoice;
+    private SettingsKit.Choice videoAspectChoice;
+    private SettingsKit.Choice titleTapChoice;
+    private SettingsKit.Choice vinylTonearmStyleChoice;
+    private SettingsKit.Choice vinylTonearmFinishChoice;
+    private SettingsKit.Choice culturalAnnotationFontChoice;
+    private SettingsKit.Choice culturalAnnotationVinylFontChoice;
+    private SettingsKit.Choice culturalAnnotationColumnChoice;
+    private SettingsKit.Choice typographyGroupChoice;
+    private SettingsKit.Range temperatureRange;
+    private final List<CheckBox> previewItemChips = new ArrayList<>();
+    private final Map<String, SettingsKit.Range> typographySizeRanges = new HashMap<>();
+    private final Map<String, SettingsKit.Choice> typographyWeightChoices = new HashMap<>();
+    private final Map<String, TextView> typographyValueViews = new HashMap<>();
+    private final Map<String, Map<String, CheckBox>> lyricsProviderTypeChips = new HashMap<>();
+    private LinearLayout typographyMainList;
+    private LinearLayout typographyLyricsList;
+    private View culturalAnnotationStandardColumn;
+    private View culturalAnnotationVinylColumn;
+    private View backgroundSolidModeVisual;
+    private SettingsKit.FlowLayout lyricsLookupChain;
+    private SettingsKit.FlowLayout aiProviderOwnerLine;
+    private LinearLayout aiConnectionsContainer;
+    private String aiTranslationOwnerId = "";
+    private String aiPronunciationOwnerId = "";
+    private Switch videoEdgeToEdgeSwitch;
+    private Switch landscapeShowOriginalSwitch;
+    private Switch landscapeShowArtworkSwitch;
+    private Switch showLyricsNotFoundSwitch;
+    private TextView creatorPrivacyNoteText;
+    private View creatorPrivacyNoteRow;
+    private View creatorPrivacyStatusRow;
+    private ScrollView logScrollView;
+    private Switch languageTranslationSwitch;
+    private Switch languagePronunciationSwitch;
+    private Switch metadataTranslationSwitch;
+    private Switch japaneseFuriganaSwitch;
+    private Switch culturalAnnotationsSwitch;
+    private Switch autoInstrumentalBreakSwitch;
+    private Switch interludeLabelsSwitch;
+    private Switch syncedLyricsKaraokeSwitch;
+    private Switch karaokeBounceSwitch;
+    private Switch pronunciationFillSwitch;
+    private Switch syncedPronunciationSwitch;
+    private Switch preferSyncDataProviderSwitch;
+    private Switch preferLyricsTypeFirstSwitch;
+    private Switch useSyncCreatorSpeakerColorsSwitch;
+    private Switch landscapeAutoHideControlsSwitch;
+    private Switch landscapeCenterNoLyricsSwitch;
+    private Switch keepScreenOnSwitch;
+    private Switch playerCardBackgroundSwitch;
+    private Switch pipShowArtworkSwitch;
+    private Switch backgroundNoiseSwitch;
+    private Switch backgroundReduceMotionSwitch;
+    private Switch albumArtOpenLpSwitch;
+    private Switch vinylAnimationsSwitch;
+    private Switch vinylTrackChangesSwitch;
+    private Switch vinylSimplifiedTitleSwitch;
+    private SeekBar vinylRotationSpeedSeekBar;
+    private Switch vinylCenterRotationSwitch;
+    private Switch vinylLyricsSwitch;
+    private Switch lyricsTrackBackgroundOverrideSwitch;
+    private Switch lyricsBackgroundNoiseSwitch;
+    private Switch lyricsBackgroundReduceMotionSwitch;
+    private Switch creatorProfilePrivacySwitch;
+    private SeekBar backgroundBrightnessSeekBar;
+    private SeekBar backgroundBlurSeekBar;
+    private SeekBar backgroundVideoScaleSeekBar;
+    private SeekBar pipLyricsSizeSeekBar;
+    private SeekBar vinylAlbumSizeSeekBar;
+    private SeekBar vinylRecordSizeSeekBar;
+    private SeekBar vinylTonearmSizeSeekBar;
+    private SeekBar lyricsBackgroundBrightnessSeekBar;
+    private SeekBar lyricsBackgroundBlurSeekBar;
+    private SeekBar lyricsBackgroundVideoScaleSeekBar;
+    private SeekBar culturalAnnotationFontSizeSeekBar;
+    private SeekBar culturalAnnotationFontWeightSeekBar;
+    private SeekBar culturalAnnotationOpacitySeekBar;
+    private SeekBar culturalAnnotationVinylFontSizeSeekBar;
+    private SeekBar culturalAnnotationVinylFontWeightSeekBar;
+    private SeekBar culturalAnnotationVinylOpacitySeekBar;
+    private View culturalAnnotationStyleGroup;
+    private TextView lyricsBackgroundBrightnessValueView;
+    private TextView lyricsBackgroundBlurValueView;
+    private TextView lyricsBackgroundVideoScaleValueView;
+    private EditText apiKeysInput;
+    private EditText modelInput;
+    private TextView aiModelPickerButton;
+    private int aiModelRequestId;
+    private LinearLayout openAIConnectionsContainer;
+    private EditText baseUrlInput;
+    private EditText maxTokensInput;
+    private EditText temperatureInput;
+    private TextView backgroundSolidColorValueView;
+    private TextView lyricsBackgroundSolidColorValueView;
+    private View backgroundSolidColorSwatch;
+    private View lyricsBackgroundSolidColorSwatch;
+    private View backgroundSolidColorGroup;
+    private View backgroundVideoScaleGroup;
+    private View lyricsBackgroundSolidColorGroup;
+    private View lyricsBackgroundVideoScaleGroup;
+    private EditText spotifyClientIdInput;
+    private EditText spotifyClientSecretInput;
+    private EditText spotifySetupClientIdInput;
+    private EditText spotifySetupClientSecretInput;
+    private EditText lyricsManualSearchTitleInput;
+    private EditText lyricsManualSearchArtistInput;
+    private TextView spotifySetupStatusView;
+    private TextView lyricsManualSearchStatusView;
+    private TextView culturalAnnotationRegenerateButton;
+    private TextView lyricsRegenerateButton;
+    private TextView updateStatusView;
+    private TextView creatorPrivacyStatusView;
+    private TextView creatorPrivacyAccountButton;
+    private TextView creatorPrivacyRefreshButton;
+    private TextView cloudSettingsStatusView;
+    private TextView cloudSettingsRefreshButton;
+    private TextView cloudSettingsUploadButton;
+    private TextView cloudSettingsApplyButton;
+    private TextView cloudSettingsDeleteButton;
+    private TextView onboardingStepLabel;
+    private TextView onboardingBackButton;
+    private TextView onboardingNextButton;
+    private TextView onboardingUiLanguageSelectButton;
+    private TextView onboardingPermissionStatusView;
+    private LinearLayout onboardingBody;
+    private SettingsKit onboardingKit;
+    private View[] onboardingProgress;
+    private FrameLayout onboardingGreetingView;
+    private TextView onboardingGreetingEnglish;
+    private TextView onboardingGreetingKorean;
+    private WelcomeGreetingRotation onboardingGreetingRotation;
+    private boolean onboardingResumed;
+    private AccessibilityManager onboardingAccessibilityManager;
+    private final AccessibilityManager.AccessibilityStateChangeListener onboardingAccessibilityListener =
+            enabled -> updateOnboardingGreetingActivity();
+    private final AccessibilityManager.TouchExplorationStateChangeListener onboardingTouchExplorationListener =
+            enabled -> updateOnboardingGreetingActivity();
+    private final ContentObserver onboardingMotionObserver = new ContentObserver(handler) {
+        @Override public void onChange(boolean selfChange) { onMotionPreferencesChanged(); }
+    };
+
+    private void onMotionPreferencesChanged() {
+        updateOnboardingGreetingActivity();
+        if (lyricsView != null) lyricsView.invalidate();
+        if (landscapeLyricsView != null) landscapeLyricsView.invalidate();
+        if (pictureInPictureLyricsView != null) pictureInPictureLyricsView.invalidate();
+        if (lyricPreviewView != null) lyricPreviewView.invalidate();
+        if (vinylPlayerModeView != null) vinylPlayerModeView.lyricView().invalidate();
+        requestPlaybackFrame();
+    }
+    private Runnable onboardingAnimatorScaleCleanup;
+
+    @android.annotation.TargetApi(33)
+    private static final class OnboardingAnimatorScaleObserver {
+        static Runnable register(Handler mainHandler, Runnable onChanged) {
+            ValueAnimator.DurationScaleChangeListener listener = scale -> mainHandler.post(onChanged);
+            ValueAnimator.registerDurationScaleChangeListener(listener);
+            return () -> {
+                ValueAnimator.unregisterDurationScaleChangeListener(listener);
+                mainHandler.removeCallbacks(onChanged);
+            };
+        }
+    }
+
+    private final SpotifyDjLyricsTimeline spotifyDjLyricsTimeline = new SpotifyDjLyricsTimeline();
+    private TrackSnapshot currentTrack;
+    private static final int IMPORT_LYRICS_REQUEST = 4871;
+    private String localLyricsImportKey;
+    private long localLyricsImportDuration;
+    private Runnable localLyricsChangeCleanup;
+    private final java.util.Set<String> pendingLocalLyricsRefreshes = new java.util.HashSet<>();
+    private LyricsResult currentLyricsResult = LyricsResult.empty("");
+    private LyricsResult currentBaseLyricsResult = LyricsResult.empty("");
+    private LyricsResult currentFuriganaResult;
+    private List<CulturalAnnotation> currentCulturalAnnotations = Collections.emptyList();
+    private String currentCulturalAnnotationRequestKey = "";
+    private YouTubeBackgroundRepository.VideoInfo currentYouTubeBackgroundInfo;
+    private boolean currentYouTubeBackgroundLoading;
+    private String currentFuriganaKey = "";
+    private String currentLyricsKey = "";
+    private boolean embeddedInitialLyricsConsumed;
+    // lrc.red word timing generated for the displayed lyrics. The line-timed base it replaced
+    // stays the identity of supplement requests started before the timing arrived.
+    private boolean lyricsWordSyncLoading;
+    private boolean lyricsWordSyncFailed;
+    // Pronunciation-first: AI unit timing for the displayed pronunciation.
+    private PronunciationFirstButton pronunciationFirstButton;
+    private Map<String, List<String>> pronunciationTimedParts = Collections.emptyMap();
+    private String pronunciationTimedSignature = "";
+    private String pronunciationTimingRequestKey = "";
+    private String pronunciationTimingRequestSignature = "";
+    private LyricsResult pronunciationSignatureSource;
+    private LyricsResult pronunciationFillSource;
+    private Map<String, List<String>> pronunciationFillTimed;
+    private PronunciationFirst.Fill pronunciationFill = PronunciationFirst.Fill.NONE;
+    private String pronunciationSignature = "";
+    private boolean pronunciationSyncLoading;
+    private boolean pronunciationSyncFailed;
+    private final Runnable hidePronunciationSyncFailure = () -> {
+        pronunciationSyncFailed = false;
+        refreshWordSyncIndicator();
+    };
+    private final Runnable requestPronunciationTimingRunnable = this::requestPronunciationTiming;
+    private LyricsResult timingUpgradeSourceBase;
+    private final Runnable hideWordSyncFailure = () -> {
+        lyricsWordSyncFailed = false;
+        refreshWordSyncIndicator();
+    };
+    private final Map<String, CreatorSupportRepository.Presentation> creatorSupportPresentations = new HashMap<>();
+    private String creatorSupportInFlightKey = "";
+    private String creatorSupportResolvedKey = "";
+    private long creatorSupportGeneration;
+    private long aiSupplementGeneration;
+    private long aiMetadataGeneration;
+    private String currentTmiRequestKey = "";
+    private String emptyLyricsPreviewKey = "";
+    private List<LyricsLine> cachedPreviewRowsLines = Collections.emptyList();
+    private AiLyricsSettings.Snapshot cachedPreviewRowsSettings;
+    private String cachedPreviewRowsSourceLang = "";
+    private int cachedPreviewRowsItems = -1;
+    private boolean cachedPreviewRowsGenerating;
+    private List<MainLyricPreviewView.PreviewLine> cachedPreviewRows = Collections.emptyList();
+    private String currentArtworkKey = "";
+    private long youtubeBackgroundRequestGeneration;
+    private String currentYouTubeBackgroundRequestKey = "";
+    private String currentResolvedIsrc = "";
+    private String currentResolvedSpotifyTrackId = "";
+    private Bitmap currentArtworkBitmap;
+    private boolean currentArtworkFromSpotify;
+    private String translatedTrackTitle = "";
+    private String translatedTrackArtist = "";
+    private boolean lyricsPageVisible;
+    private boolean inAppBrowserVisible;
+    private String inAppBrowserInitialUrl = "";
+    private long lastBackPressElapsedMs;
+    private float pageDragStartX;
+    private float pageDragStartY;
+    private float pageDragStartTranslationY;
+    private boolean pageDragging;
+    // The standalone page's own open, close or settle slide is running. Each slide is numbered,
+    // so only the latest one's end action can mark the page as no longer sliding.
+    private boolean lyricsPageSliding;
+    private int lyricsPageSlide;
+    // The current page touch began while that slide ran, so it did not stop it.
+    private boolean pageSlideTouch;
+    // That touch became a drag before the slide ended and carries the page from where it was.
+    private boolean pageSlideCarried;
+    // The same for the in-app browser sheet: its own open, close or settle slide is running,
+    // the current touch on its handle or content began during it, and whether it carries it.
+    private boolean inAppBrowserSliding;
+    private int inAppBrowserSlide;
+    private boolean inAppBrowserSlideTouch;
+    private boolean inAppBrowserSlideCarried;
+    // The running close ended a Discord login, which cannot resume, so no touch takes it over.
+    private boolean inAppBrowserCloseEndedLogin;
+    private float mainMetaTouchStartX;
+    private float mainMetaTouchStartY;
+    private int lyricsPageCornerRadiusDp = -1;
+    private int lyricsPageContentTopPaddingPx = -1;
+    private ValueAnimator lyricsPageContentPaddingAnimator;
+    private ValueAnimator inAppBrowserSkeletonAnimator;
+    private final List<View> inAppBrowserSkeletonPulseViews = new ArrayList<>();
+    private VelocityTracker pageVelocityTracker;
+    private float artworkSwipeStartX;
+    private float artworkSwipeStartY;
+    private boolean artworkSwipeDragging;
+    private VelocityTracker artworkVelocityTracker;
+    private long lastProgressUiUpdateMs;
+    private long playbackFrameTimeNanos;
+    private long emptyLyricsPreviewShownAtMs;
+    private long pendingSeekPositionMs = -1L;
+    private long pendingSeekUptimeMs;
+    private long lastSeekCommandUptimeMs;
+    private long lastSeekCommandPositionMs = -1L;
+    private String detectedLyricsSourceLang = "en";
+    private String selectedRuleSourceLang = "auto";
+    private String currentBluetoothAudioDeviceKey = "";
+    private String currentBluetoothAudioDeviceName = "";
+    private String activeLyricsPopupTab = LYRICS_POPUP_TAB_LANGUAGE;
+    private int currentGlobalSyncOffsetMs;
+    private int currentTrackSyncOffsetMs;
+    private int currentBluetoothLyricsOffsetMs;
+    private int currentVideoSyncOffsetMs;
+    private long currentSpotifyDjLyricsOffsetMs;
+    /**
+     * Singing along reads slightly ahead of the voice: while pronunciation-first is shown, the
+     * lyric clock runs this much earlier. It is not a sync offset and never appears with them.
+     */
+    static final long PRONUNCIATION_FIRST_LEAD_MS = 200L;
+    /** Lead of the lyrics on the views, refreshed with them in {@link #setLyricsResultOnViews}. */
+    private long pronunciationLeadMs;
+    private boolean lyricsLanguageSettingsVisible;
+    private ViewGroup lyricsLanguageSettingsOriginalParent;
+    private ViewGroup.LayoutParams lyricsLanguageSettingsOriginalLayoutParams;
+    private int lyricsLanguageSettingsOriginalIndex = -1;
+    private int lyricsMetaMenuPopupWidthPx;
+    private int lyricsMetaMenuPopupTopPx;
+    private boolean suppressLanguageRuleEvents;
+    private boolean suppressSettingsEvents;
+    private boolean aiLyricsGenerating;
+    private boolean lyricsLookupInFlight;
+    private String lyricsLoadingProviderName = "";
+    private boolean lyricsSupplementPronunciationLoading;
+    private boolean lyricsSupplementTranslationLoading;
+    private String pronunciationLoadingProviderName = "";
+    private String translationLoadingProviderName = "";
+    private boolean lyricsSupplementFuriganaLoading;
+    private boolean lyricsCulturalAnnotationsLoading;
+    private boolean metadataTranslationLoading;
+    private boolean spotifyCredentialsValidationInFlight;
+    private volatile boolean pollinationsAuthInFlight;
+    private boolean updateCheckInFlight;
+    private boolean updateDownloadInFlight;
+    private boolean creatorPrivacyRequestInFlight;
+    private boolean creatorPrivacyLoginInProgress;
+    private boolean creatorPrivacyLoaded;
+    private boolean creatorProfilePrivate;
+    private boolean cloudSettingsRequestInFlight;
+    private boolean cloudSettingsLoaded;
+    private CloudSettingsRepository.CloudRecord cloudSettingsRecord = CloudSettingsRepository.CloudRecord.empty();
+    private String cloudSettingsStatusOverride = "";
+    private boolean automaticUpdateCheckStarted;
+    private boolean spotifySetupRequired;
+    private boolean manualLrclibSearchInFlight;
+    private boolean pictureInPictureUiActive;
+    private boolean pictureInPictureActionsInitialized;
+    private boolean pictureInPictureActionsPlaying;
+    private boolean lyricsPageVisibleBeforePictureInPicture;
+    private boolean youtubeBackgroundAttachedToPictureInPicture;
+    private boolean pictureInPicturePinchTracking;
+    private boolean pictureInPicturePinchTriggered;
+    private boolean vinylModeVisible;
+    private boolean motionModeVisible;
+    /** What the activity asked for before motion lyrics held a phone in landscape. */
+    private int orientationBeforeMotionMode = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+    /** The lyrics page was open when motion lyrics took over, so closing the mode returns to it. */
+    private boolean lyricsPageOpenBeforeMotionMode;
+    /**
+     * A quarter turn (90 or -90 degrees) of the motion stage and the background inside a window
+     * that stays upright, or 0. The Spotify module's sheet cannot turn its window.
+     */
+    private int motionStageTurn;
+    /** The camera frame the motion page last reported for the background. */
+    private float motionCameraRotate;
+    private float motionCameraScale = 1f;
+    private float motionCameraX;
+    private float motionCameraY;
+    private android.view.OrientationEventListener motionStageDirection;
+    private android.graphics.drawable.Drawable rootBackgroundBeforeMotionStageTurn;
+    private final View.OnLayoutChangeListener motionStageRootLayout =
+            (view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+                if (motionStageTurn != 0 && (right - left != oldRight - oldLeft || bottom - top != oldBottom - oldTop)) {
+                    layoutMotionStageTurn();
+                }
+            };
+    /** The lyrics and track last sent to the motion lyrics page. */
+    private LyricsResult motionSongLyrics;
+    private String motionSongKey = "";
+    /** The page runs its own clock between these reports. */
+    private static final long MOTION_LYRICS_SYNC_MS = 250L;
+    private final Runnable motionLyricsTick = new Runnable() {
+        @Override
+        public void run() {
+            syncMotionLyricsMode();
+            if (motionModeVisible) {
+                handler.postDelayed(this, MOTION_LYRICS_SYNC_MS);
+            }
+        }
+    };
+    private float pictureInPicturePinchStartDistance;
+    private int onboardingStep = -1;
+    // Unsaved credentials belong to the flow, not to the views rebuilt on back/theme/rotation.
+    private String onboardingClientIdDraft;
+    private String onboardingClientSecretDraft;
+    private String onboardingValidationStatus;
+    private boolean onboardingSpotifyHelpExpanded;
+    private int spotifyInstructionStep;
+    private String activeSettingsTab = SETTINGS_TAB_GENERAL;
+    private String pollinationsAuthVerificationUrl = "";
+    private String pollinationsAuthUserCode = "";
+    private boolean landscapeControlsVisible = true;
+    private boolean consumeLandscapeRevealGesture;
+    private boolean pendingOpenLyricsPageFromIntent;
+    private boolean lyricsMetaLongPressTriggered;
+    private Runnable lyricsMetaLongPressRunnable;
+    private Runnable pendingLyricsProviderReload;
+    private boolean artworkLongPressTriggered;
+    private Runnable artworkLongPressRunnable;
+    private UpdateChecker.UpdateInfo pendingUpdateInfo;
+    private final Runnable landscapeControlsAutoHideRunnable = () -> setLandscapeControlsVisible(false, true);
+
+    private boolean playbackClockActive;
+    private boolean playbackFramePosted;
+    private final Runnable idlePlaybackTick = this::requestPlaybackFrame;
+    private final Choreographer.FrameCallback ticker = new Choreographer.FrameCallback() {
+        @Override
+        public void doFrame(long frameTimeNanos) {
+            playbackFramePosted = false;
+            if (!playbackClockActive) return;
+            updatePlaybackUi(frameTimeNanos);
+            if (!playbackClockActive) return;
+            if (playbackNeedsFrames()) requestPlaybackFrame();
+            else handler.postDelayed(idlePlaybackTick, 500L);
+        }
+    };
+
+    private boolean playbackNeedsFrames() {
+        return (currentTrack != null && currentTrack.playing) || pendingSeekPositionMs >= 0L
+                || (lyricPreviewView != null && lyricPreviewView.isShown() && lyricPreviewView.needsHostFrames())
+                || (vinylPlayerModeView != null && vinylModeVisible
+                    && vinylPlayerModeView.lyricView().isShown() && vinylPlayerModeView.lyricView().needsHostFrames());
+    }
+
+    private void requestPlaybackFrame() {
+        if (!playbackClockActive) return;
+        handler.removeCallbacks(idlePlaybackTick);
+        if (playbackFramePosted) return;
+        playbackFramePosted = true;
+        Choreographer.getInstance().postFrameCallback(ticker);
+    }
+
+    private void startPlaybackClock() {
+        stopPlaybackClock();
+        playbackClockActive = true;
+        lastProgressUiUpdateMs = 0L;
+        requestPlaybackFrame();
+    }
+
+    private void stopPlaybackClock() {
+        playbackClockActive = false;
+        playbackFramePosted = false;
+        handler.removeCallbacks(idlePlaybackTick);
+        Choreographer.getInstance().removeFrameCallback(ticker);
+    }
+
+    private LyricsActivityHost lyricsActivityHost;
+    private boolean hostLyricsDragging;
+    private boolean hostDragHandlePressed;
+
+    /** Apps may supply a host window transition without coupling the shared UI to that host. */
+    protected LyricsActivityHost createLyricsActivityHost(View root) {
+        return null;
+    }
+
+    /** Optional host-owned control beside the lyrics attribution. */
+    protected View createLyricsFooterAccessory() {
+        return null;
+    }
+
+    /** Pass only the public track identity across the host boundary. */
+    protected void onLyricsHostTrackChanged(String trackUri) {}
+
+    @Override
+    public void finish() {
+        onboardingResumed = false;
+        if (onboardingGreetingRotation != null) onboardingGreetingRotation.setActive(false);
+        if (lyricsActivityHost != null && !isFinishing()) {
+            lyricsActivityHost.close(this::finishHostedLyricsImmediately);
+        } else {
+            super.finish();
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private void finishHostedLyricsImmediately() {
+        super.finish();
+        overridePendingTransition(0, 0);
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    protected void onCreate(Bundle savedInstanceState) {
+        IvLyricsBridge.initialize(this);
+        setTheme(R.style.AppTheme);
+        super.onCreate(savedInstanceState);
+        LyricsWordSegmenter.initialize(getApplicationContext());
+        aiLyricsSettings = new AiLyricsSettings(this);
+        if (savedInstanceState != null) {
+            localLyricsImportKey = savedInstanceState.getString("local_lyrics.import_key");
+            localLyricsImportDuration = savedInstanceState.getLong("local_lyrics.import_duration");
+            onboardingStep = savedInstanceState.getInt("first_use.step", -1);
+            onboardingClientIdDraft = savedInstanceState.getString("first_use.client_id");
+            onboardingClientSecretDraft = savedInstanceState.getString("first_use.client_secret");
+            onboardingSpotifyHelpExpanded = savedInstanceState.getBoolean("first_use.help");
+            spotifyInstructionStep = savedInstanceState.getInt("first_use.guide_step");
+        }
+        onboardingGreetingRotation = new WelcomeGreetingRotation(
+                savedInstanceState == null ? "ko".equals(aiLyricsSettings.snapshot().uiLang)
+                        : savedInstanceState.getBoolean("first_use.greeting_ko", "ko".equals(aiLyricsSettings.snapshot().uiLang)),
+                savedInstanceState != null && savedInstanceState.getBoolean("first_use.language_interacted"),
+                new WelcomeGreetingRotation.Scheduler() {
+                    @Override public void postDelayed(Runnable callback, long delayMs) { handler.postDelayed(callback, delayMs); }
+                    @Override public void removeCallbacks(Runnable callback) { handler.removeCallbacks(callback); }
+                }, this::renderOnboardingGreeting);
+        onboardingAccessibilityManager = (AccessibilityManager) getSystemService(ACCESSIBILITY_SERVICE);
+        if (onboardingAccessibilityManager != null) {
+            onboardingAccessibilityManager.addAccessibilityStateChangeListener(onboardingAccessibilityListener);
+            onboardingAccessibilityManager.addTouchExplorationStateChangeListener(onboardingTouchExplorationListener);
+        }
+        getContentResolver().registerContentObserver(Settings.Global.getUriFor(Settings.Global.ANIMATOR_DURATION_SCALE),
+                false, onboardingMotionObserver);
+        if (Build.VERSION.SDK_INT >= 33) {
+            // Settings can notify before ValueAnimator updates its cached scale. Observe
+            // that update too, so re-enabling motion resumes a still-untouched welcome.
+            onboardingAnimatorScaleCleanup = OnboardingAnimatorScaleObserver.register(handler, this::onMotionPreferencesChanged);
+        }
+        // Spoken-feedback services can change while another accessibility service is already
+        // enabled, without an accessibility-enabled or touch-exploration state transition.
+        getContentResolver().registerContentObserver(Settings.Secure.getUriFor(Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES),
+                false, onboardingMotionObserver);
+        currentGlobalSyncOffsetMs = aiLyricsSettings.globalSyncOffsetMs();
+        lyricsProviderSettings = new LyricsProviderSettings(this);
+        creatorPrivacyRepository = new CreatorPrivacyRepository(this);
+        cloudSettingsRepository = new CloudSettingsRepository(
+                this,
+                creatorPrivacyRepository,
+                aiLyricsSettings,
+                lyricsProviderSettings
+        );
+        creatorSupportRepository = new CreatorSupportRepository(this);
+        aiLyricsRepository = new AiLyricsRepository(this);
+        furiganaRepository = new FuriganaRepository(this);
+        lyricsRepository = new LyricsRepository(this);
+        observeLocalLyricsChanges();
+        youtubeBackgroundRepository = new YouTubeBackgroundRepository(this);
+        if (!IvLyricsBridge.isEmbedded(this)) updateChecker = new UpdateChecker(this);
+        audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
+        registerAudioDeviceCallback();
+        Window window = getWindow();
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+                | WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN);
+        window.setStatusBarColor(Color.TRANSPARENT);
+        window.setNavigationBarColor(Color.rgb(17, 18, 22));
+        setContentView(buildContentView());
+        lyricsActivityHost = createLyricsActivityHost(rootView);
+        applySystemBarsForOrientation();
+        AiLyricsSettings.Snapshot settingsSnapshot = aiLyricsSettings.snapshot();
+        applyKeepScreenOnSetting(settingsSnapshot);
+        applyBackgroundSettings(settingsSnapshot);
+        applyTypographySettings(settingsSnapshot);
+        applySpeakerColorSettings(settingsSnapshot);
+        applyLyricsTextAlignmentSetting(settingsSnapshot);
+        refreshBluetoothAudioDeviceOffsetState(false);
+        updateSpotifySetupGate(false);
+        handleLaunchIntent(getIntent());
+        requestDefaultRemoteFocus(false);
+    }
+
+    private void observeLocalLyricsChanges() {
+        stopObservingLocalLyricsChanges();
+        localLyricsChangeCleanup = new LocalLyricsStore(this).observe(this::onLocalLyricsChanged);
+    }
+
+    void onLocalLyricsChanged(String key) {
+        if (key == null) return;
+        synchronized (pendingLocalLyricsRefreshes) {
+            if (!pendingLocalLyricsRefreshes.add(key)) return;
+        }
+        handler.post(() -> {
+            synchronized (pendingLocalLyricsRefreshes) {
+                pendingLocalLyricsRefreshes.remove(key);
+            }
+            if (isFinishing() || isDestroyed() || lyricsRepository == null || currentTrack == null
+                    || !currentTrack.stableKey().equals(key)) return;
+            lyricsRepository.invalidateProviderSelection();
+            reloadCurrentLyricsFromSettings();
+        });
+    }
+
+    private void stopObservingLocalLyricsChanges() {
+        if (localLyricsChangeCleanup != null) {
+            localLyricsChangeCleanup.run();
+            localLyricsChangeCleanup = null;
+        }
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        outState.putString("local_lyrics.import_key", localLyricsImportKey);
+        outState.putLong("local_lyrics.import_duration", localLyricsImportDuration);
+        rememberSpotifySetupDraft();
+        outState.putInt("first_use.step", onboardingStep);
+        outState.putString("first_use.client_id", onboardingClientIdDraft);
+        outState.putString("first_use.client_secret", onboardingClientSecretDraft);
+        outState.putBoolean("first_use.help", onboardingSpotifyHelpExpanded);
+        outState.putInt("first_use.guide_step", spotifyInstructionStep);
+        outState.putBoolean("first_use.greeting_ko", onboardingGreetingRotation.isKorean());
+        outState.putBoolean("first_use.language_interacted", onboardingGreetingRotation.hasLanguageInteraction());
+        super.onSaveInstanceState(outState);
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleLaunchIntent(intent);
+        consumeOpenLyricsPageRequest();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (motionModeVisible) {
+            handler.removeCallbacks(motionLyricsTick);
+            handler.post(motionLyricsTick);
+            watchMotionStageDirection(motionStageTurn != 0);
+        }
+        onboardingResumed = true;
+        updateOnboardingGreetingActivity();
+        if (!usesLivePlayback()) return;
+        if (IvLyricsBridge.isEmbedded(this)) IvLyricsBridge.setLyricsPageForeground(this, true);
+        if (!IvLyricsBridge.isEmbedded(this)) SpotifyShortcutOverlayController.setIvLyricsForeground(true);
+        NowPlayingService.register(this);
+        updatePermissionState();
+        NowPlayingService.requestRefresh(this);
+        refreshBluetoothAudioDeviceOffsetState(false);
+        onNowPlayingChanged(NowPlayingService.getLatestSnapshot());
+        applyDebugLyricsLoadingState(getIntent());
+        updateSpotifySetupGate(false);
+        updateOnboardingPermissionState();
+        applySystemBarsForOrientation();
+        applyKeepScreenOnSetting(aiLyricsSettings.snapshot());
+        applyLandscapeControlsAutoHideSetting();
+        startPlaybackClock();
+        consumeOpenLyricsPageRequest();
+        if (!isPictureInPictureUiActive()) {
+            setPictureInPictureUiVisible(false);
+        }
+        maybeStartAutomaticUpdateCheck();
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        updateOnboardingGreetingActivity();
+        if (hasFocus) {
+            applySystemBarsForOrientation();
+            applyLandscapeControlsAutoHideSetting();
+        }
+    }
+
+    private void registerAudioDeviceCallback() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || audioManager == null || audioDeviceCallback != null) {
+            return;
+        }
+        audioDeviceCallback = new AudioDeviceCallback() {
+            @Override
+            public void onAudioDevicesAdded(AudioDeviceInfo[] addedDevices) {
+                refreshBluetoothAudioDeviceOffsetState(true);
+            }
+
+            @Override
+            public void onAudioDevicesRemoved(AudioDeviceInfo[] removedDevices) {
+                refreshBluetoothAudioDeviceOffsetState(true);
+            }
+        };
+        audioManager.registerAudioDeviceCallback(audioDeviceCallback, handler);
+    }
+
+    private void unregisterAudioDeviceCallback() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || audioManager == null || audioDeviceCallback == null) {
+            return;
+        }
+        audioManager.unregisterAudioDeviceCallback(audioDeviceCallback);
+        audioDeviceCallback = null;
+    }
+
+    private void refreshBluetoothAudioDeviceOffsetState(boolean deviceChanged) {
+        BluetoothAudioDevice device = currentBluetoothAudioDevice();
+        String nextKey = device == null ? "" : device.key;
+        String nextName = device == null ? "" : device.name;
+        boolean changed = !nextKey.equals(currentBluetoothAudioDeviceKey);
+        currentBluetoothAudioDeviceKey = nextKey;
+        currentBluetoothAudioDeviceName = nextName;
+        currentBluetoothLyricsOffsetMs = nextKey.isEmpty() || aiLyricsSettings == null
+                ? 0
+                : aiLyricsSettings.bluetoothSyncOffsetMs(nextKey);
+        updateLyricsSyncSettingsUi();
+        if (changed || deviceChanged) {
+            if (changed && deviceChanged) {
+                appendLog(nextKey.isEmpty()
+                        ? "bluetooth audio offset: no bluetooth output detected"
+                        : "bluetooth audio offset: device=\"" + nextName + "\" / offset=" + formatSignedMs(currentBluetoothLyricsOffsetMs));
+            }
+            updateLyricsOffsetSensitiveViews();
+        }
+    }
+
+    private BluetoothAudioDevice currentBluetoothAudioDevice() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || audioManager == null) {
+            return null;
+        }
+        AudioDeviceInfo[] devices;
+        try {
+            devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS);
+        } catch (Exception ignored) {
+            return null;
+        }
+        BluetoothAudioDevice fallback = null;
+        for (AudioDeviceInfo device : devices) {
+            if (device == null || !device.isSink() || !isBluetoothAudioDevice(device)) {
+                continue;
+            }
+            BluetoothAudioDevice candidate = bluetoothAudioDevice(device);
+            if (fallback == null) {
+                fallback = candidate;
+            }
+            if (device.getType() == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+                    || isBleSpeakerDevice(device)
+                    || isBleHeadsetDevice(device)) {
+                return candidate;
+            }
+        }
+        return fallback;
+    }
+
+    private BluetoothAudioDevice bluetoothAudioDevice(AudioDeviceInfo device) {
+        String name = "";
+        CharSequence productName = device.getProductName();
+        if (productName != null) {
+            name = productName.toString().trim();
+        }
+        // Saved offsets are keyed by the English type label; only the name shown is localized.
+        String keyLabel = name.isEmpty() ? bluetoothAudioDeviceTypeLabel(device.getType()) : name;
+        String shownName = name.isEmpty() ? bluetoothAudioDeviceTypeName(device.getType()) : name;
+        String keyName = keyLabel.isEmpty() ? "id:" + device.getId() : keyLabel.toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
+        return new BluetoothAudioDevice(
+                "type:" + device.getType() + "|name:" + keyName,
+                shownName.isEmpty() ? ui("bluetooth_sync.unknown_device") : shownName
+        );
+    }
+
+    private boolean isBluetoothAudioDevice(AudioDeviceInfo device) {
+        int type = device.getType();
+        return type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+                || type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+                || isBleHeadsetDevice(device)
+                || isBleSpeakerDevice(device)
+                || isHearingAidDevice(device);
+    }
+
+    private boolean isBleHeadsetDevice(AudioDeviceInfo device) {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                && device.getType() == AudioDeviceInfo.TYPE_BLE_HEADSET;
+    }
+
+    private boolean isBleSpeakerDevice(AudioDeviceInfo device) {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                && device.getType() == AudioDeviceInfo.TYPE_BLE_SPEAKER;
+    }
+
+    private boolean isHearingAidDevice(AudioDeviceInfo device) {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+                && device.getType() == AudioDeviceInfo.TYPE_HEARING_AID;
+    }
+
+    private String bluetoothAudioDeviceTypeLabel(int type) {
+        if (type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP) {
+            return "Bluetooth A2DP";
+        }
+        if (type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO) {
+            return "Bluetooth SCO";
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && type == AudioDeviceInfo.TYPE_BLE_HEADSET) {
+            return "BLE headset";
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && type == AudioDeviceInfo.TYPE_BLE_SPEAKER) {
+            return "BLE speaker";
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && type == AudioDeviceInfo.TYPE_HEARING_AID) {
+            return "Hearing aid";
+        }
+        return ui("bluetooth_sync.unknown_device");
+    }
+
+    /** The type of a device without a product name, as shown in the UI language. */
+    private String bluetoothAudioDeviceTypeName(int type) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && type == AudioDeviceInfo.TYPE_BLE_HEADSET) {
+            return ui("bluetooth_sync.device_ble_headset");
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && type == AudioDeviceInfo.TYPE_BLE_SPEAKER) {
+            return ui("bluetooth_sync.device_ble_speaker");
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && type == AudioDeviceInfo.TYPE_HEARING_AID) {
+            return ui("bluetooth_sync.device_hearing_aid");
+        }
+        // "Bluetooth A2DP" and "Bluetooth SCO" are profile names and read the same in every language.
+        return bluetoothAudioDeviceTypeLabel(type);
+    }
+
+    private static final class BluetoothAudioDevice {
+        final String key;
+        final String name;
+
+        BluetoothAudioDevice(String key, String name) {
+            this.key = key == null ? "" : key.trim();
+            this.name = name == null ? "" : name.trim();
+        }
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        if (isPictureInPictureUiActive()) {
+            updatePictureInPictureUiFromCurrentState();
+            updatePictureInPictureParamsIfNeeded();
+            return;
+        }
+        if (youtubeBackgroundView != null) {
+            youtubeBackgroundView.suppressHardSyncFor(900L);
+        }
+        cancelLyricsMetaLongPress();
+        dismissLyricsMetaMenuPopup();
+        rebuildContentViewAfterConfigurationChange();
+        resizeFirstLanguagePrompt();
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        // Dispatch first so a touch on the hidden control only reveals it, like the vocal control.
+        boolean handled = dispatchLyricsTouchEvent(event);
+        if (pronunciationFirstButton != null && event != null) {
+            int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_MOVE
+                    || action == MotionEvent.ACTION_UP) {
+                pronunciationFirstButton.revealTemporarily();
+            }
+        }
+        return handled;
+    }
+
+    private boolean dispatchLyricsTouchEvent(MotionEvent event) {
+        // First-use controls own their gestures even where hidden player controls overlap.
+        if (vinylModeVisible || (spotifySetupPanel != null && spotifySetupPanel.getVisibility() == View.VISIBLE)) {
+            return super.dispatchTouchEvent(event);
+        }
+        if (motionModeVisible) {
+            return super.dispatchTouchEvent(event);
+        }
+        if (handlePictureInPicturePinch(event)) {
+            return true;
+        }
+        boolean shouldConsumeReveal = handleLandscapeControlTouch(event);
+        if (shouldConsumeReveal) {
+            return true;
+        }
+        return super.dispatchTouchEvent(event);
+    }
+
+    private boolean handlePictureInPicturePinch(MotionEvent event) {
+        if (IvLyricsBridge.isEmbedded(this) || event == null || isPictureInPictureUiActive()) {
+            resetPictureInPicturePinch();
+            return false;
+        }
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_POINTER_DOWN:
+                if (event.getPointerCount() >= 2 && canEnterPictureInPictureFromGesture()) {
+                    pictureInPicturePinchTracking = true;
+                    pictureInPicturePinchTriggered = false;
+                    pictureInPicturePinchStartDistance = pointerDistance(event);
+                    cancelLyricsMetaLongPress();
+                }
+                return false;
+            case MotionEvent.ACTION_MOVE:
+                if (!pictureInPicturePinchTracking || pictureInPicturePinchTriggered || event.getPointerCount() < 2) {
+                    return false;
+                }
+                float distance = pointerDistance(event);
+                float startDistance = Math.max(1f, pictureInPicturePinchStartDistance);
+                float distanceDelta = startDistance - distance;
+                boolean scaleMatched = distance / startDistance <= PIP_PINCH_TRIGGER_SCALE;
+                boolean distanceMatched = distanceDelta >= dp(PIP_PINCH_TRIGGER_DISTANCE_DP);
+                if (scaleMatched && distanceMatched) {
+                    pictureInPicturePinchTriggered = true;
+                    prepareTouchStateForPictureInPictureGesture();
+                    if (rootView != null) {
+                        rootView.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+                    }
+                    enterLyricsPictureInPicture();
+                    return true;
+                }
+                return false;
+            case MotionEvent.ACTION_POINTER_UP:
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                boolean consume = pictureInPicturePinchTriggered;
+                resetPictureInPicturePinch();
+                return consume;
+            default:
+                return false;
+        }
+    }
+
+    private boolean canEnterPictureInPictureFromGesture() {
+        return supportsLyricsPictureInPicture() && !isSpotifySetupPanelVisible();
+    }
+
+    private float pointerDistance(MotionEvent event) {
+        if (event == null || event.getPointerCount() < 2) {
+            return 0f;
+        }
+        float dx = event.getX(0) - event.getX(1);
+        float dy = event.getY(0) - event.getY(1);
+        return (float) Math.hypot(dx, dy);
+    }
+
+    private void resetPictureInPicturePinch() {
+        pictureInPicturePinchTracking = false;
+        pictureInPicturePinchTriggered = false;
+        pictureInPicturePinchStartDistance = 0f;
+    }
+
+    private void prepareTouchStateForPictureInPictureGesture() {
+        cancelLyricsMetaLongPress();
+        cancelArtworkLongPress();
+        pageDragging = false;
+        artworkSwipeDragging = false;
+        recyclePageVelocityTracker();
+        recycleArtworkVelocityTracker();
+        if (artworkView != null) {
+            settleArtworkSwipe(artworkView);
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        handler.removeCallbacks(motionLyricsTick);
+        watchMotionStageDirection(false);
+        if (pendingLrclibEndpointSave != null) {
+            handler.removeCallbacks(pendingLrclibEndpointSave);
+            pendingLrclibEndpointSave.run();
+        }
+        onboardingResumed = false;
+        updateOnboardingGreetingActivity();
+        if (IvLyricsBridge.isEmbedded(this)) IvLyricsBridge.setLyricsPageForeground(this, false);
+        boolean keepActiveForPictureInPicture = isPictureInPictureUiActive();
+        if (!keepActiveForPictureInPicture) {
+            if (!IvLyricsBridge.isEmbedded(this)) SpotifyShortcutOverlayController.setIvLyricsForeground(false);
+        }
+        if (usesLivePlayback()) NowPlayingService.requestRefresh(this);
+        if (!keepActiveForPictureInPicture) {
+            NowPlayingService.unregister(this);
+            stopPlaybackClock();
+            handler.removeCallbacks(landscapeControlsAutoHideRunnable);
+            cancelLyricsMetaLongPress();
+            cancelArtworkLongPress();
+            dismissLyricsMetaMenuPopup();
+        }
+        super.onPause();
+    }
+
+    @Override
+    public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode, Configuration newConfig) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
+        if (IvLyricsBridge.isEmbedded(this)) return;
+        pictureInPictureUiActive = isInPictureInPictureMode;
+        setPictureInPictureUiVisible(isInPictureInPictureMode);
+        if (isInPictureInPictureMode) {
+            pictureInPictureActionsInitialized = false;
+            NowPlayingService.register(this);
+            NowPlayingService.requestRefresh(this);
+            updatePictureInPictureActionsIfNeeded(currentTrack != null && currentTrack.playing);
+            startPlaybackClock();
+            return;
+        }
+        pictureInPictureActionsInitialized = false;
+        if (lyricsPageVisibleBeforePictureInPicture && !isLandscapeLayout()) {
+            handler.postDelayed(() -> showLyricsPage(true), 80L);
+        }
+        lyricsPageVisibleBeforePictureInPicture = false;
+        applySystemBarsForOrientation();
+        applyLandscapeControlsAutoHideSetting();
+        requestDefaultRemoteFocus(false);
+    }
+
+    @Override
+    protected void onDestroy() {
+        stopObservingLocalLyricsChanges();
+        onboardingResumed = false;
+        if (onboardingGreetingRotation != null) onboardingGreetingRotation.setActive(false);
+        if (onboardingAnimatorScaleCleanup != null) {
+            onboardingAnimatorScaleCleanup.run();
+            onboardingAnimatorScaleCleanup = null;
+        }
+        getContentResolver().unregisterContentObserver(onboardingMotionObserver);
+        if (onboardingAccessibilityManager != null) {
+            onboardingAccessibilityManager.removeAccessibilityStateChangeListener(onboardingAccessibilityListener);
+            onboardingAccessibilityManager.removeTouchExplorationStateChangeListener(onboardingTouchExplorationListener);
+        }
+        stopPlaybackClock();
+        handler.removeCallbacks(motionLyricsTick);
+        watchMotionStageDirection(false);
+        if (motionLyricsModeView != null) {
+            motionLyricsModeView.release();
+            motionLyricsModeView = null;
+        }
+        if (firstLanguagePromptDialog != null) {
+            firstLanguagePromptDialog.setOnDismissListener(null);
+            firstLanguagePromptDialog.dismiss();
+            firstLanguagePromptDialog = null;
+        }
+        if (lyricsActivityHost != null) lyricsActivityHost.destroy();
+        pictureInPictureUiActive = false;
+        pictureInPictureActionsInitialized = false;
+        if (!IvLyricsBridge.isEmbedded(this)) SpotifyShortcutOverlayController.setIvLyricsForeground(false);
+        NowPlayingService.unregister(this);
+        handler.removeCallbacksAndMessages(null);
+        dismissLyricsMetaTip();
+        dismissLyricsMetaMenuPopup();
+        dismissResearchTokenConsentDialog();
+        dismissTmiDialog();
+        cancelArtworkLongPress();
+        if (pendingLyricsProviderReload != null) {
+            handler.removeCallbacks(pendingLyricsProviderReload);
+            pendingLyricsProviderReload = null;
+        }
+        if (lyricsRepository != null) {
+            lyricsRepository.shutdown();
+        }
+        if (aiLyricsRepository != null) {
+            aiLyricsRepository.shutdown();
+        }
+        if (furiganaRepository != null) {
+            furiganaRepository.shutdown();
+        }
+        if (aiLyricsSettings != null) {
+            aiLyricsSettings.shutdown();
+        }
+        if (youtubeBackgroundRepository != null) {
+            youtubeBackgroundRepository.shutdown();
+        }
+        if (updateChecker != null) {
+            updateChecker.shutdown();
+        }
+        if (creatorSupportRepository != null) {
+            creatorSupportRepository.shutdown();
+        }
+        unregisterAudioDeviceCallback();
+        destroyInAppBrowserWebView();
+        destroyYouTubeBackgroundView();
+        if (vinylPlayerModeView != null) {
+            vinylPlayerModeView.release();
+        }
+        seekExecutor.shutdownNow();
+        updateExecutor.shutdownNow();
+        aiModelExecutor.shutdownNow();
+        creatorPrivacyExecutor.shutdownNow();
+        researchMediaExecutor.shutdownNow();
+        handler.removeCallbacksAndMessages(null);
+        super.onDestroy();
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onBackPressed() {
+        if (isInAppBrowserVisible()) {
+            lastBackPressElapsedMs = 0L;
+            showInAppBrowser(false);
+            return;
+        }
+        if (researchTokenConsentDialog != null && researchTokenConsentDialog.isShowing()) {
+            lastBackPressElapsedMs = 0L;
+            dismissResearchTokenConsentDialog();
+            return;
+        }
+        if (tmiDialog != null && tmiDialog.isShowing()) {
+            lastBackPressElapsedMs = 0L;
+            dismissTmiDialog();
+            return;
+        }
+        if (motionModeVisible) {
+            lastBackPressElapsedMs = 0L;
+            showMotionLyricsMode(false);
+            return;
+        }
+        if (vinylModeVisible) {
+            lastBackPressElapsedMs = 0L;
+            showVinylMode(false);
+            return;
+        }
+        if (isLyricsMetaMenuPopupVisible()) {
+            lastBackPressElapsedMs = 0L;
+            dismissLyricsMetaMenuPopup();
+            return;
+        }
+        if (isSpotifySetupPanelVisible()) {
+            lastBackPressElapsedMs = 0L;
+            if (onboardingStep > 0) {
+                showOnboardingStep(onboardingStep - 1);
+                return;
+            }
+            Toast.makeText(this, ui("toast.setup_required"), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (isSettingsPanelVisible()) {
+            // Back walks up inside settings (menu → list → closed), like the navigation bar's back button.
+            if (!handleSettingsBack()) {
+                showSettingsPanel(false);
+            }
+            lastBackPressElapsedMs = 0L;
+            return;
+        }
+        if (lyricsPageVisible) {
+            showLyricsPage(false);
+            lastBackPressElapsedMs = 0L;
+            return;
+        }
+
+        if (IvLyricsBridge.isEmbedded(this)) {
+            finish();
+            return;
+        }
+        long now = SystemClock.uptimeMillis();
+        if (now - lastBackPressElapsedMs <= 1800L) {
+            super.onBackPressed();
+            return;
+        }
+        lastBackPressElapsedMs = now;
+        Toast.makeText(this, ui("toast.back_exit"), Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event != null && handleRemoteKeyBeforeDefault(event)) {
+            return true;
+        }
+        boolean handled = super.dispatchKeyEvent(event);
+        if (handled) {
+            return true;
+        }
+        return event != null && handleRemoteKeyFallback(event);
+    }
+
+    private boolean handleRemoteKeyBeforeDefault(KeyEvent event) {
+        if (event.getAction() != KeyEvent.ACTION_DOWN) {
+            return false;
+        }
+        int keyCode = event.getKeyCode();
+        boolean textInputFocused = isTextInputFocused();
+        if (keyCode == KeyEvent.KEYCODE_ESCAPE || (keyCode == KeyEvent.KEYCODE_DEL && !textInputFocused)) {
+            onBackPressed();
+            return true;
+        }
+        if (textInputFocused) {
+            return false;
+        }
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_MEDIA_PLAY:
+            case KeyEvent.KEYCODE_MEDIA_PAUSE:
+            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+                runTransportCommand(() -> NowPlayingService.togglePlayback());
+                return true;
+            case KeyEvent.KEYCODE_MEDIA_NEXT:
+                runTransportCommand(() -> NowPlayingService.skipToNext());
+                return true;
+            case KeyEvent.KEYCODE_MEDIA_PREVIOUS:
+                runTransportCommand(() -> NowPlayingService.skipToPrevious());
+                return true;
+            case KeyEvent.KEYCODE_MEDIA_REWIND:
+                seekPlayerBy(-remoteSeekStep(event));
+                return true;
+            case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
+                seekPlayerBy(remoteSeekStep(event));
+                return true;
+            case KeyEvent.KEYCODE_MENU:
+                showSettingsPanel(!isSettingsPanelVisible());
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private boolean handleRemoteKeyFallback(KeyEvent event) {
+        if (event.getAction() != KeyEvent.ACTION_DOWN || isTextInputFocused()) {
+            return false;
+        }
+        int keyCode = event.getKeyCode();
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_UP:
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+            case KeyEvent.KEYCODE_PAGE_UP:
+            case KeyEvent.KEYCODE_PAGE_DOWN:
+                return routeRemoteKeyToLyrics(event);
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+                if (getCurrentFocus() == null && playerProgressView != null && playerProgressView.isShown()) {
+                    playerProgressView.requestFocus();
+                    return playerProgressView.dispatchKeyEvent(event);
+                }
+                return false;
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+            case KeyEvent.KEYCODE_NUMPAD_ENTER:
+                return activateRemoteDefaultAction();
+            case KeyEvent.KEYCODE_SPACE:
+                runTransportCommand(() -> NowPlayingService.togglePlayback());
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private boolean routeRemoteKeyToLyrics(KeyEvent event) {
+        if (isInAppBrowserVisible()
+                || isLyricsMetaMenuPopupVisible()
+                || isSpotifySetupPanelVisible()
+                || isSettingsPanelVisible()) {
+            return false;
+        }
+        LyricsView target = activeLyricsViewForRemoteKeys();
+        if (target == null || !target.isShown()) {
+            return false;
+        }
+        target.requestFocus();
+        return target.dispatchKeyEvent(event);
+    }
+
+    private LyricsView activeLyricsViewForRemoteKeys() {
+        if (isLandscapeLayout()) {
+            return landscapeLyricsView;
+        }
+        return lyricsPageVisible ? lyricsView : null;
+    }
+
+    private boolean activateRemoteDefaultAction() {
+        View focused = getCurrentFocus();
+        if (focused != null && focused.isShown() && focused.isClickable()) {
+            focused.performClick();
+            return true;
+        }
+        if (isLyricsMetaMenuPopupVisible()
+                || isInAppBrowserVisible()
+                || isSpotifySetupPanelVisible()
+                || isSettingsPanelVisible()) {
+            requestDefaultRemoteFocus(true);
+            return false;
+        }
+        LyricsView target = activeLyricsViewForRemoteKeys();
+        if (target != null && target.isShown()) {
+            target.requestFocus();
+            return target.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_CENTER));
+        }
+        if (playPauseButton != null && playPauseButton.isShown()) {
+            playPauseButton.requestFocus();
+            playPauseButton.performClick();
+            return true;
+        }
+        return false;
+    }
+
+    private boolean isTextInputFocused() {
+        return getCurrentFocus() instanceof EditText;
+    }
+
+    private long remoteSeekStep(KeyEvent event) {
+        return event != null && event.isShiftPressed() ? REMOTE_SEEK_LARGE_STEP_MS : REMOTE_SEEK_STEP_MS;
+    }
+
+    private void seekPlayerBy(long deltaMs) {
+        TrackSnapshot snapshot = currentTrack != null ? currentTrack : NowPlayingService.getLatestSnapshot();
+        if (snapshot == null || snapshot.durationMs <= 0L) {
+            return;
+        }
+        long current = currentPlaybackPosition(snapshot);
+        seekPlayerToPosition(Math.max(0L, Math.min(snapshot.durationMs, current + deltaMs)));
+    }
+
+    private void requestDefaultRemoteFocus(boolean force) {
+        handler.post(() -> {
+            View current = getCurrentFocus();
+            if (!force && current != null && current.isShown()) {
+                return;
+            }
+            View target = defaultRemoteFocusTarget();
+            if (target != null && target.isShown()) {
+                target.requestFocus();
+            }
+        });
+    }
+
+    private View defaultRemoteFocusTarget() {
+        if (isLyricsMetaMenuPopupVisible()) {
+            return firstFocusableDescendant(lyricsLanguageSettingsPanel);
+        }
+        if (isSpotifySetupPanelVisible()) {
+            return firstFocusableDescendant(spotifySetupPanel);
+        }
+        if (isSettingsPanelVisible()) {
+            return firstFocusableDescendant(settingsPanel);
+        }
+        if (lyricsPageVisible && lyricsView != null) {
+            return lyricsView;
+        }
+        if (isLandscapeLayout() && landscapeLyricsView != null) {
+            return landscapeLyricsView;
+        }
+        return playPauseButton;
+    }
+
+    private View firstFocusableDescendant(View view) {
+        if (view == null || view.getVisibility() != View.VISIBLE) {
+            return null;
+        }
+        if (view.isFocusable() && view.isEnabled() && isUsefulRemoteFocusTarget(view)) {
+            return view;
+        }
+        if (!(view instanceof ViewGroup)) {
+            return null;
+        }
+        ViewGroup group = (ViewGroup) view;
+        for (int index = 0; index < group.getChildCount(); index++) {
+            View child = firstFocusableDescendant(group.getChildAt(index));
+            if (child != null) {
+                return child;
+            }
+        }
+        return null;
+    }
+
+    private boolean isUsefulRemoteFocusTarget(View view) {
+        return view != null
+                && (view.isClickable()
+                || view instanceof EditText
+                || view instanceof SeekBar
+                || view instanceof Switch
+                || view instanceof LyricsView
+                || view instanceof PlayerProgressView
+                || view instanceof TransportButtonView);
+    }
+
+    @Override
+    public void onNowPlayingChanged(TrackSnapshot snapshot) {
+        if (isDebugLyricsLoadingIntent(getIntent())) {
+            applyDebugLyricsLoadingState(getIntent());
+            return;
+        }
+        boolean embeddedMetadataEnriched = IvLyricsBridge.isEmbedded(this) && currentTrack != null && snapshot != null
+                && currentTrack.stableKey().equals(snapshot.stableKey()) && !snapshot.isrc.isEmpty()
+                && !snapshot.isrc.equals(currentTrack.isrc);
+        currentTrack = snapshot;
+        lastProgressUiUpdateMs = 0L;
+        requestPlaybackFrame();
+        updateCurrentTrackSettingsMenu();
+        onLyricsHostTrackChanged(snapshot == null || snapshot.trackId.isEmpty()
+                ? "" : "spotify:track:" + snapshot.trackId);
+        updatePictureInPictureActionsIfNeeded(snapshot != null && snapshot.playing);
+        updatePermissionState();
+        if (!isSpotifyApiConfigured()) {
+            updateSpotifySetupGate(false);
+            setSpotifySetupRequiredState(snapshot);
+            return;
+        }
+        spotifySetupRequired = false;
+
+        if (snapshot == null || !snapshot.hasUsableMetadata()) {
+            spotifyDjLyricsTimeline.reset();
+            currentSpotifyDjLyricsOffsetMs = 0L;
+            if (vinylPlayerModeView != null) {
+                vinylPlayerModeView.setTrack(null, null, false);
+            }
+            if (vinylModeVisible) {
+                showVinylMode(false);
+            }
+            if (motionModeVisible) {
+                showMotionLyricsMode(false);
+            }
+            if (titleView != null) titleView.setText("ivLyrics");
+            if (artistView != null) artistView.setText(ui("status.waiting_spotify"));
+            applyNowPlayingTextColors();
+            lyricsTitleView.setText("ivLyrics");
+            lyricsArtistView.setText(ui("status.waiting_spotify"));
+            updatePictureInPictureMetadataText("ivLyrics", ui("status.waiting_spotify"));
+            translatedTrackTitle = "";
+            translatedTrackArtist = "";
+            updateArtwork(null, "");
+            updateProgressViews(0L, 0L);
+            if (playPauseButton != null) playPauseButton.setPlaying(false);
+            sourceView.setText("");
+            statusView.setText(NowPlayingService.isNotificationAccessEnabled(this)
+                    ? ui("status.detecting_media")
+                    : ui("status.permission_required"));
+            debugProgressView.setText("0:00 / 0:00");
+            pendingSeekPositionMs = -1L;
+            resetLogs("waiting for current track");
+            lyricsLookupInFlight = false;
+            lyricsLoadingProviderName = "";
+            currentLyricsResult = LyricsResult.empty(ui("status.waiting_current_track"));
+            currentBaseLyricsResult = currentLyricsResult;
+            currentFuriganaResult = null;
+            currentFuriganaKey = "";
+            currentCulturalAnnotations = Collections.emptyList();
+            currentCulturalAnnotationRequestKey = "";
+            setCulturalAnnotationsLoading(false);
+            setLyricsTrackDurationOnViews(0L);
+            setLyricsResultOnViews(currentLyricsResult);
+            setLyricsSupplementLoading(false, false, false);
+            updateLyricPreview(0L);
+            currentLyricsKey = "";
+            resetWordSyncState();
+            currentArtworkKey = "";
+            currentResolvedIsrc = "";
+            currentResolvedSpotifyTrackId = "";
+            currentArtworkFromSpotify = false;
+            currentTrackSyncOffsetMs = 0;
+            currentVideoSyncOffsetMs = 0;
+            aiLyricsGenerating = false;
+            detectedLyricsSourceLang = "en";
+            selectedRuleSourceLang = "auto";
+            updateLyricsLanguageSettingsUi();
+            resetManualLrclibSearchForTrack(null);
+            resetYouTubeBackgroundForTrack();
+            applyBackgroundSettings(aiLyricsSettings.snapshot());
+            return;
+        }
+
+        String nextKey = snapshot.stableKey();
+        boolean trackChanged = !nextKey.equals(currentLyricsKey);
+        if (vinylPlayerModeView != null) {
+            // Keep the Spotify API artwork already applied to this track. Media-session
+            // snapshots can keep publishing a smaller notification bitmap and must not
+            // downgrade the LP cover after the high-resolution image arrives.
+            Bitmap vinylArtwork = !trackChanged && currentArtworkFromSpotify && currentArtworkBitmap != null
+                    ? currentArtworkBitmap
+                    : snapshot.artwork;
+            vinylPlayerModeView.setTrack(snapshot, vinylArtwork, trackChanged);
+            updateVinylDisplayMetadata(vinylPlayerModeView, snapshot);
+        }
+        if (trackChanged) {
+            // A seek belongs to the track it was issued for. Clear it before
+            // calculating the first progress frame of the incoming track.
+            pendingSeekPositionMs = -1L;
+            currentArtworkFromSpotify = false;
+            translatedTrackTitle = "";
+            translatedTrackArtist = "";
+            currentResolvedIsrc = snapshot.isrc;
+            currentResolvedSpotifyTrackId = snapshot.trackId;
+            currentTrackSyncOffsetMs = aiLyricsSettings == null ? 0 : aiLyricsSettings.trackSyncOffsetMs(nextKey);
+            currentVideoSyncOffsetMs = aiLyricsSettings == null ? 0 : aiLyricsSettings.trackVideoSyncOffsetMs(nextKey);
+        }
+        updateTrackMetadataTextViews(snapshot);
+        String artworkKey = snapshot.artworkKey();
+        if (trackChanged || (!currentArtworkFromSpotify && !artworkKey.equals(currentArtworkKey))) {
+            currentArtworkKey = artworkKey;
+            updateArtwork(snapshot.artwork, artworkKey);
+        }
+        long timelinePlayerPosition = snapshot.positionNow();
+        long spotifyLyricsPosition = spotifyDjLyricsTimeline.update(
+                nextKey,
+                timelinePlayerPosition,
+                snapshot.playing,
+                snapshot.spotifyAutomix,
+                snapshot.isSpotifyDjSegment(),
+                snapshot.spotifyContextKnown,
+                snapshot.automixFadeInStartMs,
+                snapshot.automixFadeInCueMs,
+                snapshot.automixFadeOverlapMs,
+                SystemClock.elapsedRealtime()
+        );
+        currentSpotifyDjLyricsOffsetMs = Math.max(
+                0L,
+                spotifyLyricsPosition - timelinePlayerPosition
+        );
+        long playerPosition = currentPlaybackPosition(snapshot);
+        if (vinylPlayerModeView != null) {
+            vinylPlayerModeView.setPlayback(playerPosition, snapshot.durationMs, snapshot.playing);
+        }
+        updateProgressViews(playerPosition, snapshot.durationMs);
+        setLyricsPlaybackPositionOnViews(lyricsPlaybackPosition(playerPosition, snapshot.durationMs));
+        setLyricsTrackDurationOnViews(snapshot.durationMs);
+        if (playPauseButton != null) playPauseButton.setPlaying(snapshot.playing);
+
+        if (snapshot.isSpotifyDjSegment()) {
+            if (trackChanged) {
+                setSpotifyDjSegmentState(snapshot, nextKey);
+            }
+            return;
+        }
+
+        if (trackChanged) {
+            if (firstLanguagePromptDialog != null) {
+                firstLanguagePromptDialog.setOnDismissListener(null);
+                firstLanguagePromptDialog.dismiss();
+                firstLanguagePromptDialog = null;
+            }
+            currentLyricsKey = nextKey;
+            resetWordSyncState();
+            currentTrackSyncOffsetMs = aiLyricsSettings == null ? 0 : aiLyricsSettings.trackSyncOffsetMs(currentLyricsKey);
+            currentVideoSyncOffsetMs = aiLyricsSettings == null ? 0 : aiLyricsSettings.trackVideoSyncOffsetMs(currentLyricsKey);
+            aiLyricsGenerating = false;
+            currentCulturalAnnotations = Collections.emptyList();
+            currentCulturalAnnotationRequestKey = "";
+            setCulturalAnnotationsLoading(false);
+            lyricsLoadingProviderName = "";
+            detectedLyricsSourceLang = "en";
+            selectedRuleSourceLang = "auto";
+            updateLyricsLanguageSettingsUi();
+            resetManualLrclibSearchForTrack(snapshot);
+            sourceView.setText(lyricsLoadingText());
+            statusView.setText(snapshot.isrc.isEmpty()
+                    ? ui("status.lyrics_lookup_spotify")
+                    : ui("status.lyrics_lookup_player"));
+            resetLogs("new media track");
+            appendLog("media session snapshot: "
+                    + "id=" + snapshot.trackId
+                    + " / title=\"" + snapshot.title + "\""
+                    + " / artist=\"" + snapshot.artist + "\""
+                    + " / artwork=" + artworkDebug(snapshot)
+                    + packageSuffix(snapshot.packageName));
+            lyricsLookupInFlight = lyricsRepository != null;
+            currentLyricsResult = LyricsResult.loading(lyricsLoadingText());
+            currentBaseLyricsResult = currentLyricsResult;
+            currentFuriganaResult = null;
+            currentFuriganaKey = "";
+            resetYouTubeBackgroundForTrack();
+            applyBackgroundSettings(aiLyricsSettings.snapshot());
+            if (!currentResolvedIsrc.isEmpty()) {
+                syncYouTubeBackgroundState();
+            }
+            setLyricsTrackDurationOnViews(snapshot.durationMs);
+            setLyricsResultOnViews(currentLyricsResult);
+            setLyricsSupplementLoading(false, false);
+            updateLyricPreview(0L);
+            if (lyricsRepository != null) {
+                boolean localOverride = lyricsRepository.hasLocalLyrics(snapshot);
+                LyricsResult embeddedResult = !localOverride && !embeddedInitialLyricsConsumed && IvLyricsBridge.isEmbedded(this)
+                        ? IvLyricsBridge.cachedLyrics(snapshot) : null;
+                embeddedInitialLyricsConsumed = true;
+                if (embeddedResult != null && !embeddedResult.lines.isEmpty()) {
+                    onLyricsLoaded(nextKey, embeddedResult);
+                } else if (!localOverride && IvLyricsBridge.isEmbedded(this) && IvLyricsBridge.awaitCardLyrics(snapshot)) {
+                    // Complete the card's existing request, then hand supplements to this page.
+                } else {
+                    lyricsRepository.loadLyrics(snapshot, this);
+                }
+            }
+        }
+        if (!trackChanged && embeddedMetadataEnriched && lyricsRepository != null) {
+            currentResolvedIsrc = snapshot.isrc;
+            lyricsRepository.invalidateProviderSelection();
+            lyricsLookupInFlight = true;
+            lyricsRepository.loadLyrics(snapshot, new LyricsRepository.Callback() {
+                @Override public void onLyricsLoaded(String key, LyricsResult value) { BaseLyricsActivity.this.onLyricsLoaded(key, value); }
+                @Override public void onLyricsError(String key, String message) {
+                    if (!key.equals(currentLyricsKey)) return;
+                    lyricsLookupInFlight = false;
+                    appendLog("embedded metadata refresh: " + message);
+                    updateVinylLoadingIndicator(true);
+                }
+                @Override public void onLyricsProviderLoading(String key, String provider) {
+                    if (!key.equals(currentLyricsKey) || !lyricsLookupInFlight) return;
+                    // ISRC enrichment refreshes the current song in the background.
+                    // Keep its base identity so the running AI completion still applies
+                    // if this lookup fails; only a loaded replacement starts new AI work.
+                    appendLog("embedded metadata refresh provider: " + provider);
+                }
+                @Override public void onLyricsLog(String key, String message) { BaseLyricsActivity.this.onLyricsLog(key, message); }
+                @Override public void onLyricsArtworkLoaded(String key, Bitmap bitmap, String artworkKey) { BaseLyricsActivity.this.onLyricsArtworkLoaded(key, bitmap, artworkKey); }
+                @Override public void onLyricsMetadataResolved(String key, String isrc, String trackId) { BaseLyricsActivity.this.onLyricsMetadataResolved(key, isrc, trackId); }
+                @Override public void onLyricsWordSyncStarted(String key) { BaseLyricsActivity.this.onLyricsWordSyncStarted(key); }
+                @Override public void onLyricsWordSyncFinished(String key, LyricsResult upgraded) { BaseLyricsActivity.this.onLyricsWordSyncFinished(key, upgraded); }
+            });
+        }
+        updateYouTubeBackgroundPlaybackState();
+    }
+
+    private void setSpotifyDjSegmentState(TrackSnapshot snapshot, String trackKey) {
+        currentLyricsKey = trackKey == null ? "" : trackKey;
+        resetWordSyncState();
+        currentResolvedIsrc = "";
+        currentResolvedSpotifyTrackId = "";
+        currentTrackSyncOffsetMs = 0;
+        currentVideoSyncOffsetMs = 0;
+        aiLyricsGenerating = false;
+        lyricsLookupInFlight = false;
+        lyricsLoadingProviderName = "";
+        detectedLyricsSourceLang = "en";
+        selectedRuleSourceLang = "auto";
+        translatedTrackTitle = "";
+        translatedTrackArtist = "";
+        pendingSeekPositionMs = -1L;
+        currentLyricsResult = LyricsResult.empty("");
+        currentBaseLyricsResult = currentLyricsResult;
+        currentFuriganaResult = null;
+        currentFuriganaKey = "";
+        currentCulturalAnnotations = Collections.emptyList();
+        currentCulturalAnnotationRequestKey = "";
+        setCulturalAnnotationsLoading(false);
+        sourceView.setText("");
+        statusView.setText("");
+        setLyricsResultOnViews(currentLyricsResult);
+        setLyricsSupplementLoading(false, false, false);
+        updateLyricPreview(0L);
+        updateLyricsLanguageSettingsUi();
+        resetManualLrclibSearchForTrack(snapshot);
+        resetYouTubeBackgroundForTrack();
+        if (aiLyricsSettings != null) {
+            applyBackgroundSettings(aiLyricsSettings.snapshot());
+        }
+        resetLogs("spotify dj segment");
+        appendLog("spotify dj segment: skipped Spotify metadata, lyrics, and background lookup"
+                + " / title=\"" + snapshot.title + "\""
+                + " / artist=\"" + snapshot.artist + "\"");
+    }
+
+    private void setSpotifySetupRequiredState(TrackSnapshot snapshot) {
+        if (IvLyricsBridge.isEmbedded(this)) return;
+        if (!spotifySetupRequired) {
+            resetLogs("spotify api setup required");
+            appendLog("spotify api: client id/secret required before Spotify Web API lookup");
+        }
+        spotifySetupRequired = true;
+        titleView.setText(ui("status.spotify_required_title"));
+        artistView.setText(ui("status.spotify_required_subtitle"));
+        applyNowPlayingTextColors();
+        lyricsTitleView.setText(ui("status.spotify_required_title"));
+        lyricsArtistView.setText(ui("status.spotify_required_subtitle"));
+        updatePictureInPictureMetadataText(ui("status.spotify_required_title"), ui("status.spotify_required_subtitle"));
+        translatedTrackTitle = "";
+        translatedTrackArtist = "";
+        updateArtwork(null, "");
+        updateProgressViews(0L, snapshot == null ? 0L : snapshot.durationMs);
+        playPauseButton.setPlaying(false);
+        sourceView.setText(ui("status.spotify_required_title"));
+        statusView.setText(ui("status.spotify_required_detail"));
+        debugProgressView.setText("0:00 / 0:00");
+        pendingSeekPositionMs = -1L;
+        lyricsLookupInFlight = false;
+        lyricsLoadingProviderName = "";
+        currentLyricsResult = LyricsResult.empty(ui("status.spotify_required_plain"));
+        currentBaseLyricsResult = currentLyricsResult;
+        currentFuriganaResult = null;
+        currentFuriganaKey = "";
+        setLyricsTrackDurationOnViews(0L);
+        setLyricsResultOnViews(currentLyricsResult);
+        setLyricsSupplementLoading(false, false);
+        updateLyricPreview(0L);
+        currentLyricsKey = "";
+        resetWordSyncState();
+        currentArtworkKey = "";
+        currentResolvedIsrc = "";
+        currentResolvedSpotifyTrackId = "";
+        currentArtworkFromSpotify = false;
+        currentTrackSyncOffsetMs = 0;
+        currentVideoSyncOffsetMs = 0;
+        aiLyricsGenerating = false;
+        detectedLyricsSourceLang = "en";
+        selectedRuleSourceLang = "auto";
+        updateLyricsLanguageSettingsUi();
+        resetManualLrclibSearchForTrack(null);
+        resetYouTubeBackgroundForTrack();
+        if (aiLyricsSettings != null) {
+            applyBackgroundSettings(aiLyricsSettings.snapshot());
+        }
+    }
+
+    @Override
+    public void onLyricsLoaded(String trackKey, LyricsResult result) {
+        if (!trackKey.equals(currentLyricsKey)) {
+            return;
+        }
+        // The debug page fixtures deliver rows without a repository.
+        if (result != null && !"local".equals(result.providerId)
+                && lyricsRepository != null && lyricsRepository.hasLocalLyrics(currentTrack)) {
+            lyricsRepository.loadLyrics(currentTrack, this);
+            return;
+        }
+        lyricsLookupInFlight = false;
+        lyricsLoadingProviderName = "";
+        aiLyricsGenerating = false;
+        currentBaseLyricsResult = result;
+        currentLyricsResult = result;
+        resetWordSyncState();
+        lyricsWordSyncLoading = lyricsRepository != null
+                && LyricsTimingUpgrade.canUpgrade(result)
+                && lyricsRepository.isWordSyncGenerating(trackKey);
+        if (result != null) {
+            currentResolvedIsrc = nonEmpty(result.isrc, currentResolvedIsrc);
+            currentResolvedSpotifyTrackId = nonEmpty(result.spotifyTrackId, currentResolvedSpotifyTrackId);
+        }
+        currentFuriganaResult = null;
+        currentFuriganaKey = "";
+        currentCulturalAnnotations = Collections.emptyList();
+        currentCulturalAnnotationRequestKey = "";
+        setLyricsResultOnViews(result);
+        setLyricsSupplementLoading(false, false);
+        updateLyricPreview(currentTrack == null ? 0L : currentLyricsPlaybackPosition(currentTrack));
+        sourceView.setText(result.providerLabel);
+        statusView.setText(result.detail);
+        updateDetectedLyricsSourceLanguage(result);
+        updateLyricsLanguageSettingsUi();
+        requestMetadataTranslation(false);
+        if (!maybeShowFirstLanguagePrompt()) {
+            requestAiLyrics(false);
+        }
+        syncYouTubeBackgroundState();
+    }
+
+    @Override
+    public void onLyricsWordSyncStarted(String trackKey) {
+        if (!trackKey.equals(currentLyricsKey) || !LyricsTimingUpgrade.canUpgrade(currentBaseLyricsResult)) {
+            return;
+        }
+        handler.removeCallbacks(hideWordSyncFailure);
+        lyricsWordSyncFailed = false;
+        lyricsWordSyncLoading = true;
+        refreshWordSyncIndicator();
+    }
+
+    @Override
+    public void onLyricsWordSyncFinished(String trackKey, LyricsResult upgraded) {
+        if (!trackKey.equals(currentLyricsKey)) {
+            return;
+        }
+        boolean announced = lyricsWordSyncLoading;
+        lyricsWordSyncLoading = false;
+        boolean applied = upgraded != null && applyLyricsTimingUpgrade(upgraded);
+        if (!applied && announced) {
+            // Keep the current lyrics and say so, instead of finishing as if timing loaded.
+            lyricsWordSyncFailed = true;
+            handler.removeCallbacks(hideWordSyncFailure);
+            handler.postDelayed(hideWordSyncFailure, 4000L);
+            appendLog("lrc.red word timing unavailable; current lyrics kept");
+        }
+        refreshWordSyncIndicator();
+    }
+
+    /** Replaces only the timing of the displayed lyrics; supplements and requests continue. */
+    private boolean applyLyricsTimingUpgrade(LyricsResult upgraded) {
+        LyricsResult base = currentBaseLyricsResult;
+        if (!LyricsTimingUpgrade.upgrades(base, upgraded)) {
+            return false;
+        }
+        timingUpgradeSourceBase = base;
+        currentBaseLyricsResult = upgraded;
+        currentLyricsResult = LyricsTimingUpgrade.retime(currentLyricsResult, upgraded);
+        setLyricsResultOnViews(currentLyricsResult);
+        updateLyricPreview(currentTrack == null ? 0L : currentLyricsPlaybackPosition(currentTrack));
+        sourceView.setText(upgraded.providerLabel);
+        appendLog("lrc.red word timing applied: lines=" + upgraded.lines.size());
+        return true;
+    }
+
+    /** True for supplements generated for the displayed base, including its pre-timing form. */
+    private boolean isCurrentSupplementBase(LyricsResult result) {
+        return AiLyricsRepository.hasSameBaseLyrics(currentBaseLyricsResult, result)
+                || (timingUpgradeSourceBase != null
+                && AiLyricsRepository.hasSameBaseLyrics(timingUpgradeSourceBase, result));
+    }
+
+    private void resetWordSyncState() {
+        handler.removeCallbacks(hideWordSyncFailure);
+        lyricsWordSyncLoading = false;
+        lyricsWordSyncFailed = false;
+        timingUpgradeSourceBase = null;
+        // Generated pronunciation timing belongs to the replaced lyrics as well.
+        handler.removeCallbacks(hidePronunciationSyncFailure);
+        handler.removeCallbacks(requestPronunciationTimingRunnable);
+        pronunciationTimedParts = Collections.emptyMap();
+        pronunciationTimedSignature = "";
+        pronunciationTimingRequestKey = "";
+        pronunciationTimingRequestSignature = "";
+        pronunciationSyncLoading = false;
+        pronunciationSyncFailed = false;
+        refreshWordSyncIndicator();
+    }
+
+    private void refreshWordSyncIndicator() {
+        updateLyricsSupplementLoadingText();
+        updateLyricsSupplementLoadingIndicator(lyricsSupplementPronunciationLoading
+                || lyricsSupplementTranslationLoading
+                || lyricsSupplementFuriganaLoading
+                || lyricsCulturalAnnotationsLoading
+                || metadataTranslationLoading);
+        updateVinylLoadingIndicator(true);
+    }
+
+    boolean acceptEmbeddedLyrics(String trackKey, LyricsResult result) {
+        if (!IvLyricsBridge.isEmbedded(this) || !trackKey.equals(currentLyricsKey) || !lyricsLookupInFlight) return false;
+        onLyricsLoaded(trackKey, result);
+        return true;
+    }
+
+    @Override
+    public void onLyricsError(String trackKey, String message) {
+        if (!trackKey.equals(currentLyricsKey)) {
+            return;
+        }
+        lyricsLookupInFlight = false;
+        lyricsLoadingProviderName = "";
+        currentLyricsResult = LyricsResult.empty(ui("status.lyrics_request_failed"));
+        currentBaseLyricsResult = currentLyricsResult;
+        currentFuriganaResult = null;
+        currentFuriganaKey = "";
+        currentCulturalAnnotations = Collections.emptyList();
+        currentCulturalAnnotationRequestKey = "";
+        setLyricsResultOnViews(currentLyricsResult);
+        setLyricsSupplementLoading(false, false);
+        updateLyricPreview(0L);
+        sourceView.setText("");
+        statusView.setText(message);
+        updateDetectedLyricsSourceLanguage(null);
+        updateLyricsLanguageSettingsUi();
+        requestMetadataTranslation(false);
+        resetYouTubeBackgroundForTrack();
+    }
+
+    @Override
+    public void onLyricsProviderLoading(String trackKey, String providerName) {
+        if (!trackKey.equals(currentLyricsKey) || !lyricsLookupInFlight) {
+            return;
+        }
+        lyricsLoadingProviderName = providerName == null ? "" : providerName.trim();
+        String loadingText = lyricsLoadingText();
+        currentLyricsResult = LyricsResult.loading(loadingText);
+        currentBaseLyricsResult = currentLyricsResult;
+        setLyricsResultOnViews(currentLyricsResult);
+        updateLyricPreview(currentTrack == null ? 0L : currentLyricsPlaybackPosition(currentTrack));
+        sourceView.setText(lyricsLoadingProviderName.isEmpty() ? loadingText : lyricsLoadingProviderName);
+        statusView.setText(loadingText);
+        updateVinylLoadingIndicator(true);
+    }
+
+    @Override
+    public void onLyricsLog(String trackKey, String message) {
+        if (!trackKey.equals(currentLyricsKey)) {
+            return;
+        }
+        appendLog(message);
+    }
+
+    @Override
+    public void onLyricsArtworkLoaded(String trackKey, Bitmap artwork, String artworkKey) {
+        if (!trackKey.equals(currentLyricsKey) || artwork == null) {
+            return;
+        }
+        currentArtworkKey = artworkKey == null ? "" : artworkKey;
+        currentArtworkFromSpotify = true;
+        updateArtwork(artwork, currentArtworkKey);
+        appendLog("spotify artwork applied: " + artwork.getWidth() + "x" + artwork.getHeight());
+    }
+
+    @Override
+    public void onLyricsMetadataResolved(String trackKey, String isrc, String spotifyTrackId) {
+        if (!trackKey.equals(currentLyricsKey)) {
+            return;
+        }
+        String normalizedIsrc = TrackSnapshot.normalizeIsrc(isrc);
+        String safeSpotifyTrackId = spotifyTrackId == null ? "" : spotifyTrackId.trim();
+        boolean changed = false;
+        if (!normalizedIsrc.isEmpty() && !normalizedIsrc.equals(currentResolvedIsrc)) {
+            currentResolvedIsrc = normalizedIsrc;
+            changed = true;
+        }
+        if (!safeSpotifyTrackId.isEmpty() && !safeSpotifyTrackId.equals(currentResolvedSpotifyTrackId)) {
+            currentResolvedSpotifyTrackId = safeSpotifyTrackId;
+            changed = true;
+        }
+        if (changed && !currentResolvedIsrc.isEmpty()) {
+            appendLog("youtube background: metadata ready, preloading video isrc="
+                    + currentResolvedIsrc
+                    + (currentResolvedSpotifyTrackId.isEmpty() ? "" : " / trackId=" + currentResolvedSpotifyTrackId));
+            syncYouTubeBackgroundState();
+        }
+    }
+
+    @Override
+    public void onManualLrclibSearchResults(String trackKey, List<LyricsRepository.ManualLrclibCandidate> candidates) {
+        if (!isCurrentManualLrclibTrack(trackKey)) {
+            return;
+        }
+        manualLrclibSearchInFlight = false;
+        renderManualLrclibCandidates(candidates);
+    }
+
+    @Override
+    public void onManualLrclibLyricsLoaded(String trackKey, LyricsResult result) {
+        if (!isCurrentManualLrclibTrack(trackKey)) {
+            return;
+        }
+        manualLrclibSearchInFlight = false;
+        lyricsLookupInFlight = false;
+        lyricsLoadingProviderName = "";
+        aiLyricsGenerating = false;
+        currentBaseLyricsResult = result;
+        currentLyricsResult = result;
+        currentFuriganaResult = null;
+        currentFuriganaKey = "";
+        currentCulturalAnnotations = Collections.emptyList();
+        currentCulturalAnnotationRequestKey = "";
+        setLyricsResultOnViews(result);
+        setLyricsSupplementLoading(false, false);
+        updateLyricPreview(currentTrack == null ? 0L : currentLyricsPlaybackPosition(currentTrack));
+        sourceView.setText(result.providerLabel);
+        statusView.setText(result.detail);
+        updateDetectedLyricsSourceLanguage(result);
+        updateLyricsLanguageSettingsUi();
+        setManualLrclibStatus(ui("lyrics.lrclib_search.loaded"));
+        showSavedToast(ui("lyrics.lrclib_search.loaded"));
+        requestMetadataTranslation(false);
+        if (!maybeShowFirstLanguagePrompt()) {
+            requestAiLyrics(false);
+        }
+        syncYouTubeBackgroundState();
+    }
+
+    @Override
+    public void onManualLrclibError(String trackKey, String message) {
+        if (!isCurrentManualLrclibTrack(trackKey)) {
+            return;
+        }
+        manualLrclibSearchInFlight = false;
+        lyricsLookupInFlight = false;
+        lyricsLoadingProviderName = "";
+        String detail = message == null || message.trim().isEmpty()
+                ? ui("repo.lyrics_not_found")
+                : message.trim();
+        setManualLrclibStatus(uiFormat("lyrics.lrclib_search.error_format", detail));
+        showSavedToast(detail);
+    }
+
+    @Override
+    public void onManualLrclibLog(String trackKey, String message) {
+        if (!isCurrentManualLrclibTrack(trackKey)) {
+            return;
+        }
+        appendLog(message);
+    }
+
+    @Override
+    public void onYouTubeBackgroundLoaded(String requestKey, YouTubeBackgroundRepository.VideoInfo info, boolean fromCache) {
+        if (!isCurrentYouTubeBackgroundRequest(requestKey)) {
+            return;
+        }
+        currentYouTubeBackgroundLoading = false;
+        currentYouTubeBackgroundInfo = info;
+        appendLog("youtube background: "
+                + (fromCache ? "cache" : "loaded")
+                + " / videoId=" + info.youtubeVideoId
+                + (info.youtubeTitle.isEmpty() ? "" : " / title=\"" + info.youtubeTitle + "\"")
+                + (info.hasCaptionStartTime ? " / captionStart=" + info.captionStartTimeSeconds + "s" : "")
+                + (info.autoGenerated ? " / auto" : ""));
+        if (youtubeBackgroundView != null && isVideoBackgroundMode()) {
+            youtubeBackgroundView.loadVideo(info);
+            updateYouTubeBackgroundPlaybackState();
+        }
+    }
+
+    @Override
+    public void onYouTubeBackgroundError(String requestKey, String message) {
+        if (!isCurrentYouTubeBackgroundRequest(requestKey)) {
+            return;
+        }
+        currentYouTubeBackgroundLoading = false;
+        currentYouTubeBackgroundInfo = null;
+        appendLog(message == null || message.trim().isEmpty()
+                ? "youtube background: unavailable"
+                : message.trim());
+        if (youtubeBackgroundView != null) {
+            youtubeBackgroundView.clearVideo();
+        }
+    }
+
+    @Override
+    public void onYouTubeBackgroundLog(String requestKey, String message) {
+        if (!isCurrentYouTubeBackgroundRequest(requestKey)
+                || message == null
+                || message.trim().isEmpty()) {
+            return;
+        }
+        appendLog(message.trim());
+    }
+
+    @Override
+    public void onAiLyricsLoaded(String trackKey, LyricsResult result) {
+        if (!trackKey.equals(currentLyricsKey)) {
+            return;
+        }
+        if (!isCurrentSupplementBase(result)) {
+            appendLog("stale ai lyrics result discarded after base lyrics changed");
+            return;
+        }
+        aiLyricsGenerating = false;
+        // Supplements started on line timing keep any word timing that arrived meanwhile.
+        currentLyricsResult = mergeCurrentFuriganaInto(
+                AiLyricsRepository.hasSameBaseLyrics(currentBaseLyricsResult, result)
+                        ? result
+                        : LyricsTimingUpgrade.retime(result, currentBaseLyricsResult)
+        );
+        setLyricsResultOnViews(currentLyricsResult);
+        setLyricsSupplementLoading(false, false, lyricsSupplementFuriganaLoading);
+        updateLyricPreview(currentTrack == null ? 0L : currentLyricsPlaybackPosition(currentTrack));
+        statusView.setText(currentLyricsResult.detail);
+        if (aiSettingsStatusView != null) {
+            aiSettingsStatusView.setText(ui("status.ai_applied"));
+        }
+    }
+
+    @Override
+    public void onAiLyricsPartialLoaded(
+            String trackKey,
+            LyricsResult result,
+            boolean pronunciationLoading,
+            boolean translationLoading,
+            boolean finished,
+            boolean hadError
+    ) {
+        if (!trackKey.equals(currentLyricsKey)) {
+            return;
+        }
+        if (!isCurrentSupplementBase(result)) {
+            appendLog("stale ai lyrics partial discarded after base lyrics changed");
+            return;
+        }
+        aiLyricsGenerating = !finished && (pronunciationLoading || translationLoading);
+        setLyricsSupplementLoading(!finished && pronunciationLoading, !finished && translationLoading,
+                lyricsSupplementFuriganaLoading);
+        currentLyricsResult = mergeAiSupplementsIntoResult(currentLyricsResult, result);
+        currentLyricsResult = mergeCurrentFuriganaInto(currentLyricsResult);
+        setLyricsResultOnViews(currentLyricsResult);
+        updateLyricPreview(currentTrack == null ? 0L : currentLyricsPlaybackPosition(currentTrack));
+        statusView.setText(currentLyricsResult.detail);
+        if (aiSettingsStatusView != null && !hadError) {
+            aiSettingsStatusView.setText(finished
+                    ? ui("status.ai_applied")
+                    : aiProviderLoadingText(
+                            "status.ai_generating_provider_format",
+                            "status.ai_generating"
+                    ));
+        }
+    }
+
+    @Override
+    public void onAiLyricsError(String trackKey, String message) {
+        if (!trackKey.equals(currentLyricsKey)) {
+            return;
+        }
+        aiLyricsGenerating = false;
+        setLyricsSupplementLoading(false, false, lyricsSupplementFuriganaLoading);
+        updateLyricPreview(currentTrack == null ? 0L : currentLyricsPlaybackPosition(currentTrack));
+        if (aiSettingsStatusView != null) {
+            aiSettingsStatusView.setText(uiFormat("status.ai_failed_format", message));
+        }
+    }
+
+    @Override
+    public void onAiLyricsTaskError(
+            String trackKey,
+            String message,
+            boolean pronunciationLoading,
+            boolean translationLoading,
+            boolean finished
+    ) {
+        if (!trackKey.equals(currentLyricsKey)) {
+            return;
+        }
+        aiLyricsGenerating = !finished && (pronunciationLoading || translationLoading);
+        setLyricsSupplementLoading(!finished && pronunciationLoading, !finished && translationLoading,
+                lyricsSupplementFuriganaLoading);
+        updateLyricPreview(currentTrack == null ? 0L : currentLyricsPlaybackPosition(currentTrack));
+        if (aiSettingsStatusView != null) {
+            aiSettingsStatusView.setText(uiFormat("status.ai_failed_format", message));
+        }
+    }
+
+    @Override
+    public void onAiLyricsLog(String trackKey, String message) {
+        if (!trackKey.equals(currentLyricsKey)) {
+            return;
+        }
+        appendLog(message);
+    }
+
+    @Override
+    public void onAiLyricsProviderChanged(String trackKey, boolean pronunciation, String providerLabel) {
+        if (!trackKey.equals(currentLyricsKey)) return;
+        String label = providerLabel == null ? "" : providerLabel.trim();
+        if (pronunciation) pronunciationLoadingProviderName = label;
+        else translationLoadingProviderName = label;
+        // A fallback can change providers while the same lyric row is displayed.
+        clearPreviewRowsCache();
+        updateLyricsSupplementLoadingText();
+        updateVinylLoadingIndicator(true);
+        if (aiSettingsStatusView != null && aiLyricsGenerating) {
+            aiSettingsStatusView.setText(supplementLoadingText());
+        }
+    }
+
+    @Override
+    public void onFuriganaLoaded(String trackKey, LyricsResult result) {
+        if (!trackKey.equals(currentLyricsKey)) {
+            return;
+        }
+        currentFuriganaKey = trackKey;
+        currentFuriganaResult = result;
+        currentLyricsResult = mergeFuriganaIntoResult(currentLyricsResult, result);
+        setLyricsResultOnViews(currentLyricsResult);
+        setLyricsSupplementLoading(lyricsSupplementPronunciationLoading, lyricsSupplementTranslationLoading, false);
+        updateLyricPreview(currentTrack == null ? 0L : currentLyricsPlaybackPosition(currentTrack));
+        statusView.setText(currentLyricsResult.detail);
+    }
+
+    @Override
+    public void onFuriganaError(String trackKey, String message) {
+        if (!trackKey.equals(currentLyricsKey)) {
+            return;
+        }
+        setLyricsSupplementLoading(lyricsSupplementPronunciationLoading, lyricsSupplementTranslationLoading, false);
+        updateLyricPreview(currentTrack == null ? 0L : currentLyricsPlaybackPosition(currentTrack));
+        appendLog("furigana js error: " + message);
+    }
+
+    @Override
+    public void onFuriganaLog(String trackKey, String message) {
+        if (!trackKey.equals(currentLyricsKey)) {
+            return;
+        }
+        appendLog(message);
+    }
+
+    @Override
+    public void onAiMetadataTranslationLoaded(String trackKey, AiLyricsRepository.MetadataTranslation translation) {
+        if (!trackKey.equals(currentLyricsKey) || translation == null) {
+            return;
+        }
+        setMetadataTranslationLoading(false);
+        AiLyricsSettings.Snapshot snapshot = aiLyricsSettings == null ? null : aiLyricsSettings.snapshot();
+        String source = effectiveSelectedSourceLang();
+        String target = snapshot == null ? "" : snapshot.resolveTargetLanguage(source);
+        String normalizedSource = AiLyricsSettings.normalizeLanguageCode(source);
+        if (snapshot == null
+                || !snapshot.metadataTranslationEnabled
+                || AiLyricsSettings.isSameLanguage(source, target)
+                || !normalizedSource.equalsIgnoreCase(translation.sourceLang)
+                || !AiLyricsSettings.normalizeLanguageCode(target).equalsIgnoreCase(translation.targetLang)) {
+            return;
+        }
+        translatedTrackTitle = translation.title;
+        translatedTrackArtist = translation.artist;
+        updateTrackMetadataTextViews(currentTrack);
+    }
+
+    @Override
+    public void onAiMetadataTranslationError(String trackKey, String message) {
+        if (!trackKey.equals(currentLyricsKey)) {
+            return;
+        }
+        setMetadataTranslationLoading(false);
+        appendLog("ai metadata failed: " + message);
+    }
+
+    @Override
+    public void onAiTmiLoaded(String trackKey, AiLyricsRepository.TmiInfo info) {
+        if (!trackKey.equals(currentTmiRequestKey)) {
+            return;
+        }
+        tmiRequestInFlight = false;
+        renderTmiInfo(info);
+    }
+
+    @Override
+    public void onAiTmiPartialLoaded(
+            String trackKey,
+            AiLyricsRepository.TmiInfo info,
+            boolean webSearchFallback,
+            boolean reset
+    ) {
+        if (!trackKey.equals(currentTmiRequestKey)) return;
+        if (reset) {
+            renderTmiLoading(currentTrack);
+            renderResearchSearchWarning();
+            return;
+        }
+        if (info != null) renderTmiInfo(info, true);
+    }
+
+    @Override
+    public void onAiTmiError(String trackKey, String message) {
+        if (!trackKey.equals(currentTmiRequestKey)) {
+            return;
+        }
+        tmiRequestInFlight = false;
+        renderTmiError(message);
+    }
+
+    @Override
+    public void onAiCulturalAnnotationsLoaded(
+            String trackKey,
+            String requestKey,
+            List<CulturalAnnotation> annotations
+    ) {
+        if (!trackKey.equals(currentLyricsKey)
+                || !requestKey.equals(currentCulturalAnnotationRequestKey)
+                || aiLyricsSettings == null
+                || !aiLyricsSettings.snapshot().culturalAnnotationsEnabled) {
+            return;
+        }
+        currentCulturalAnnotations = annotations == null ? Collections.emptyList() : annotations;
+        setCulturalAnnotationsLoading(false);
+        applyCulturalAnnotationsToViews();
+    }
+
+    @Override
+    public void onAiCulturalAnnotationsError(String trackKey, String requestKey, String message) {
+        if (!trackKey.equals(currentLyricsKey)
+                || !requestKey.equals(currentCulturalAnnotationRequestKey)) {
+            return;
+        }
+        setCulturalAnnotationsLoading(false);
+        appendLog("ai cultural annotations failed: " + message);
+    }
+
+    // ------------------------------------------------------------------
+    // Pronunciation-first mode
+    // ------------------------------------------------------------------
+
+    private boolean pronunciationShownForCurrentSource() {
+        if (aiLyricsSettings == null) return false;
+        AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+        return snapshot.enabled() && snapshot.ruleForSource(effectiveSelectedSourceLang()).pronunciationEnabled;
+    }
+
+    /** Pronunciation-first, its toggle and the fill belong to synced pronunciation. */
+    private boolean syncedPronunciationOn() {
+        return aiLyricsSettings != null && aiLyricsSettings.syncedPronunciationEnabled();
+    }
+
+    private boolean pronunciationFirstActive() {
+        return aiLyricsSettings != null
+                && syncedPronunciationOn()
+                && aiLyricsSettings.pronunciationFirstEnabled()
+                && pronunciationShownForCurrentSource();
+    }
+
+    /** Pronunciation rows fill along karaoke timing (only while pronunciation-first is off). */
+    private boolean pronunciationFillActive() {
+        return aiLyricsSettings != null
+                && syncedPronunciationOn()
+                && aiLyricsSettings.pronunciationKaraokeFillEnabled()
+                && !aiLyricsSettings.pronunciationFirstEnabled()
+                && pronunciationShownForCurrentSource();
+    }
+
+    /** Either display needs AI unit timing for the pronunciation. */
+    private boolean pronunciationTimingWanted() {
+        return pronunciationFirstActive() || pronunciationFillActive();
+    }
+
+    /** AI unit timing when it was made for this result's units and readings. */
+    private Map<String, List<String>> currentPronunciationTiming(LyricsResult result) {
+        String signature = result != null && result.karaoke ? pronunciationSignatureOf(result) : "";
+        return !signature.isEmpty() && signature.equals(pronunciationTimedSignature) ? pronunciationTimedParts : null;
+    }
+
+    private PronunciationFirst.Fill pronunciationFillFor(LyricsResult result) {
+        if (result == null || !result.karaoke || !pronunciationFillActive()) {
+            return PronunciationFirst.Fill.NONE;
+        }
+        Map<String, List<String>> timed = currentPronunciationTiming(result);
+        if (result != pronunciationFillSource || timed != pronunciationFillTimed) {
+            pronunciationFillSource = result;
+            pronunciationFillTimed = timed;
+            pronunciationFill = PronunciationFirst.fill(result, timed);
+        }
+        return pronunciationFill;
+    }
+
+    /** Cached pronunciation signature of the given result (karaoke units and their readings). */
+    private String pronunciationSignatureOf(LyricsResult result) {
+        if (result != pronunciationSignatureSource) {
+            pronunciationSignatureSource = result;
+            List<PronunciationFirst.Item> items = PronunciationFirst.timingItems(result);
+            if (items.isEmpty() || aiLyricsSettings == null) {
+                pronunciationSignature = "";
+            } else {
+                String source = effectiveSelectedSourceLang();
+                String target = aiLyricsSettings.snapshot().resolveTargetLanguage(source);
+                pronunciationSignature = PronunciationFirst.signature(items, target, source);
+            }
+        }
+        return pronunciationSignature;
+    }
+
+    private LyricsResult pronunciationFirstDisplay(LyricsResult result) {
+        if (result == null || result.lines.isEmpty() || !pronunciationFirstActive()) return result;
+        return PronunciationFirst.apply(result, currentPronunciationTiming(result));
+    }
+
+    private void updatePronunciationFirstButton(LyricsResult result) {
+        if (pronunciationFirstButton == null || aiLyricsSettings == null) return;
+        boolean available = result != null && !result.lines.isEmpty()
+                && syncedPronunciationOn() && pronunciationShownForCurrentSource() && result.hasSupplement(true);
+        pronunciationFirstButton.setDescriptions(ui("pronunciation_first.state_on"), ui("pronunciation_first.state_off"));
+        pronunciationFirstButton.setState(available, aiLyricsSettings.pronunciationFirstEnabled());
+    }
+
+    private void togglePronunciationFirst(boolean enabled) {
+        if (aiLyricsSettings == null) return;
+        aiLyricsSettings.setPronunciationFirstEnabled(enabled);
+        if (!pronunciationTimingWanted()) {
+            handler.removeCallbacks(requestPronunciationTimingRunnable);
+            pronunciationSyncLoading = false;
+            refreshWordSyncIndicator();
+        }
+        setLyricsResultOnViews(currentLyricsResult);
+        updateLyricPreview(currentTrack == null ? 0L : currentLyricsPlaybackPosition(currentTrack));
+    }
+
+    private void setPronunciationKaraokeFill(boolean enabled) {
+        if (aiLyricsSettings == null) return;
+        aiLyricsSettings.setPronunciationKaraokeFillEnabled(enabled);
+        if (!pronunciationTimingWanted()) {
+            handler.removeCallbacks(requestPronunciationTimingRunnable);
+            pronunciationSyncLoading = false;
+            refreshWordSyncIndicator();
+        }
+        setLyricsResultOnViews(currentLyricsResult);
+    }
+
+    private void setSyncedPronunciation(boolean enabled) {
+        if (aiLyricsSettings == null) return;
+        aiLyricsSettings.setSyncedPronunciationEnabled(enabled);
+        if (!pronunciationTimingWanted()) {
+            handler.removeCallbacks(requestPronunciationTimingRunnable);
+            pronunciationSyncLoading = false;
+            refreshWordSyncIndicator();
+        }
+        setLyricsResultOnViews(currentLyricsResult);
+        updateLyricPreview(currentTrack == null ? 0L : currentLyricsPlaybackPosition(currentTrack));
+    }
+
+    /** Asks AI for unit timing once the pronunciation of a karaoke result has settled. */
+    private void schedulePronunciationTiming() {
+        handler.removeCallbacks(requestPronunciationTimingRunnable);
+        if (!pronunciationTimingWanted() || currentLyricsResult == null || !currentLyricsResult.karaoke) return;
+        handler.postDelayed(requestPronunciationTimingRunnable, 700L);
+    }
+
+    private void requestPronunciationTiming() {
+        LyricsResult result = currentLyricsResult;
+        if (!pronunciationTimingWanted() || result == null || !result.karaoke || currentTrack == null
+                || aiLyricsRepository == null || lyricsSupplementPronunciationLoading) {
+            return;
+        }
+        String signature = pronunciationSignatureOf(result);
+        if (signature.isEmpty() || signature.equals(pronunciationTimedSignature)
+                || signature.equals(pronunciationTimingRequestSignature)) {
+            return;
+        }
+        pronunciationTimingRequestSignature = signature;
+        pronunciationTimingRequestKey = aiLyricsRepository.loadTimedPronunciation(
+                currentTrack,
+                result,
+                aiLyricsSettings.snapshot(),
+                effectiveSelectedSourceLang(),
+                this
+        );
+    }
+
+    @Override
+    public void onTimedPronunciationStarted(String trackKey, String requestKey) {
+        if (!trackKey.equals(currentLyricsKey) || !requestKey.equals(pronunciationTimingRequestKey)) return;
+        handler.removeCallbacks(hidePronunciationSyncFailure);
+        pronunciationSyncFailed = false;
+        pronunciationSyncLoading = true;
+        refreshWordSyncIndicator();
+    }
+
+    @Override
+    public void onTimedPronunciationLoaded(String trackKey, String requestKey, Map<String, List<String>> parts) {
+        if (!trackKey.equals(currentLyricsKey) || !requestKey.equals(pronunciationTimingRequestKey)) return;
+        pronunciationSyncLoading = false;
+        pronunciationTimedParts = parts == null ? Collections.emptyMap() : parts;
+        pronunciationTimedSignature = pronunciationTimingRequestSignature;
+        refreshWordSyncIndicator();
+        setLyricsResultOnViews(currentLyricsResult);
+        appendLog("pronunciation timing applied: items=" + pronunciationTimedParts.size());
+    }
+
+    @Override
+    public void onTimedPronunciationError(String trackKey, String requestKey, String message) {
+        if (!trackKey.equals(currentLyricsKey) || !requestKey.equals(pronunciationTimingRequestKey)) return;
+        pronunciationSyncLoading = false;
+        // Proportional timing stays on screen; say that the AI timing failed.
+        pronunciationSyncFailed = true;
+        handler.removeCallbacks(hidePronunciationSyncFailure);
+        handler.postDelayed(hidePronunciationSyncFailure, 4000L);
+        refreshWordSyncIndicator();
+        appendLog("pronunciation timing failed: " + message);
+    }
+
+
+    private View buildContentView() {
+        // Settings are built first and populate credential fields; capture the old form before that.
+        rememberSpotifySetupDraft();
+        FrameLayout root = new FrameLayout(this);
+        rootView = root;
+        backgroundView = new PlayerBackgroundView(this);
+        root.addView(backgroundView, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        youtubeBackgroundView = reusableYouTubeBackgroundView();
+        root.addView(youtubeBackgroundView, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        root.setOnApplyWindowInsetsListener((view, insets) -> {
+            applyAppearanceInsets(insets);
+            return insets;
+        });
+
+        coveredMainPage = null;
+        mainPage = buildMainPage();
+        root.addView(mainPage, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        lyricsPage = buildLyricsPage();
+        lyricsPage.setVisibility(View.GONE);
+        stopLyricsPageSlide();
+        FrameLayout.LayoutParams lyricsPageParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        );
+        root.addView(lyricsPage, lyricsPageParams);
+
+        if (!IvLyricsBridge.isEmbedded(this)) {
+            vinylPlayerModeView = buildVinylPlayerModeView();
+            root.addView(vinylPlayerModeView, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+            ));
+            if (vinylModeVisible) {
+                if (mainPage != null) mainPage.setVisibility(View.INVISIBLE);
+                if (lyricsPage != null) lyricsPage.setVisibility(View.INVISIBLE);
+                vinylPlayerModeView.show(false);
+            }
+        }
+        // A content rebuild keeps the motion page it already has (it is first built when the mode opens).
+        if (motionLyricsModeView != null) {
+            detachFromParent(motionLyricsModeView);
+            applyMotionLyricsUiText();
+            root.addView(motionLyricsModeView, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+            ));
+            if (motionModeVisible) {
+                if (mainPage != null) mainPage.setVisibility(View.INVISIBLE);
+                if (lyricsPage != null) lyricsPage.setVisibility(View.INVISIBLE);
+                motionLyricsModeView.show(false);
+            }
+        }
+
+        debugPanel = buildDebugPanel();
+        root.addView(debugPanel, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        settingsPanel = buildSettingsPanel();
+        root.addView(settingsPanel, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        if (!IvLyricsBridge.isEmbedded(this)) {
+            spotifySetupPanel = buildSpotifySetupPanel();
+            root.addView(spotifySetupPanel, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+            ));
+        }
+
+        inAppBrowserPage = buildInAppBrowserPage();
+        inAppBrowserPage.setVisibility(View.GONE);
+        stopInAppBrowserSlide();
+        root.addView(inAppBrowserPage, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        if (!IvLyricsBridge.isEmbedded(this)) {
+            pictureInPicturePage = buildPictureInPicturePage();
+            pictureInPicturePage.setVisibility(View.GONE);
+            root.addView(pictureInPicturePage, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+            ));
+        }
+
+        if (IvLyricsBridge.isEmbedded(this)) {
+            // The host card opens a lyrics destination in the Spotify task.
+            mainPage.setVisibility(View.INVISIBLE);
+            lyricsPage.setVisibility(View.VISIBLE);
+            lyricsPageVisible = true;
+        }
+        if (lyricsActivityHost != null) lyricsActivityHost.attachRoot(root, false);
+        return root;
+    }
+
+    private VinylPlayerModeView buildVinylPlayerModeView() {
+        VinylPlayerModeView view = new VinylPlayerModeView(this);
+        view.setUiText(
+                ui("vinyl.mode"),
+                ui("vinyl.close_hint"),
+                ui("vinyl.record_hint"),
+                ui("vinyl.tonearm_hint"),
+                ui("vinyl.tmi_hint")
+        );
+        view.setListener(new VinylPlayerModeView.Listener() {
+            @Override
+            public void onClose() {
+                showVinylMode(false);
+            }
+
+            @Override
+            public void onTogglePlayback() {
+                runTransportCommand(() -> NowPlayingService.togglePlayback());
+            }
+
+            @Override
+            public void onSeek(long positionMs) {
+                seekPlayerToPosition(positionMs);
+            }
+
+            @Override
+            public void onStopPlayback() {
+                runTransportCommand(() -> NowPlayingService.pausePlayback());
+            }
+
+            @Override
+            public void onShowTmi() {
+                showTmiForCurrentTrack(false);
+            }
+        });
+        if (aiLyricsSettings != null) {
+            AiLyricsSettings.Snapshot settings = aiLyricsSettings.snapshot();
+            view.lyricView().setKaraokeBounceEffectEnabled(settings.karaokeBounceEffectEnabled);
+            view.lyricView().setKaraokeExpressiveMotion(aiLyricsSettings.karaokeExpressiveMotionEnabled());
+            view.lyricView().setKaraokeDisplayGranularity(settings.karaokeDisplayGranularity);
+            view.setCustomization(settings.vinyl, settings.typography);
+        }
+        view.setLoadingText(vinylLoadingText(), false);
+        if (currentTrack != null && currentTrack.hasUsableMetadata()) {
+            view.setTrack(currentTrack, currentArtworkBitmap, false);
+            updateVinylDisplayMetadata(view, currentTrack);
+            view.setPlayback(
+                    currentPlaybackPosition(currentTrack),
+                    currentTrack.durationMs,
+                    currentTrack.playing
+            );
+        }
+        return view;
+    }
+
+    private void showVinylMode(boolean show) {
+        if (IvLyricsBridge.isEmbedded(this)) return;
+        if (show && (currentTrack == null || !currentTrack.hasUsableMetadata())) {
+            Toast.makeText(this, ui("status.waiting_current_track"), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (vinylPlayerModeView == null || show == vinylModeVisible) {
+            return;
+        }
+        lastBackPressElapsedMs = 0L;
+        vinylModeVisible = show;
+        if (show) {
+            cancelArtworkLongPress();
+            vinylPlayerModeView.setTrack(currentTrack, currentArtworkBitmap, false);
+            updateVinylDisplayMetadata(vinylPlayerModeView, currentTrack);
+            vinylPlayerModeView.setPlayback(
+                    currentPlaybackPosition(currentTrack),
+                    currentTrack.durationMs,
+                    currentTrack.playing
+            );
+            updateLyricPreview(currentLyricsPlaybackPosition(currentTrack));
+            vinylPlayerModeView.show(true);
+            fadeNormalPlayer(false);
+            return;
+        }
+        fadeNormalPlayer(true);
+        vinylPlayerModeView.hide(true, this::requestDefaultRemoteFocusAfterVinylClose);
+    }
+
+    private void fadeNormalPlayer(boolean show) {
+        boolean animationsEnabled = aiLyricsSettings == null
+                || aiLyricsSettings.snapshot().vinyl.animationsEnabled;
+        if (mainPage != null) {
+            mainPage.animate().cancel();
+            if (!animationsEnabled) {
+                mainPage.setAlpha(1f);
+                mainPage.setScaleX(1f);
+                mainPage.setScaleY(1f);
+                mainPage.setVisibility(show ? View.VISIBLE : View.INVISIBLE);
+            } else if (show) {
+                mainPage.setVisibility(View.VISIBLE);
+                mainPage.setAlpha(0f);
+                mainPage.setScaleX(0.985f);
+                mainPage.setScaleY(0.985f);
+                mainPage.animate()
+                        .alpha(1f)
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(360L)
+                        .setInterpolator(new DecelerateInterpolator(1.45f))
+                        .start();
+            } else {
+                mainPage.animate()
+                        .alpha(0f)
+                        .scaleX(0.985f)
+                        .scaleY(0.985f)
+                        .setDuration(260L)
+                        .withEndAction(() -> {
+                            if (vinylModeVisible && mainPage != null) {
+                                mainPage.setVisibility(View.INVISIBLE);
+                            }
+                        })
+                        .start();
+            }
+        }
+        if (lyricsPage != null && vinylModeVisible) {
+            lyricsPage.setVisibility(View.INVISIBLE);
+        }
+    }
+
+    private MotionLyricsModeView buildMotionLyricsModeView() {
+        return new MotionLyricsModeView(this, new MotionLyricsModeView.Listener() {
+            @Override
+            public void onClose() {
+                showMotionLyricsMode(false);
+            }
+
+            @Override
+            public void onDirectionRequested(String prompt, MotionLyricsModeView.DirectionCallback callback) {
+                AiLyricsSettings.Snapshot settings = aiLyricsSettings.snapshot();
+                appendLog("motion lyrics: asking " + settings.provider.label + " for a direction");
+                aiLyricsRepository.requestMotionDirection(prompt, settings, (answer, error) -> {
+                    if (error != null) {
+                        appendLog("motion lyrics: direction failed: " + error);
+                    }
+                    callback.onAnswer(answer, error);
+                });
+            }
+
+            @Override
+            public String onCacheRead(String key) {
+                return aiLyricsRepository.cachedMotionDirection(key);
+            }
+
+            @Override
+            public void onCacheWrite(String key, String value) {
+                aiLyricsRepository.storeMotionDirection(key, value);
+            }
+
+            @Override
+            public void onBackgroundFrame(float rotate, float scale, float x, float y) {
+                motionCameraRotate = rotate;
+                motionCameraScale = scale;
+                motionCameraX = x;
+                motionCameraY = y;
+                applyMotionCamera();
+            }
+
+            @Override
+            public void onLog(String message) {
+                appendLog(message);
+            }
+        });
+    }
+
+    /** The page is a web view with half a megabyte of script: it is built when the mode first opens. */
+    private MotionLyricsModeView ensureMotionLyricsModeView() {
+        if (motionLyricsModeView == null && rootView != null) {
+            motionLyricsModeView = buildMotionLyricsModeView();
+            applyMotionLyricsUiText();
+            rootView.addView(motionLyricsModeView, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+            ));
+        }
+        return motionLyricsModeView;
+    }
+
+    /**
+     * Turns the background with the page's camera. The page reports its offset in dp along the
+     * stage's own axes, which a turned stage has a quarter turn round from the window's.
+     */
+    private void applyMotionCamera() {
+        float density = getResources().getDisplayMetrics().density;
+        float x = motionCameraX * density;
+        float y = motionCameraY * density;
+        float windowX = motionStageTurn > 0 ? -y : motionStageTurn < 0 ? y : x;
+        float windowY = motionStageTurn > 0 ? x : motionStageTurn < 0 ? -x : y;
+        float rotate = motionStageTurn + motionCameraRotate;
+        turnWithMotionCamera(backgroundView, rotate, motionCameraScale, windowX, windowY);
+        turnWithMotionCamera(youtubeBackgroundView, rotate, motionCameraScale, windowX, windowY);
+    }
+
+    /** The page scales, then rotates, then moves its background about the centre; so does a view. */
+    private static void turnWithMotionCamera(View view, float rotate, float scale, float x, float y) {
+        if (view == null) {
+            return;
+        }
+        view.setScaleX(scale);
+        view.setScaleY(scale);
+        view.setRotation(rotate);
+        view.setTranslationX(x);
+        view.setTranslationY(y);
+    }
+
+    private void applyMotionLyricsUiText() {
+        if (motionLyricsModeView != null) {
+            motionLyricsModeView.setUiText(
+                    ui("button.close"), ui("motion.unavailable"), ui("motion.directing"), ui("motion.direct_failed"));
+        }
+    }
+
+    /** Why motion lyrics cannot open now, in the UI language, or null when it can. */
+    private String motionLyricsUnavailableMessage() {
+        if (currentTrack == null || !currentTrack.hasUsableMetadata()) {
+            return ui("status.waiting_current_track");
+        }
+        return MotionLyricsSong.canPlay(currentLyricsResult) ? null : ui("motion.unavailable");
+    }
+
+    /**
+     * Motion lyrics: the desktop kinetic-typography presentation over the player background. It is
+     * composed for a wide screen, so a phone shows it in landscape: the standalone app turns its
+     * window, and the Spotify module's sheet, whose window cannot turn, turns the stage inside it.
+     */
+    private void showMotionLyricsMode(boolean show) {
+        if (show == motionModeVisible) {
+            return;
+        }
+        boolean embedded = IvLyricsBridge.isEmbedded(this);
+        if (show) {
+            String unavailable = motionLyricsUnavailableMessage();
+            if (unavailable != null) {
+                Toast.makeText(this, unavailable, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            MotionLyricsModeView view = ensureMotionLyricsModeView();
+            if (view == null) {
+                return;
+            }
+            if (vinylModeVisible) {
+                showVinylMode(false);
+            }
+            lyricsPageOpenBeforeMotionMode = !embedded && lyricsPageVisible && !isLandscapeLayout();
+            // The sheet's only page is the lyrics page: closing it would close the sheet.
+            if (!embedded) {
+                showLyricsPage(false);
+            }
+            lastBackPressElapsedMs = 0L;
+            motionModeVisible = true;
+            motionSongLyrics = null;
+            holdLandscapeForMotionLyrics(true);
+            applyKeepScreenOnSetting(aiLyricsSettings == null ? null : aiLyricsSettings.snapshot());
+            syncMotionLyricsMode();
+            view.bringToFront();
+            view.show(true);
+            if (mainPage != null) mainPage.setVisibility(View.INVISIBLE);
+            if (lyricsPage != null) lyricsPage.setVisibility(View.INVISIBLE);
+            handler.removeCallbacks(motionLyricsTick);
+            handler.postDelayed(motionLyricsTick, MOTION_LYRICS_SYNC_MS);
+            return;
+        }
+        motionModeVisible = false;
+        handler.removeCallbacks(motionLyricsTick);
+        applyKeepScreenOnSetting(aiLyricsSettings == null ? null : aiLyricsSettings.snapshot());
+        if (embedded) {
+            // The stage stays turned while it fades out; the sheet's page returns to an upright background.
+            motionLyricsModeView.hide(true, () -> {
+                if (motionModeVisible) {
+                    return;
+                }
+                holdLandscapeForMotionLyrics(false);
+                if (lyricsPage != null) {
+                    lyricsPage.setVisibility(View.VISIBLE);
+                    lyricsPage.setAlpha(0f);
+                    lyricsPage.animate().alpha(1f).setDuration(180L).start();
+                }
+                requestDefaultRemoteFocus(false);
+            });
+            return;
+        }
+        holdLandscapeForMotionLyrics(false);
+        if (mainPage != null) {
+            mainPage.setVisibility(View.VISIBLE);
+            refreshMainPagePlayback();
+        }
+        motionLyricsModeView.hide(true, () -> requestDefaultRemoteFocus(false));
+        reopenLyricsPageAfterMotionMode();
+    }
+
+    /** The lyrics page motion lyrics was opened from returns once the window is upright again. */
+    private void reopenLyricsPageAfterMotionMode() {
+        if (!lyricsPageOpenBeforeMotionMode || motionModeVisible || isLandscapeLayout()) {
+            return;
+        }
+        lyricsPageOpenBeforeMotionMode = false;
+        showLyricsPage(true);
+    }
+
+    /** Tablets and TVs are wide enough either way; only a phone is turned. */
+    private void holdLandscapeForMotionLyrics(boolean hold) {
+        boolean phone = getResources().getConfiguration().smallestScreenWidthDp < 600;
+        if (IvLyricsBridge.isEmbedded(this)) {
+            // Spotify recreates the sheet's Activity whenever its window turns.
+            turnMotionStage(hold && phone);
+            return;
+        }
+        if (!phone) {
+            return;
+        }
+        if (hold) {
+            orientationBeforeMotionMode = getRequestedOrientation();
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+        } else {
+            setRequestedOrientation(orientationBeforeMotionMode);
+        }
+    }
+
+    /**
+     * Lays the motion stage and the background out as a wide screen, a quarter turn round inside
+     * an upright window, or back as they were. The phone itself is what the listener turns.
+     */
+    private void turnMotionStage(boolean turn) {
+        if (rootView == null) {
+            return;
+        }
+        boolean upright = rootView.getHeight() > rootView.getWidth();
+        int wanted = turn && upright ? (motionStageTurn != 0 ? motionStageTurn : 90) : 0;
+        if (wanted == motionStageTurn) {
+            return;
+        }
+        if (motionStageTurn == 0) {
+            // Spotify's player lies behind the sheet's window: none of it may show past a turning stage.
+            rootBackgroundBeforeMotionStageTurn = rootView.getBackground();
+            rootView.setBackgroundColor(Color.BLACK);
+            rootView.addOnLayoutChangeListener(motionStageRootLayout);
+            // The window stays as it is while the phone lies on its side. One that turned with the
+            // phone would be recreated, and the system offers to turn one the user keeps upright.
+            orientationBeforeMotionMode = getRequestedOrientation();
+            requestOrientationQuietly(ActivityInfo.SCREEN_ORIENTATION_LOCKED);
+        } else if (wanted == 0) {
+            rootView.removeOnLayoutChangeListener(motionStageRootLayout);
+            rootView.setBackground(rootBackgroundBeforeMotionStageTurn);
+            rootBackgroundBeforeMotionStageTurn = null;
+            requestOrientationQuietly(orientationBeforeMotionMode);
+        }
+        motionStageTurn = wanted;
+        layoutMotionStageTurn();
+        watchMotionStageDirection(wanted != 0);
+        applySystemBarsForOrientation();
+    }
+
+    /** Android 8.0 refuses an orientation request from a window it takes for translucent. */
+    private void requestOrientationQuietly(int orientation) {
+        try {
+            setRequestedOrientation(orientation);
+        } catch (RuntimeException ignored) {
+            // The stage is turned either way.
+        }
+    }
+
+    private void layoutMotionStageTurn() {
+        if (rootView == null) {
+            return;
+        }
+        int width = rootView.getWidth();
+        int height = rootView.getHeight();
+        if (motionLyricsModeView != null) {
+            motionLyricsModeView.setQuarterTurn(motionStageTurn, width, height);
+        }
+        layoutForMotionStage(backgroundView, width, height);
+        layoutForMotionStage(youtubeBackgroundView, width, height);
+        applyMotionCamera();
+    }
+
+    /** A turned stage's background is the window's size with its sides swapped, turned about the centre. */
+    private void layoutForMotionStage(View view, int windowWidth, int windowHeight) {
+        if (view == null || !(view.getLayoutParams() instanceof FrameLayout.LayoutParams)) {
+            return;
+        }
+        FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) view.getLayoutParams();
+        boolean turned = motionStageTurn != 0;
+        int width = turned ? windowHeight : ViewGroup.LayoutParams.MATCH_PARENT;
+        int height = turned ? windowWidth : ViewGroup.LayoutParams.MATCH_PARENT;
+        int gravity = turned ? Gravity.CENTER : FrameLayout.LayoutParams.UNSPECIFIED_GRAVITY;
+        if (params.width == width && params.height == height && params.gravity == gravity) {
+            return;
+        }
+        params.width = width;
+        params.height = height;
+        params.gravity = gravity;
+        view.setLayoutParams(params);
+    }
+
+    /**
+     * A turned stage reads upright whichever way the phone is laid on its side: with its right
+     * edge up the stage is turned clockwise, with its left edge up the other way. Held upright
+     * or flat, it stays as it was.
+     */
+    private void watchMotionStageDirection(boolean watch) {
+        if (!watch) {
+            if (motionStageDirection != null) {
+                motionStageDirection.disable();
+            }
+            return;
+        }
+        if (motionStageDirection == null) {
+            motionStageDirection = new android.view.OrientationEventListener(this) {
+                @Override
+                public void onOrientationChanged(int degrees) {
+                    if (degrees == ORIENTATION_UNKNOWN || motionStageTurn == 0) {
+                        return;
+                    }
+                    int wanted = degrees >= 240 && degrees <= 300 ? 90
+                            : degrees >= 60 && degrees <= 120 ? -90 : motionStageTurn;
+                    if (wanted != motionStageTurn) {
+                        motionStageTurn = wanted;
+                        layoutMotionStageTurn();
+                    }
+                }
+            };
+        }
+        if (motionStageDirection.canDetectOrientation()) {
+            motionStageDirection.enable();
+        }
+    }
+
+    /** Sends the page the song when it changed, and the lyric position. */
+    private void syncMotionLyricsMode() {
+        if (motionLyricsModeView == null || !motionModeVisible) {
+            return;
+        }
+        TrackSnapshot track = currentTrack;
+        if (track == null || !track.hasUsableMetadata()) {
+            motionSongLyrics = null;
+            motionSongKey = "";
+            motionLyricsModeView.setSong("", "", false);
+            return;
+        }
+        AiLyricsSettings.Snapshot settings = aiLyricsSettings == null ? null : aiLyricsSettings.snapshot();
+        motionLyricsModeView.setAiAvailable(settings != null
+                && !settings.provider.translationOnly() && settings.hasApiKey() && settings.hasModel());
+        int accent = VinylPlayerModeView.artworkAccent(currentArtworkBitmap, track.stableKey());
+        String key = track.stableKey() + "|" + accent;
+        if (currentLyricsResult != motionSongLyrics || !key.equals(motionSongKey)) {
+            motionSongLyrics = currentLyricsResult;
+            motionSongKey = key;
+            String uri = MotionLyricsSong.uri(track.trackId, track.stableKey());
+            motionLyricsModeView.setSong(
+                    uri,
+                    MotionLyricsSong.json(uri, track.title, track.artist,
+                            String.format(Locale.US, "#%06x", accent & 0xffffff),
+                            effectiveSelectedSourceLang(), currentLyricsResult),
+                    !currentLyricsResult.loading && !currentLyricsResult.lines.isEmpty());
+        }
+        motionLyricsModeView.setPlayback(currentLyricsPlaybackPosition(track), track.playing, track.playbackSpeed);
+    }
+
+    private void requestDefaultRemoteFocusAfterVinylClose() {
+        if (mainPage != null) {
+            mainPage.setAlpha(1f);
+            mainPage.setScaleX(1f);
+            mainPage.setScaleY(1f);
+        }
+        requestDefaultRemoteFocus(false);
+    }
+
+    private YouTubeBackgroundView reusableYouTubeBackgroundView() {
+        if (youtubeBackgroundView == null) {
+            return new YouTubeBackgroundView(this);
+        }
+        detachFromParent(youtubeBackgroundView);
+        youtubeBackgroundAttachedToPictureInPicture = false;
+        return youtubeBackgroundView;
+    }
+
+    private void detachFromParent(View view) {
+        if (view == null) {
+            return;
+        }
+        ViewParent parent = view.getParent();
+        if (parent instanceof ViewGroup) {
+            ((ViewGroup) parent).removeView(view);
+        }
+    }
+
+    private FrameLayout buildMainPage() {
+        if (IvLyricsBridge.isEmbedded(this)) {
+            // Retain the page transition anchor without building the standalone player UI.
+            FrameLayout anchor = new FrameLayout(this);
+            anchor.setVisibility(View.INVISIBLE);
+            anchor.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+            return anchor;
+        }
+        if (isLandscapeLayout()) {
+            return buildLandscapeMainPage();
+        }
+
+        int pageHorizontalPadding = dp(24);
+        FrameLayout page = new FrameLayout(this);
+        page.setPadding(pageHorizontalPadding, dp(20), pageHorizontalPadding, dp(26));
+        page.setClipChildren(false);
+        page.setClipToPadding(false);
+
+        LinearLayout main = new LinearLayout(this);
+        main.setOrientation(LinearLayout.VERTICAL);
+        main.setClipChildren(false);
+        main.setClipToPadding(false);
+        ScrollView compactScroll = new ScrollView(this);
+        compactScroll.setFillViewport(true);
+        compactScroll.setClipToPadding(false);
+        compactScroll.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+        compactScroll.addView(main, new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        page.addView(compactScroll, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        FrameLayout top = new FrameLayout(this);
+        main.addView(top, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(56)
+        ));
+
+        ImageButton menuButton = iconButton(R.drawable.ic_more_horizontal, 44, 18, Color.WHITE, Color.TRANSPARENT, ui("settings.title"));
+        menuButton.setOnClickListener(view -> showSettingsPanel(true));
+        FrameLayout.LayoutParams menuParams = new FrameLayout.LayoutParams(dp(44), dp(44), Gravity.END | Gravity.TOP);
+        menuParams.topMargin = dp(8);
+        top.addView(menuButton, menuParams);
+
+        artworkView = new ImageView(this);
+        artworkView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        artworkView.setAdjustViewBounds(false);
+        artworkView.setCropToPadding(false);
+        artworkView.setBackground(albumFallbackDrawable());
+        attachArtworkSwipe(artworkView);
+        clipRound(artworkView, 24);
+        main.addView(flexSpacer(0.55f), new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                0.55f
+        ));
+
+        Rect windowBounds = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                ? getWindowManager().getCurrentWindowMetrics().getBounds()
+                : new Rect(0, 0, getResources().getDisplayMetrics().widthPixels, getResources().getDisplayMetrics().heightPixels);
+        float heightDp = windowBounds.height() / getResources().getDisplayMetrics().density;
+        float artworkHeightFraction = heightDp < 700f ? 0.31f : 0.45f;
+        int artworkSize = Math.max(dp(132), Math.min(
+                windowBounds.width() - pageHorizontalPadding * 2,
+                Math.round(windowBounds.height() * artworkHeightFraction)
+        ));
+        LinearLayout.LayoutParams artworkParams = new LinearLayout.LayoutParams(artworkSize, artworkSize);
+        artworkParams.gravity = Gravity.CENTER_HORIZONTAL;
+        artworkParams.bottomMargin = dp(8);
+        main.addView(artworkView, artworkParams);
+
+        main.addView(flexSpacer(0.45f), new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                0.45f
+        ));
+
+        LinearLayout info = new LinearLayout(this);
+        info.setOrientation(LinearLayout.HORIZONTAL);
+        info.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams infoParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        main.addView(info, infoParams);
+
+        LinearLayout meta = new LinearLayout(this);
+        meta.setOrientation(LinearLayout.VERTICAL);
+        info.addView(meta, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        titleView = slidingLabel("ivLyrics", 28f, Color.WHITE, AppFonts.bold(this));
+        titleView.setMaxLines(1);
+        attachSpotifyMetaTap(titleView);
+        meta.addView(titleView, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        artistView = slidingLabel(ui("status.waiting_spotify"), 18f, Color.argb(190, 255, 255, 255), AppFonts.regular(this));
+        artistView.setSingleLine(true);
+        attachSpotifyMetaTap(artistView);
+        LinearLayout.LayoutParams artistParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        artistParams.topMargin = dp(7);
+        meta.addView(artistView, artistParams);
+
+        playerProgressView = new PlayerProgressView(this);
+        playerProgressView.setOnSeekListener(this::seekPlayerToPosition);
+        LinearLayout.LayoutParams progressParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(24)
+        );
+        progressParams.leftMargin = dp(2);
+        progressParams.rightMargin = dp(2);
+        progressParams.topMargin = dp(26);
+        main.addView(playerProgressView, progressParams);
+
+        LinearLayout times = new LinearLayout(this);
+        times.setOrientation(LinearLayout.HORIZONTAL);
+        times.setGravity(Gravity.CENTER_VERTICAL);
+        elapsedView = label("0:00", 12f, Color.argb(204, 255, 255, 255), AppFonts.regular(this));
+        remainingView = label("-0:00", 12f, Color.argb(174, 255, 255, 255), AppFonts.regular(this));
+        remainingView.setGravity(Gravity.END);
+        times.addView(elapsedView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        times.addView(remainingView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        main.addView(times, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        LinearLayout controls = new LinearLayout(this);
+        controls.setOrientation(LinearLayout.HORIZONTAL);
+        controls.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams controlsParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        controls.setMinimumHeight(dp(76));
+        controlsParams.topMargin = dp(8);
+        main.addView(controls, controlsParams);
+
+        TransportButtonView previousButton = new TransportButtonView(this, TransportButtonView.TYPE_PREVIOUS, false);
+        previousButton.setContentDescription(ui("button.prev_track"));
+        previousButton.setOnClickListener(view -> runTransportCommand(() -> NowPlayingService.skipToPrevious()));
+        controls.addView(previousButton, fixedControlParams(62, 12));
+
+        playPauseButton = new TransportButtonView(this, TransportButtonView.TYPE_PLAY_PAUSE, true);
+        playPauseButton.setContentDescription(ui("debug.play_pause"));
+        playPauseButton.setOnClickListener(view -> runTransportCommand(() -> NowPlayingService.togglePlayback()));
+        controls.addView(playPauseButton, fixedControlParams(72, 18));
+
+        TransportButtonView nextButton = new TransportButtonView(this, TransportButtonView.TYPE_NEXT, false);
+        nextButton.setContentDescription(ui("button.next_track"));
+        nextButton.setOnClickListener(view -> runTransportCommand(() -> NowPlayingService.skipToNext()));
+        controls.addView(nextButton, fixedControlParams(62, 12));
+
+        main.addView(flexSpacer(1.0f), new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                1.0f
+        ));
+
+        lyricPreviewContainer = new LinearLayout(this);
+        lyricPreviewContainer.setOrientation(LinearLayout.VERTICAL);
+        lyricPreviewContainer.setGravity(Gravity.CENTER);
+        lyricPreviewContainer.setPadding(dp(12), dp(8), dp(12), dp(8));
+        lyricPreviewContainer.setOnClickListener(view -> showLyricsPage(true));
+        makeRemoteFocusable(lyricPreviewContainer);
+        attachPageSwipe(lyricPreviewContainer, true, true);
+        lyricPreviewView = new MainLyricPreviewView(this);
+        lyricPreviewView.setKaraokeBounceEffectEnabled(aiLyricsSettings.snapshot().karaokeBounceEffectEnabled);
+        lyricPreviewView.setKaraokeExpressiveMotion(aiLyricsSettings.karaokeExpressiveMotionEnabled());
+        lyricPreviewView.setKaraokeDisplayGranularity(aiLyricsSettings.snapshot().karaokeDisplayGranularity);
+        lyricPreviewView.setTypographySettings(aiLyricsSettings.snapshot().typography);
+        lyricPreviewView.setLyricTextAlignment(aiLyricsSettings.snapshot().lyricsTextAlignment);
+        lyricPreviewContainer.addView(lyricPreviewView, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        main.addView(lyricPreviewContainer, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        attachPageSwipe(page, true, false);
+        return page;
+    }
+
+    private FrameLayout buildPictureInPicturePage() {
+        ScaledPictureInPictureFrameLayout page = new ScaledPictureInPictureFrameLayout(
+                this,
+                dp(pictureInPictureStageWidthDp()),
+                dp(pictureInPictureStageHeightDp())
+        );
+        pictureInPictureStage = page;
+        page.setClickable(true);
+        page.setClipChildren(false);
+        page.setClipToPadding(false);
+        page.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        rebuildPictureInPictureStageContent();
+        return page;
+    }
+
+    private void rebuildPictureInPictureStageContent() {
+        if (pictureInPictureStage == null) {
+            return;
+        }
+        if (youtubeBackgroundView != null && youtubeBackgroundView.getParent() == pictureInPictureStage) {
+            detachFromParent(youtubeBackgroundView);
+            youtubeBackgroundAttachedToPictureInPicture = false;
+        }
+        pictureInPictureStage.removeAllViews();
+        pictureInPictureStage.setVirtualSize(dp(pictureInPictureStageWidthDp()), dp(pictureInPictureStageHeightDp()));
+
+        pictureInPictureArtworkView = null;
+        pictureInPictureTitleView = null;
+        pictureInPictureArtistView = null;
+        pictureInPictureLyricsView = null;
+
+        pictureInPictureBackgroundView = new PlayerBackgroundView(this);
+        pictureInPictureBackgroundView.setArtwork(currentArtworkBitmap, currentArtworkKey);
+        if (aiLyricsSettings != null) {
+            pictureInPictureBackgroundView.setBackgroundSettings(effectiveBackgroundSettings(aiLyricsSettings.snapshot()));
+        }
+        pictureInPictureStage.addView(pictureInPictureBackgroundView, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        View shade = new View(this);
+        shade.setBackgroundColor(Color.argb(42, 4, 5, 10));
+        pictureInPictureStage.addView(shade, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        if (pictureInPictureShowArtwork()) {
+            if (pictureInPictureSquare()) {
+                buildSquarePictureInPictureContent(pictureInPictureStage);
+            } else if (pictureInPicturePortrait()) {
+                buildPortraitPictureInPictureContent(pictureInPictureStage);
+            } else {
+                buildLandscapePictureInPictureContent(pictureInPictureStage);
+            }
+        } else {
+            buildLyricsOnlyPictureInPictureContent(pictureInPictureStage);
+        }
+
+        updatePictureInPictureUiFromCurrentState();
+        syncPictureInPictureBackgroundLayer(isVideoBackgroundMode());
+    }
+
+    private void buildLandscapePictureInPictureContent(FrameLayout page) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setClipChildren(false);
+        row.setClipToPadding(false);
+        row.setPadding(dp(26), dp(18), dp(30), dp(18));
+        page.addView(row, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        LinearLayout meta = new LinearLayout(this);
+        meta.setOrientation(LinearLayout.VERTICAL);
+        meta.setGravity(Gravity.CENTER_HORIZONTAL);
+        meta.setClipChildren(false);
+        meta.setClipToPadding(false);
+        LinearLayout.LayoutParams metaParams = new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0.82f
+        );
+        metaParams.rightMargin = dp(24);
+        row.addView(meta, metaParams);
+
+        meta.addView(flexSpacer(0.18f), new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                0.18f
+        ));
+
+        pictureInPictureArtworkView = new ImageView(this);
+        pictureInPictureArtworkView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        pictureInPictureArtworkView.setAdjustViewBounds(false);
+        pictureInPictureArtworkView.setCropToPadding(false);
+        pictureInPictureArtworkView.setBackground(albumFallbackDrawable());
+        clipRound(pictureInPictureArtworkView, 12);
+        LinearLayout.LayoutParams artworkParams = new LinearLayout.LayoutParams(dp(150), dp(150));
+        artworkParams.gravity = Gravity.CENTER_HORIZONTAL;
+        meta.addView(pictureInPictureArtworkView, artworkParams);
+
+        pictureInPictureTitleView = label("ivLyrics", 22f, Color.WHITE, AppFonts.bold(this));
+        pictureInPictureTitleView.setGravity(Gravity.CENTER);
+        pictureInPictureTitleView.setSingleLine(true);
+        pictureInPictureTitleView.setEllipsize(TextUtils.TruncateAt.END);
+        pictureInPictureTitleView.setIncludeFontPadding(true);
+        pictureInPictureTitleView.setShadowLayer(dp(2), 0f, dp(1), Color.argb(145, 0, 0, 0));
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        titleParams.topMargin = dp(14);
+        meta.addView(pictureInPictureTitleView, titleParams);
+
+        pictureInPictureArtistView = label(ui("status.waiting_spotify"), 15f, Color.argb(202, 255, 255, 255), AppFonts.regular(this));
+        pictureInPictureArtistView.setGravity(Gravity.CENTER);
+        pictureInPictureArtistView.setSingleLine(true);
+        pictureInPictureArtistView.setEllipsize(TextUtils.TruncateAt.END);
+        pictureInPictureArtistView.setIncludeFontPadding(true);
+        pictureInPictureArtistView.setShadowLayer(dp(1.5f), 0f, dp(1), Color.argb(130, 0, 0, 0));
+        LinearLayout.LayoutParams artistParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        artistParams.topMargin = dp(5);
+        meta.addView(pictureInPictureArtistView, artistParams);
+
+        meta.addView(flexSpacer(0.30f), new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                0.30f
+        ));
+
+        pictureInPictureLyricsView = new LyricsView(this);
+        configureLyricsViewUiText(pictureInPictureLyricsView);
+        configurePictureInPictureLyricsViewFromSettings(pictureInPictureLyricsView, 0.50f);
+        pictureInPictureLyricsView.setTrackDuration(currentTrack == null ? 0L : lyricsTrackDuration(currentTrack.durationMs));
+        pictureInPictureLyricsView.setResult(currentLyricsResult);
+        pictureInPictureLyricsView.setSupplementLoading(lyricsSupplementPronunciationLoading, lyricsSupplementTranslationLoading);
+        row.addView(pictureInPictureLyricsView, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                1f
+        ));
+    }
+
+    private void buildPortraitPictureInPictureContent(FrameLayout page) {
+        FrameLayout content = new FrameLayout(this);
+        content.setClipChildren(false);
+        content.setClipToPadding(false);
+        page.addView(content, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        pictureInPictureLyricsView = new LyricsView(this);
+        configureLyricsViewUiText(pictureInPictureLyricsView);
+        configurePictureInPictureLyricsViewFromSettings(pictureInPictureLyricsView, 0.50f);
+        pictureInPictureLyricsView.setTrackDuration(currentTrack == null ? 0L : lyricsTrackDuration(currentTrack.durationMs));
+        pictureInPictureLyricsView.setResult(currentLyricsResult);
+        pictureInPictureLyricsView.setSupplementLoading(lyricsSupplementPronunciationLoading, lyricsSupplementTranslationLoading);
+        FrameLayout.LayoutParams lyricsParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        );
+        lyricsParams.leftMargin = dp(18);
+        lyricsParams.rightMargin = dp(18);
+        lyricsParams.topMargin = dp(26 + 112 + 18);
+        lyricsParams.bottomMargin = dp(18);
+        content.addView(pictureInPictureLyricsView, lyricsParams);
+
+        LinearLayout meta = new LinearLayout(this);
+        meta.setOrientation(LinearLayout.HORIZONTAL);
+        meta.setGravity(Gravity.CENTER_VERTICAL);
+        meta.setClipChildren(false);
+        meta.setClipToPadding(false);
+        FrameLayout.LayoutParams metaParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        metaParams.leftMargin = dp(22);
+        metaParams.rightMargin = dp(22);
+        metaParams.topMargin = dp(26);
+        content.addView(meta, metaParams);
+
+        pictureInPictureArtworkView = new ImageView(this);
+        pictureInPictureArtworkView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        pictureInPictureArtworkView.setAdjustViewBounds(false);
+        pictureInPictureArtworkView.setCropToPadding(false);
+        pictureInPictureArtworkView.setBackground(albumFallbackDrawable());
+        clipRound(pictureInPictureArtworkView, 12);
+        meta.addView(pictureInPictureArtworkView, new LinearLayout.LayoutParams(dp(112), dp(112)));
+
+        LinearLayout textColumn = new LinearLayout(this);
+        textColumn.setOrientation(LinearLayout.VERTICAL);
+        textColumn.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f
+        );
+        textParams.leftMargin = dp(16);
+        meta.addView(textColumn, textParams);
+
+        pictureInPictureTitleView = label("ivLyrics", 21f, Color.WHITE, AppFonts.bold(this));
+        pictureInPictureTitleView.setGravity(Gravity.CENTER_VERTICAL);
+        pictureInPictureTitleView.setSingleLine(true);
+        pictureInPictureTitleView.setEllipsize(TextUtils.TruncateAt.END);
+        pictureInPictureTitleView.setIncludeFontPadding(true);
+        pictureInPictureTitleView.setShadowLayer(dp(2), 0f, dp(1), Color.argb(145, 0, 0, 0));
+        textColumn.addView(pictureInPictureTitleView, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        pictureInPictureArtistView = label(ui("status.waiting_spotify"), 14f, Color.argb(202, 255, 255, 255), AppFonts.regular(this));
+        pictureInPictureArtistView.setGravity(Gravity.CENTER_VERTICAL);
+        pictureInPictureArtistView.setSingleLine(true);
+        pictureInPictureArtistView.setEllipsize(TextUtils.TruncateAt.END);
+        pictureInPictureArtistView.setIncludeFontPadding(true);
+        pictureInPictureArtistView.setShadowLayer(dp(1.5f), 0f, dp(1), Color.argb(130, 0, 0, 0));
+        LinearLayout.LayoutParams artistParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        artistParams.topMargin = dp(5);
+        textColumn.addView(pictureInPictureArtistView, artistParams);
+    }
+
+    private void buildSquarePictureInPictureContent(FrameLayout page) {
+        FrameLayout content = new FrameLayout(this);
+        content.setClipChildren(false);
+        content.setClipToPadding(false);
+        page.addView(content, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        pictureInPictureLyricsView = new LyricsView(this);
+        configureLyricsViewUiText(pictureInPictureLyricsView);
+        configurePictureInPictureLyricsViewFromSettings(pictureInPictureLyricsView, 0.50f);
+        pictureInPictureLyricsView.setTrackDuration(currentTrack == null ? 0L : lyricsTrackDuration(currentTrack.durationMs));
+        pictureInPictureLyricsView.setResult(currentLyricsResult);
+        pictureInPictureLyricsView.setSupplementLoading(lyricsSupplementPronunciationLoading, lyricsSupplementTranslationLoading);
+        FrameLayout.LayoutParams lyricsParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        );
+        lyricsParams.leftMargin = dp(20);
+        lyricsParams.rightMargin = dp(20);
+        lyricsParams.topMargin = dp(22 + 96 + 18);
+        lyricsParams.bottomMargin = dp(16);
+        content.addView(pictureInPictureLyricsView, lyricsParams);
+
+        LinearLayout meta = new LinearLayout(this);
+        meta.setOrientation(LinearLayout.HORIZONTAL);
+        meta.setGravity(Gravity.CENTER_VERTICAL);
+        meta.setClipChildren(false);
+        meta.setClipToPadding(false);
+        FrameLayout.LayoutParams metaParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        metaParams.leftMargin = dp(24);
+        metaParams.rightMargin = dp(24);
+        metaParams.topMargin = dp(22);
+        content.addView(meta, metaParams);
+
+        pictureInPictureArtworkView = new ImageView(this);
+        pictureInPictureArtworkView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        pictureInPictureArtworkView.setAdjustViewBounds(false);
+        pictureInPictureArtworkView.setCropToPadding(false);
+        pictureInPictureArtworkView.setBackground(albumFallbackDrawable());
+        clipRound(pictureInPictureArtworkView, 10);
+        meta.addView(pictureInPictureArtworkView, new LinearLayout.LayoutParams(dp(96), dp(96)));
+
+        LinearLayout textColumn = new LinearLayout(this);
+        textColumn.setOrientation(LinearLayout.VERTICAL);
+        textColumn.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f
+        );
+        textParams.leftMargin = dp(16);
+        meta.addView(textColumn, textParams);
+
+        pictureInPictureTitleView = label("ivLyrics", 22f, Color.WHITE, AppFonts.bold(this));
+        pictureInPictureTitleView.setGravity(Gravity.CENTER_VERTICAL);
+        pictureInPictureTitleView.setSingleLine(true);
+        pictureInPictureTitleView.setEllipsize(TextUtils.TruncateAt.END);
+        pictureInPictureTitleView.setIncludeFontPadding(true);
+        pictureInPictureTitleView.setShadowLayer(dp(2), 0f, dp(1), Color.argb(145, 0, 0, 0));
+        textColumn.addView(pictureInPictureTitleView, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        pictureInPictureArtistView = label(ui("status.waiting_spotify"), 15f, Color.argb(202, 255, 255, 255), AppFonts.regular(this));
+        pictureInPictureArtistView.setGravity(Gravity.CENTER_VERTICAL);
+        pictureInPictureArtistView.setSingleLine(true);
+        pictureInPictureArtistView.setEllipsize(TextUtils.TruncateAt.END);
+        pictureInPictureArtistView.setIncludeFontPadding(true);
+        pictureInPictureArtistView.setShadowLayer(dp(1.5f), 0f, dp(1), Color.argb(130, 0, 0, 0));
+        LinearLayout.LayoutParams artistParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        artistParams.topMargin = dp(5);
+        textColumn.addView(pictureInPictureArtistView, artistParams);
+    }
+
+    private void buildLyricsOnlyPictureInPictureContent(FrameLayout page) {
+        pictureInPictureLyricsView = new LyricsView(this);
+        configureLyricsViewUiText(pictureInPictureLyricsView);
+        configurePictureInPictureLyricsViewFromSettings(pictureInPictureLyricsView, 0.50f);
+        pictureInPictureLyricsView.setTrackDuration(currentTrack == null ? 0L : lyricsTrackDuration(currentTrack.durationMs));
+        pictureInPictureLyricsView.setResult(currentLyricsResult);
+        pictureInPictureLyricsView.setSupplementLoading(lyricsSupplementPronunciationLoading, lyricsSupplementTranslationLoading);
+        FrameLayout.LayoutParams lyricsParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        );
+        int sidePadding = pictureInPicturePortrait() ? 10 : (pictureInPictureSquare() ? 14 : 18);
+        lyricsParams.leftMargin = dp(sidePadding);
+        lyricsParams.rightMargin = dp(sidePadding);
+        page.addView(pictureInPictureLyricsView, lyricsParams);
+    }
+
+    private boolean pictureInPicturePortrait() {
+        return aiLyricsSettings != null
+                && AiLyricsSettings.PIP_ORIENTATION_PORTRAIT.equals(aiLyricsSettings.snapshot().pipOrientation);
+    }
+
+    private boolean pictureInPictureSquare() {
+        return aiLyricsSettings != null
+                && AiLyricsSettings.PIP_ORIENTATION_SQUARE.equals(aiLyricsSettings.snapshot().pipOrientation);
+    }
+
+    private boolean pictureInPictureShowArtwork() {
+        return aiLyricsSettings == null || aiLyricsSettings.snapshot().pipShowArtwork;
+    }
+
+    private int pictureInPictureStageWidthDp() {
+        if (pictureInPictureSquare()) {
+            return LYRICS_PIP_STAGE_SQUARE_DP;
+        }
+        return pictureInPicturePortrait() ? LYRICS_PIP_STAGE_HEIGHT_DP : LYRICS_PIP_STAGE_WIDTH_DP;
+    }
+
+    private int pictureInPictureStageHeightDp() {
+        if (pictureInPictureSquare()) {
+            return LYRICS_PIP_STAGE_SQUARE_DP;
+        }
+        return pictureInPicturePortrait() ? LYRICS_PIP_STAGE_WIDTH_DP : LYRICS_PIP_STAGE_HEIGHT_DP;
+    }
+
+    private FrameLayout buildLandscapeMainPage() {
+        FrameLayout page = new FrameLayout(this);
+        page.setPadding(dp(22), dp(16), dp(22), dp(16));
+        page.setClipChildren(false);
+        page.setClipToPadding(false);
+
+        LinearLayout main = new LinearLayout(this);
+        main.setOrientation(LinearLayout.HORIZONTAL);
+        main.setGravity(Gravity.CENTER_VERTICAL);
+        main.setClipChildren(false);
+        main.setClipToPadding(false);
+        landscapeContentRow = main;
+        page.addView(main, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        LinearLayout player = new LinearLayout(this);
+        player.setOrientation(LinearLayout.VERTICAL);
+        player.setGravity(Gravity.CENTER_HORIZONTAL);
+        player.setClipChildren(false);
+        player.setClipToPadding(false);
+        landscapePlayerPane = player;
+        main.addView(player, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0.88f
+        ));
+
+        artworkView = new ImageView(this);
+        artworkView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        artworkView.setAdjustViewBounds(false);
+        artworkView.setCropToPadding(false);
+        artworkView.setBackground(albumFallbackDrawable());
+        attachArtworkSwipe(artworkView);
+        clipRound(artworkView, 20);
+
+        int artworkSize = landscapeArtworkSize();
+        LinearLayout.LayoutParams artworkParams = new LinearLayout.LayoutParams(artworkSize, artworkSize);
+        artworkParams.gravity = Gravity.CENTER_HORIZONTAL;
+        player.addView(flexSpacer(landscapeTopSpacerWeight()), new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                landscapeTopSpacerWeight()
+        ));
+
+        landscapeHeroContainer = new LinearLayout(this);
+        landscapeHeroContainer.setOrientation(LinearLayout.VERTICAL);
+        landscapeHeroContainer.setGravity(Gravity.CENTER_HORIZONTAL);
+        landscapeHeroContainer.setClipChildren(false);
+        landscapeHeroContainer.setClipToPadding(false);
+        player.addView(landscapeHeroContainer, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        landscapeHeroContainer.addView(artworkView, artworkParams);
+
+        LinearLayout meta = new LinearLayout(this);
+        meta.setOrientation(LinearLayout.VERTICAL);
+        meta.setGravity(Gravity.CENTER_HORIZONTAL);
+        landscapeMetaContainer = meta;
+        LinearLayout.LayoutParams metaParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        metaParams.gravity = Gravity.CENTER_HORIZONTAL;
+        metaParams.topMargin = landscapeMetadataTopMargin(true);
+        landscapeHeroContainer.addView(meta, metaParams);
+
+        titleView = label("ivLyrics", 23f, Color.WHITE, AppFonts.bold(this));
+        titleView.setGravity(Gravity.CENTER);
+        titleView.setMaxLines(1);
+        titleView.setEllipsize(TextUtils.TruncateAt.END);
+        titleView.setMinHeight(dp(30));
+        titleView.setIncludeFontPadding(true);
+        titleView.setShadowLayer(dp(3), 0f, dp(1), Color.argb(150, 0, 0, 0));
+        titleView.setTextColor(Color.WHITE);
+        attachSpotifyMetaTap(titleView);
+        LinearLayout.LayoutParams landscapeTitleParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        landscapeTitleParams.gravity = Gravity.CENTER_HORIZONTAL;
+        meta.addView(titleView, landscapeTitleParams);
+
+        artistView = label(ui("status.waiting_spotify"), 15f, Color.argb(190, 255, 255, 255), AppFonts.regular(this));
+        artistView.setGravity(Gravity.CENTER);
+        artistView.setSingleLine(true);
+        artistView.setEllipsize(TextUtils.TruncateAt.END);
+        artistView.setMinHeight(dp(22));
+        artistView.setIncludeFontPadding(true);
+        artistView.setShadowLayer(dp(2), 0f, dp(1), Color.argb(130, 0, 0, 0));
+        artistView.setTextColor(Color.argb(224, 255, 255, 255));
+        attachSpotifyMetaTap(artistView);
+        LinearLayout.LayoutParams artistParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        artistParams.gravity = Gravity.CENTER_HORIZONTAL;
+        artistParams.topMargin = dp(4);
+        meta.addView(artistView, artistParams);
+
+        LinearLayout landscapeControls = new LinearLayout(this);
+        landscapeControls.setOrientation(LinearLayout.VERTICAL);
+        landscapeControls.setGravity(Gravity.CENTER_HORIZONTAL);
+        landscapeControlsContainer = landscapeControls;
+        player.addView(landscapeControls, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        playerProgressView = new PlayerProgressView(this);
+        playerProgressView.setOnSeekListener(this::seekPlayerToPosition);
+        LinearLayout.LayoutParams progressParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(22)
+        );
+        progressParams.leftMargin = dp(10);
+        progressParams.rightMargin = dp(10);
+        progressParams.topMargin = dp(12);
+        landscapeControls.addView(playerProgressView, progressParams);
+
+        LinearLayout times = new LinearLayout(this);
+        times.setOrientation(LinearLayout.HORIZONTAL);
+        times.setGravity(Gravity.CENTER_VERTICAL);
+        elapsedView = label("0:00", 11f, Color.argb(204, 255, 255, 255), AppFonts.regular(this));
+        remainingView = label("-0:00", 11f, Color.argb(174, 255, 255, 255), AppFonts.regular(this));
+        remainingView.setGravity(Gravity.END);
+        times.addView(elapsedView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        times.addView(remainingView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        LinearLayout.LayoutParams timesParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        timesParams.leftMargin = dp(12);
+        timesParams.rightMargin = dp(12);
+        landscapeControls.addView(times, timesParams);
+
+        LinearLayout controls = new LinearLayout(this);
+        controls.setOrientation(LinearLayout.HORIZONTAL);
+        controls.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams controlsParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(62)
+        );
+        controlsParams.topMargin = dp(4);
+        landscapeControls.addView(controls, controlsParams);
+
+        TransportButtonView previousButton = new TransportButtonView(this, TransportButtonView.TYPE_PREVIOUS, false);
+        previousButton.setContentDescription(ui("button.prev_track"));
+        previousButton.setOnClickListener(view -> runTransportCommand(() -> NowPlayingService.skipToPrevious()));
+        controls.addView(previousButton, fixedControlParams(54, 10));
+
+        playPauseButton = new TransportButtonView(this, TransportButtonView.TYPE_PLAY_PAUSE, true);
+        playPauseButton.setContentDescription(ui("debug.play_pause"));
+        playPauseButton.setOnClickListener(view -> runTransportCommand(() -> NowPlayingService.togglePlayback()));
+        controls.addView(playPauseButton, fixedControlParams(62, 14));
+
+        TransportButtonView nextButton = new TransportButtonView(this, TransportButtonView.TYPE_NEXT, false);
+        nextButton.setContentDescription(ui("button.next_track"));
+        nextButton.setOnClickListener(view -> runTransportCommand(() -> NowPlayingService.skipToNext()));
+        controls.addView(nextButton, fixedControlParams(54, 10));
+
+        player.addView(flexSpacer(landscapeBottomSpacerWeight()), new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                landscapeBottomSpacerWeight()
+        ));
+
+        FrameLayout lyricsPane = new FrameLayout(this);
+        landscapeLyricsPane = lyricsPane;
+        LinearLayout.LayoutParams lyricsPaneParams = new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                1.12f
+        );
+        lyricsPaneParams.leftMargin = dp(18);
+        main.addView(lyricsPane, lyricsPaneParams);
+
+        landscapeLyricsView = new LyricsView(this);
+        configureLyricsViewUiText(landscapeLyricsView);
+        landscapeLyricsView.setVerticalCenterBias(0.50f);
+        landscapeLyricsView.setAutoInstrumentalBreakEnabled(aiLyricsSettings.snapshot().autoInstrumentalBreakEnabled);
+        landscapeLyricsView.setInterludeLabelsEnabled(aiLyricsSettings.snapshot().interludeLabelsEnabled);
+        landscapeLyricsView.setSyncedLyricsKaraokeAnimationEnabled(aiLyricsSettings.snapshot().syncedLyricsKaraokeAnimationEnabled);
+        landscapeLyricsView.setKaraokeBounceEffectEnabled(aiLyricsSettings.snapshot().karaokeBounceEffectEnabled);
+        landscapeLyricsView.setKaraokeExpressiveMotion(aiLyricsSettings.karaokeExpressiveMotionEnabled());
+        landscapeLyricsView.setKaraokeDisplayGranularity(aiLyricsSettings.snapshot().karaokeDisplayGranularity);
+        landscapeLyricsView.setJapaneseFuriganaEnabled(aiLyricsSettings.snapshot().japaneseFuriganaEnabled);
+        landscapeLyricsView.setTypographySettings(aiLyricsSettings.snapshot().typography);
+        landscapeLyricsView.setLyricTextAlignment(aiLyricsSettings.snapshot().lyricsTextAlignment);
+        landscapeLyricsView.setOnSeekListener(this::seekToPosition);
+        landscapeLyricsView.setTrackDuration(currentTrack == null ? 0L : lyricsTrackDuration(currentTrack.durationMs));
+        landscapeLyricsView.setResult(currentLyricsResult);
+        landscapeLyricsView.setSupplementLoading(lyricsSupplementPronunciationLoading, lyricsSupplementTranslationLoading);
+        FrameLayout.LayoutParams landscapeLyricsParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        );
+        landscapeLyricsParams.leftMargin = dp(2);
+        landscapeLyricsParams.rightMargin = dp(10);
+        lyricsPane.addView(landscapeLyricsView, landscapeLyricsParams);
+
+        landscapeLyricsProviderAttributionView = createLyricsProviderAttributionView(true);
+        FrameLayout.LayoutParams attributionParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL
+        );
+        attributionParams.leftMargin = dp(12);
+        attributionParams.rightMargin = dp(12);
+        attributionParams.bottomMargin = dp(8);
+        lyricsPane.addView(landscapeLyricsProviderAttributionView.container, attributionParams);
+        updateLyricsProviderAttribution(currentLyricsResult);
+
+        landscapeLyricsSupplementLoadingIndicator = createLyricsSupplementLoadingIndicator();
+        FrameLayout.LayoutParams loadingParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(28),
+                Gravity.END | Gravity.TOP
+        );
+        loadingParams.topMargin = dp(8);
+        loadingParams.setMarginEnd(dp(18));
+        lyricsPane.addView(landscapeLyricsSupplementLoadingIndicator, loadingParams);
+        setLoadingIndicatorVisible(
+                landscapeLyricsSupplementLoadingIndicator,
+                lyricsSupplementPronunciationLoading || lyricsSupplementTranslationLoading || lyricsSupplementFuriganaLoading,
+                false
+        );
+
+        ImageButton menuButton = iconButton(R.drawable.ic_more_horizontal, 44, 18, Color.WHITE, Color.TRANSPARENT, ui("settings.title"));
+        landscapeMenuButton = menuButton;
+        menuButton.setOnClickListener(view -> showSettingsPanel(true));
+        FrameLayout.LayoutParams menuParams = new FrameLayout.LayoutParams(dp(44), dp(44), Gravity.END | Gravity.TOP);
+        menuParams.topMargin = dp(8);
+        page.addView(menuButton, menuParams);
+
+        applyLandscapeControlsAutoHideSetting();
+        applyLandscapeNoLyricsLayout(false);
+        return page;
+    }
+
+    private boolean isLandscapeLayout() {
+        if (IvLyricsBridge.isEmbedded(this)) return false;
+        return getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
+    }
+
+    private boolean isLandscapeTabletLayout() {
+        Configuration configuration = getResources().getConfiguration();
+        return isLandscapeLayout() && configuration.smallestScreenWidthDp >= 600;
+    }
+
+    private boolean shouldCenterLandscapePlayerForNoLyrics() {
+        return isLandscapeLayout()
+                && aiLyricsSettings != null
+                && aiLyricsSettings.snapshot().landscapeCenterNoLyrics
+                && !lyricsLookupInFlight
+                && !hasRenderableLyrics(currentLyricsResult);
+    }
+
+    private boolean hasRenderableLyrics(LyricsResult result) {
+        return result != null && result.lines != null && !result.lines.isEmpty();
+    }
+
+    private void applyLandscapeNoLyricsLayout(boolean animate) {
+        if (landscapePlayerPane == null || landscapeLyricsPane == null || landscapeContentRow == null) {
+            return;
+        }
+        boolean centerPlayer = shouldCenterLandscapePlayerForNoLyrics();
+        landscapeContentRow.setGravity(centerPlayer ? Gravity.CENTER : Gravity.CENTER_VERTICAL);
+
+        ViewGroup.LayoutParams rawPlayerParams = landscapePlayerPane.getLayoutParams();
+        if (rawPlayerParams instanceof LinearLayout.LayoutParams) {
+            LinearLayout.LayoutParams playerParams = (LinearLayout.LayoutParams) rawPlayerParams;
+            if (centerPlayer) {
+                playerParams.width = Math.min(
+                        getResources().getDisplayMetrics().widthPixels - dp(44),
+                        dp(isLandscapeTabletLayout() ? 720 : 560)
+                );
+                playerParams.weight = 0f;
+            } else {
+                playerParams.width = 0;
+                playerParams.weight = 0.88f;
+            }
+            playerParams.gravity = Gravity.CENTER;
+            landscapePlayerPane.setLayoutParams(playerParams);
+        }
+
+        ViewGroup.LayoutParams rawLyricsParams = landscapeLyricsPane.getLayoutParams();
+        if (rawLyricsParams instanceof LinearLayout.LayoutParams) {
+            LinearLayout.LayoutParams lyricsParams = (LinearLayout.LayoutParams) rawLyricsParams;
+            lyricsParams.width = 0;
+            lyricsParams.weight = centerPlayer ? 0f : 1.12f;
+            lyricsParams.leftMargin = centerPlayer ? 0 : dp(18);
+            landscapeLyricsPane.setLayoutParams(lyricsParams);
+        }
+
+        setLandscapeLyricsPaneVisible(!centerPlayer, animate);
+    }
+
+    private void setLandscapeLyricsPaneVisible(boolean visible, boolean animate) {
+        if (landscapeLyricsPane == null) {
+            return;
+        }
+        landscapeLyricsPane.animate().cancel();
+        if (visible) {
+            if (landscapeLyricsPane.getVisibility() != View.VISIBLE) {
+                landscapeLyricsPane.setAlpha(animate ? 0f : 1f);
+                landscapeLyricsPane.setVisibility(View.VISIBLE);
+            }
+            if (animate) {
+                landscapeLyricsPane.animate().alpha(1f).setDuration(180L).start();
+            }
+            return;
+        }
+        if (animate && landscapeLyricsPane.getVisibility() == View.VISIBLE) {
+            landscapeLyricsPane.animate()
+                    .alpha(0f)
+                    .setDuration(140L)
+                    .withEndAction(() -> {
+                        if (landscapeLyricsPane != null) {
+                            landscapeLyricsPane.setVisibility(View.GONE);
+                            landscapeLyricsPane.setAlpha(1f);
+                        }
+                    })
+                    .start();
+        } else {
+            landscapeLyricsPane.setVisibility(View.GONE);
+            landscapeLyricsPane.setAlpha(1f);
+        }
+    }
+
+    private int landscapeArtworkSize() {
+        android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
+        boolean tablet = isLandscapeTabletLayout();
+        float heightFraction = tablet ? 0.53f : 0.45f;
+        float widthFraction = tablet ? 0.28f : 0.23f;
+        int size = Math.min(
+                Math.round(metrics.heightPixels * heightFraction),
+                Math.round(metrics.widthPixels * widthFraction)
+        );
+        return Math.max(dp(tablet ? 190 : 132), size);
+    }
+
+    @SuppressWarnings("deprecation")
+    private void applySystemBarsForOrientation() {
+        Window window = getWindow();
+        if (window == null) {
+            return;
+        }
+        if (isPictureInPictureUiActive()) {
+            return;
+        }
+        // Setup is a regular form. Keep Android navigation available, including in landscape;
+        // entering immersive mode here also adds an unnecessary first-launch system tutorial.
+        if (isSpotifySetupPanelVisible()) {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            window.getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+            window.setNavigationBarColor(settingsPalette().bg);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && window.getInsetsController() != null) {
+                window.getInsetsController().show(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
+            }
+            applySettingsStatusBarAppearance();
+            return;
+        }
+        window.setNavigationBarColor(Color.rgb(17, 18, 22));
+        // A turned motion stage is a landscape screen inside an upright window.
+        boolean landscape = isLandscapeLayout() || motionStageTurn != 0;
+        View decorView = window.getDecorView();
+        if (landscape) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            decorView.setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_FULLSCREEN
+                            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                            | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            );
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                WindowInsetsController controller = window.getInsetsController();
+                if (controller != null) {
+                    controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                    controller.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
+                }
+            }
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            decorView.setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                            | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            );
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                WindowInsetsController controller = window.getInsetsController();
+                if (controller != null) {
+                    controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                    controller.show(WindowInsets.Type.statusBars());
+                    controller.hide(WindowInsets.Type.navigationBars());
+                }
+            }
+        }
+        applySettingsStatusBarAppearance();
+    }
+
+    private boolean landscapeControlsAutoHideEnabled() {
+        return isLandscapeLayout()
+                && aiLyricsSettings != null
+                && aiLyricsSettings.snapshot().landscapeAutoHideControls;
+    }
+
+    private void applyLandscapeControlsAutoHideSetting() {
+        handler.removeCallbacks(landscapeControlsAutoHideRunnable);
+        if (!landscapeControlsAutoHideEnabled() || isSettingsPanelVisible()) {
+            setLandscapeControlsVisible(true, false);
+            return;
+        }
+        setLandscapeControlsVisible(true, false);
+        scheduleLandscapeControlsAutoHide();
+    }
+
+    private boolean handleLandscapeControlTouch(MotionEvent event) {
+        if (!landscapeControlsAutoHideEnabled()) {
+            consumeLandscapeRevealGesture = false;
+            return false;
+        }
+        int action = event.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN) {
+            boolean wasHidden = !landscapeControlsVisible;
+            boolean hitHiddenControl = wasHidden && isTouchInsideLandscapeHiddenControls(event);
+            setLandscapeControlsVisible(true, true);
+            handler.removeCallbacks(landscapeControlsAutoHideRunnable);
+            consumeLandscapeRevealGesture = hitHiddenControl;
+            return hitHiddenControl;
+        }
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            scheduleLandscapeControlsAutoHide();
+            boolean consume = consumeLandscapeRevealGesture;
+            consumeLandscapeRevealGesture = false;
+            return consume;
+        }
+        return consumeLandscapeRevealGesture;
+    }
+
+    private void scheduleLandscapeControlsAutoHide() {
+        handler.removeCallbacks(landscapeControlsAutoHideRunnable);
+        if (!landscapeControlsAutoHideEnabled() || isSettingsPanelVisible()) {
+            return;
+        }
+        handler.postDelayed(landscapeControlsAutoHideRunnable, 2800L);
+    }
+
+    private boolean isTouchInsideLandscapeHiddenControls(MotionEvent event) {
+        return isTouchInsideView(event, landscapeControlsContainer)
+                || isTouchInsideView(event, landscapeMenuButton);
+    }
+
+    private boolean isTouchInsideView(MotionEvent event, View view) {
+        if (view == null) {
+            return false;
+        }
+        int[] location = new int[2];
+        view.getLocationOnScreen(location);
+        float rawX = event.getRawX();
+        float rawY = event.getRawY();
+        return rawX >= location[0]
+                && rawX <= location[0] + view.getWidth()
+                && rawY >= location[1]
+                && rawY <= location[1] + view.getHeight();
+    }
+
+    private void setLandscapeControlsVisible(boolean visible, boolean animate) {
+        landscapeControlsVisible = visible;
+        setAutoHideViewVisible(landscapeControlsContainer, visible, animate);
+        setAutoHideViewVisible(landscapeMenuButton, visible, animate);
+        updateLandscapeHeroForControls(visible, animate);
+    }
+
+    private void updateLandscapeHeroForControls(boolean controlsVisible, boolean animate) {
+        if (!isLandscapeLayout()) {
+            return;
+        }
+        float heroTranslationY = controlsVisible ? 0f : dp(42);
+        float artworkScale = controlsVisible ? 1f : 1.08f;
+        long duration = controlsVisible ? 180L : 260L;
+        updateLandscapeMetadataGap(controlsVisible);
+
+        if (landscapeHeroContainer != null) {
+            landscapeHeroContainer.animate().cancel();
+            if (animate) {
+                landscapeHeroContainer.animate()
+                        .translationY(heroTranslationY)
+                        .setDuration(duration)
+                        .start();
+            } else {
+                landscapeHeroContainer.setTranslationY(heroTranslationY);
+            }
+        }
+        if (artworkView != null) {
+            artworkView.animate().cancel();
+            if (animate) {
+                artworkView.animate()
+                        .scaleX(artworkScale)
+                        .scaleY(artworkScale)
+                        .setDuration(duration)
+                        .start();
+            } else {
+                artworkView.setScaleX(artworkScale);
+                artworkView.setScaleY(artworkScale);
+            }
+        }
+    }
+
+    private int landscapeMetadataTopMargin(boolean controlsVisible) {
+        if (isLandscapeTabletLayout()) {
+            return dp(controlsVisible ? 24 : 34);
+        }
+        return dp(controlsVisible ? 12 : 24);
+    }
+
+    private float landscapeTopSpacerWeight() {
+        return isLandscapeTabletLayout() ? 0.42f : 0.38f;
+    }
+
+    private float landscapeBottomSpacerWeight() {
+        return isLandscapeTabletLayout() ? 0.26f : 0.24f;
+    }
+
+    private void updateLandscapeMetadataGap(boolean controlsVisible) {
+        if (landscapeMetaContainer == null) {
+            return;
+        }
+        ViewGroup.LayoutParams rawParams = landscapeMetaContainer.getLayoutParams();
+        if (!(rawParams instanceof LinearLayout.LayoutParams)) {
+            return;
+        }
+        LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) rawParams;
+        int nextTopMargin = landscapeMetadataTopMargin(controlsVisible);
+        if (params.topMargin == nextTopMargin) {
+            return;
+        }
+        params.topMargin = nextTopMargin;
+        params.gravity = Gravity.CENTER_HORIZONTAL;
+        landscapeMetaContainer.setLayoutParams(params);
+    }
+
+    private void setAutoHideViewVisible(View view, boolean visible, boolean animate) {
+        if (view == null) {
+            return;
+        }
+        view.animate().cancel();
+        view.setEnabled(visible);
+        if (visible) {
+            view.setVisibility(View.VISIBLE);
+            if (animate) {
+                view.animate().alpha(1f).setDuration(150L).start();
+            } else {
+                view.setAlpha(1f);
+            }
+            return;
+        }
+        if (animate) {
+            view.animate()
+                    .alpha(0f)
+                    .setDuration(230L)
+                    .withEndAction(() -> {
+                        if (!landscapeControlsVisible) {
+                            view.setVisibility(View.INVISIBLE);
+                        }
+                    })
+                    .start();
+        } else {
+            view.setAlpha(0f);
+            view.setVisibility(View.INVISIBLE);
+        }
+    }
+
+    private FrameLayout buildLyricsPage() {
+        FrameLayout page = new FrameLayout(this);
+
+        View lyricsShade = new View(this);
+        lyricsBackgroundShade = lyricsShade;
+        lyricsShade.setBackgroundColor(Color.argb(54, 6, 7, 12));
+        page.addView(lyricsShade, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        lyricsPageContent = content;
+        lyricsPageContentTopPaddingPx = dp(LYRICS_PAGE_TOP_PADDING_EXPANDED_DP);
+        content.setPadding(dp(24), lyricsPageContentTopPaddingPx, dp(24), dp(22));
+        page.addView(content, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        FrameLayout header = new FrameLayout(this);
+        content.addView(header, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        header.setMinimumHeight(dp(66));
+
+        View handle = new View(this);
+        handle.setBackground(roundDrawable(Color.argb(82, 255, 255, 255), dp(1.5f)));
+        FrameLayout.LayoutParams handleParams = new FrameLayout.LayoutParams(dp(42), dp(3), Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        header.addView(handle, handleParams);
+
+        LinearLayout metaRow = new LinearLayout(this);
+        metaRow.setOrientation(LinearLayout.HORIZONTAL);
+        metaRow.setGravity(Gravity.CENTER_VERTICAL);
+        FrameLayout.LayoutParams metaRowParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM
+        );
+        metaRow.setMinimumHeight(dp(54));
+        header.addView(metaRow, metaRowParams);
+
+        LinearLayout lyricsMeta = new LinearLayout(this);
+        lyricsMeta.setOrientation(LinearLayout.VERTICAL);
+        lyricsMeta.setGravity(Gravity.CENTER_VERTICAL);
+        metaRow.addView(lyricsMeta, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        lyricsTitleView = label("ivLyrics", 19f, Color.WHITE, AppFonts.bold(this));
+        lyricsTitleView.setSingleLine(true);
+        lyricsTitleView.setEllipsize(TextUtils.TruncateAt.END);
+        lyricsTitleView.setIncludeFontPadding(true);
+        LinearLayout.LayoutParams lyricsTitleParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lyricsTitleParams.leftMargin = IvLyricsBridge.isEmbedded(this) ? 0 : dp(5);
+        lyricsMeta.addView(lyricsTitleView, lyricsTitleParams);
+
+        LinearLayout lyricsSubtitleRow = new LinearLayout(this);
+        lyricsSubtitleRow.setOrientation(LinearLayout.HORIZONTAL);
+        lyricsSubtitleRow.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams subtitleRowParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        subtitleRowParams.topMargin = dp(3);
+        subtitleRowParams.leftMargin = IvLyricsBridge.isEmbedded(this) ? 0 : dp(5);
+        lyricsMeta.addView(lyricsSubtitleRow, subtitleRowParams);
+
+        lyricsArtistView = label(ui("status.waiting_spotify"), 14f, Color.argb(190, 255, 255, 255), AppFonts.regular(this));
+        lyricsArtistView.setSingleLine(true);
+        lyricsArtistView.setEllipsize(TextUtils.TruncateAt.END);
+        lyricsArtistView.setIncludeFontPadding(true);
+        lyricsSubtitleRow.addView(lyricsArtistView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        lyricsContributorView = label("", 9f, Color.argb(118, 255, 255, 255), AppFonts.regular(this));
+        lyricsContributorView.setSingleLine(true);
+        lyricsContributorView.setEllipsize(TextUtils.TruncateAt.END);
+        lyricsContributorView.setIncludeFontPadding(true);
+        lyricsContributorView.setVisibility(View.GONE);
+        LinearLayout.LayoutParams lyricsContributorParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lyricsContributorParams.leftMargin = dp(8);
+        lyricsSubtitleRow.addView(lyricsContributorView, lyricsContributorParams);
+        ImageButton settings = lyricsToolbarButton(LyricsToolbarIcon.MORE, ui("settings.title"));
+        settings.setTag("lyrics.settings");
+        settings.setOnClickListener(view -> showSettingsPanel(true));
+        LinearLayout.LayoutParams settingsParams = new LinearLayout.LayoutParams(dp(48), dp(48));
+        settingsParams.leftMargin = dp(8);
+        metaRow.addView(settings, settingsParams);
+        attachLyricsMetaSwipe(lyricsTitleView);
+        attachLyricsMetaSwipe(lyricsArtistView);
+
+        lyricsSupplementLoadingIndicator = createLyricsSupplementLoadingIndicator();
+        // Keep status on its own row in both modes: it must never displace settings.
+        lyricsSupplementLoadingIndicator.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        lyricsSupplementLoadingIndicator.setBackgroundColor(Color.TRANSPARENT);
+        lyricsSupplementLoadingIndicator.setPadding(0, 0, 0, 0);
+        TextView loadingText = (TextView) lyricsSupplementLoadingIndicator.getChildAt(1);
+        loadingText.setSingleLine(true);
+        loadingText.setEllipsize(TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams loadingTextParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        );
+        loadingTextParams.leftMargin = dp(5);
+        loadingText.setLayoutParams(loadingTextParams);
+        LinearLayout.LayoutParams loadingParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(24)
+        );
+        loadingParams.topMargin = dp(6);
+        content.addView(lyricsSupplementLoadingIndicator, loadingParams);
+        setLoadingIndicatorVisible(
+                lyricsSupplementLoadingIndicator,
+                lyricsSupplementPronunciationLoading || lyricsSupplementTranslationLoading || lyricsSupplementFuriganaLoading,
+                false
+        );
+
+        lyricsLanguageSettingsPanel = buildLyricsLanguageSettingsPanel();
+        lyricsLanguageSettingsPanel.setVisibility(View.GONE);
+        LinearLayout.LayoutParams languagePanelParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        languagePanelParams.topMargin = dp(10);
+        content.addView(lyricsLanguageSettingsPanel, languagePanelParams);
+
+        lyricsView = new LyricsView(this);
+        configureLyricsViewUiText(lyricsView);
+        lyricsView.setVerticalCenterBias(0.42f);
+        lyricsView.setAutoInstrumentalBreakEnabled(aiLyricsSettings.snapshot().autoInstrumentalBreakEnabled);
+        lyricsView.setInterludeLabelsEnabled(aiLyricsSettings.snapshot().interludeLabelsEnabled);
+        lyricsView.setSyncedLyricsKaraokeAnimationEnabled(aiLyricsSettings.snapshot().syncedLyricsKaraokeAnimationEnabled);
+        lyricsView.setKaraokeBounceEffectEnabled(aiLyricsSettings.snapshot().karaokeBounceEffectEnabled);
+        lyricsView.setKaraokeExpressiveMotion(aiLyricsSettings.karaokeExpressiveMotionEnabled());
+        lyricsView.setKaraokeDisplayGranularity(aiLyricsSettings.snapshot().karaokeDisplayGranularity);
+        lyricsView.setJapaneseFuriganaEnabled(aiLyricsSettings.snapshot().japaneseFuriganaEnabled);
+        lyricsView.setTypographySettings(aiLyricsSettings.snapshot().typography);
+        lyricsView.setLyricTextAlignment(aiLyricsSettings.snapshot().lyricsTextAlignment);
+        lyricsView.setOnSeekListener(this::seekToPosition);
+        LinearLayout.LayoutParams lyricsParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+        );
+        lyricsParams.topMargin = dp(16);
+        content.addView(lyricsView, lyricsParams);
+
+        lyricsProviderAttributionView = createLyricsProviderAttributionView(false);
+        LinearLayout.LayoutParams attributionParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        attributionParams.gravity = Gravity.CENTER_HORIZONTAL;
+        attributionParams.topMargin = dp(4);
+        View footerAccessory = IvLyricsBridge.isEmbedded(this) ? createLyricsFooterAccessory() : null;
+        // Attribution in the middle, the pronunciation-first toggle on the left and an optional
+        // host control (the Spotify module's vocal control) on the right.
+        FrameLayout footer = new FrameLayout(this);
+        LinearLayout.LayoutParams footerParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        footerParams.topMargin = attributionParams.topMargin;
+        content.addView(footer, footerParams);
+        FrameLayout.LayoutParams creditParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER);
+        creditParams.leftMargin = dp(52);
+        creditParams.rightMargin = dp(52);
+        footer.addView(lyricsProviderAttributionView.container, creditParams);
+        pronunciationFirstButton = new PronunciationFirstButton(this);
+        pronunciationFirstButton.setListener(this::togglePronunciationFirst);
+        footer.addView(pronunciationFirstButton, new FrameLayout.LayoutParams(
+                dp(44), dp(44), Gravity.LEFT | Gravity.CENTER_VERTICAL));
+        if (footerAccessory != null) {
+            footer.addView(footerAccessory, new FrameLayout.LayoutParams(
+                    dp(44), dp(44), Gravity.RIGHT | Gravity.CENTER_VERTICAL));
+        }
+        updateLyricsProviderAttribution(currentLyricsResult);
+        updatePronunciationFirstButton(currentLyricsResult);
+
+        attachPageSwipe(header, false, false);
+        return page;
+    }
+
+    private ImageButton lyricsToolbarButton(int icon, String description) {
+        ImageButton button = new ImageButton(this);
+        button.setImageDrawable(new LyricsToolbarIcon(icon));
+        button.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        button.setPadding(dp(12), dp(12), dp(12), dp(12));
+        button.setMinimumWidth(dp(46));
+        button.setMinimumHeight(dp(46));
+        button.setBackground(new RippleDrawable(
+                ColorStateList.valueOf(Color.argb(36, 255, 255, 255)),
+                roundDrawable(Color.argb(12, 255, 255, 255), dp(14)),
+                roundDrawable(Color.WHITE, dp(14))
+        ));
+        button.setContentDescription(description);
+        button.setTooltipText(description);
+        makeRemoteFocusable(button);
+        return button;
+    }
+
+    private FrameLayout buildInAppBrowserPage() {
+        FrameLayout page = new FrameLayout(this);
+        page.setBackgroundColor(Color.TRANSPARENT);
+        page.setClickable(true);
+
+        inAppBrowserSheet = new FrameLayout(this);
+        inAppBrowserSheet.setBackground(topRoundDrawable(inAppBrowserBackgroundColor(), dp(24)));
+        clipTopRoundView(inAppBrowserSheet, 24);
+        FrameLayout.LayoutParams sheetParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        );
+        sheetParams.topMargin = inAppBrowserSheetTopMarginPx();
+        page.addView(inAppBrowserSheet, sheetParams);
+        page.setOnApplyWindowInsetsListener((view, insets) -> {
+            inAppBrowserTopInsetPx = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                    ? insets.getInsets(WindowInsets.Type.statusBars() | WindowInsets.Type.displayCutout()).top
+                    : insets.getSystemWindowInsetTop();
+            updateInAppBrowserSheetLayout();
+            return insets;
+        });
+        page.requestApplyInsets();
+
+        inAppBrowserWebView = new AccessibleWebView(this);
+        inAppBrowserWebView.setBackgroundColor(inAppBrowserBackgroundColor());
+        inAppBrowserWebView.setHapticFeedbackEnabled(false);
+        inAppBrowserWebView.setOnLongClickListener(view -> true);
+        WebSettings settings = inAppBrowserWebView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(false);
+        settings.setAllowFileAccessFromFileURLs(false);
+        settings.setAllowUniversalAccessFromFileURLs(false);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        settings.setSafeBrowsingEnabled(true);
+        settings.setLoadWithOverviewMode(true);
+        settings.setUseWideViewPort(true);
+        attachInAppBrowserContentSwipe(inAppBrowserWebView);
+        inAppBrowserWebView.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                if (request == null || request.getUrl() == null || !request.isForMainFrame()) {
+                    return false;
+                }
+                String url = request.getUrl().toString();
+                if (consumeCreatorPrivacyLoginRedirect(url)) {
+                    return true;
+                }
+                if (creatorPrivacyLoginInProgress && isCreatorPrivacyLoginWebUrl(url)) {
+                    return false;
+                }
+                return shouldOpenBrowserNavigationExternally(url);
+            }
+
+            @Override
+            @SuppressWarnings("deprecation")
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                if (consumeCreatorPrivacyLoginRedirect(url)) {
+                    return true;
+                }
+                if (creatorPrivacyLoginInProgress && isCreatorPrivacyLoginWebUrl(url)) {
+                    return false;
+                }
+                return shouldOpenBrowserNavigationExternally(url);
+            }
+
+            @Override
+            public void onPageStarted(WebView view, String url, Bitmap favicon) {
+                showInAppBrowserLoading(true);
+            }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                injectInAppBrowserProfileCss(view, url);
+                handler.postDelayed(() -> showInAppBrowserLoading(false), 80L);
+            }
+        });
+        inAppBrowserSheet.addView(inAppBrowserWebView, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        inAppBrowserLoadingView = buildInAppBrowserLoadingView();
+        inAppBrowserLoadingView.setVisibility(View.GONE);
+        inAppBrowserSheet.addView(inAppBrowserLoadingView, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        inAppBrowserHandleTouchTarget = new FrameLayout(this);
+        inAppBrowserHandleTouchTarget.setBackgroundColor(Color.TRANSPARENT);
+        FrameLayout.LayoutParams handleTargetParams = new FrameLayout.LayoutParams(
+                dp(110),
+                dp(34),
+                Gravity.TOP | Gravity.CENTER_HORIZONTAL
+        );
+        inAppBrowserSheet.addView(inAppBrowserHandleTouchTarget, handleTargetParams);
+        attachInAppBrowserSwipe(inAppBrowserHandleTouchTarget);
+
+        inAppBrowserHandleView = new View(this);
+        inAppBrowserHandleView.setBackground(roundDrawable(inAppBrowserHandleColor(), dp(1.5f)));
+        FrameLayout.LayoutParams handleParams = new FrameLayout.LayoutParams(dp(42), dp(3), Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        handleParams.topMargin = dp(12);
+        inAppBrowserHandleTouchTarget.addView(inAppBrowserHandleView, handleParams);
+        return page;
+    }
+
+    private LinearLayout buildLyricsLanguageSettingsPanel() {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(14), dp(12), dp(14), dp(12));
+        panel.setBackground(lyricsLanguageSettingsPanelBackground(false));
+
+        panel.addView(buildPlayerModeRow(), matchWrap());
+
+        lyricsPopupTabButtonsContainer = new LinearLayout(this);
+        lyricsPopupTabButtonsContainer.setOrientation(LinearLayout.HORIZONTAL);
+        lyricsPopupTabButtonsContainer.setGravity(Gravity.CENTER_VERTICAL);
+        HorizontalScrollView tabScrollView = new HorizontalScrollView(this);
+        tabScrollView.setHorizontalScrollBarEnabled(false);
+        tabScrollView.setFillViewport(false);
+        tabScrollView.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+        tabScrollView.addView(lyricsPopupTabButtonsContainer, new HorizontalScrollView.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        panel.addView(tabScrollView, topMargin(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ), dp(10)));
+        addLyricsPopupTabButton(LYRICS_POPUP_TAB_LANGUAGE, ui("lyrics.tab.language"));
+        addLyricsPopupTabButton(LYRICS_POPUP_TAB_SYNC, ui("lyrics.tab.sync"));
+        addLyricsPopupTabButton(LYRICS_POPUP_TAB_VIDEO, ui("lyrics.tab.video"));
+        addLyricsPopupTabButton(LYRICS_POPUP_TAB_BACKGROUND, ui("lyrics.tab.background"));
+        addLyricsPopupTabButton(LYRICS_POPUP_TAB_LRCLIB, ui("section.lyrics_providers"));
+
+        lyricsLanguageSettingsContent = new LinearLayout(this);
+        lyricsLanguageSettingsContent.setOrientation(LinearLayout.VERTICAL);
+        panel.addView(lyricsLanguageSettingsContent, topMargin(matchWrap(), dp(10)));
+
+        selectedLanguageRuleView = label("", 12f, Color.argb(210, 255, 255, 255), AppFonts.semiBold(this));
+        selectedLanguageRuleView.setLineSpacing(dp(2), 1f);
+        lyricsLanguageSettingsContent.addView(selectedLanguageRuleView, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        sourceLanguageSelectButton = settingsSelectButton("");
+        sourceLanguageSelectButton.setOnClickListener(view -> showLyricsSourceLanguagePopup(sourceLanguageSelectButton));
+        lyricsLanguageSettingsContent.addView(sourceLanguageSelectButton, topMargin(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(42)
+        ), dp(10)));
+
+        LinearLayout switchRow = new SettingsControlRow(this);
+        switchRow.setOrientation(LinearLayout.HORIZONTAL);
+        switchRow.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams switchRowParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        switchRowParams.topMargin = dp(10);
+        lyricsLanguageSettingsContent.addView(switchRow, switchRowParams);
+
+        languageTranslationSwitch = settingSwitch(ui("lyrics.translation"), "");
+        languageTranslationSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            updateSelectedLanguageRuleStatusFromUi();
+            saveLyricsLanguageRuleAndRefresh();
+        });
+        LinearLayout.LayoutParams translationParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        translationParams.rightMargin = dp(4);
+        switchRow.addView(languageTranslationSwitch, translationParams);
+
+        languagePronunciationSwitch = settingSwitch(ui("lyrics.pronunciation"), "");
+        languagePronunciationSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            updateSelectedLanguageRuleStatusFromUi();
+            saveLyricsLanguageRuleAndRefresh();
+        });
+        LinearLayout.LayoutParams pronunciationParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        pronunciationParams.leftMargin = dp(4);
+        switchRow.addView(languagePronunciationSwitch, pronunciationParams);
+
+        culturalAnnotationRegenerateButton = debugButton(
+                ui("tmi.regenerate") + " · " + ui("loading.cultural_annotations")
+        );
+        culturalAnnotationRegenerateButton.setOnClickListener(view -> {
+            requestCulturalAnnotations(true);
+            showSavedToast(ui("loading.cultural_annotations"));
+        });
+        lyricsLanguageSettingsContent.addView(
+                culturalAnnotationRegenerateButton,
+                topMargin(new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        dp(42)
+                ), dp(10))
+        );
+
+        lyricsRegenerateButton = languageButton(ui("lyrics.regenerate_supplements"), false);
+        lyricsRegenerateButton.setOnClickListener(view -> requestAiLyrics(true));
+        lyricsLanguageSettingsContent.addView(lyricsRegenerateButton, topMargin(matchWrap(), dp(10)));
+
+        lyricsSyncSettingsContent = buildLyricsSyncSettingsContent();
+        panel.addView(lyricsSyncSettingsContent, topMargin(matchWrap(), dp(10)));
+
+        videoSyncSettingsContent = buildVideoSyncSettingsContent();
+        panel.addView(videoSyncSettingsContent, topMargin(matchWrap(), dp(10)));
+
+        lyricsBackgroundSettingsContent = buildLyricsBackgroundSettingsContent();
+        panel.addView(lyricsBackgroundSettingsContent, topMargin(matchWrap(), dp(10)));
+
+        lyricsManualSearchContent = buildLyricsManualSearchContent();
+        panel.addView(lyricsManualSearchContent, topMargin(matchWrap(), dp(10)));
+        SettingsAppearance.styleControls(panel);
+        switchLyricsPopupTab(activeLyricsPopupTab);
+        return panel;
+    }
+
+    // 24-unit stroked outlines, drawn like the settings icons.
+    private static final String PLAYER_MODE_ICON_PIP =
+            "M4.5 5h15A1.5 1.5 0 0 1 21 6.5v11a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5v-11A1.5 1.5 0 0 1 4.5 5ZM12 12h6v4h-6z";
+    private static final String PLAYER_MODE_ICON_VINYL =
+            "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm0 6.6a2.4 2.4 0 1 0 0 4.8 2.4 2.4 0 0 0 0-4.8ZM6.6 12A5.4 5.4 0 0 1 12 6.6";
+    private static final String PLAYER_MODE_ICON_MOTION =
+            "M2.5 9H7M2.5 12.5h3M2.5 16H7M9.5 19 14.8 5h1.4l5.3 14M11.4 14.5h8.2";
+
+    /**
+     * What the page can turn into: picture-in-picture and LP mode (standalone app) and motion
+     * lyrics. The row heads the track panel, so it is in the menu a long press on the title opens
+     * as well as in the current-track settings.
+     */
+    private LinearLayout buildPlayerModeRow() {
+        boolean embedded = IvLyricsBridge.isEmbedded(this);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        pipModeTile = null;
+        vinylModeTile = null;
+        if (!embedded) {
+            pipModeTile = playerModeTile(PLAYER_MODE_ICON_PIP, "PiP", ui("pip.open_lyrics"), true,
+                    view -> enterLyricsPictureInPicture());
+            addPlayerModeTile(row, pipModeTile);
+            vinylModeTile = playerModeTile(PLAYER_MODE_ICON_VINYL, ui("vinyl.mode"), null, true,
+                    view -> openPlayerMode(false));
+            addPlayerModeTile(row, vinylModeTile);
+        }
+        // On its own (the Spotify module) the entry is an ordinary one-line button.
+        motionModeTile = playerModeTile(PLAYER_MODE_ICON_MOTION, ui("motion.mode"), null, !embedded,
+                view -> openPlayerMode(true));
+        addPlayerModeTile(row, motionModeTile);
+        playerModeRow = row;
+        updatePlayerModeRow();
+        return row;
+    }
+
+    private void addPlayerModeTile(LinearLayout row, View tile) {
+        // Tiles share the row evenly and are as tall as the tallest label makes one of them.
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
+        if (row.getChildCount() > 0) {
+            params.setMarginStart(dp(8));
+        }
+        row.addView(tile, params);
+    }
+
+    /** stacked puts the icon above a label of up to two lines; otherwise they share one line. */
+    private View playerModeTile(String iconPath, String label, String description, boolean stacked,
+                                View.OnClickListener open) {
+        LinearLayout tile = new LinearLayout(this);
+        tile.setOrientation(stacked ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
+        tile.setGravity(Gravity.CENTER);
+        tile.setMinimumHeight(dp(stacked ? 68 : 48));
+        tile.setPadding(dp(8), dp(stacked ? 11 : 6), dp(8), dp(stacked ? 10 : 6));
+        tile.setBackground(SettingsAppearance.actionBackground(this, SettingsAppearance.CONTROL, 12, false));
+        tile.setContentDescription(description == null || description.isEmpty() ? label : description);
+        makeRemoteFocusable(tile);
+        tile.setClickable(true);
+        tile.setOnClickListener(open);
+
+        ImageView icon = new ImageView(this);
+        icon.setImageDrawable(new SettingsKit.SvgIcon(iconPath, SettingsAppearance.TEXT, dp(22), 1.7f));
+        tile.addView(icon, new LinearLayout.LayoutParams(dp(22), dp(22)));
+
+        TextView text = label(label, 12.5f, SettingsAppearance.TEXT, AppFonts.semiBold(this));
+        text.setGravity(Gravity.CENTER);
+        text.setMaxLines(stacked ? 2 : 1);
+        text.setEllipsize(TextUtils.TruncateAt.END);
+        text.setLineSpacing(dp(1), 1f);
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        if (stacked) {
+            textParams.topMargin = dp(6);
+        } else {
+            textParams.setMarginStart(dp(8));
+        }
+        tile.addView(text, textParams);
+        return tile;
+    }
+
+    /** A mode that cannot open now is dimmed, and tapping it says why. Motion lyrics follows the system's animation setting. */
+    private void updatePlayerModeRow() {
+        if (playerModeRow == null) {
+            return;
+        }
+        boolean hasTrack = currentTrack != null && currentTrack.hasUsableMetadata();
+        if (pipModeTile != null) {
+            pipModeTile.setAlpha(supportsLyricsPictureInPicture() ? 1f : 0.45f);
+        }
+        if (vinylModeTile != null) {
+            vinylModeTile.setAlpha(hasTrack ? 1f : 0.45f);
+        }
+        boolean motion = MotionPreferences.animationsEnabled(this);
+        if (motionModeTile != null) {
+            motionModeTile.setVisibility(motion ? View.VISIBLE : View.GONE);
+            motionModeTile.setAlpha(motionLyricsUnavailableMessage() == null ? 1f : 0.45f);
+        }
+        playerModeRow.setVisibility(motion || pipModeTile != null ? View.VISIBLE : View.GONE);
+    }
+
+    /** Opens LP mode or motion lyrics from the track panel, closing the menu or the settings showing it. */
+    private void openPlayerMode(boolean motion) {
+        String unavailable = motion ? motionLyricsUnavailableMessage()
+                : currentTrack == null || !currentTrack.hasUsableMetadata() ? ui("status.waiting_current_track") : null;
+        if (unavailable != null) {
+            Toast.makeText(this, unavailable, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        dismissLyricsMetaTip();
+        dismissLyricsMetaMenuPopup();
+        if (isSettingsPanelVisible()) {
+            showSettingsPanel(false);
+        }
+        if (motion) {
+            showMotionLyricsMode(true);
+        } else {
+            showVinylMode(true);
+        }
+    }
+
+    private GradientDrawable lyricsLanguageSettingsPanelBackground(boolean popup) {
+        int color = popup
+                ? SettingsAppearance.SURFACE
+                : Color.argb(38, 255, 255, 255);
+        return roundDrawable(color, dp(14));
+    }
+
+    private LinearLayout buildLyricsSyncSettingsContent() {
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+
+        TextView globalTitle = label(ui("lyrics.global_sync.title"), 14f, Color.WHITE, AppFonts.bold(this));
+        content.addView(globalTitle, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        globalSyncOffsetDescriptionView = label(ui("lyrics.global_sync.help"), 11f, Color.argb(168, 255, 255, 255), AppFonts.regular(this));
+        globalSyncOffsetDescriptionView.setLineSpacing(dp(2), 1f);
+        content.addView(globalSyncOffsetDescriptionView, topMargin(matchWrap(), dp(5)));
+
+        globalSyncOffsetValueView = label("", 25f, Color.WHITE, AppFonts.bold(this));
+        globalSyncOffsetValueView.setGravity(Gravity.CENTER);
+        globalSyncOffsetValueView.setBackground(roundDrawable(Color.argb(34, 255, 255, 255), dp(14)));
+        content.addView(globalSyncOffsetValueView, topMargin(matchWrap(), dp(12)));
+
+        content.addView(buildOffsetButtonRow(-100, -50, -10, this::adjustGlobalSyncOffset), topMargin(matchWrap(), dp(10)));
+        content.addView(buildOffsetButtonRow(10, 50, 100, this::adjustGlobalSyncOffset), topMargin(matchWrap(), dp(8)));
+
+        TextView globalResetButton = languageButton(ui("lyrics.global_sync.reset"), false);
+        globalResetButton.setOnClickListener(view -> setGlobalSyncOffset(0, true));
+        content.addView(globalResetButton, topMargin(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(42)
+        ), dp(8)));
+
+        TextView title = label(ui("lyrics.sync.title"), 14f, Color.WHITE, AppFonts.bold(this));
+        content.addView(title, topMargin(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ), dp(18)));
+
+        lyricsSyncOffsetDescriptionView = label("", 11f, Color.argb(168, 255, 255, 255), AppFonts.regular(this));
+        lyricsSyncOffsetDescriptionView.setLineSpacing(dp(2), 1f);
+        content.addView(lyricsSyncOffsetDescriptionView, topMargin(matchWrap(), dp(5)));
+
+        lyricsSyncOffsetValueView = label("", 25f, Color.WHITE, AppFonts.bold(this));
+        lyricsSyncOffsetValueView.setGravity(Gravity.CENTER);
+        lyricsSyncOffsetValueView.setBackground(roundDrawable(Color.argb(34, 255, 255, 255), dp(14)));
+        content.addView(lyricsSyncOffsetValueView, topMargin(matchWrap(), dp(12)));
+
+        content.addView(buildOffsetButtonRow(-100, -50, -10, this::adjustCurrentTrackSyncOffset), topMargin(matchWrap(), dp(10)));
+        content.addView(buildOffsetButtonRow(10, 50, 100, this::adjustCurrentTrackSyncOffset), topMargin(matchWrap(), dp(8)));
+
+        TextView resetButton = languageButton(ui("lyrics.sync.reset"), false);
+        resetButton.setOnClickListener(view -> setCurrentTrackSyncOffset(0, true));
+        content.addView(resetButton, topMargin(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(42)
+        ), dp(8)));
+
+        TextView bluetoothTitle = label(ui("lyrics.bluetooth_sync.title"), 14f, Color.WHITE, AppFonts.bold(this));
+        content.addView(bluetoothTitle, topMargin(matchWrap(), dp(18)));
+
+        bluetoothSyncOffsetDescriptionView = label("", 11f, Color.argb(168, 255, 255, 255), AppFonts.regular(this));
+        bluetoothSyncOffsetDescriptionView.setLineSpacing(dp(2), 1f);
+        content.addView(bluetoothSyncOffsetDescriptionView, topMargin(matchWrap(), dp(5)));
+
+        bluetoothSyncOffsetValueView = label("", 25f, Color.WHITE, AppFonts.bold(this));
+        bluetoothSyncOffsetValueView.setGravity(Gravity.CENTER);
+        bluetoothSyncOffsetValueView.setBackground(roundDrawable(Color.argb(34, 255, 255, 255), dp(14)));
+        content.addView(bluetoothSyncOffsetValueView, topMargin(matchWrap(), dp(12)));
+
+        content.addView(buildOffsetButtonRow(-100, -50, -10, this::adjustCurrentBluetoothSyncOffset), topMargin(matchWrap(), dp(10)));
+        content.addView(buildOffsetButtonRow(10, 50, 100, this::adjustCurrentBluetoothSyncOffset), topMargin(matchWrap(), dp(8)));
+
+        TextView bluetoothResetButton = languageButton(ui("lyrics.bluetooth_sync.reset"), false);
+        bluetoothResetButton.setOnClickListener(view -> setCurrentBluetoothSyncOffset(0, true));
+        content.addView(bluetoothResetButton, topMargin(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(42)
+        ), dp(8)));
+        return content;
+    }
+
+    private LinearLayout buildVideoSyncSettingsContent() {
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+
+        TextView chooseVideo = languageButton(ui("video.choose"), false);
+        chooseVideo.setOnClickListener(view -> showVideoSelectionDialog());
+        content.addView(chooseVideo, topMargin(matchWrap(), dp(8)));
+
+        TextView title = label(ui("lyrics.video_sync.title"), 14f, Color.WHITE, AppFonts.bold(this));
+        content.addView(title, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        videoSyncOffsetDescriptionView = label("", 11f, Color.argb(168, 255, 255, 255), AppFonts.regular(this));
+        videoSyncOffsetDescriptionView.setLineSpacing(dp(2), 1f);
+        content.addView(videoSyncOffsetDescriptionView, topMargin(matchWrap(), dp(5)));
+
+        videoSyncOffsetValueView = label("", 25f, Color.WHITE, AppFonts.bold(this));
+        videoSyncOffsetValueView.setGravity(Gravity.CENTER);
+        videoSyncOffsetValueView.setBackground(roundDrawable(Color.argb(34, 255, 255, 255), dp(14)));
+        content.addView(videoSyncOffsetValueView, topMargin(matchWrap(), dp(12)));
+
+        content.addView(buildOffsetButtonRow(-100, -50, -10, this::adjustCurrentVideoSyncOffset), topMargin(matchWrap(), dp(10)));
+        content.addView(buildOffsetButtonRow(10, 50, 100, this::adjustCurrentVideoSyncOffset), topMargin(matchWrap(), dp(8)));
+
+        TextView resetButton = languageButton(ui("lyrics.video_sync.reset"), false);
+        resetButton.setOnClickListener(view -> setCurrentVideoSyncOffset(0, true));
+        content.addView(resetButton, topMargin(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(42)
+        ), dp(8)));
+        videoTimingShareButton = languageButton(ui("video.share_timing"), false);
+        videoTimingShareButton.setOnClickListener(view -> shareCurrentVideoTiming());
+        content.addView(videoTimingShareButton, topMargin(matchWrap(), dp(8)));
+        return content;
+    }
+
+    private LinearLayout buildLyricsBackgroundSettingsContent() {
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+
+        TextView title = label(ui("lyrics.background.title"), 14f, Color.WHITE, AppFonts.bold(this));
+        content.addView(title, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        TextView description = label(ui("lyrics.background.desc"), 11f, Color.argb(168, 255, 255, 255), AppFonts.regular(this));
+        description.setLineSpacing(dp(2), 1f);
+        content.addView(description, topMargin(matchWrap(), dp(5)));
+
+        lyricsTrackBackgroundOverrideSwitch = settingSwitch(
+                ui("lyrics.background.override"),
+                ui("lyrics.background.override_desc")
+        );
+        lyricsTrackBackgroundOverrideSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) {
+                return;
+            }
+            String trackKey = currentBackgroundTrackKey();
+            if (trackKey.isEmpty()) {
+                suppressSettingsEvents = true;
+                lyricsTrackBackgroundOverrideSwitch.setChecked(false);
+                suppressSettingsEvents = false;
+                showSavedToast(ui("toast.current_track_missing"));
+                return;
+            }
+            if (isChecked) {
+                AiLyricsSettings.BackgroundSettings current = aiLyricsSettings.trackBackgroundSettings(trackKey);
+                if (current == null) {
+                    aiLyricsSettings.setTrackBackgroundSettings(trackKey, aiLyricsSettings.snapshot().background);
+                }
+                updateLyricsBackgroundSettingsUi(true);
+                applyBackgroundSettings(aiLyricsSettings.snapshot());
+                showSavedToast(ui("toast.track_background_saved"));
+            } else {
+                aiLyricsSettings.clearTrackBackgroundSettings(trackKey);
+                updateLyricsBackgroundSettingsUi(true);
+                applyBackgroundSettings(aiLyricsSettings.snapshot());
+                showSavedToast(ui("toast.track_background_cleared"));
+            }
+        });
+        content.addView(lyricsTrackBackgroundOverrideSwitch, topMargin(matchWrap(), dp(12)));
+
+        lyricsBackgroundModeButtonsContainer = new LinearLayout(this);
+        lyricsBackgroundModeButtonsContainer.setOrientation(LinearLayout.VERTICAL);
+        content.addView(settingGroup(
+                ui("setting.background_mode"),
+                ui("lyrics.background.mode_desc"),
+                lyricsBackgroundModeButtonsContainer
+        ), topMargin(matchWrap(), dp(12)));
+
+        lyricsBackgroundBrightnessSeekBar = new SeekBar(this);
+        lyricsBackgroundBrightnessSeekBar.setMax(100);
+        lyricsBackgroundBrightnessValueView = label("", 12f, Color.argb(180, 255, 255, 255), AppFonts.semiBold(this));
+        lyricsBackgroundBrightnessSeekBar.setOnSeekBarChangeListener(new SimpleSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (!fromUser || suppressSettingsEvents || aiLyricsSettings == null) {
+                    return;
+                }
+                if (lyricsBackgroundBrightnessValueView != null) {
+                    lyricsBackgroundBrightnessValueView.setText(progress + "%");
+                }
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                AiLyricsSettings.BackgroundSettings current = editableTrackBackgroundSettings();
+                if (current == null) {
+                    return;
+                }
+                saveCurrentTrackBackgroundSettings(new AiLyricsSettings.BackgroundSettings(
+                        current.mode,
+                        seekBar.getProgress(),
+                        current.blur,
+                        current.noise,
+                        current.reduceMotion,
+                        current.solidColor,
+                        current.videoScale
+                ), false);
+            }
+        });
+        content.addView(settingGroup(ui("setting.brightness"), ui("setting.brightness_desc"), buildSliderRow(lyricsBackgroundBrightnessSeekBar, lyricsBackgroundBrightnessValueView)), topMargin(matchWrap(), dp(12)));
+
+        lyricsBackgroundBlurSeekBar = new SeekBar(this);
+        lyricsBackgroundBlurSeekBar.setMax(100);
+        lyricsBackgroundBlurValueView = label("", 12f, Color.argb(180, 255, 255, 255), AppFonts.semiBold(this));
+        lyricsBackgroundBlurSeekBar.setOnSeekBarChangeListener(new SimpleSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (!fromUser || suppressSettingsEvents || aiLyricsSettings == null) {
+                    return;
+                }
+                if (lyricsBackgroundBlurValueView != null) {
+                    lyricsBackgroundBlurValueView.setText(progress + "%");
+                }
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                AiLyricsSettings.BackgroundSettings current = editableTrackBackgroundSettings();
+                if (current == null) {
+                    return;
+                }
+                saveCurrentTrackBackgroundSettings(new AiLyricsSettings.BackgroundSettings(
+                        current.mode,
+                        current.brightness,
+                        seekBar.getProgress(),
+                        current.noise,
+                        current.reduceMotion,
+                        current.solidColor,
+                        current.videoScale
+                ), false);
+            }
+        });
+        content.addView(settingGroup(ui("setting.blur"), ui("setting.blur_desc"), buildSliderRow(lyricsBackgroundBlurSeekBar, lyricsBackgroundBlurValueView)), topMargin(matchWrap(), dp(12)));
+
+        lyricsBackgroundVideoScaleSeekBar = new SeekBar(this);
+        lyricsBackgroundVideoScaleSeekBar.setMax(80);
+        lyricsBackgroundVideoScaleValueView = label("", 12f, Color.argb(180, 255, 255, 255), AppFonts.semiBold(this));
+        lyricsBackgroundVideoScaleSeekBar.setOnSeekBarChangeListener(new SimpleSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (!fromUser || suppressSettingsEvents || aiLyricsSettings == null) {
+                    return;
+                }
+                if (lyricsBackgroundVideoScaleValueView != null) {
+                    lyricsBackgroundVideoScaleValueView.setText((100 + progress) + "%");
+                }
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                AiLyricsSettings.BackgroundSettings current = editableTrackBackgroundSettings();
+                if (current == null) {
+                    return;
+                }
+                saveCurrentTrackBackgroundSettings(new AiLyricsSettings.BackgroundSettings(
+                        current.mode,
+                        current.brightness,
+                        current.blur,
+                        current.noise,
+                        current.reduceMotion,
+                        current.solidColor,
+                        100 + seekBar.getProgress()
+                ), false);
+            }
+        });
+        lyricsBackgroundVideoScaleGroup = settingGroup(ui("setting.video_scale"), ui("setting.video_scale_desc"), buildSliderRow(lyricsBackgroundVideoScaleSeekBar, lyricsBackgroundVideoScaleValueView));
+        content.addView(lyricsBackgroundVideoScaleGroup, topMargin(matchWrap(), dp(12)));
+
+        lyricsBackgroundNoiseSwitch = settingSwitch(ui("setting.noise"), ui("setting.noise_desc"));
+        lyricsBackgroundNoiseSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) {
+                return;
+            }
+            AiLyricsSettings.BackgroundSettings current = editableTrackBackgroundSettings();
+            if (current == null) {
+                return;
+            }
+            saveCurrentTrackBackgroundSettings(new AiLyricsSettings.BackgroundSettings(
+                    current.mode,
+                    current.brightness,
+                    current.blur,
+                    isChecked,
+                    current.reduceMotion,
+                    current.solidColor,
+                    current.videoScale
+            ), false);
+        });
+        content.addView(lyricsBackgroundNoiseSwitch, topMargin(matchWrap(), dp(12)));
+
+        lyricsBackgroundReduceMotionSwitch = settingSwitch(ui("setting.reduce_motion"), ui("setting.reduce_motion_desc"));
+        lyricsBackgroundReduceMotionSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) {
+                return;
+            }
+            AiLyricsSettings.BackgroundSettings current = editableTrackBackgroundSettings();
+            if (current == null) {
+                return;
+            }
+            saveCurrentTrackBackgroundSettings(new AiLyricsSettings.BackgroundSettings(
+                    current.mode,
+                    current.brightness,
+                    current.blur,
+                    current.noise,
+                    isChecked,
+                    current.solidColor,
+                    current.videoScale
+            ), false);
+        });
+        content.addView(lyricsBackgroundReduceMotionSwitch, topMargin(matchWrap(), dp(12)));
+
+        lyricsBackgroundSolidColorGroup = settingGroup(
+                ui("field.solid_color"),
+                ui("field.solid_color_desc"),
+                buildLyricsBackgroundSolidColorControl()
+        );
+        content.addView(lyricsBackgroundSolidColorGroup, topMargin(matchWrap(), dp(12)));
+
+        TextView resetButton = languageButton(ui("lyrics.background.reset"), false);
+        resetButton.setOnClickListener(view -> clearCurrentTrackBackgroundSettings(true));
+        content.addView(resetButton, topMargin(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(42)
+        ), dp(12)));
+        return content;
+    }
+
+    private LinearLayout buildLyricsManualSearchContent() {
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+
+        TextView importLyrics = languageButton(ui("lyrics.local.import"), false);
+        importLyrics.setOnClickListener(view -> chooseLocalLyrics());
+        content.addView(importLyrics, topMargin(matchWrap(), dp(8)));
+        TextView localHelp = label(ui("lyrics.local.description"), 11f, Color.argb(168, 255, 255, 255), AppFonts.regular(this));
+        content.addView(localHelp, topMargin(matchWrap(), dp(5)));
+        TextView removeLyrics = languageButton(ui("lyrics.local.remove"), false);
+        removeLyrics.setOnClickListener(view -> removeLocalLyrics());
+        content.addView(removeLyrics, topMargin(matchWrap(), dp(8)));
+
+        TextView chooseProvider = languageButton(ui("section.lyrics_providers"), false);
+        chooseProvider.setOnClickListener(view -> showTrackLyricsProviderDialog());
+        content.addView(chooseProvider, topMargin(matchWrap(), dp(8)));
+
+        TextView title = label(ui("lyrics.lrclib_search.title"), 14f, Color.WHITE, AppFonts.bold(this));
+        content.addView(title, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        TextView description = label(ui("lyrics.lrclib_search.desc"), 11f, Color.argb(168, 255, 255, 255), AppFonts.regular(this));
+        description.setLineSpacing(dp(2), 1f);
+        content.addView(description, topMargin(matchWrap(), dp(5)));
+
+        lyricsManualSearchTitleInput = settingEditText(ui("lyrics.lrclib_search.title_hint"), false, false);
+        lyricsManualSearchArtistInput = settingEditText(ui("lyrics.lrclib_search.artist_hint"), false, false);
+        content.addView(settingField(ui("lyrics.lrclib_search.field_title"), "", lyricsManualSearchTitleInput), topMargin(matchWrap(), dp(10)));
+        content.addView(settingField(ui("lyrics.lrclib_search.field_artist"), "", lyricsManualSearchArtistInput), topMargin(matchWrap(), dp(8)));
+
+        TextView searchButton = primaryButton(ui("lyrics.lrclib_search.button"));
+        searchButton.setOnClickListener(view -> performManualLrclibSearch());
+        content.addView(searchButton, topMargin(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(42)
+        ), dp(10)));
+
+        lyricsManualSearchStatusView = label("", 11f, Color.argb(170, 255, 255, 255), AppFonts.semiBold(this));
+        lyricsManualSearchStatusView.setLineSpacing(dp(2), 1f);
+        content.addView(lyricsManualSearchStatusView, topMargin(matchWrap(), dp(9)));
+
+        lyricsManualSearchResultsContainer = new LinearLayout(this);
+        lyricsManualSearchResultsContainer.setOrientation(LinearLayout.VERTICAL);
+        lyricsManualSearchResultsContainer.setPadding(dp(8), dp(8), dp(8), dp(8));
+        lyricsManualSearchResultsContainer.setMinimumHeight(dp(isLandscapeLayout() ? 150 : 180));
+        lyricsManualSearchResultsContainer.setBackground(roundDrawable(Color.argb(22, 255, 255, 255), dp(12)));
+        content.addView(lyricsManualSearchResultsContainer, topMargin(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ), dp(8)));
+
+        populateManualLrclibSearchDefaults(false);
+        setManualLrclibStatus(ui("lyrics.lrclib_search.ready"));
+        return content;
+    }
+
+    @SuppressWarnings("deprecation")
+    private void chooseLocalLyrics() {
+        if (currentTrack == null || !currentTrack.hasUsableMetadata()) {
+            showSavedToast(ui("toast.current_track_missing"));
+            return;
+        }
+        localLyricsImportKey = currentTrack.stableKey();
+        localLyricsImportDuration = currentTrack.durationMs;
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        // Many document providers label .lrc as application/octet-stream.
+        intent.setType("*/*");
+        try { startActivityForResult(intent, IMPORT_LYRICS_REQUEST); }
+        catch (ActivityNotFoundException error) {
+            localLyricsImportKey = null;
+            showSavedToast(ui("lyrics.local.error"));
+        }
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != IMPORT_LYRICS_REQUEST) return;
+        final String key = localLyricsImportKey;
+        final long duration = localLyricsImportDuration;
+        localLyricsImportKey = null;
+        if (resultCode != RESULT_OK || data == null || data.getData() == null || key == null) return;
+        final Uri uri = data.getData();
+        final LocalLyricsStore store = new LocalLyricsStore(this);
+        final long generation = store.beginImport(key);
+        new Thread(() -> {
+            try (InputStream input = getContentResolver().openInputStream(uri);
+                 ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                String name = uri.getLastPathSegment();
+                try (android.database.Cursor cursor = getContentResolver().query(uri,
+                        new String[]{android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+                    if (cursor != null && cursor.moveToFirst()) name = cursor.getString(0);
+                }
+                if (name == null || !name.toLowerCase(java.util.Locale.ROOT).matches(".*\\.(lrc|txt)$")) {
+                    throw new IOException("Choose LRC or TXT");
+                }
+                if (input == null) throw new IOException("File unavailable");
+                byte[] buffer = new byte[8192];
+                int count;
+                while ((count = input.read(buffer)) != -1) {
+                    if (output.size() + count > LocalLyricsStore.MAX_BYTES) throw new IOException("File too large");
+                    output.write(buffer, 0, count);
+                }
+                String text = LocalLyricsStore.decode(output.toByteArray());
+                LocalLyricsStore.parse(text, duration); // Validate before replacing a previous import.
+                if (!store.saveIfCurrent(key, text, generation)) return;
+                handler.post(() -> {
+                    if (isFinishing() || isDestroyed() || !store.isCurrentImport(key, generation)) return;
+                    showSavedToast(ui("lyrics.local.saved"));
+                });
+            } catch (Exception error) {
+                handler.post(() -> {
+                    if (!isFinishing() && !isDestroyed() && store.isCurrentImport(key, generation)) {
+                        showSavedToast(ui("lyrics.local.error"));
+                    }
+                });
+            }
+        }, "ivLyrics-import").start();
+    }
+
+    private void removeLocalLyrics() {
+        if (currentTrack == null || !currentTrack.hasUsableMetadata()) {
+            showSavedToast(ui("toast.current_track_missing"));
+            return;
+        }
+        final String key = currentTrack.stableKey();
+        new AlertDialog.Builder(this)
+                .setMessage(ui("lyrics.local.remove"))
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(android.R.string.ok, (dialog, which) -> {
+                    try {
+                        new LocalLyricsStore(this).remove(key);
+                        showSavedToast(ui("lyrics.local.removed"));
+                    } catch (IOException error) { showSavedToast(ui("lyrics.local.error")); }
+                }).show();
+    }
+
+    private LinearLayout buildOffsetButtonRow(int first, int second, int third, OffsetAdjuster adjuster) {
+        LinearLayout row = new SettingsControlRow(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        int[] values = {first, second, third};
+        for (int index = 0; index < values.length; index++) {
+            int delta = values[index];
+            TextView button = languageButton(offsetDeltaLabel(delta), false);
+            button.setOnClickListener(view -> adjuster.adjust(delta));
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(42), 1f);
+            if (index > 0) {
+                params.leftMargin = dp(8);
+            }
+            row.addView(button, params);
+        }
+        return row;
+    }
+
+    private LinearLayout buildDebugPanel() {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(22), dp(28), dp(22), dp(22));
+        panel.setBackground(roundDrawable(Color.argb(238, 15, 18, 31), 0));
+        panel.setVisibility(View.GONE);
+
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        panel.addView(header, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        TextView title = label(ui("debug.title"), 24f, Color.WHITE, AppFonts.bold(this));
+        header.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView closeButton = pillButton(ui("button.close"));
+        closeButton.setOnClickListener(view -> toggleDebugPanel());
+        header.addView(closeButton, new LinearLayout.LayoutParams(dp(92), dp(42)));
+
+        sourceView = label("", 13f, Color.rgb(142, 236, 198), AppFonts.semiBold(this));
+        panel.addView(sourceView, topMargin(matchWrap(), dp(18)));
+
+        statusView = label("", 12f, Color.argb(206, 255, 255, 255), AppFonts.regular(this));
+        statusView.setLineSpacing(dp(2), 1f);
+        panel.addView(statusView, topMargin(matchWrap(), dp(8)));
+
+        debugProgressView = label("0:00 / 0:00", 13f, Color.WHITE, AppFonts.semiBold(this));
+        panel.addView(debugProgressView, topMargin(matchWrap(), dp(12)));
+
+        if (!IvLyricsBridge.isEmbedded(this)) {
+            permissionButton = debugButton(ui("debug.permission"));
+            permissionButton.setOnClickListener(view -> openMediaPermissionSettings());
+            panel.addView(permissionButton, topMargin(matchWrap(), dp(14)));
+        }
+
+        LinearLayout debugControls = new LinearLayout(this);
+        debugControls.setOrientation(LinearLayout.HORIZONTAL);
+        debugControls.setGravity(Gravity.CENTER_VERTICAL);
+        panel.addView(debugControls, topMargin(matchWrap(), dp(10)));
+
+        TextView prev = debugButton(ui("debug.previous"));
+        prev.setOnClickListener(view -> runTransportCommand(() -> NowPlayingService.skipToPrevious()));
+        debugControls.addView(prev, weightedButtonParams(1f, dp(4)));
+
+        TextView pause = debugButton(ui("debug.play_pause"));
+        pause.setOnClickListener(view -> runTransportCommand(() -> NowPlayingService.togglePlayback()));
+        debugControls.addView(pause, weightedButtonParams(1.25f, dp(4)));
+
+        TextView next = debugButton(ui("debug.next"));
+        next.setOnClickListener(view -> runTransportCommand(() -> NowPlayingService.skipToNext()));
+        debugControls.addView(next, weightedButtonParams(1f, dp(4)));
+
+        TextView refresh = debugButton(ui("debug.refresh"));
+        refresh.setOnClickListener(view -> NowPlayingService.requestRefresh(this));
+        panel.addView(refresh, topMargin(matchWrap(), dp(10)));
+
+        TextView logTitle = label(ui("debug.log"), 14f, Color.WHITE, AppFonts.semiBold(this));
+        panel.addView(logTitle, topMargin(matchWrap(), dp(18)));
+
+        logScrollView = new ScrollView(this);
+        logScrollView.setFillViewport(false);
+        logScrollView.setBackground(roundDrawable(Color.argb(118, 0, 0, 0), dp(10)));
+        logScrollView.setPadding(dp(12), dp(10), dp(12), dp(10));
+
+        logView = label(ui("debug.log_waiting"), 11f, Color.argb(212, 255, 255, 255), Typeface.MONOSPACE);
+        logView.setLineSpacing(dp(2), 1f);
+        logView.setTextIsSelectable(true);
+        logScrollView.addView(logView, new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        LinearLayout.LayoutParams logParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+        );
+        logParams.topMargin = dp(8);
+        panel.addView(logScrollView, logParams);
+        return panel;
+    }
+
+    private FrameLayout buildSettingsPanel() {
+        dismissLyricsMetaMenuPopup();
+        SettingsPalette palette = settingsPalette();
+        settingsKit = new SettingsKit(this, palette);
+        settingsKit.onChange = this::onSettingsControlChanged;
+        settingsMenuPages.clear();
+        settingsMenuSections.clear();
+        settingsSections.clear();
+        settingsSearchEntries.clear();
+        settingsConditionalRows.clear();
+        previewItemChips.clear();
+        typographySizeRanges.clear();
+        typographyWeightChoices.clear();
+        typographyValueViews.clear();
+        lyricsProviderTypeChips.clear();
+        providerDetailsContainer = null;
+        if (localAiSettingsView != null && localAiSettingsView.getParent() instanceof ViewGroup) {
+            ((ViewGroup) localAiSettingsView.getParent()).removeView(localAiSettingsView);
+        }
+        // Rebuilt with the current palette the next time its card opens.
+        localAiSettingsView = null;
+        // Decide from the configuration up front so the first layout of a short window (landscape,
+        // split screen) already keeps the preview in the page; the layout listener below still
+        // follows later size changes.
+        settingsPreviewInline = getResources().getConfiguration().screenHeightDp < 600;
+
+        FrameLayout panel = new FrameLayout(this) {
+            @Override
+            protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+                // A short window (landscape, split screen, large text) keeps the live preview in the
+                // page instead of pinning it above the scroll area. Decide before the children are
+                // measured so the very first layout at a new size is already right.
+                if (MeasureSpec.getMode(heightMeasureSpec) != MeasureSpec.UNSPECIFIED) {
+                    boolean inline = MeasureSpec.getSize(heightMeasureSpec) < dp(600);
+                    if (inline != settingsPreviewInline) {
+                        settingsPreviewInline = inline;
+                        placeSettingsPreviewHost();
+                    }
+                }
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+            }
+        };
+        panel.setVisibility(View.GONE);
+        panel.setBackgroundColor(palette.bg);
+        // Touches on empty parts of the panel must not reach the player underneath.
+        panel.setOnTouchListener((view, event) -> true);
+
+        LinearLayout shell = settingsKit.vertical();
+        settingsShell = shell;
+        panel.addView(shell, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        LinearLayout nav = buildSettingsNavBar();
+        shell.addView(nav, matchWrap());
+        nav.setOnApplyWindowInsetsListener((view, insets) -> {
+            int topInset = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                    ? insets.getInsets(WindowInsets.Type.statusBars() | WindowInsets.Type.displayCutout()).top
+                    : insets.getSystemWindowInsetTop();
+            int left = insets.getSystemWindowInsetLeft();
+            int right = insets.getSystemWindowInsetRight();
+            int bottom = insets.getSystemWindowInsetBottom();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                android.graphics.Insets safe = insets.getInsets(WindowInsets.Type.systemBars()
+                        | WindowInsets.Type.displayCutout() | WindowInsets.Type.ime());
+                left = safe.left;
+                right = safe.right;
+                bottom = safe.bottom;
+            }
+            shell.setPadding(left, 0, right, bottom);
+            view.setPadding(dp(4), topInset + dp(4), dp(8), dp(4));
+            return insets;
+        });
+        settingsNavDivider = new View(this);
+        settingsNavDivider.setBackgroundColor(palette.line);
+        settingsNavDivider.setAlpha(0f);
+        shell.addView(settingsNavDivider, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(1))));
+        settingsPreviewHost = buildSettingsPreviewHost();
+        shell.addView(settingsPreviewHost, matchWrap());
+
+        settingsScrollView = new ScrollView(this);
+        settingsScrollView.setFillViewport(false);
+        settingsScrollView.setClipToPadding(false);
+        settingsScrollView.setVerticalScrollBarEnabled(false);
+        shell.addView(settingsScrollView, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        LinearLayout content = settingsKit.vertical();
+        content.setPadding(dp(16), dp(2), dp(16), dp(72));
+        settingsScrollView.addView(content, new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        settingsScrollView.setOnScrollChangeListener((view, scrollX, scrollY, oldX, oldY) -> onSettingsScrolled(scrollY));
+
+        settingsHomePage = buildSettingsHomePage();
+        content.addView(settingsHomePage, matchWrap());
+        buildCurrentTrackSettingsMenu(content);
+        buildGeneralSettingsMenu(content);
+        buildProvidersSettingsMenu(content);
+        buildAiSettingsMenu(content);
+        buildAppearanceSettingsMenu(content);
+        buildBehaviorSettingsMenu(content);
+        buildPlayerSettingsMenu(content);
+        buildSystemSettingsMenu(content);
+        settingsBuildingMenu = "";
+        settingsBuildingSection = "";
+        buildSettingsHomeMenus();
+
+        populateAiSettingsUi();
+        showSettingsRoute(settingsRoute, true);
+        return panel;
+    }
+
+    // ------------------------------------------------------------------ settings navigation
+
+    private SettingsPalette settingsPalette() {
+        return SettingsPalette.forTheme(getSharedPreferences(SETTINGS_UI_PREFS, MODE_PRIVATE)
+                .getString(KEY_SETTINGS_THEME, SettingsPalette.THEME_DARK));
+    }
+
+    private LinearLayout buildSettingsNavBar() {
+        SettingsKit kit = settingsKit;
+        LinearLayout nav = kit.horizontal();
+        nav.setMinimumHeight(dp(56));
+        nav.setPadding(dp(4), statusBarInsetPx() + dp(4), dp(8), dp(4));
+        nav.setBackgroundColor(kit.p.bg);
+        settingsNavBackButton = kit.iconButton("close", ui("button.close"), 22f);
+        makeRemoteFocusable(settingsNavBackButton);
+        settingsNavBackButton.setOnClickListener(view -> {
+            if (SETTINGS_ROUTE_HOME.equals(settingsRoute)) {
+                showSettingsPanel(false);
+            } else {
+                showSettingsRoute(SETTINGS_ROUTE_HOME, true);
+            }
+        });
+        nav.addView(settingsNavBackButton, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        settingsNavTitle = kit.text("", 19f, kit.p.text, kit.semi);
+        settingsNavTitle.setSingleLine(true);
+        settingsNavTitle.setEllipsize(TextUtils.TruncateAt.END);
+        settingsNavTitle.setAlpha(0f);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        titleParams.setMarginStart(dp(8));
+        titleParams.setMarginEnd(dp(8));
+        nav.addView(settingsNavTitle, titleParams);
+        String themeLabel = ui(kit.p.dark ? "settings.theme_light" : "settings.theme_dark");
+        settingsThemeButton = kit.iconButton(kit.p.dark ? "sun" : "moon", themeLabel, 22f);
+        makeRemoteFocusable(settingsThemeButton);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) settingsThemeButton.setTooltipText(themeLabel);
+        settingsThemeButton.setOnClickListener(view -> toggleSettingsTheme());
+        nav.addView(settingsThemeButton, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        return nav;
+    }
+
+    private void updateSettingsNavBar() {
+        if (settingsNavTitle == null || settingsKit == null) return;
+        boolean home = SETTINGS_ROUTE_HOME.equals(settingsRoute);
+        settingsNavTitle.setText(home ? ui("settings.title") : settingsTabLabel(settingsRoute));
+        String backLabel = home ? ui("button.close") : ui("settings.back");
+        settingsNavBackButton.setImageDrawable(settingsKit.icon(home ? "close" : "arrowLeft", settingsKit.p.text, home ? 22f : 24f));
+        settingsNavBackButton.setContentDescription(backLabel);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) settingsNavBackButton.setTooltipText(backLabel);
+    }
+
+    /** Shows the home list or one menu; each keeps its own scroll position while settings stay open. */
+    private void showSettingsRoute(String route, boolean restoreScroll) {
+        if (settingsHomePage == null || settingsScrollView == null) return;
+        String next = SETTINGS_ROUTE_HOME.equals(route) || !settingsMenuPages.containsKey(route)
+                ? SETTINGS_ROUTE_HOME : route;
+        // A freshly rebuilt panel (theme or language change) has not been laid out yet:
+        // its scroll offset of 0 must not replace the position remembered before the rebuild.
+        if (settingsScrollView.isLaidOut()
+                && (settingsHomePage.getVisibility() == View.VISIBLE || settingsMenuPages.containsKey(settingsRoute))) {
+            rememberSettingsScroll();
+        }
+        boolean changed = !next.equals(settingsRoute);
+        settingsRoute = next;
+        if (!SETTINGS_ROUTE_HOME.equals(next)) activeSettingsTab = next;
+        settingsHomePage.setVisibility(SETTINGS_ROUTE_HOME.equals(next) ? View.VISIBLE : View.GONE);
+        for (Map.Entry<String, LinearLayout> entry : settingsMenuPages.entrySet()) {
+            entry.getValue().setVisibility(entry.getKey().equals(next) ? View.VISIBLE : View.GONE);
+        }
+        updateCurrentTrackSettingsMenu();
+        if (SETTINGS_TAB_CURRENT_TRACK.equals(next)) updateLyricsLanguageSettingsUi();
+        updateSettingsNavBar();
+        placeSettingsPreviewHost();
+        Integer remembered = settingsScrollMemory.get(next);
+        int target = restoreScroll && remembered != null ? remembered : 0;
+        settingsScrollView.scrollTo(0, target);
+        settingsScrollView.post(() -> {
+            settingsScrollView.scrollTo(0, target);
+            onSettingsScrolled(settingsScrollView.getScrollY());
+        });
+        if (changed && SETTINGS_TAB_SYSTEM.equals(next) && usesLivePlayback()) {
+            refreshCreatorPrivacy(false);
+        }
+    }
+
+    private void rememberSettingsScroll() {
+        if (settingsScrollView != null && settingsRoute != null) {
+            settingsScrollMemory.put(settingsRoute, settingsScrollView.getScrollY());
+        }
+    }
+
+    /** Kept for remote and test entry points that open one menu (or "home", the menu list) directly. */
+    private void switchSettingsTab(String tabId) {
+        showSettingsRoute(SETTINGS_ROUTE_HOME.equals(tabId) ? SETTINGS_ROUTE_HOME : normalizeSettingsTab(tabId), true);
+    }
+
+    private String normalizeSettingsTab(String tabId) {
+        if (SETTINGS_TAB_PROVIDERS.equals(tabId)
+                || SETTINGS_TAB_CURRENT_TRACK.equals(tabId)
+                || SETTINGS_TAB_LYRICS.equals(tabId)
+                || SETTINGS_TAB_APPEARANCE.equals(tabId)
+                || SETTINGS_TAB_PLAYER.equals(tabId)
+                || SETTINGS_TAB_AI.equals(tabId)
+                || SETTINGS_TAB_SYSTEM.equals(tabId)) {
+            return tabId;
+        }
+        return SETTINGS_TAB_GENERAL;
+    }
+
+    private String settingsTabLabel(String tabId) {
+        if (SETTINGS_TAB_CURRENT_TRACK.equals(tabId)) return ui("tab.current_track");
+        if (SETTINGS_TAB_PROVIDERS.equals(tabId)) return ui("tab.providers");
+        if (SETTINGS_TAB_LYRICS.equals(tabId)) return ui("tab.lyrics");
+        if (SETTINGS_TAB_APPEARANCE.equals(tabId)) return ui("tab.appearance");
+        if (SETTINGS_TAB_PLAYER.equals(tabId)) return ui("tab.player");
+        if (SETTINGS_TAB_AI.equals(tabId)) return ui("tab.ai");
+        if (SETTINGS_TAB_SYSTEM.equals(tabId)) return ui("tab.system");
+        return ui("tab.general");
+    }
+
+    private String settingsMenuIcon(String menuId) {
+        return "menu." + menuId;
+    }
+
+    /** Back inside settings: a menu returns home, a search is cleared; false means close settings. */
+    private boolean handleSettingsBack() {
+        if (!SETTINGS_ROUTE_HOME.equals(settingsRoute)) {
+            showSettingsRoute(SETTINGS_ROUTE_HOME, true);
+            return true;
+        }
+        if (settingsSearchInput != null && settingsSearchInput.length() > 0) {
+            settingsSearchInput.setText("");
+            return true;
+        }
+        return false;
+    }
+
+    private void onSettingsScrolled(int scrollY) {
+        if (settingsNavDivider != null) settingsNavDivider.setAlpha(scrollY > dp(2) ? 1f : 0f);
+        if (settingsNavTitle != null) {
+            LinearLayout page = SETTINGS_ROUTE_HOME.equals(settingsRoute) ? settingsHomePage : settingsMenuPages.get(settingsRoute);
+            View largeTitle = page == null || page.getChildCount() == 0 ? null : page.getChildAt(0);
+            float target = largeTitle == null || scrollY > page.getTop() + largeTitle.getBottom() - dp(12) ? 1f : 0f;
+            if (settingsNavTitle.getTag() == null || (Float) settingsNavTitle.getTag() != target) {
+                settingsNavTitle.setTag(target);
+                settingsNavTitle.animate().cancel();
+                settingsNavTitle.animate().alpha(target).setDuration(120L).start();
+            }
+        }
+        updateSettingsPreviewKind();
+    }
+
+    private void toggleSettingsTheme() {
+        boolean dark = settingsKit == null || settingsKit.p.dark;
+        getSharedPreferences(SETTINGS_UI_PREFS, MODE_PRIVATE).edit()
+                .putString(KEY_SETTINGS_THEME, dark ? SettingsPalette.THEME_LIGHT : SettingsPalette.THEME_DARK)
+                .apply();
+        rebuildSettingsPanelInPlace();
+        if (settingsThemeButton != null) {
+            settingsThemeButton.post(() -> {
+                if (settingsThemeButton != null) {
+                    settingsThemeButton.requestFocus();
+                    settingsThemeButton.sendAccessibilityEvent(android.view.accessibility.AccessibilityEvent.TYPE_VIEW_FOCUSED);
+                }
+            });
+        }
+    }
+
+    /** Rebuilds the settings panel (e.g. for a theme change) and returns to the same menu and scroll position. */
+    private void rebuildSettingsPanelInPlace() {
+        if (settingsPanel == null || !(settingsPanel.getParent() instanceof ViewGroup)) return;
+        hideSettingsKeyboard();
+        boolean visible = isSettingsPanelVisible();
+        String query = textOf(settingsSearchInput);
+        rememberSettingsScroll();
+        Map<String, Integer> scroll = new HashMap<>(settingsScrollMemory);
+        ViewGroup parent = (ViewGroup) settingsPanel.getParent();
+        int index = parent.indexOfChild(settingsPanel);
+        ViewGroup.LayoutParams params = settingsPanel.getLayoutParams();
+        int left = settingsPanel.getPaddingLeft();
+        int right = settingsPanel.getPaddingRight();
+        int bottom = settingsPanel.getPaddingBottom();
+        settingsPanel.animate().cancel();
+        settingsPanelClosing = false;
+        parent.removeView(settingsPanel);
+        settingsScrollMemory.clear();
+        settingsScrollMemory.putAll(scroll);
+        FrameLayout rebuilt = buildSettingsPanel();
+        rebuilt.setPadding(left, 0, right, bottom);
+        settingsPanel = rebuilt;
+        parent.addView(rebuilt, Math.min(index, parent.getChildCount()), params);
+        if (!query.isEmpty() && settingsSearchInput != null) settingsSearchInput.setText(query);
+        if (visible) {
+            rebuilt.setVisibility(View.VISIBLE);
+            rebuilt.setAlpha(1f);
+        }
+        rebuilt.requestApplyInsets();
+        showSettingsRoute(settingsRoute, true);
+        applySettingsStatusBarAppearance();
+    }
+
+    /** Dark status-bar icons while a light settings screen is shown. */
+    private void applySettingsStatusBarAppearance() {
+        Window window = getWindow();
+        if (window == null) return;
+        boolean light = (isSettingsPanelVisible() || isSpotifySetupPanelVisible()) && !settingsPalette().dark;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            WindowInsetsController controller = window.getInsetsController();
+            if (controller != null) {
+                int mask = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+                controller.setSystemBarsAppearance(light ? mask : 0, mask);
+            }
+        } else {
+            View decor = window.getDecorView();
+            int flags = decor.getSystemUiVisibility();
+            int mask = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            flags = light ? flags | mask : flags & ~mask;
+            decor.setSystemUiVisibility(flags);
+        }
+    }
+
+    // ------------------------------------------------------------------ live preview
+
+    private LinearLayout buildSettingsPreviewHost() {
+        SettingsKit kit = settingsKit;
+        LinearLayout host = kit.vertical();
+        host.setPadding(dp(16), dp(6), dp(16), dp(10));
+        host.setBackgroundColor(kit.p.bg);
+        host.setVisibility(View.GONE);
+        settingsPreviewToggle = kit.picker(ui("settings.preview"));
+        settingsPreviewToggle.setTypeface(kit.semi);
+        settingsPreviewToggle.setBackground(kit.pressable(kit.rect(kit.p.surface, 8f, kit.p.line2, 1f), 8f));
+        makeRemoteFocusable(settingsPreviewToggle);
+        settingsPreviewToggle.setOnClickListener(view -> toggleSettingsPreview());
+        host.addView(settingsPreviewToggle, matchWrap());
+        settingsPreviewView = new SettingsPreviewView(this, new SettingsPreviewView.Source() {
+            @Override public AiLyricsSettings.Snapshot snapshot() {
+                return aiLyricsSettings == null ? null : aiLyricsSettings.snapshot();
+            }
+
+            @Override public String text(String key) {
+                return ui(key);
+            }
+
+            @Override public String backgroundModeLabel(String mode) {
+                return BaseLyricsActivity.this.backgroundModeLabel(mode);
+            }
+
+            @Override public boolean embedded() {
+                return IvLyricsBridge.isEmbedded(BaseLyricsActivity.this);
+            }
+        });
+        host.addView(settingsPreviewView, topMargin(matchWrap(), dp(8)));
+        return host;
+    }
+
+    private int settingsMenuPreviewKind(String menuId) {
+        if (SETTINGS_TAB_APPEARANCE.equals(menuId)) return SettingsPreviewView.LYRICS;
+        if (SETTINGS_TAB_AI.equals(menuId)) return SettingsPreviewView.ANNOTATION;
+        if (SETTINGS_TAB_PLAYER.equals(menuId) && !IvLyricsBridge.isEmbedded(this)) return SettingsPreviewView.PIP;
+        return -1;
+    }
+
+    private boolean settingsPreviewOpen(String menuId) {
+        return getSharedPreferences(SETTINGS_UI_PREFS, MODE_PRIVATE)
+                .getBoolean(KEY_SETTINGS_PREVIEW_PREFIX + menuId, SETTINGS_TAB_APPEARANCE.equals(menuId));
+    }
+
+    private void toggleSettingsPreview() {
+        boolean open = !settingsPreviewOpen(settingsRoute);
+        getSharedPreferences(SETTINGS_UI_PREFS, MODE_PRIVATE).edit()
+                .putBoolean(KEY_SETTINGS_PREVIEW_PREFIX + settingsRoute, open).apply();
+        updateSettingsPreviewHost();
+    }
+
+    /** Pins the preview under the navigation bar, or keeps it at the top of the page in a short window. */
+    private void placeSettingsPreviewHost() {
+        if (settingsPreviewHost == null || settingsShell == null || settingsKit == null) return;
+        LinearLayout page = settingsMenuPages.get(settingsRoute);
+        boolean wanted = page != null && settingsMenuPreviewKind(settingsRoute) >= 0;
+        ViewGroup target = wanted && settingsPreviewInline ? page : settingsShell;
+        if (settingsPreviewHost.getParent() != target) {
+            if (settingsPreviewHost.getParent() instanceof ViewGroup) {
+                ((ViewGroup) settingsPreviewHost.getParent()).removeView(settingsPreviewHost);
+            }
+            int index = target == settingsShell ? 2 : 1;
+            target.addView(settingsPreviewHost, Math.min(index, target.getChildCount()), matchWrap());
+        }
+        boolean inline = target != settingsShell;
+        settingsPreviewHost.setPadding(inline ? 0 : dp(16), dp(6), inline ? 0 : dp(16), dp(10));
+        settingsPreviewHost.setBackgroundColor(inline ? Color.TRANSPARENT : settingsKit.p.bg);
+        updateSettingsPreviewHost();
+    }
+
+    private void updateSettingsPreviewHost() {
+        if (settingsPreviewHost == null || settingsKit == null) return;
+        boolean visible = settingsMenuPages.containsKey(settingsRoute) && settingsMenuPreviewKind(settingsRoute) >= 0;
+        settingsPreviewHost.setVisibility(visible ? View.VISIBLE : View.GONE);
+        if (!visible) return;
+        boolean open = settingsPreviewOpen(settingsRoute);
+        settingsPreviewView.setVisibility(open ? View.VISIBLE : View.GONE);
+        settingsPreviewToggle.setCompoundDrawablesRelativeWithIntrinsicBounds(null, null,
+                settingsKit.icon(open ? "up" : "down", settingsKit.p.text3, 18f), null);
+        updateSettingsPreviewKind();
+        settingsPreviewView.invalidate();
+    }
+
+    /** The preview follows the section in the middle of the screen (lyrics page, main screen, LP, PiP). */
+    private void updateSettingsPreviewKind() {
+        if (settingsPreviewView == null || settingsScrollView == null) return;
+        int kind = settingsMenuPreviewKind(settingsRoute);
+        if (kind < 0) return;
+        int probe = settingsScrollView.getScrollY() + settingsScrollView.getHeight() / 2;
+        for (SettingsSection section : settingsSections) {
+            if (!section.menuId.equals(settingsRoute) || section.previewKind < 0
+                    || section.view.getVisibility() != View.VISIBLE) {
+                continue;
+            }
+            if (settingsContentOffset(section.view) <= probe) kind = section.previewKind;
+        }
+        if (kind == SETTINGS_PREVIEW_TYPOGRAPHY) {
+            kind = typographyGroupChoice != null && "main".equals(typographyGroupChoice.selected)
+                    ? SettingsPreviewView.MAIN : SettingsPreviewView.LYRICS;
+        }
+        settingsPreviewView.setKind(kind);
+        settingsPreviewView.setVinylAnnotations(culturalAnnotationColumnChoice != null
+                && "vinyl".equals(culturalAnnotationColumnChoice.selected));
+    }
+
+    /** Redraws the live preview after any settings change. */
+    private void onSettingsControlChanged() {
+        if (settingsPreviewView != null && settingsPreviewView.getVisibility() == View.VISIBLE) {
+            settingsPreviewView.invalidate();
+        }
+    }
+
+    private int settingsContentOffset(View view) {
+        if (settingsScrollView == null || settingsScrollView.getChildCount() == 0 || view == null) return 0;
+        ViewGroup content = (ViewGroup) settingsScrollView.getChildAt(0);
+        android.graphics.Rect rect = new android.graphics.Rect();
+        view.getDrawingRect(rect);
+        try {
+            content.offsetDescendantRectToMyCoords(view, rect);
+        } catch (IllegalArgumentException notDescendant) {
+            return 0;
+        }
+        return rect.top;
+    }
+
+    // ------------------------------------------------------------------ home and search
+
+    private LinearLayout buildSettingsHomePage() {
+        SettingsKit kit = settingsKit;
+        LinearLayout page = kit.vertical();
+        page.addView(kit.brandTitle(), matchWrap());
+
+        LinearLayout searchBox = kit.horizontal();
+        searchBox.setBackground(kit.rect(kit.p.surface2, 10f, kit.p.line2, 1f));
+        searchBox.setPaddingRelative(dp(13), 0, dp(2), 0);
+        searchBox.setMinimumHeight(dp(48));
+        ImageView searchIcon = new ImageView(this);
+        searchIcon.setImageDrawable(kit.icon("search", kit.p.text3, 19f));
+        searchIcon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        searchBox.addView(searchIcon, new LinearLayout.LayoutParams(dp(19), dp(19)));
+        settingsSearchInput = new EditText(this);
+        settingsSearchInput.setBackground(null);
+        settingsSearchInput.setHint(ui("settings.search"));
+        settingsSearchInput.setHintTextColor(kit.p.text4);
+        settingsSearchInput.setTextColor(kit.p.text);
+        settingsSearchInput.setTextSize(16f);
+        settingsSearchInput.setTypeface(kit.regular);
+        settingsSearchInput.setSingleLine(true);
+        settingsSearchInput.setInputType(InputType.TYPE_CLASS_TEXT);
+        settingsSearchInput.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
+        settingsSearchInput.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
+        settingsSearchInput.setPaddingRelative(dp(10), dp(12), dp(6), dp(12));
+        settingsSearchInput.setMinHeight(dp(48));
+        settingsSearchInput.setMinimumHeight(dp(48));
+        settingsSearchInput.setMinWidth(dp(48));
+        settingsSearchInput.setMinimumWidth(dp(48));
+        settingsSearchInput.setText("");
+        settingsSearchInput.setOnEditorActionListener((view, action, event) -> {
+            hideSettingsKeyboard();
+            return true;
+        });
+        settingsSearchInput.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence value, int start, int before, int count) { }
+            @Override public void afterTextChanged(Editable value) { updateSettingsSearch(); }
+        });
+        searchBox.addView(settingsSearchInput, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        settingsSearchClearButton = kit.iconButton("close", ui("settings.clear_search"), 18f);
+        settingsSearchClearButton.setImageDrawable(kit.icon("close", kit.p.text3, 18f));
+        settingsSearchClearButton.setVisibility(View.GONE);
+        makeRemoteFocusable(settingsSearchClearButton);
+        settingsSearchClearButton.setOnClickListener(view -> {
+            settingsSearchInput.setText("");
+            settingsSearchInput.requestFocus();
+        });
+        searchBox.addView(settingsSearchClearButton, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        LinearLayout.LayoutParams boxParams = matchWrap();
+        boxParams.bottomMargin = dp(20);
+        page.addView(searchBox, boxParams);
+
+        settingsSearchResults = kit.vertical();
+        settingsSearchResults.setVisibility(View.GONE);
+        page.addView(settingsSearchResults, matchWrap());
+        settingsHomeMenus = kit.vertical();
+        page.addView(settingsHomeMenus, matchWrap());
+        return page;
+    }
+
+    private void buildSettingsHomeMenus() {
+        if (settingsHomeMenus == null) return;
+        settingsHomeMenus.removeAllViews();
+        String[][] groups = {
+                {ui("tab.general"), SETTINGS_TAB_CURRENT_TRACK, SETTINGS_TAB_GENERAL},
+                {ui("settings.group_sources"), SETTINGS_TAB_PROVIDERS, SETTINGS_TAB_AI},
+                {ui("tab.display"), SETTINGS_TAB_APPEARANCE, SETTINGS_TAB_LYRICS, SETTINGS_TAB_PLAYER},
+                {ui("settings.group_manage"), SETTINGS_TAB_SYSTEM}
+        };
+        for (String[] group : groups) {
+            LinearLayout list = settingsKit.group();
+            for (int index = 1; index < group.length; index++) {
+                String menuId = group[index];
+                if (!settingsMenuPages.containsKey(menuId)) continue;
+                List<String> sections = settingsMenuSections.get(menuId);
+                String summary = sections == null ? "" : TextUtils.join(" · ", sections);
+                LinearLayout item = settingsKit.homeItem(settingsMenuIcon(menuId), settingsTabLabel(menuId), summary);
+                makeRemoteFocusable(item);
+                item.setContentDescription(settingsTabLabel(menuId) + ", " + summary);
+                item.setOnClickListener(view -> showSettingsRoute(menuId, true));
+                list.addView(item, matchWrap());
+            }
+            if (list.getChildCount() == 0) continue;
+            settingsHomeMenus.addView(settingsKit.groupLabel(group[0]), matchWrap());
+            LinearLayout.LayoutParams params = matchWrap();
+            params.bottomMargin = dp(20);
+            settingsHomeMenus.addView(list, params);
+        }
+        TextView footer = settingsKit.text(IvLyricsBridge.isEmbedded(this) ? "ivLyrics · LSPatch" : "ivLyrics · Android",
+                12f, settingsKit.p.text4, settingsKit.regular);
+        footer.setGravity(Gravity.CENTER);
+        footer.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
+        settingsHomeMenus.addView(footer, topMargin(matchWrap(), dp(2)));
+    }
+
+    private void updateSettingsSearch() {
+        if (settingsSearchResults == null || settingsKit == null) return;
+        String raw = textOf(settingsSearchInput);
+        String query = raw.toLowerCase(Locale.ROOT);
+        if (settingsSearchClearButton != null) settingsSearchClearButton.setVisibility(raw.isEmpty() ? View.GONE : View.VISIBLE);
+        settingsSearchResults.removeAllViews();
+        if (query.isEmpty()) {
+            settingsSearchResults.setVisibility(View.GONE);
+            if (settingsHomeMenus != null) settingsHomeMenus.setVisibility(View.VISIBLE);
+            return;
+        }
+        // The search box lives on the home page; typing elsewhere (remote, tests) shows the results there.
+        if (!SETTINGS_ROUTE_HOME.equals(settingsRoute)) showSettingsRoute(SETTINGS_ROUTE_HOME, false);
+        if (settingsHomeMenus != null) settingsHomeMenus.setVisibility(View.GONE);
+        List<SettingsSearchEntry> matches = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (int pass = 0; pass < 2; pass++) {
+            for (SettingsSearchEntry entry : settingsSearchEntries) {
+                if (entry.target.getVisibility() == View.GONE && !isSettingsConditionalTarget(entry.target)) continue;
+                boolean labelMatch = entry.label.toLowerCase(Locale.ROOT).contains(query);
+                boolean otherMatch = !labelMatch && (entry.description.toLowerCase(Locale.ROOT).contains(query)
+                        || entry.section.toLowerCase(Locale.ROOT).contains(query)
+                        || settingsTabLabel(entry.menuId).toLowerCase(Locale.ROOT).contains(query));
+                if (pass == 0 ? !labelMatch : !otherMatch) continue;
+                if (!seen.add(entry.menuId + "\n" + entry.label)) continue;
+                matches.add(entry);
+            }
+        }
+        SettingsKit kit = settingsKit;
+        if (matches.isEmpty()) {
+            LinearLayout empty = kit.vertical();
+            empty.setGravity(Gravity.CENTER_HORIZONTAL);
+            empty.setPadding(dp(12), dp(28), dp(12), dp(28));
+            TextView title = kit.text(ui("settings.no_results"), 15.5f, kit.p.text, kit.semi);
+            title.setGravity(Gravity.CENTER);
+            title.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
+            empty.addView(title, matchWrap());
+            TextView hint = kit.text(ui("settings.no_results_hint"), 13f, kit.p.text3, kit.regular);
+            hint.setGravity(Gravity.CENTER);
+            hint.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
+            empty.addView(hint, topMargin(matchWrap(), dp(6)));
+            settingsSearchResults.addView(empty, matchWrap());
+            settingsSearchResults.setVisibility(View.VISIBLE);
+            return;
+        }
+        TextView count = kit.text(uiFormat("settings.result_count_format", matches.size()), 12.5f, kit.p.text3, kit.regular);
+        count.setPaddingRelative(dp(6), 0, dp(6), dp(8));
+        count.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        settingsSearchResults.addView(count, matchWrap());
+        for (String menuId : settingsMenuPages.keySet()) {
+            LinearLayout list = null;
+            for (SettingsSearchEntry entry : matches) {
+                if (!entry.menuId.equals(menuId)) continue;
+                if (list == null) {
+                    settingsSearchResults.addView(kit.groupLabel(settingsTabLabel(menuId)), topMargin(matchWrap(), dp(8)));
+                    list = kit.vertical();
+                    settingsSearchResults.addView(list, matchWrap());
+                }
+                String subtitle = entry.section.isEmpty() || entry.section.equals(entry.label)
+                        ? settingsTabLabel(menuId) : settingsTabLabel(menuId) + " · " + entry.section;
+                LinearLayout result = kit.searchResult(settingsMenuIcon(menuId), kit.highlight(entry.label, raw), subtitle);
+                makeRemoteFocusable(result);
+                result.setContentDescription(entry.label + ", " + subtitle);
+                result.setOnClickListener(view -> revealSettingsEntry(entry));
+                list.addView(result, matchWrap());
+            }
+        }
+        settingsSearchResults.setVisibility(View.VISIBLE);
+    }
+
+    /** Opens the entry's menu, expands whatever hides it and scrolls it to the middle with a brief highlight. */
+    private void revealSettingsEntry(SettingsSearchEntry entry) {
+        hideSettingsKeyboard();
+        showSettingsRoute(entry.menuId, false);
+        if (entry.reveal != null) entry.reveal.run();
+        for (SettingsConditionalRow row : settingsConditionalRows) {
+            if (isDescendantOrSelf(row.view, entry.target)) {
+                row.revealed = true;
+            }
+        }
+        refreshSettingsVisibility();
+        settingsScrollView.post(() -> scrollSettingsTo(entry.target, true));
+    }
+
+    private void scrollSettingsTo(View target, boolean flash) {
+        if (settingsScrollView == null || target == null || !target.isShown()) return;
+        int top = settingsContentOffset(target);
+        int viewport = settingsScrollView.getHeight();
+        int y = Math.max(0, top - Math.max(dp(12), (viewport - target.getHeight()) / 2));
+        settingsScrollView.smoothScrollTo(0, y);
+        if (flash && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && settingsKit != null) {
+            android.graphics.drawable.ColorDrawable highlight =
+                    new android.graphics.drawable.ColorDrawable(settingsKit.p.accentSoft);
+            target.setForeground(highlight);
+            android.animation.ValueAnimator fade = android.animation.ValueAnimator.ofInt(255, 0);
+            fade.setStartDelay(500L);
+            fade.setDuration(1100L);
+            fade.addUpdateListener(animation -> highlight.setAlpha((Integer) animation.getAnimatedValue()));
+            fade.addListener(new android.animation.AnimatorListenerAdapter() {
+                @Override public void onAnimationEnd(android.animation.Animator animation) {
+                    target.setForeground(null);
+                }
+            });
+            fade.start();
+        }
+        target.sendAccessibilityEvent(android.view.accessibility.AccessibilityEvent.TYPE_VIEW_FOCUSED);
+    }
+
+    private static boolean isDescendantOrSelf(View ancestor, View view) {
+        for (View current = view; current != null; ) {
+            if (current == ancestor) return true;
+            current = current.getParent() instanceof View ? (View) current.getParent() : null;
+        }
+        return false;
+    }
+
+    private boolean isSettingsConditionalTarget(View target) {
+        for (SettingsConditionalRow row : settingsConditionalRows) {
+            if (isDescendantOrSelf(row.view, target)) return true;
+        }
+        return false;
+    }
+
+    // ------------------------------------------------------------------ sections and rows
+
+    private void buildCurrentTrackSettingsMenu(LinearLayout content) {
+        LinearLayout page = settingsMenuPage(content, SETTINGS_TAB_CURRENT_TRACK);
+        currentTrackSettingsSummary = settingsKit.rowDescription("");
+        currentTrackSettingsSummary.setPaddingRelative(dp(4), 0, dp(4), dp(12));
+        page.addView(currentTrackSettingsSummary, matchWrap());
+        List<String> sections = settingsMenuSections.get(SETTINGS_TAB_CURRENT_TRACK);
+        Collections.addAll(sections, ui("lyrics.tab.language"), ui("lyrics.tab.sync"),
+                ui("lyrics.tab.video"), ui("lyrics.tab.background"), ui("section.lyrics_providers"));
+        // The modes head the track panel below; naming them here lets a settings search find them.
+        if (!IvLyricsBridge.isEmbedded(this)) {
+            Collections.addAll(sections, ui("pip.open_lyrics"), ui("vinyl.mode"));
+        }
+        if (MotionPreferences.animationsEnabled(this)) {
+            sections.add(ui("motion.mode"));
+        }
+        registerSetting(currentTrackSettingsSummary, ui("tab.current_track"), TextUtils.join(" · ", sections), null);
+        settingsTrackPanel = null;
+        attachTrackPanelToSettings();
+    }
+
+    /**
+     * Keeps one set of controls and callbacks: this menu holds the track panel, and the long-press
+     * popup borrows it from here. A rebuilt lyrics page brings a new panel, whose controls are the
+     * ones the page now updates; the panel it replaces is taken out.
+     */
+    private void attachTrackPanelToSettings() {
+        LinearLayout page = settingsMenuPages.get(SETTINGS_TAB_CURRENT_TRACK);
+        if (page == null || lyricsLanguageSettingsPanel == null || lyricsLanguageSettingsPanel.getParent() == page) {
+            return;
+        }
+        if (settingsTrackPanel != null && settingsTrackPanel != lyricsLanguageSettingsPanel) {
+            detachFromParent(settingsTrackPanel);
+        }
+        detachFromParent(lyricsLanguageSettingsPanel);
+        lyricsLanguageSettingsPanel.setBackground(lyricsLanguageSettingsPanelBackground(true));
+        page.addView(lyricsLanguageSettingsPanel, matchWrap());
+        settingsTrackPanel = lyricsLanguageSettingsPanel;
+        updateCurrentTrackSettingsMenu();
+    }
+
+    private void updateCurrentTrackSettingsMenu() {
+        if (currentTrackSettingsSummary == null) return;
+        boolean hasTrack = currentTrack != null && currentTrack.hasUsableMetadata();
+        String summary = hasTrack ? currentTrack.title + "\n" + currentTrack.artist : ui("status.waiting_current_track");
+        if (!TextUtils.equals(currentTrackSettingsSummary.getText(), summary)) currentTrackSettingsSummary.setText(summary);
+        if (lyricsLanguageSettingsPanel != null
+                && lyricsLanguageSettingsPanel.getParent() == settingsMenuPages.get(SETTINGS_TAB_CURRENT_TRACK)) {
+            lyricsLanguageSettingsPanel.setVisibility(hasTrack && SETTINGS_TAB_CURRENT_TRACK.equals(settingsRoute)
+                    ? View.VISIBLE : View.GONE);
+        }
+    }
+
+    private LinearLayout settingsMenuPage(LinearLayout content, String menuId) {
+        LinearLayout page = settingsKit.vertical();
+        page.setVisibility(View.GONE);
+        page.addView(settingsKit.largeTitle(settingsTabLabel(menuId)), matchWrap());
+        content.addView(page, matchWrap());
+        settingsMenuPages.put(menuId, page);
+        settingsMenuSections.put(menuId, new ArrayList<>());
+        settingsBuildingMenu = menuId;
+        settingsBuildingSection = "";
+        return page;
+    }
+
+    private LinearLayout settingsSection(LinearLayout page, String title, String subtitle, int previewKind) {
+        LinearLayout section = settingsKit.vertical();
+        section.addView(settingsKit.sectionHeader(title, subtitle), matchWrap());
+        List<String> titles = settingsMenuSections.get(settingsBuildingMenu);
+        LinearLayout.LayoutParams params = matchWrap();
+        params.topMargin = titles == null || titles.isEmpty() ? dp(6) : dp(26);
+        page.addView(section, params);
+        if (titles != null) titles.add(title);
+        settingsBuildingSection = title;
+        settingsSections.add(new SettingsSection(settingsBuildingMenu, section, previewKind));
+        registerSetting(section, title, subtitle, null);
+        return section;
+    }
+
+    private LinearLayout settingsGroup(LinearLayout section) {
+        LinearLayout group = settingsKit.group();
+        LinearLayout.LayoutParams params = matchWrap();
+        params.topMargin = section.getChildCount() > 1 ? dp(10) : 0;
+        section.addView(group, params);
+        return group;
+    }
+
+    private Switch settingsToggle(LinearLayout group, String title, String description) {
+        Switch toggle = settingsKit.toggle(title, description);
+        makeRemoteFocusable(toggle);
+        group.addView(toggle, matchWrap());
+        registerSetting(toggle, title, description, null);
+        return toggle;
+    }
+
+    private LinearLayout settingsStackRow(LinearLayout group, String label, String description, View control) {
+        LinearLayout row = settingsKit.stackRow(label, description, control);
+        group.addView(row, matchWrap());
+        registerSetting(row, label, description, null);
+        return row;
+    }
+
+    private Button settingsAction(LinearLayout group, String label, String description, int kind, View.OnClickListener listener) {
+        Button action = settingsKit.actionRow(label, description, kind);
+        makeRemoteFocusable(action);
+        action.setOnClickListener(listener);
+        group.addView(action, matchWrap());
+        registerSetting(action, label, description, null);
+        return action;
+    }
+
+    private SettingsKit.Range settingsRange(int min, int max, int step, String unit, String label) {
+        SettingsKit.Range range = settingsKit.range(min, max, step, 1, unit, label);
+        makeRemoteFocusable(range.seekBar);
+        return range;
+    }
+
+    private void focusableItems(SettingsKit.Choice choice) {
+        if (choice == null) return;
+        for (View item : choice.items) makeRemoteFocusable(item);
+    }
+
+    private void registerSetting(View target, String label, String description, Runnable reveal) {
+        if (target == null || label == null || label.trim().isEmpty()) return;
+        settingsSearchEntries.add(new SettingsSearchEntry(settingsBuildingMenu, settingsBuildingSection,
+                label.trim(), description == null ? "" : description, target, reveal));
+    }
+
+    /**
+     * A row that only applies in some states (e.g. video background details). Search can still reveal it
+     * while it is hidden; it then shows which setting controls it.
+     */
+    private View settingsConditional(View row, java.util.function.BooleanSupplier visible, String controller) {
+        ViewGroup parent = (ViewGroup) row.getParent();
+        int index = parent.indexOfChild(row);
+        parent.removeView(row);
+        LinearLayout wrapper = settingsKit.vertical();
+        wrapper.addView(row, matchWrap());
+        TextView note = settingsKit.text(uiFormat("settings.shown_when_format", controller), 12.5f,
+                settingsKit.p.info, settingsKit.regular);
+        note.setLineSpacing(dp(2), 1f);
+        note.setPaddingRelative(dp(16), 0, dp(16), dp(12));
+        note.setVisibility(View.GONE);
+        wrapper.addView(note, matchWrap());
+        parent.addView(wrapper, index, matchWrap());
+        settingsConditionalRows.add(new SettingsConditionalRow(wrapper, visible, note));
+        return wrapper;
+    }
+
+    private void refreshSettingsVisibility() {
+        for (SettingsConditionalRow row : settingsConditionalRows) {
+            boolean visible;
+            try {
+                visible = row.visible.getAsBoolean();
+            } catch (RuntimeException error) {
+                visible = true;
+            }
+            if (visible) row.revealed = false;
+            row.view.setVisibility(visible || row.revealed ? View.VISIBLE : View.GONE);
+            row.view.setAlpha(visible ? 1f : 0.7f);
+            row.note.setVisibility(!visible && row.revealed ? View.VISIBLE : View.GONE);
+        }
+        tidySettingsSections();
+    }
+
+    /** Groups and sections whose rows are all hidden disappear with their titles. */
+    private void tidySettingsSections() {
+        for (SettingsSection section : settingsSections) {
+            ViewGroup view = (ViewGroup) section.view;
+            boolean any = false;
+            for (int index = 1; index < view.getChildCount(); index++) {
+                View child = view.getChildAt(index);
+                if (SettingsKit.GROUP_TAG.equals(child.getTag()) && child instanceof ViewGroup) {
+                    child.setVisibility(hasVisibleChild((ViewGroup) child) ? View.VISIBLE : View.GONE);
+                }
+                if (child.getVisibility() == View.VISIBLE) any = true;
+            }
+            view.setVisibility(any ? View.VISIBLE : View.GONE);
+        }
+    }
+
+    private static boolean hasVisibleChild(ViewGroup group) {
+        for (int index = 0; index < group.getChildCount(); index++) {
+            if (group.getChildAt(index).getVisibility() == View.VISIBLE) return true;
+        }
+        return false;
+    }
+
+    private static void setSubtreeEnabled(View view, boolean enabled) {
+        view.setEnabled(enabled);
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int index = 0; index < group.getChildCount(); index++) setSubtreeEnabled(group.getChildAt(index), enabled);
+        }
+    }
+
+    private void confirmSettingsAction(String title, String message, Runnable action) {
+        new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(message)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(title, (dialog, which) -> action.run())
+                .show();
+    }
+
+    // ------------------------------------------------------------------ 일반 (general)
+
+    private void buildGeneralSettingsMenu(LinearLayout content) {
+        LinearLayout page = settingsMenuPage(content, SETTINGS_TAB_GENERAL);
+        LinearLayout section = settingsSection(page, ui("section.language"), ui("section.language_desc"), -1);
+        LinearLayout group = settingsGroup(section);
+
+        uiLanguageSelectButton = settingsKit.picker("");
+        makeRemoteFocusable(uiLanguageSelectButton);
+        uiLanguageSelectButton.setOnClickListener(view -> showSettingsUiLanguagePopup(uiLanguageSelectButton));
+        settingsStackRow(group, ui("setting.ui_language"), ui("setting.ui_language_desc"), uiLanguageSelectButton);
+
+        outputLanguageSelectButton = settingsKit.picker("");
+        makeRemoteFocusable(outputLanguageSelectButton);
+        outputLanguageSelectButton.setOnClickListener(view -> showSettingsOutputLanguagePopup(outputLanguageSelectButton));
+        settingsStackRow(group, ui("setting.pronunciation_language"), ui("setting.pronunciation_language_desc"),
+                outputLanguageSelectButton);
+
+        List<SettingsKit.Option> notations = new ArrayList<>();
+        for (LanguageChoice choice : pronunciationNotationChoices()) {
+            notations.add(new SettingsKit.Option(choice.code, choice.label));
+        }
+        pronunciationNotationChoice = settingsKit.cards(notations, AiLyricsSettings.PRONUNCIATION_NOTATION_TRANSLATION, 2,
+                notation -> {
+                    if (aiLyricsSettings == null) return;
+                    aiLyricsSettings.setPronunciationNotation(notation);
+                    updatePronunciationNotationSelect(notation);
+                    requestAiLyrics(false);
+                    showSavedToast(ui("toast.settings_saved"));
+                });
+        focusableItems(pronunciationNotationChoice);
+        settingsStackRow(group, ui("setting.pronunciation_notation"), ui("setting.pronunciation_notation_desc"),
+                pronunciationNotationChoice.view);
+
+        section = settingsSection(page, ui("settings.section.lyrics_display"), null, -1);
+        group = settingsGroup(section);
+        if (!IvLyricsBridge.isEmbedded(this)) {
+            SettingsKit.FlowLayout chips = settingsKit.flow(8f, 0f);
+            int[] items = {AiLyricsSettings.PREVIEW_ITEM_NONE, AiLyricsSettings.PREVIEW_ITEM_ORIGINAL,
+                    AiLyricsSettings.PREVIEW_ITEM_PRONUNCIATION, AiLyricsSettings.PREVIEW_ITEM_TRANSLATION};
+            String[] labels = {ui("preview.none"), ui("preview.original"), ui("preview.pronunciation"), ui("preview.translation")};
+            int[] colors = {0, settingsKit.p.layerOriginal, settingsKit.p.layerPhonetic, settingsKit.p.layerTranslation};
+            for (int index = 0; index < items.length; index++) {
+                int item = items[index];
+                CheckBox chip = settingsKit.chip(labels[index], item == AiLyricsSettings.PREVIEW_ITEM_NONE
+                        ? settingsKit.icon("close", settingsKit.p.text3, 14f)
+                        : settingsKit.layerMark(colors[index], 9f));
+                makeRemoteFocusable(chip);
+                chip.setTag(item);
+                chip.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                    if (suppressSettingsEvents || aiLyricsSettings == null) return;
+                    int current = aiLyricsSettings.snapshot().previewItems;
+                    int next = item == AiLyricsSettings.PREVIEW_ITEM_NONE
+                            ? AiLyricsSettings.PREVIEW_ITEM_NONE
+                            : AiLyricsSettings.normalizePreviewItems(current ^ item);
+                    aiLyricsSettings.setPreviewItems(next);
+                    rebuildPreviewModeButtons(aiLyricsSettings.snapshot().previewItems);
+                    updateLyricPreview(currentTrack == null ? 0L : currentLyricsPlaybackPosition(currentTrack));
+                    showSavedToast(ui("toast.preview_saved"));
+                });
+                previewItemChips.add(chip);
+                chips.addView(chip);
+            }
+            settingsStackRow(group, ui("setting.main_preview"), ui("setting.main_preview_desc"), chips);
+        }
+
+        metadataTranslationSwitch = settingsToggle(group, ui("setting.metadata_translation"),
+                ui("setting.metadata_translation_desc"));
+        metadataTranslationSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) {
+                return;
+            }
+            aiLyricsSettings.setMetadataTranslationEnabled(isChecked);
+            translatedTrackTitle = "";
+            translatedTrackArtist = "";
+            updateTrackMetadataTextViews(currentTrack);
+            if (isChecked) {
+                requestMetadataTranslation(true);
+            }
+            showSavedToast(isChecked ? ui("toast.metadata_translation_on") : ui("toast.metadata_translation_off"));
+        });
+
+        japaneseFuriganaSwitch = settingsToggle(group, ui("setting.japanese_furigana"), ui("setting.japanese_furigana_desc"));
+        japaneseFuriganaSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) {
+                return;
+            }
+            aiLyricsSettings.setJapaneseFuriganaEnabled(isChecked);
+            setJapaneseFuriganaOnViews(isChecked);
+            if (isChecked) {
+                requestJapaneseFurigana(false);
+            } else {
+                setLyricsSupplementLoading(
+                        lyricsSupplementPronunciationLoading,
+                        lyricsSupplementTranslationLoading,
+                        false
+                );
+                updateLyricPreview(currentTrack == null ? 0L : currentLyricsPlaybackPosition(currentTrack));
+            }
+            showSavedToast(isChecked ? ui("toast.furigana_on") : ui("toast.furigana_off"));
+        });
+    }
+
+    // ------------------------------------------------------------------ 가사 제공자 (lyrics providers)
+
+    private void buildProvidersSettingsMenu(LinearLayout content) {
+        LinearLayout page = settingsMenuPage(content, SETTINGS_TAB_PROVIDERS);
+        LinearLayout section = settingsSection(page, ui("settings.section.lookup"), ui("settings.section.lookup_desc"), -1);
+        LinearLayout group = settingsGroup(section);
+        preferLyricsTypeFirstSwitch = settingsToggle(group, ui("setting.lyrics_type_first"), ui("setting.lyrics_type_first_desc"));
+        preferLyricsTypeFirstSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || lyricsProviderSettings == null) {
+                return;
+            }
+            lyricsProviderSettings.setTypeFirst(isChecked);
+            onLyricsProviderSettingsChanged(false);
+        });
+        preferSyncDataProviderSwitch = settingsToggle(group, ui("setting.prefer_sync_data_provider"),
+                ui("setting.prefer_sync_data_provider_desc"));
+        preferSyncDataProviderSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || lyricsProviderSettings == null) {
+                return;
+            }
+            lyricsProviderSettings.setPreferSyncDataProvider(isChecked);
+            onLyricsProviderSettingsChanged(false);
+        });
+        lyricsLookupChain = settingsKit.flow(6f, 8f);
+        lyricsLookupChain.setPaddingRelative(dp(16), dp(12), dp(16), dp(14));
+        lyricsLookupChain.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
+        group.addView(lyricsLookupChain, matchWrap());
+
+        lrclibPlaybackEndpointInput = settingsKit.field("https://lrclib.example/api", false, false);
+        lrclibPlaybackEndpointInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI
+                | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        lrclibPlaybackEndpointInput.setMinHeight(dp(48));
+        lrclibPlaybackEndpointInput.setMinimumHeight(dp(48));
+        lrclibPlaybackEndpointInput.setTextDirection(View.TEXT_DIRECTION_LTR);
+        lrclibPlaybackEndpointInput.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);
+        lrclibPlaybackEndpointInput.setContentDescription(ui("setting.lrclib_endpoint"));
+        lrclibPlaybackEndpointInput.setText(lyricsProviderSettings.lrclibPlaybackEndpoint());
+        settingsStackRow(group, ui("setting.lrclib_endpoint"), ui("setting.lrclib_endpoint_desc"), lrclibPlaybackEndpointInput);
+        lrclibPlaybackEndpointInput.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence value, int start, int before, int count) { }
+            @Override public void afterTextChanged(Editable value) {
+                if (suppressSettingsEvents) return;
+                if (pendingLrclibEndpointSave != null) handler.removeCallbacks(pendingLrclibEndpointSave);
+                pendingLrclibEndpointSave = null;
+                try {
+                    LrclibEndpoint.normalize(value.toString());
+                    lrclibPlaybackEndpointInput.setError(null);
+                    pendingLrclibEndpointSave = () -> {
+                        pendingLrclibEndpointSave = null;
+                        saveLrclibPlaybackEndpoint();
+                    };
+                    handler.postDelayed(pendingLrclibEndpointSave, 700L);
+                } catch (IllegalArgumentException error) {
+                    lrclibPlaybackEndpointInput.setError(ui("setting.lrclib_endpoint_error"));
+                }
+            }
+        });
+        lrclibPlaybackEndpointInput.setOnEditorActionListener((view, action, event) -> {
+            if (action != android.view.inputmethod.EditorInfo.IME_ACTION_DONE) return false;
+            if (pendingLrclibEndpointSave != null) handler.removeCallbacks(pendingLrclibEndpointSave);
+            pendingLrclibEndpointSave = null;
+            saveLrclibPlaybackEndpoint();
+            return false;
+        });
+
+        section = settingsSection(page, ui("section.lyrics_providers"), ui("section.lyrics_providers_desc"), -1);
+        lyricsProviderSettingsContainer = settingsKit.vertical();
+        section.addView(lyricsProviderSettingsContainer, matchWrap());
+        for (LyricsProviderSettings.Provider provider : LyricsProviderSettings.PROVIDERS) {
+            registerSetting(lyricsProviderSettingsContainer, provider.label, "", null);
+        }
+    }
+
+    // ------------------------------------------------------------------ AI 제공자 (AI providers)
+
+    private void buildAiSettingsMenu(LinearLayout content) {
+        LinearLayout page = settingsMenuPage(content, SETTINGS_TAB_AI);
+        LinearLayout section = settingsSection(page, ui("section.ai_lyrics"), ui("section.ai_lyrics_desc"), -1);
+        LinearLayout group = settingsGroup(section);
+        aiSettingsStatusView = settingsKit.text("", 14f, settingsKit.p.text2, settingsKit.regular);
+        aiSettingsStatusView.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        group.addView(settingsKit.statusLine(aiSettingsStatusView), matchWrap());
+
+        section = settingsSection(page, ui("section.provider"), ui("setting.ai_provider_order_desc"), -1);
+        providerSummaryView = null;
+        aiProviderOwnerLine = settingsKit.flow(8f, 8f);
+        LinearLayout.LayoutParams ownerParams = matchWrap();
+        ownerParams.bottomMargin = dp(10);
+        section.addView(aiProviderOwnerLine, ownerParams);
+        providerButtonsContainer = settingsKit.vertical();
+        section.addView(providerButtonsContainer, matchWrap());
+        if (aiLyricsSettings != null) {
+            for (String providerId : aiLyricsSettings.snapshot().aiProviderOrder) {
+                AiLyricsSettings.Provider provider = AiLyricsSettings.aiProviderById(providerId);
+                if (provider != null) registerSetting(providerButtonsContainer, provider.label, providerDescription(provider), null);
+            }
+        }
+
+        section = settingsSection(page, ui("settings.section.connections"), ui("settings.section.connections_desc"), -1);
+        aiConnectionsContainer = settingsKit.vertical();
+        section.addView(aiConnectionsContainer, matchWrap());
+        buildProviderDetailsContainer();
+
+        section = settingsSection(page, ui("setting.cultural_annotations"), null, SettingsPreviewView.ANNOTATION);
+        group = settingsGroup(section);
+        culturalAnnotationsSwitch = settingsToggle(group, ui("setting.cultural_annotations"), ui("setting.cultural_annotations_desc"));
+        culturalAnnotationsSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) {
+                return;
+            }
+            aiLyricsSettings.setCulturalAnnotationsEnabled(isChecked);
+            setCulturalAnnotationStyleEnabled(isChecked);
+            if (isChecked) {
+                requestCulturalAnnotations(false);
+            } else {
+                currentCulturalAnnotations = Collections.emptyList();
+                currentCulturalAnnotationRequestKey = "";
+                setCulturalAnnotationsLoading(false);
+                applyCulturalAnnotationsToViews();
+            }
+            showSavedToast(ui("setting.cultural_annotations"));
+        });
+        group.addView(buildCulturalAnnotationStyleControl(), matchWrap());
+        buildProviderButtons();
+    }
+
+    /** The selected provider's connection fields; the card that edits them hosts this container. */
+    private void buildProviderDetailsContainer() {
+        SettingsKit kit = settingsKit;
+        providerDetailsContainer = kit.dividedList();
+
+        pollinationsAuthGroup = kit.stackRow(ui("pollinations.account"), ui("pollinations.account_desc"),
+                buildPollinationsAuthControl());
+        providerDetailsContainer.addView(pollinationsAuthGroup, matchWrap());
+
+        baseUrlInput = kit.field("", false, false);
+        providerBaseUrlGroup = kit.stackRow(ui("field.base_url"), ui("field.base_url_desc"), baseUrlInput);
+        providerDetailsContainer.addView(providerBaseUrlGroup, matchWrap());
+
+        LinearLayout modelControls = kit.vertical();
+        modelInput = kit.field("", false, false);
+        modelControls.addView(modelInput, matchWrap());
+        aiModelPickerButton = kit.button(ui("button.choose_model"), SettingsKit.BUTTON_NORMAL, null);
+        makeRemoteFocusable(aiModelPickerButton);
+        aiModelPickerButton.setOnClickListener(view -> loadAiModels());
+        modelControls.addView(aiModelPickerButton, topMargin(SettingsKit.wrap(), dp(10)));
+        providerModelGroup = kit.stackRow(ui("field.model"), ui("field.model_desc"), modelControls);
+        providerDetailsContainer.addView(providerModelGroup, matchWrap());
+
+        apiKeysInput = kit.field("", true, true);
+        View apiKeyRow = kit.stackRow(ui("field.api_key"), ui("field.api_key_desc"),
+                kit.secretField(apiKeysInput, ui("settings.show_secret"), ui("settings.hide_secret")));
+        providerDetailsContainer.addView(apiKeyRow, matchWrap());
+
+        openAIConnectionsContainer = kit.vertical();
+        openAIConnectionsContainer.setPaddingRelative(dp(16), dp(14), dp(16), dp(16));
+        providerDetailsContainer.addView(openAIConnectionsContainer, matchWrap());
+
+        LinearLayout advanced = kit.dividedList();
+        maxTokensInput = new EditText(this);
+        View maxTokensRow = kit.inlineRow(ui("field.max_tokens"), "",
+                kit.stepper(maxTokensInput, 256, 65536, 256, ui("field.max_tokens")));
+        advanced.addView(maxTokensRow, matchWrap());
+        temperatureRange = kit.range(0, 200, 1, 100, "", ui("field.temperature"));
+        makeRemoteFocusable(temperatureRange.seekBar);
+        temperatureInput = temperatureRange.input;
+        View temperatureRow = kit.stackRow(ui("field.temperature"), "", temperatureRange.view);
+        advanced.addView(temperatureRow, matchWrap());
+        providerAdvancedGroup = advanced;
+        providerDetailsContainer.addView(advanced, matchWrap());
+
+        LinearLayout footer = kit.vertical();
+        TextView autosave = kit.text(ui("settings.ai_autosave"), 13f, kit.p.text3, kit.regular);
+        autosave.setLineSpacing(dp(3), 1f);
+        autosave.setPaddingRelative(dp(16), dp(12), dp(16), 0);
+        footer.addView(autosave, matchWrap());
+        SettingsKit.FlowLayout actions = kit.flow(8f, 8f);
+        actions.setPaddingRelative(dp(16), dp(12), dp(16), dp(16));
+        footer.addView(actions, matchWrap());
+        providerDetailsContainer.addView(footer, matchWrap());
+
+        for (EditText field : new EditText[]{apiKeysInput, modelInput, baseUrlInput, maxTokensInput, temperatureInput}) {
+            field.addTextChangedListener(new TextWatcher() {
+                @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
+                @Override public void onTextChanged(CharSequence value, int start, int before, int count) { }
+                @Override public void afterTextChanged(Editable value) {
+                    if (suppressSettingsEvents || aiLyricsSettings == null) return;
+                    AiLyricsSettings.Snapshot current = aiLyricsSettings.snapshot();
+                    aiLyricsSettings.setProviderProfile(current.provider.id, textOf(apiKeysInput), textOf(baseUrlInput),
+                            textOf(modelInput), parseInt(textOf(maxTokensInput), current.maxTokens),
+                            parseFloat(textOf(temperatureInput), current.temperature));
+                }
+            });
+        }
+
+        Button applyButton = kit.button(ui("tmi.regenerate"), SettingsKit.BUTTON_NORMAL, null);
+        makeRemoteFocusable(applyButton);
+        applyButton.setOnClickListener(view -> {
+            applyAiSettingsFromUi();
+            translatedTrackTitle = "";
+            translatedTrackArtist = "";
+            updateTrackMetadataTextViews(currentTrack);
+            requestMetadataTranslation(true);
+            requestAiLyrics(true);
+        });
+        actions.addView(applyButton);
+
+        Button keyButton = kit.button(ui("button.get_key"), SettingsKit.BUTTON_NORMAL, "external");
+        makeRemoteFocusable(keyButton);
+        keyButton.setOnClickListener(view -> {
+            AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(snapshot.provider.apiKeyUrl)));
+        });
+        actions.addView(keyButton);
+
+        Button connectionTestButton = kit.button(ui("pollinations.test"), SettingsKit.BUTTON_NORMAL, null);
+        makeRemoteFocusable(connectionTestButton);
+        connectionTestButton.setOnClickListener(view -> {
+            applyAiSettingsFromUi(false);
+            AiLyricsSettings.Snapshot tested = aiLyricsSettings.snapshot();
+            if (!tested.hasApiKey() || (!tested.provider.translationOnly() && tested.model.trim().isEmpty())) {
+                showSavedToast(ui(!tested.hasApiKey() ? "status.ai_key_needed" : "status.ai_model_needed"));
+                return;
+            }
+            connectionTestButton.setEnabled(false);
+            connectionTestButton.setText(ui("pollinations.status_testing"));
+            aiLyricsRepository.testConnection(tested, error -> {
+                if (isFinishing() || isDestroyed()) return;
+                connectionTestButton.setEnabled(true);
+                connectionTestButton.setText(ui("pollinations.test"));
+                AiLyricsSettings.Snapshot current = aiLyricsSettings.snapshot();
+                if (!current.provider.id.equals(tested.provider.id)
+                        || !textOf(apiKeysInput).equals(tested.apiKeys)
+                        || !textOf(modelInput).equals(tested.model)
+                        || !textOf(baseUrlInput).equals(tested.baseUrl)
+                        || !java.util.Objects.equals(current.pollinationsAccessToken, tested.pollinationsAccessToken)) return;
+                showSavedToast(ui(error == null ? "pollinations.status_valid" : "pollinations.status_invalid")
+                        + (error == null ? "" : " · " + error));
+            });
+        });
+        actions.addView(connectionTestButton);
+
+        Runnable reveal = this::revealSelectedAiConnection;
+        registerSetting(pollinationsAuthGroup, ui("pollinations.account"), ui("pollinations.account_desc"), reveal);
+        registerSetting(providerBaseUrlGroup, ui("field.base_url"), ui("field.base_url_desc"), reveal);
+        registerSetting(providerModelGroup, ui("field.model"), ui("field.model_desc"), reveal);
+        registerSetting(aiModelPickerButton, ui("button.choose_model"), "", reveal);
+        registerSetting(apiKeyRow, ui("field.api_key"), ui("field.api_key_desc"), reveal);
+        registerSetting(maxTokensRow, ui("field.max_tokens"), "", reveal);
+        registerSetting(temperatureRow, ui("field.temperature"), "", reveal);
+        registerSetting(applyButton, ui("tmi.regenerate"), ui("settings.ai_autosave"), reveal);
+        registerSetting(keyButton, ui("button.get_key"), "", reveal);
+        registerSetting(connectionTestButton, ui("pollinations.test"), "", reveal);
+    }
+
+    private void revealSelectedAiConnection() {
+        if (aiLyricsSettings == null) return;
+        if (!providerDetailsExpanded) {
+            providerDetailsExpanded = true;
+            buildProviderButtons();
+        }
+    }
+
+    /** Opens a provider's connection card from its row in the provider list, like the lab's provider rows. */
+    private void revealAiConnection(AiLyricsSettings.Provider provider) {
+        if (provider == null || provider.keyless || aiLyricsSettings == null) return;
+        if (provider.localModel) {
+            localAiDetailsExpanded = true;
+            buildProviderButtons();
+        } else if (!provider.id.equals(aiLyricsSettings.snapshot().provider.id)) {
+            applyAiSettingsFromUi(false);
+            providerDetailsExpanded = true;
+            aiLyricsSettings.setProvider(provider.id);
+            populateAiSettingsUi();
+            showSavedToast(ui("toast.provider_saved"));
+        } else if (!providerDetailsExpanded) {
+            providerDetailsExpanded = true;
+            buildProviderButtons();
+        }
+        if (aiConnectionsContainer != null) {
+            View card = aiConnectionsContainer.findViewWithTag("connection:" + provider.id);
+            if (card != null) settingsScrollView.post(() -> scrollSettingsTo(card, true));
+        }
+    }
+
+    private void toggleAiConnection(AiLyricsSettings.Provider provider) {
+        if (aiLyricsSettings == null) return;
+        if (provider.localModel) {
+            localAiDetailsExpanded = !localAiDetailsExpanded;
+            buildProviderButtons();
+            return;
+        }
+        if (provider.id.equals(aiLyricsSettings.snapshot().provider.id)) {
+            providerDetailsExpanded = !providerDetailsExpanded;
+            buildProviderButtons();
+            return;
+        }
+        applyAiSettingsFromUi(false);
+        providerDetailsExpanded = true;
+        aiLyricsSettings.setProvider(provider.id);
+        populateAiSettingsUi();
+        showSavedToast(ui("toast.provider_saved"));
+    }
+
+    // ------------------------------------------------------------------ 외관 (appearance)
+
+    private List<SettingsKit.Option> alignmentOptions() {
+        List<SettingsKit.Option> options = new ArrayList<>();
+        options.add(new SettingsKit.Option(AiLyricsSettings.LYRICS_ALIGN_LEFT, lyricsAlignmentLabel(AiLyricsSettings.LYRICS_ALIGN_LEFT))
+                .icon(settingsKit.icon("alignLeft", settingsKit.p.text3, 16f)));
+        options.add(new SettingsKit.Option(AiLyricsSettings.LYRICS_ALIGN_CENTER, lyricsAlignmentLabel(AiLyricsSettings.LYRICS_ALIGN_CENTER))
+                .icon(settingsKit.icon("alignCenter", settingsKit.p.text3, 16f)));
+        options.add(new SettingsKit.Option(AiLyricsSettings.LYRICS_ALIGN_RIGHT, lyricsAlignmentLabel(AiLyricsSettings.LYRICS_ALIGN_RIGHT))
+                .icon(settingsKit.icon("alignRight", settingsKit.p.text3, 16f)));
+        return options;
+    }
+
+    private void buildAppearanceSettingsMenu(LinearLayout content) {
+        LinearLayout page = settingsMenuPage(content, SETTINGS_TAB_APPEARANCE);
+        boolean embedded = IvLyricsBridge.isEmbedded(this);
+
+        LinearLayout section = settingsSection(page, ui("settings.section.layout"), null, SettingsPreviewView.LYRICS);
+        LinearLayout group = settingsGroup(section);
+        lyricsAlignmentChoice = settingsKit.segmented(alignmentOptions(), AiLyricsSettings.LYRICS_ALIGN_LEFT, alignment -> {
+            if (aiLyricsSettings == null) return;
+            aiLyricsSettings.setLyricsTextAlignment(alignment);
+            AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+            rebuildLyricsAlignmentButtons(snapshot.lyricsTextAlignment);
+            applyLyricsTextAlignmentSetting(snapshot);
+            showSavedToast(ui("toast.lyrics_alignment_saved"));
+        });
+        focusableItems(lyricsAlignmentChoice);
+        settingsStackRow(group, ui("setting.lyrics_alignment"), ui("setting.lyrics_alignment_desc"), lyricsAlignmentChoice.view);
+
+        section = settingsSection(page, ui("section.typography"), ui("section.typography_desc"), SETTINGS_PREVIEW_TYPOGRAPHY);
+        List<AiLyricsSettings.TypographySlot> mainSlots = new ArrayList<>();
+        List<AiLyricsSettings.TypographySlot> lyricsSlots = new ArrayList<>();
+        for (AiLyricsSettings.TypographySlot slot : AiLyricsSettings.TYPOGRAPHY_SLOTS) {
+            if (slot.id.startsWith("lyrics_")) lyricsSlots.add(slot); else mainSlots.add(slot);
+        }
+        typographyMainList = null;
+        typographyGroupChoice = null;
+        if (!embedded) {
+            List<SettingsKit.Option> groups = new ArrayList<>();
+            groups.add(new SettingsKit.Option("main", ui("settings.typography_main")));
+            groups.add(new SettingsKit.Option("lyrics", ui("settings.typography_lyrics")));
+            typographyGroupChoice = settingsKit.segmented(groups, "main", this::showTypographyGroup);
+            focusableItems(typographyGroupChoice);
+            LinearLayout.LayoutParams switchParams = matchWrap();
+            switchParams.bottomMargin = dp(10);
+            section.addView(typographyGroupChoice.view, switchParams);
+            typographyMainList = buildTypographySettingsList(mainSlots);
+            // Switched by the segmented control, so it does not take part in empty-group tidying.
+            typographyMainList.setTag(null);
+            section.addView(typographyMainList, matchWrap());
+        }
+        typographyLyricsList = buildTypographySettingsList(lyricsSlots);
+        if (!embedded) {
+            typographyLyricsList.setTag(null);
+            typographyLyricsList.setVisibility(View.GONE);
+        }
+        section.addView(typographyLyricsList, matchWrap());
+
+        section = settingsSection(page, ui("section.speaker_colors"), ui("section.speaker_colors_desc"), SettingsPreviewView.SPEAKERS);
+        group = settingsGroup(section);
+        useSyncCreatorSpeakerColorsSwitch = settingsToggle(group, ui("setting.creator_speaker_colors"),
+                ui("setting.creator_speaker_colors_desc"));
+        useSyncCreatorSpeakerColorsSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) {
+                return;
+            }
+            aiLyricsSettings.setUseSyncCreatorSpeakerColors(isChecked);
+            applySpeakerColorSettings(aiLyricsSettings.snapshot());
+            showSavedToast(ui("toast.settings_saved"));
+        });
+        buildSpeakerColorSettingsList(group);
+
+        section = settingsSection(page, ui("section.background"), ui("section.background_desc"), SettingsPreviewView.LYRICS);
+        group = settingsGroup(section);
+        List<SettingsKit.Option> modes = new ArrayList<>();
+        int solidColor = parseColor(aiLyricsSettings == null ? "#1e3a8a" : aiLyricsSettings.snapshot().background.solidColor,
+                Color.rgb(30, 58, 138));
+        backgroundSolidModeVisual = null;
+        for (AiLyricsSettings.BackgroundMode mode : AiLyricsSettings.BACKGROUND_MODES) {
+            View visual = settingsKit.modeVisual(backgroundModeVisual(mode.id), solidColor);
+            if (AiLyricsSettings.BACKGROUND_MODE_SOLID.equals(mode.id)) backgroundSolidModeVisual = visual;
+            modes.add(new SettingsKit.Option(mode.id, backgroundModeLabel(mode.id)).visual(visual));
+        }
+        backgroundModeChoice = settingsKit.cards(modes, AiLyricsSettings.BACKGROUND_MODE_GRADIENT, 2, modeId -> {
+            if (aiLyricsSettings == null) return;
+            aiLyricsSettings.setBackgroundMode(modeId);
+            AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+            updateBackgroundSettingsUi(snapshot, true);
+            applyBackgroundSettings(snapshot);
+            showSavedToast(ui("toast.background_saved"));
+        });
+        for (int index = 0; index < modes.size(); index++) {
+            String modeId = modes.get(index).value;
+            backgroundModeChoice.items.get(index).setContentDescription(
+                    backgroundModeLabel(modeId) + ", " + backgroundModeDescription(modeId));
+        }
+        focusableItems(backgroundModeChoice);
+        View modeRow = settingsStackRow(group, ui("setting.background_mode"), ui("setting.background_mode_desc"),
+                backgroundModeChoice.view);
+        for (SettingsKit.Option mode : modes) {
+            registerSetting(modeRow, mode.label, backgroundModeDescription(mode.value), null);
+        }
+
+        LinearLayout details = settingsGroup(section);
+        String backgroundLabel = ui("setting.background_mode");
+        videoFallbackChoice = settingsKit.segmented(fallbackOptions(), AiLyricsSettings.BACKGROUND_MODE_GRADIENT,
+                value -> applyAppearanceChoice(AppearanceOptions.FALLBACK, value));
+        focusableItems(videoFallbackChoice);
+        settingsConditional(settingsStackRow(details, ui("appearance.fallback"), null, videoFallbackChoice.view),
+                this::isGlobalVideoBackground, backgroundLabel);
+        List<SettingsKit.Option> aspects = new ArrayList<>();
+        aspects.add(new SettingsKit.Option("fit", ui("appearance.video_fit")));
+        aspects.add(new SettingsKit.Option("fill", ui("appearance.video_fill")));
+        aspects.add(new SettingsKit.Option("stretch", ui("appearance.video_stretch")));
+        videoAspectChoice = settingsKit.segmented(aspects, "fill",
+                value -> applyAppearanceChoice(AppearanceOptions.VIDEO_ASPECT, value));
+        focusableItems(videoAspectChoice);
+        settingsConditional(settingsStackRow(details, ui("appearance.video_aspect"), null, videoAspectChoice.view),
+                this::isGlobalVideoBackground, backgroundLabel);
+        videoEdgeToEdgeSwitch = settingsToggle(details, ui("appearance.video_edges"), null);
+        videoEdgeToEdgeSwitch.setOnCheckedChangeListener((button, value) ->
+                applyAppearanceToggle(AppearanceOptions.VIDEO_EDGES, value));
+        settingsConditional(videoEdgeToEdgeSwitch, this::isGlobalVideoBackground, backgroundLabel);
+        SettingsKit.Range videoScale = settingsRange(100, 180, 1, "%", ui("setting.video_scale"));
+        backgroundVideoScaleSeekBar = videoScale.seekBar;
+        videoScale.listener = (value, commit) -> {
+            if (!commit || suppressSettingsEvents || aiLyricsSettings == null) {
+                return;
+            }
+            aiLyricsSettings.setBackgroundVideoScale(value);
+            AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+            updateBackgroundSettingsUi(snapshot, false);
+            applyBackgroundSettings(snapshot);
+        };
+        backgroundVideoScaleGroup = settingsConditional(
+                settingsStackRow(details, ui("setting.video_scale"), ui("setting.video_scale_desc"), videoScale.view),
+                this::isGlobalVideoBackground, backgroundLabel);
+        View solidColorRow = settingsKit.inlineRow(ui("field.solid_color"), ui("field.solid_color_desc"),
+                buildBackgroundSolidColorControl());
+        details.addView(solidColorRow, matchWrap());
+        registerSetting(solidColorRow, ui("field.solid_color"), ui("field.solid_color_desc"), null);
+        backgroundSolidColorGroup = settingsConditional(solidColorRow, this::isGlobalSolidBackground, backgroundLabel);
+
+        LinearLayout tune = settingsGroup(section);
+        SettingsKit.Range brightness = settingsRange(0, 100, 1, "%", ui("setting.brightness"));
+        backgroundBrightnessSeekBar = brightness.seekBar;
+        brightness.listener = (value, commit) -> {
+            if (!commit || suppressSettingsEvents || aiLyricsSettings == null) {
+                return;
+            }
+            aiLyricsSettings.setBackgroundBrightness(value);
+            AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+            updateBackgroundSettingsUi(snapshot, false);
+            applyBackgroundSettings(snapshot);
+        };
+        settingsStackRow(tune, ui("setting.brightness"), ui("setting.brightness_desc"), brightness.view);
+        SettingsKit.Range blur = settingsRange(0, 100, 1, "%", ui("setting.blur"));
+        backgroundBlurSeekBar = blur.seekBar;
+        blur.listener = (value, commit) -> {
+            if (!commit || suppressSettingsEvents || aiLyricsSettings == null) {
+                return;
+            }
+            aiLyricsSettings.setBackgroundBlur(value);
+            AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+            updateBackgroundSettingsUi(snapshot, false);
+            applyBackgroundSettings(snapshot);
+        };
+        settingsStackRow(tune, ui("setting.blur"), ui("setting.blur_desc"), blur.view);
+        backgroundNoiseSwitch = settingsToggle(tune, ui("setting.noise"), ui("setting.noise_desc"));
+        backgroundNoiseSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) {
+                return;
+            }
+            aiLyricsSettings.setBackgroundNoise(isChecked);
+            applyBackgroundSettings(aiLyricsSettings.snapshot());
+            showSavedToast(isChecked ? ui("toast.background_noise_on") : ui("toast.background_noise_off"));
+        });
+        backgroundReduceMotionSwitch = settingsToggle(tune, ui("setting.reduce_motion"), ui("setting.reduce_motion_desc"));
+        backgroundReduceMotionSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) {
+                return;
+            }
+            aiLyricsSettings.setBackgroundReduceMotion(isChecked);
+            applyBackgroundSettings(aiLyricsSettings.snapshot());
+            showSavedToast(isChecked ? ui("toast.reduce_motion_on") : ui("toast.reduce_motion_off"));
+        });
+        if (embedded) {
+            playerCardBackgroundSwitch = settingsToggle(tune, ui("setting.player_card_background"),
+                    ui("setting.player_card_background_desc"));
+            playerCardBackgroundSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                if (suppressSettingsEvents || aiLyricsSettings == null) return;
+                aiLyricsSettings.setPlayerCardBackgroundEnabled(isChecked);
+                showSavedToast(ui("toast.settings_saved"));
+            });
+        }
+
+        section = settingsSection(page, ui("settings.section.lyrics_screen"), null, -1);
+        group = settingsGroup(section);
+        List<SettingsKit.Option> titleActions = new ArrayList<>();
+        titleActions.add(new SettingsKit.Option("player", ui("appearance.title_player")));
+        titleActions.add(new SettingsKit.Option("disabled", ui("appearance.title_disabled")));
+        titleActions.add(new SettingsKit.Option("album", ui("appearance.title_album")));
+        titleActions.add(new SettingsKit.Option("context", ui("appearance.title_context")));
+        titleTapChoice = settingsKit.cards(titleActions, "player", 2,
+                value -> applyAppearanceChoice(AppearanceOptions.TITLE_ACTION, value));
+        focusableItems(titleTapChoice);
+        settingsStackRow(group, ui("appearance.title_tap"), null, titleTapChoice.view);
+        landscapeShowOriginalSwitch = settingsToggle(group, ui("appearance.landscape_original"), null);
+        landscapeShowOriginalSwitch.setOnCheckedChangeListener((button, value) ->
+                applyAppearanceToggle(AppearanceOptions.LANDSCAPE_ORIGINAL, value));
+        landscapeShowArtworkSwitch = settingsToggle(group, ui("appearance.landscape_artwork"), null);
+        landscapeShowArtworkSwitch.setOnCheckedChangeListener((button, value) ->
+                applyAppearanceToggle(AppearanceOptions.LANDSCAPE_ARTWORK, value));
+        showLyricsNotFoundSwitch = settingsToggle(group, ui("appearance.empty_notice"), null);
+        showLyricsNotFoundSwitch.setOnCheckedChangeListener((button, value) ->
+                applyAppearanceToggle(AppearanceOptions.EMPTY_NOTICE, value));
+    }
+
+    private List<SettingsKit.Option> fallbackOptions() {
+        List<SettingsKit.Option> options = new ArrayList<>();
+        for (String mode : new String[]{AiLyricsSettings.BACKGROUND_MODE_GRADIENT,
+                AiLyricsSettings.BACKGROUND_MODE_BLUR_GRADIENT, AiLyricsSettings.BACKGROUND_MODE_SOLID}) {
+            options.add(new SettingsKit.Option(mode, backgroundModeLabel(mode)));
+        }
+        return options;
+    }
+
+    private int backgroundModeVisual(String mode) {
+        String normalized = AiLyricsSettings.normalizeBackgroundMode(mode);
+        if (AiLyricsSettings.BACKGROUND_MODE_BLUR_GRADIENT.equals(normalized)) return SettingsKit.VISUAL_BLUR;
+        if (AiLyricsSettings.BACKGROUND_MODE_VIDEO.equals(normalized)) return SettingsKit.VISUAL_VIDEO;
+        if (AiLyricsSettings.BACKGROUND_MODE_SOLID.equals(normalized)) return SettingsKit.VISUAL_SOLID;
+        return SettingsKit.VISUAL_ALBUM;
+    }
+
+    private boolean isGlobalVideoBackground() {
+        return aiLyricsSettings != null && AiLyricsSettings.BACKGROUND_MODE_VIDEO.equals(
+                AiLyricsSettings.normalizeBackgroundMode(aiLyricsSettings.snapshot().background.mode));
+    }
+
+    private boolean isGlobalSolidBackground() {
+        if (aiLyricsSettings == null) return false;
+        String mode = AiLyricsSettings.normalizeBackgroundMode(aiLyricsSettings.snapshot().background.mode);
+        return AiLyricsSettings.BACKGROUND_MODE_SOLID.equals(mode)
+                || (AiLyricsSettings.BACKGROUND_MODE_VIDEO.equals(mode)
+                && AiLyricsSettings.BACKGROUND_MODE_SOLID.equals(aiLyricsSettings.videoFallback()));
+    }
+
+    /** The former option buttons' behaviour: save, refresh the background and confirm. */
+    private void applyAppearanceChoice(String key, String value) {
+        if (aiLyricsSettings == null) return;
+        aiLyricsSettings.setAppearanceChoice(key, value);
+        updateBackgroundSettingsUi(aiLyricsSettings.snapshot(), false);
+        applyBackgroundSettings(aiLyricsSettings.snapshot());
+        showSavedToast(ui("toast.settings_saved"));
+    }
+
+    private void applyAppearanceToggle(String key, boolean value) {
+        if (suppressSettingsEvents || aiLyricsSettings == null) return;
+        aiLyricsSettings.setAppearanceToggle(key, value);
+        applyMobileAppearance();
+        showSavedToast(ui("toast.settings_saved"));
+    }
+
+    private void syncAppearanceOptionControls() {
+        if (aiLyricsSettings == null) return;
+        if (videoFallbackChoice != null) videoFallbackChoice.select(aiLyricsSettings.videoFallback());
+        if (videoAspectChoice != null) videoAspectChoice.select(aiLyricsSettings.videoAspect());
+        if (titleTapChoice != null) titleTapChoice.select(aiLyricsSettings.titleTapAction());
+        boolean previous = suppressSettingsEvents;
+        suppressSettingsEvents = true;
+        if (videoEdgeToEdgeSwitch != null) videoEdgeToEdgeSwitch.setChecked(aiLyricsSettings.videoEdgeToEdge());
+        if (landscapeShowOriginalSwitch != null) landscapeShowOriginalSwitch.setChecked(aiLyricsSettings.landscapeShowOriginal());
+        if (landscapeShowArtworkSwitch != null) landscapeShowArtworkSwitch.setChecked(aiLyricsSettings.landscapeShowArtwork());
+        if (showLyricsNotFoundSwitch != null) showLyricsNotFoundSwitch.setChecked(aiLyricsSettings.showLyricsNotFound());
+        suppressSettingsEvents = previous;
+    }
+
+    private void showTypographyGroup(String groupId) {
+        boolean main = "main".equals(groupId) && typographyMainList != null;
+        if (typographyMainList != null) typographyMainList.setVisibility(main ? View.VISIBLE : View.GONE);
+        if (typographyLyricsList != null) typographyLyricsList.setVisibility(main ? View.GONE : View.VISIBLE);
+        if (typographyGroupChoice != null && !groupId.equals(typographyGroupChoice.selected)) {
+            typographyGroupChoice.select(groupId);
+        }
+        updateSettingsPreviewKind();
+    }
+
+    // ------------------------------------------------------------------ 동작 (behaviour)
+
+    private void buildBehaviorSettingsMenu(LinearLayout content) {
+        LinearLayout page = settingsMenuPage(content, SETTINGS_TAB_LYRICS);
+        LinearLayout section = settingsSection(page, ui("settings.section.interlude"), null, -1);
+        LinearLayout group = settingsGroup(section);
+        autoInstrumentalBreakSwitch = settingsToggle(group, ui("setting.auto_interlude"), ui("setting.auto_interlude_desc"));
+        autoInstrumentalBreakSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) {
+                return;
+            }
+            aiLyricsSettings.setAutoInstrumentalBreakEnabled(isChecked);
+            setAutoInstrumentalBreakOnViews(isChecked);
+            showSavedToast(isChecked ? ui("toast.auto_interlude_on") : ui("toast.auto_interlude_off"));
+        });
+        // Labels also apply to explicit ♪ interlude lines, so this stays visible with detection off.
+        interludeLabelsSwitch = settingsToggle(group, ui("setting.interlude_labels"), ui("setting.interlude_labels_desc"));
+        interludeLabelsSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) {
+                return;
+            }
+            aiLyricsSettings.setInterludeLabelsEnabled(isChecked);
+            setInterludeLabelsOnViews(isChecked);
+            updateLyricPreview(currentTrack == null ? 0L : currentLyricsPlaybackPosition(currentTrack));
+            showSavedToast(ui("toast.settings_saved"));
+        });
+
+        section = settingsSection(page, ui("settings.section.karaoke"), null, -1);
+        group = settingsGroup(section);
+        syncedLyricsKaraokeSwitch = settingsToggle(group, ui("setting.synced_karaoke_animation"),
+                ui("setting.synced_karaoke_animation_desc"));
+        syncedLyricsKaraokeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) {
+                return;
+            }
+            aiLyricsSettings.setSyncedLyricsKaraokeAnimationEnabled(isChecked);
+            setSyncedLyricsKaraokeAnimationOnViews(isChecked);
+            showSavedToast(ui("toast.settings_saved"));
+        });
+        List<SettingsKit.Option> granularities = new ArrayList<>();
+        for (String granularity : new String[]{AiLyricsSettings.KARAOKE_DISPLAY_CHARACTER,
+                AiLyricsSettings.KARAOKE_DISPLAY_WORD, AiLyricsSettings.KARAOKE_DISPLAY_LINE}) {
+            granularities.add(new SettingsKit.Option(granularity, ui("karaoke.display." + granularity)));
+        }
+        karaokeDisplayGranularityChoice = settingsKit.segmented(granularities, AiLyricsSettings.KARAOKE_DISPLAY_CHARACTER,
+                granularity -> {
+                    if (aiLyricsSettings == null) return;
+                    aiLyricsSettings.setKaraokeDisplayGranularity(granularity);
+                    AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+                    rebuildKaraokeDisplayGranularityButtons(snapshot.karaokeDisplayGranularity);
+                    setKaraokeDisplayGranularityOnViews(snapshot.karaokeDisplayGranularity);
+                    showSavedToast(ui("toast.settings_saved"));
+                });
+        focusableItems(karaokeDisplayGranularityChoice);
+        settingsStackRow(group, ui("setting.karaoke_display_granularity"), ui("setting.karaoke_display_granularity_desc"),
+                karaokeDisplayGranularityChoice.view);
+        karaokeBounceSwitch = settingsToggle(group, ui("setting.karaoke_bounce_effect"), ui("setting.karaoke_bounce_effect_desc"));
+        karaokeBounceSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) {
+                return;
+            }
+            aiLyricsSettings.setKaraokeBounceEffectEnabled(isChecked);
+            setKaraokeBounceEffectOnViews(isChecked);
+            setKaraokeExpressiveMotionOnViews(aiLyricsSettings.karaokeExpressiveMotionEnabled());
+            refreshSettingsVisibility();
+            showSavedToast(ui("toast.settings_saved"));
+        });
+        List<SettingsKit.Option> motionStyles = new ArrayList<>();
+        for (String style : new String[]{AiLyricsSettings.KARAOKE_MOTION_CLASSIC, AiLyricsSettings.KARAOKE_MOTION_EXPRESSIVE}) {
+            motionStyles.add(new SettingsKit.Option(style, ui("karaoke.motion." + style)));
+        }
+        karaokeMotionStyleChoice = settingsKit.segmented(motionStyles, AiLyricsSettings.KARAOKE_MOTION_CLASSIC, style -> {
+            if (aiLyricsSettings == null) return;
+            aiLyricsSettings.setKaraokeMotionStyle(style);
+            setKaraokeExpressiveMotionOnViews(aiLyricsSettings.karaokeExpressiveMotionEnabled());
+            showSavedToast(ui("toast.settings_saved"));
+        });
+        focusableItems(karaokeMotionStyleChoice);
+        // Expressive motion is a style of the bounce, so it needs the bounce on.
+        settingsConditional(settingsStackRow(group, ui("setting.karaoke_motion_style"),
+                        ui("setting.karaoke_motion_style_desc"), karaokeMotionStyleChoice.view),
+                () -> aiLyricsSettings == null || aiLyricsSettings.snapshot().karaokeBounceEffectEnabled,
+                ui("setting.karaoke_bounce_effect"));
+        syncedPronunciationSwitch = settingsToggle(group, ui("setting.synced_pronunciation"),
+                ui("setting.synced_pronunciation_desc"));
+        syncedPronunciationSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) {
+                return;
+            }
+            setSyncedPronunciation(isChecked);
+            refreshSettingsVisibility();
+            showSavedToast(ui("toast.settings_saved"));
+        });
+        pronunciationFillSwitch = settingsToggle(group, ui("setting.pronunciation_karaoke_fill"),
+                ui("setting.pronunciation_karaoke_fill_desc"));
+        pronunciationFillSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) {
+                return;
+            }
+            setPronunciationKaraokeFill(isChecked);
+            showSavedToast(ui("toast.settings_saved"));
+        });
+        // The fill splits the pronunciation by sung unit, so it needs synced pronunciation.
+        settingsConditional(pronunciationFillSwitch,
+                () -> aiLyricsSettings == null || aiLyricsSettings.syncedPronunciationEnabled(),
+                ui("setting.synced_pronunciation"));
+    }
+
+    // ------------------------------------------------------------------ 플레이어 (player)
+
+    private void buildPlayerSettingsMenu(LinearLayout content) {
+        LinearLayout page = settingsMenuPage(content, SETTINGS_TAB_PLAYER);
+        LinearLayout section = settingsSection(page, ui("section.player"), null, -1);
+        LinearLayout group = settingsGroup(section);
+        keepScreenOnSwitch = settingsToggle(group, ui("setting.keep_screen_on"), ui("setting.keep_screen_on_desc"));
+        keepScreenOnSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) {
+                return;
+            }
+            aiLyricsSettings.setKeepScreenOn(isChecked);
+            applyKeepScreenOnSetting(aiLyricsSettings.snapshot());
+            showSavedToast(isChecked ? ui("toast.keep_screen_on_on") : ui("toast.keep_screen_on_off"));
+        });
+        albumArtOpenLpSwitch = settingsToggle(group, ui("setting.album_art_open_lp"),
+                ui("setting.album_art_open_lp_desc"));
+        albumArtOpenLpSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) return;
+            aiLyricsSettings.setAlbumArtOpenLp(checked);
+            updateArtworkTapHint(artworkView);
+            showSavedToast(ui("toast.settings_saved"));
+        });
+        if (IvLyricsBridge.isEmbedded(this)) return;
+
+        section = settingsSection(page, ui("settings.section.landscape"), null, -1);
+        group = settingsGroup(section);
+        landscapeAutoHideControlsSwitch = settingsToggle(group, ui("setting.landscape_auto_hide"), ui("setting.landscape_auto_hide_desc"));
+        landscapeAutoHideControlsSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) {
+                return;
+            }
+            aiLyricsSettings.setLandscapeAutoHideControls(isChecked);
+            applyLandscapeControlsAutoHideSetting();
+            showSavedToast(isChecked ? ui("toast.landscape_auto_hide_on") : ui("toast.landscape_auto_hide_off"));
+        });
+        landscapeCenterNoLyricsSwitch = settingsToggle(group, ui("setting.landscape_center_no_lyrics"),
+                ui("setting.landscape_center_no_lyrics_desc"));
+        landscapeCenterNoLyricsSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) {
+                return;
+            }
+            aiLyricsSettings.setLandscapeCenterNoLyrics(isChecked);
+            applyLandscapeNoLyricsLayout(true);
+            showSavedToast(isChecked
+                    ? ui("toast.landscape_center_no_lyrics_on")
+                    : ui("toast.landscape_center_no_lyrics_off"));
+        });
+
+        section = settingsSection(page, ui("section.pip"), ui("section.pip_desc"), SettingsPreviewView.PIP);
+        group = settingsGroup(section);
+        pipShowArtworkSwitch = settingsToggle(group, ui("setting.pip_show_artwork"), ui("setting.pip_show_artwork_desc"));
+        pipShowArtworkSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) {
+                return;
+            }
+            aiLyricsSettings.setPipShowArtwork(isChecked);
+            rebuildPictureInPictureStageContent();
+            updatePictureInPictureParamsIfNeeded();
+            showSavedToast(ui("toast.pip_settings_saved"));
+        });
+        List<SettingsKit.Option> orientations = new ArrayList<>();
+        String[][] orientationIcons = {
+                {AiLyricsSettings.PIP_ORIENTATION_LANDSCAPE, "landscape"},
+                {AiLyricsSettings.PIP_ORIENTATION_PORTRAIT, "portrait"},
+                {AiLyricsSettings.PIP_ORIENTATION_SQUARE, "square"}
+        };
+        for (String[] orientation : orientationIcons) {
+            orientations.add(new SettingsKit.Option(orientation[0], pipOrientationLabel(orientation[0]))
+                    .icon(settingsKit.icon(orientation[1], settingsKit.p.text3, 16f)));
+        }
+        pipOrientationChoice = settingsKit.segmented(orientations, AiLyricsSettings.PIP_ORIENTATION_SQUARE, orientation -> {
+            if (aiLyricsSettings == null) return;
+            aiLyricsSettings.setPipOrientation(orientation);
+            AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+            rebuildPictureInPictureOrientationButtons(snapshot.pipOrientation);
+            rebuildPictureInPictureStageContent();
+            updatePictureInPictureParamsIfNeeded();
+            showSavedToast(ui("toast.pip_settings_saved"));
+        });
+        focusableItems(pipOrientationChoice);
+        settingsStackRow(group, ui("setting.pip_orientation"), ui("setting.pip_orientation_desc"), pipOrientationChoice.view);
+        pipLyricsAlignmentChoice = settingsKit.segmented(alignmentOptions(), AiLyricsSettings.LYRICS_ALIGN_CENTER, alignment -> {
+            if (aiLyricsSettings == null) return;
+            aiLyricsSettings.setPipLyricsTextAlignment(alignment);
+            AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+            rebuildPipLyricsAlignmentButtons(snapshot.pipLyricsTextAlignment);
+            applyLyricsTextAlignmentSetting(snapshot);
+            showSavedToast(ui("toast.pip_settings_saved"));
+        });
+        focusableItems(pipLyricsAlignmentChoice);
+        settingsStackRow(group, ui("setting.pip_lyrics_alignment"), ui("setting.pip_lyrics_alignment_desc"),
+                pipLyricsAlignmentChoice.view);
+        SettingsKit.Range pipSize = settingsRange(50, 180, 1, "%", ui("setting.pip_lyrics_size"));
+        pipLyricsSizeSeekBar = pipSize.seekBar;
+        pipSize.listener = (value, commit) -> {
+            if (commit) {
+                showSavedToast(ui("toast.pip_settings_saved"));
+                return;
+            }
+            if (suppressSettingsEvents || aiLyricsSettings == null) {
+                return;
+            }
+            aiLyricsSettings.setPipLyricsSizePercent(value);
+            applyTypographySettings(aiLyricsSettings.snapshot());
+        };
+        settingsStackRow(group, ui("setting.pip_lyrics_size"), ui("setting.pip_lyrics_size_desc"), pipSize.view);
+
+        section = settingsSection(page, ui("vinyl.mode"), ui("vinyl.settings.subtitle"), SettingsPreviewView.VINYL);
+        group = settingsGroup(section);
+        SettingsKit.Range albumSize = settingsRange(70, 140, 1, "%", ui("vinyl.settings.album_size"));
+        vinylAlbumSizeSeekBar = albumSize.seekBar;
+        albumSize.listener = vinylRangeListener(value -> aiLyricsSettings.setVinylAlbumSizePercent(value));
+        settingsStackRow(group, ui("vinyl.settings.album_size"), ui("vinyl.settings.album_size_desc"), albumSize.view);
+        SettingsKit.Range recordSize = settingsRange(70, 140, 1, "%", ui("vinyl.settings.record_size"));
+        vinylRecordSizeSeekBar = recordSize.seekBar;
+        recordSize.listener = vinylRangeListener(value -> aiLyricsSettings.setVinylRecordSizePercent(value));
+        settingsStackRow(group, ui("vinyl.settings.record_size"), ui("vinyl.settings.record_size_desc"), recordSize.view);
+        vinylAnimationsSwitch = settingsToggle(group, ui("vinyl.settings.animations"), ui("vinyl.settings.animations_desc"));
+        vinylAnimationsSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) return;
+            aiLyricsSettings.setVinylAnimationsEnabled(isChecked);
+            applyVinylSettings(aiLyricsSettings.snapshot());
+            showSavedToast(ui("toast.settings_saved"));
+        });
+        vinylTrackChangesSwitch = settingsToggle(group, ui("vinyl.track_changes"), ui("vinyl.track_changes_desc"));
+        vinylTrackChangesSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) return;
+            aiLyricsSettings.setVinylTrackChanges(checked);
+            applyVinylSettings(aiLyricsSettings.snapshot());
+            showSavedToast(ui("toast.settings_saved"));
+        });
+        SettingsKit.Range rotationSpeed = settingsRange(25, 200, 1, "%", ui("vinyl.rotation_speed"));
+        vinylRotationSpeedSeekBar = rotationSpeed.seekBar;
+        rotationSpeed.listener = vinylRangeListener(value -> aiLyricsSettings.setVinylRotationSpeed(value));
+        settingsStackRow(group, ui("vinyl.rotation_speed"), ui("vinyl.rotation_speed_desc"), rotationSpeed.view);
+        vinylCenterRotationSwitch = settingsToggle(group, ui("vinyl.settings.center_rotation"),
+                ui("vinyl.settings.center_rotation_desc"));
+        vinylCenterRotationSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) return;
+            aiLyricsSettings.setVinylCenterRotationEnabled(isChecked);
+            applyVinylSettings(aiLyricsSettings.snapshot());
+            showSavedToast(ui("toast.settings_saved"));
+        });
+        vinylLyricsSwitch = settingsToggle(group, ui("vinyl.settings.lyrics"), ui("vinyl.settings.lyrics_desc"));
+        vinylLyricsSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) return;
+            aiLyricsSettings.setVinylLyricsEnabled(isChecked);
+            applyVinylSettings(aiLyricsSettings.snapshot());
+            showSavedToast(ui("toast.settings_saved"));
+        });
+        vinylSimplifiedTitleSwitch = settingsToggle(group, ui("vinyl.simple_title"), ui("vinyl.simple_title_desc"));
+        vinylSimplifiedTitleSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) return;
+            aiLyricsSettings.setVinylSimplifiedTitle(checked);
+            applyVinylSettings(aiLyricsSettings.snapshot());
+            showSavedToast(ui("toast.settings_saved"));
+        });
+
+        section = settingsSection(page, ui("vinyl.settings.tonearm_title"), ui("vinyl.settings.tonearm_subtitle"),
+                SettingsPreviewView.VINYL);
+        group = settingsGroup(section);
+        List<SettingsKit.Option> styles = new ArrayList<>();
+        String[][] arms = {
+                {AiLyricsSettings.VINYL_TONEARM_STYLE_S, "arm.s"},
+                {AiLyricsSettings.VINYL_TONEARM_STYLE_STRAIGHT, "arm.straight"},
+                {AiLyricsSettings.VINYL_TONEARM_STYLE_J, "arm.j"},
+                {AiLyricsSettings.VINYL_TONEARM_STYLE_LINEAR, "arm.linear"}
+        };
+        for (String[] arm : arms) {
+            styles.add(new SettingsKit.Option(arm[0], vinylTonearmStyleLabel(arm[0])).visual(settingsKit.armVisual(arm[1])));
+        }
+        vinylTonearmStyleChoice = settingsKit.cards(styles, AiLyricsSettings.VINYL_TONEARM_STYLE_S, 2, style -> {
+            if (aiLyricsSettings == null) return;
+            aiLyricsSettings.setVinylTonearmStyle(style);
+            AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+            rebuildVinylTonearmStyleButtons();
+            applyVinylSettings(snapshot);
+            showSavedToast(ui("toast.settings_saved"));
+        });
+        focusableItems(vinylTonearmStyleChoice);
+        settingsStackRow(group, ui("vinyl.settings.tonearm_style"), ui("vinyl.settings.tonearm_style_desc"),
+                vinylTonearmStyleChoice.view);
+        List<SettingsKit.Option> finishes = new ArrayList<>();
+        String[][] finishColors = {
+                {AiLyricsSettings.VINYL_TONEARM_FINISH_WHITE, "#f2f2f2"},
+                {AiLyricsSettings.VINYL_TONEARM_FINISH_SILVER, "#b9bec7"},
+                {AiLyricsSettings.VINYL_TONEARM_FINISH_BLACK, "#1d1f24"}
+        };
+        for (String[] finish : finishColors) {
+            finishes.add(new SettingsKit.Option(finish[0], vinylTonearmFinishLabel(finish[0]))
+                    .icon(settingsKit.swatchMark(Color.parseColor(finish[1]), 12f)));
+        }
+        vinylTonearmFinishChoice = settingsKit.segmented(finishes, AiLyricsSettings.VINYL_TONEARM_FINISH_WHITE, finish -> {
+            if (aiLyricsSettings == null) return;
+            aiLyricsSettings.setVinylTonearmFinish(finish);
+            AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+            rebuildVinylTonearmFinishButtons();
+            applyVinylSettings(snapshot);
+            showSavedToast(ui("toast.settings_saved"));
+        });
+        focusableItems(vinylTonearmFinishChoice);
+        settingsStackRow(group, ui("vinyl.settings.tonearm_finish"), ui("vinyl.settings.tonearm_finish_desc"),
+                vinylTonearmFinishChoice.view);
+        SettingsKit.Range tonearmSize = settingsRange(80, 120, 1, "%", ui("vinyl.settings.tonearm_size"));
+        vinylTonearmSizeSeekBar = tonearmSize.seekBar;
+        tonearmSize.listener = vinylRangeListener(value -> aiLyricsSettings.setVinylTonearmSizePercent(value));
+        settingsStackRow(group, ui("vinyl.settings.tonearm_size"), ui("vinyl.settings.tonearm_size_desc"), tonearmSize.view);
+
+        section = settingsSection(page, ui("section.typography"), ui("vinyl.settings.typography_desc"), SettingsPreviewView.VINYL);
+        section.addView(buildTypographySettingsList(AiLyricsSettings.VINYL_TYPOGRAPHY_SLOTS), matchWrap());
+    }
+
+    private interface IntSetting {
+        void set(int value);
+    }
+
+    /** LP sizes and speed: applied while dragging, confirmed once the drag ends (as before). */
+    private SettingsKit.RangeListener vinylRangeListener(IntSetting setting) {
+        return (value, commit) -> {
+            if (commit) {
+                showSavedToast(ui("toast.settings_saved"));
+                return;
+            }
+            if (suppressSettingsEvents || aiLyricsSettings == null) return;
+            setting.set(value);
+            applyVinylSettings(aiLyricsSettings.snapshot());
+        };
+    }
+
+    // ------------------------------------------------------------------ 고급 (advanced)
+
+    private void buildSystemSettingsMenu(LinearLayout content) {
+        LinearLayout page = settingsMenuPage(content, SETTINGS_TAB_SYSTEM);
+        boolean embedded = IvLyricsBridge.isEmbedded(this);
+        LinearLayout section = settingsSection(page, ui("creator_privacy.section"), ui("creator_privacy.section_desc"), -1);
+        buildCreatorPrivacyControl(section);
+
+        section = settingsSection(page, ui("cloud_sync.section"),
+                ui("cloud_sync.monthly_required") + "\n" + ui("cloud_sync.section_desc"), -1);
+        buildCloudSettingsControl(section);
+
+        if (!embedded) {
+            section = settingsSection(page, ui("section.app_update"), ui("section.app_update_desc"), -1);
+            LinearLayout group = settingsGroup(section);
+            updateStatusView = settingsKit.text(ui("update.status_idle"), 14f, settingsKit.p.text2, settingsKit.regular);
+            updateStatusView.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+            group.addView(settingsKit.statusLine(updateStatusView), matchWrap());
+            settingsAction(group, ui("button.check_updates"), null, SettingsKit.ACTION_NORMAL, view -> checkForUpdates(true));
+            settingsAction(group, ui("button.open_release_page"), null, SettingsKit.ACTION_LINK,
+                    view -> openExternalUrl("https://github.com/ivLis-Studio/ivLyrics-Android/releases"));
+
+            section = settingsSection(page, ui("section.spotify_shortcut"), ui("section.spotify_shortcut_desc"), -1);
+            group = settingsGroup(section);
+            spotifyDetectionPermissionButton = settingsAction(group, ui("button.open_accessibility_permission"), null,
+                    SettingsKit.ACTION_NORMAL, view -> openSpotifyDetectionPermissionSettings());
+            overlayPermissionButton = settingsAction(group, ui("button.open_overlay_permission"), null,
+                    SettingsKit.ACTION_NORMAL, view -> openOverlayPermissionSettings());
+            updateOverlayPermissionButton();
+
+            section = settingsSection(page, ui("section.spotify_api"), ui("section.spotify_api_desc"), -1);
+            section.addView(buildSpotifyApiSetupInstructions(), matchWrap());
+            group = settingsGroup(section);
+            spotifyClientIdInput = settingsKit.field("", false, false);
+            settingsStackRow(group, "Client ID", ui("field.spotify_client_id_desc"), spotifyClientIdInput);
+            spotifyClientSecretInput = settingsKit.field("", false, true);
+            settingsStackRow(group, "Client Secret", ui("field.spotify_client_secret_desc"),
+                    settingsKit.secretField(spotifyClientSecretInput, ui("settings.show_secret"), ui("settings.hide_secret")));
+            settingsAction(group, ui("button.spotify_save"), null, SettingsKit.ACTION_NORMAL, view -> applySpotifySettingsFromUi());
+        }
+
+        section = settingsSection(page, ui("section.lyrics_cache"), ui("section.lyrics_cache_desc"), -1);
+        LinearLayout group = settingsGroup(section);
+        settingsAction(group, ui("button.ai_cache_clear"), null, SettingsKit.ACTION_NORMAL,
+                view -> confirmSettingsAction(ui("button.ai_cache_clear"), ui("settings.confirm_irreversible"),
+                        this::clearAiCacheFromSettings));
+        settingsAction(group, ui("button.debug_log"), null, SettingsKit.ACTION_NORMAL, view -> {
+            showSettingsPanel(false);
+            toggleDebugPanel();
+        });
+        // Destructive actions sit in their own block, apart from everyday actions.
+        LinearLayout danger = settingsGroup(section);
+        settingsAction(danger, ui("button.clear_current"), null, SettingsKit.ACTION_DANGER,
+                view -> clearCurrentLyricsCacheFromSettings());
+        settingsAction(danger, ui("button.clear_all"), null, SettingsKit.ACTION_DANGER,
+                view -> confirmSettingsAction(ui("button.clear_all"), ui("settings.confirm_irreversible"),
+                        this::clearAllLyricsCacheFromSettings));
+    }
+
+    private void clearAiCacheFromSettings() {
+        if (aiLyricsRepository != null) {
+            aiLyricsRepository.clearCache();
+        }
+        if (furiganaRepository != null) {
+            furiganaRepository.clearCache();
+        }
+        currentCulturalAnnotations = Collections.emptyList();
+        currentCulturalAnnotationRequestKey = "";
+        setCulturalAnnotationsLoading(false);
+        applyCulturalAnnotationsToViews();
+        if (aiSettingsStatusView != null) aiSettingsStatusView.setText(ui("status.ai_cache_cleared"));
+        showSavedToast(ui("toast.ai_cache_cleared"));
+    }
+
+    private static final class SettingsSearchEntry {
+        final String menuId;
+        final String section;
+        final String label;
+        final String description;
+        final View target;
+        final Runnable reveal;
+
+        SettingsSearchEntry(String menuId, String section, String label, String description, View target, Runnable reveal) {
+            this.menuId = menuId;
+            this.section = section == null ? "" : section;
+            this.label = label;
+            this.description = description;
+            this.target = target;
+            this.reveal = reveal;
+        }
+    }
+
+    private static final class SettingsSection {
+        final String menuId;
+        final View view;
+        final int previewKind;
+
+        SettingsSection(String menuId, View view, int previewKind) {
+            this.menuId = menuId;
+            this.view = view;
+            this.previewKind = previewKind;
+        }
+    }
+
+    private static final class SettingsConditionalRow {
+        final View view;
+        final java.util.function.BooleanSupplier visible;
+        final TextView note;
+        boolean revealed;
+
+        SettingsConditionalRow(View view, java.util.function.BooleanSupplier visible, TextView note) {
+            this.view = view;
+            this.visible = visible;
+            this.note = note;
+        }
+    }
+
+    private FrameLayout buildSpotifySetupPanel() {
+        rememberSpotifySetupDraft();
+        onboardingKit = new SettingsKit(this, settingsPalette());
+        SettingsKit kit = onboardingKit;
+        FrameLayout panel = new FrameLayout(this);
+        panel.setLayoutDirection(TextUtils.getLayoutDirectionFromLocale(Locale.forLanguageTag(aiLyricsSettings.snapshot().uiLang)));
+        panel.setBackgroundColor(kit.p.bg);
+        panel.setVisibility(isInitialSetupComplete() ? View.GONE : View.VISIBLE);
+        panel.setOnTouchListener((view, event) -> true);
+
+        ScrollView scrollView = new ScrollView(this);
+        spotifySetupScrollView = scrollView;
+        scrollView.setFillViewport(true);
+        // Scrolled form controls must stay out of the system bars, cutout and keyboard insets.
+        scrollView.setClipToPadding(true);
+        scrollView.setPadding(dp(20), dp(24), dp(20), dp(24));
+        scrollView.setOnApplyWindowInsetsListener((view, insets) -> {
+            int left = insets.getSystemWindowInsetLeft();
+            int right = insets.getSystemWindowInsetRight();
+            int top = insets.getSystemWindowInsetTop();
+            int bottom = insets.getSystemWindowInsetBottom();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                android.graphics.Insets safe = insets.getInsets(WindowInsets.Type.systemBars()
+                        | WindowInsets.Type.displayCutout() | WindowInsets.Type.ime());
+                left = safe.left;
+                right = safe.right;
+                top = safe.top;
+                bottom = safe.bottom;
+            }
+            scrollView.setPadding(left + dp(20), top + dp(24), right + dp(20), bottom + dp(24));
+            return insets;
+        });
+        panel.addView(scrollView, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        FrameLayout columnHost = new FrameLayout(this);
+        scrollView.addView(columnHost, new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout outer = new LinearLayout(this) {
+            @Override protected void onMeasure(int widthSpec, int heightSpec) {
+                int width = Math.min(View.MeasureSpec.getSize(widthSpec), dp(520));
+                super.onMeasure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), heightSpec);
+            }
+        };
+        outer.setOrientation(LinearLayout.VERTICAL);
+        columnHost.addView(outer, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL));
+
+        outer.addView(kit.text("ivLyrics", 16f, kit.p.text, kit.semi), matchWrap());
+        onboardingStepLabel = kit.text("", 13f, kit.p.text2, kit.regular);
+        onboardingStepLabel.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        outer.addView(onboardingStepLabel, topMargin(matchWrap(), dp(24)));
+        LinearLayout progress = kit.horizontal();
+        onboardingProgress = new View[ONBOARDING_STEP_COUNT];
+        for (int index = 0; index < ONBOARDING_STEP_COUNT; index++) {
+            View segment = new View(this);
+            onboardingProgress[index] = segment;
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(3), 1f);
+            if (index > 0) params.setMarginStart(dp(6));
+            progress.addView(segment, params);
+        }
+        progress.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        outer.addView(progress, topMargin(matchWrap(), dp(10)));
+
+        onboardingBody = kit.vertical();
+        outer.addView(onboardingBody, topMargin(matchWrap(), dp(28)));
+
+        // Actions scroll with the form, including on a short window or with very large text.
+        LinearLayout actionRow = kit.vertical();
+        outer.addView(actionRow, topMargin(matchWrap(), dp(24)));
+        onboardingNextButton = kit.button(ui("button.next"), SettingsKit.BUTTON_PRIMARY, null);
+        makeRemoteFocusable(onboardingNextButton);
+        onboardingNextButton.setOnClickListener(view -> handleOnboardingNextAction());
+        actionRow.addView(onboardingNextButton, matchWrap());
+        onboardingBackButton = kit.button(ui("button.previous"), SettingsKit.BUTTON_NORMAL, null);
+        makeRemoteFocusable(onboardingBackButton);
+        onboardingBackButton.setOnClickListener(view -> showOnboardingStep(onboardingStep - 1));
+        actionRow.addView(onboardingBackButton, topMargin(matchWrap(), dp(8)));
+
+        showOnboardingStep(initialOnboardingStep());
+        return panel;
+    }
+
+    private int initialOnboardingStep() {
+        if (onboardingStep >= 0) return onboardingStep;
+        if (isSpotifyApiConfigured() && !NowPlayingService.isNotificationAccessEnabled(this)) {
+            return 1;
+        }
+        return 0;
+    }
+
+    private void showOnboardingStep(int step) {
+        rememberSpotifySetupDraft();
+        int nextStep = Math.max(0, Math.min(ONBOARDING_STEP_COUNT - 1, step));
+        if (onboardingGreetingRotation != null) {
+            // Leaving welcome settles in the selected UI language for the rest of this flow.
+            // Background/focus pauses continue to use the resumable setActive(false) path.
+            if (nextStep > 0) onboardingGreetingRotation.interactWithLanguage(aiLyricsSettings.snapshot().uiLang);
+            onboardingGreetingRotation.setActive(false);
+        }
+        onboardingGreetingView = null;
+        onboardingGreetingEnglish = null;
+        onboardingGreetingKorean = null;
+        onboardingStep = nextStep;
+        if (onboardingBody == null) {
+            return;
+        }
+        onboardingBody.removeAllViews();
+        if (onboardingStepLabel != null) {
+            onboardingStepLabel.setText(uiFormat("onboarding.step_format", onboardingStep + 1, ONBOARDING_STEP_COUNT));
+        }
+        if (onboardingProgress != null) {
+            for (int index = 0; index < onboardingProgress.length; index++) {
+                onboardingProgress[index].setBackground(onboardingKit.rect(
+                        index <= onboardingStep ? onboardingKit.p.ink : onboardingKit.p.surface4, 2f));
+            }
+        }
+        if (onboardingBackButton != null) onboardingBackButton.setVisibility(onboardingStep > 0 ? View.VISIBLE : View.GONE);
+
+        onboardingUiLanguageSelectButton = null;
+        onboardingPermissionStatusView = null;
+        spotifySetupClientIdInput = null;
+        spotifySetupClientSecretInput = null;
+        spotifySetupStatusView = null;
+        if (onboardingStep == 0) {
+            buildOnboardingWelcomeStep(onboardingBody);
+        } else if (onboardingStep == 1) {
+            buildOnboardingPermissionStep(onboardingBody);
+        } else {
+            buildOnboardingSpotifyStep(onboardingBody);
+        }
+        updateOnboardingActionState();
+        if (spotifySetupScrollView != null) spotifySetupScrollView.post(() -> spotifySetupScrollView.scrollTo(0, 0));
+        requestDefaultRemoteFocus(true);
+    }
+
+    private void handleOnboardingNextAction() {
+        if (onboardingStep == ONBOARDING_STEP_COUNT - 1) {
+            applySpotifySetupFromRequiredPanel();
+            return;
+        }
+        if (onboardingStep == 1 && !NowPlayingService.isNotificationAccessEnabled(this)) {
+            openMediaPermissionSettings();
+            return;
+        }
+        showOnboardingStep(onboardingStep + 1);
+    }
+
+    private String onboardingNextButtonText() {
+        if (onboardingStep == 1) {
+            return NowPlayingService.isNotificationAccessEnabled(this)
+                    ? ui("button.next")
+                    : ui("button.open_permission");
+        }
+        if (onboardingStep >= ONBOARDING_STEP_COUNT - 1) {
+            return ui(spotifyCredentialsValidationInFlight ? "toast.spotify_checking" : "button.save_start");
+        }
+        return ui("button.next");
+    }
+
+    private void buildOnboardingWelcomeStep(LinearLayout body) {
+        SettingsKit kit = onboardingKit;
+        onboardingGreetingView = new FrameLayout(this) {
+            private final android.view.ViewTreeObserver.OnScrollChangedListener scrollListener =
+                    BaseLyricsActivity.this::updateOnboardingGreetingActivity;
+
+            @Override protected void onAttachedToWindow() {
+                super.onAttachedToWindow();
+                getViewTreeObserver().addOnScrollChangedListener(scrollListener);
+                updateOnboardingGreetingActivity();
+            }
+            @Override protected void onDetachedFromWindow() {
+                getViewTreeObserver().removeOnScrollChangedListener(scrollListener);
+                onboardingGreetingRotation.setActive(false);
+                super.onDetachedFromWindow();
+            }
+            @Override protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+                super.onLayout(changed, left, top, right, bottom);
+                updateOnboardingGreetingActivity();
+            }
+            @Override protected void onVisibilityChanged(View changedView, int visibility) {
+                super.onVisibilityChanged(changedView, visibility);
+                updateOnboardingGreetingActivity();
+            }
+            @Override protected void onWindowVisibilityChanged(int visibility) {
+                super.onWindowVisibilityChanged(visibility);
+                updateOnboardingGreetingActivity();
+            }
+        };
+        // Both labels participate in measurement, so a crossfade never moves the form.
+        onboardingGreetingEnglish = kit.largeTitle("Hello");
+        onboardingGreetingKorean = kit.largeTitle("안녕하세요");
+        onboardingGreetingEnglish.setTextLocale(Locale.ENGLISH);
+        onboardingGreetingKorean.setTextLocale(Locale.KOREAN);
+        onboardingGreetingEnglish.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        onboardingGreetingKorean.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        onboardingGreetingView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
+        if (Build.VERSION.SDK_INT >= 28) onboardingGreetingView.setAccessibilityHeading(true);
+        onboardingGreetingView.addView(onboardingGreetingEnglish, new FrameLayout.LayoutParams(-1, -2));
+        onboardingGreetingView.addView(onboardingGreetingKorean, new FrameLayout.LayoutParams(-1, -2));
+        renderOnboardingGreeting(onboardingGreetingRotation.isKorean(), false);
+        body.addView(onboardingGreetingView, matchWrap());
+        TextView description = kit.text(ui("onboarding.welcome_desc"), 15f, kit.p.text2, kit.regular);
+        description.setLineSpacing(dp(4), 1f);
+        body.addView(description, matchWrap());
+        body.addView(buildOnboardingUiLanguageSelect(), topMargin(matchWrap(), dp(24)));
+        LinearLayout display = kit.group();
+        Switch darkMode = kit.toggle(ui("onboarding.dark_mode"), null);
+        darkMode.setChecked(kit.p.dark);
+        darkMode.setOnCheckedChangeListener((button, checked) -> {
+            getSharedPreferences(SETTINGS_UI_PREFS, MODE_PRIVATE).edit()
+                    .putString(KEY_SETTINGS_THEME, checked ? SettingsPalette.THEME_DARK : SettingsPalette.THEME_LIGHT).apply();
+            rebuildSettingsPanelInPlace();
+            rebuildSpotifySetupPanel();
+        });
+        makeRemoteFocusable(darkMode);
+        display.addView(darkMode, matchWrap());
+        body.addView(display, topMargin(matchWrap(), dp(12)));
+    }
+
+    private void renderOnboardingGreeting(boolean korean, boolean animate) {
+        if (onboardingGreetingView == null) return;
+        onboardingGreetingView.setContentDescription(korean ? "안녕하세요" : "Hello");
+        onboardingGreetingEnglish.animate().cancel();
+        onboardingGreetingKorean.animate().cancel();
+        if (animate) {
+            onboardingGreetingEnglish.animate().alpha(korean ? 0f : 1f).setDuration(300L).start();
+            onboardingGreetingKorean.animate().alpha(korean ? 1f : 0f).setDuration(300L).start();
+        } else {
+            onboardingGreetingEnglish.setAlpha(korean ? 0f : 1f);
+            onboardingGreetingKorean.setAlpha(korean ? 1f : 0f);
+        }
+    }
+
+    private void updateOnboardingGreetingActivity() {
+        if (onboardingGreetingRotation == null) return;
+        boolean screenReader = onboardingAccessibilityManager != null
+                && (onboardingAccessibilityManager.isTouchExplorationEnabled()
+                || !onboardingAccessibilityManager.getEnabledAccessibilityServiceList(
+                        AccessibilityServiceInfo.FEEDBACK_SPOKEN).isEmpty());
+        boolean visible = onboardingResumed && onboardingStep == 0 && !isInitialSetupComplete() && hasWindowFocus()
+                && onboardingGreetingView != null && onboardingGreetingView.isShown()
+                && onboardingGreetingView.getWindowVisibility() == View.VISIBLE
+                && onboardingGreetingView.getGlobalVisibleRect(new Rect());
+        onboardingGreetingRotation.setActive(visible && !screenReader && ValueAnimator.areAnimatorsEnabled()
+                && Settings.Global.getFloat(getContentResolver(), Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f
+                && !aiLyricsSettings.snapshot().background.reduceMotion);
+    }
+
+    private LinearLayout buildOnboardingUiLanguageSelect() {
+        SettingsKit kit = onboardingKit;
+        LinearLayout group = kit.group();
+        onboardingUiLanguageSelectButton = kit.picker("");
+        makeRemoteFocusable(onboardingUiLanguageSelectButton);
+        onboardingUiLanguageSelectButton.setOnTouchListener((view, event) -> {
+            if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                onboardingGreetingRotation.interactWithLanguage(aiLyricsSettings.snapshot().uiLang);
+            }
+            return false;
+        });
+        onboardingUiLanguageSelectButton.setOnClickListener(view -> showOnboardingUiLanguagePopup(onboardingUiLanguageSelectButton));
+        group.addView(kit.stackRow(ui("onboarding.app_language_native"), null, onboardingUiLanguageSelectButton), matchWrap());
+        updateOnboardingUiLanguageSelect();
+        return group;
+    }
+
+    private void buildOnboardingPermissionStep(LinearLayout body) {
+        SettingsKit kit = onboardingKit;
+        addOnboardingHeading(body, "onboarding.permission_title", "onboarding.permission_desc");
+        onboardingPermissionStatusView = kit.text("", 15f, kit.p.text, kit.semi);
+        onboardingPermissionStatusView.setPaddingRelative(dp(16), dp(16), dp(16), dp(16));
+        onboardingPermissionStatusView.setBackground(kit.rect(kit.p.surface, 12f, kit.p.line, 1f));
+        onboardingPermissionStatusView.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        body.addView(onboardingPermissionStatusView, topMargin(matchWrap(), dp(24)));
+        TextView hint = kit.text(ui("onboarding.permission_hint"), 14f, kit.p.text2, kit.regular);
+        hint.setLineSpacing(dp(3), 1f);
+        body.addView(hint, topMargin(matchWrap(), dp(12)));
+        updateOnboardingPermissionState();
+    }
+
+    private void buildOnboardingSpotifyStep(LinearLayout body) {
+        SettingsKit kit = onboardingKit;
+        addOnboardingHeading(body, "onboarding.spotify_title", "onboarding.spotify_desc");
+        LinearLayout fields = kit.group();
+        body.addView(fields, topMargin(matchWrap(), dp(24)));
+        spotifySetupClientIdInput = kit.field("", false, false);
+        spotifySetupClientIdInput.setSaveEnabled(false);
+        attachSpotifySetupKeyboardScroll(spotifySetupClientIdInput);
+        fields.addView(kit.stackRow("Client ID", null, spotifySetupClientIdInput), matchWrap());
+        spotifySetupClientSecretInput = kit.field("", false, true);
+        spotifySetupClientSecretInput.setSaveEnabled(false);
+        attachSpotifySetupKeyboardScroll(spotifySetupClientSecretInput);
+        fields.addView(kit.stackRow("Client Secret", null,
+                kit.secretField(spotifySetupClientSecretInput, ui("settings.show_secret"), ui("settings.hide_secret"))), matchWrap());
+
+        spotifySetupStatusView = kit.text("", 14f, kit.p.text2, kit.regular);
+        spotifySetupStatusView.setLineSpacing(dp(3), 1f);
+        spotifySetupStatusView.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        body.addView(spotifySetupStatusView, topMargin(matchWrap(), dp(12)));
+
+        Button help = kit.button(ui("onboarding.spotify_help"), SettingsKit.BUTTON_NORMAL,
+                onboardingSpotifyHelpExpanded ? "down" : "right");
+        makeRemoteFocusable(help);
+        help.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+            @Override public void onInitializeAccessibilityNodeInfo(View host, android.view.accessibility.AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                info.addAction(onboardingSpotifyHelpExpanded
+                        ? android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction.ACTION_COLLAPSE
+                        : android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction.ACTION_EXPAND);
+            }
+            @Override public boolean performAccessibilityAction(View host, int action, Bundle arguments) {
+                if (action == android.view.accessibility.AccessibilityNodeInfo.ACTION_EXPAND
+                        || action == android.view.accessibility.AccessibilityNodeInfo.ACTION_COLLAPSE) return help.performClick();
+                return super.performAccessibilityAction(host, action, arguments);
+            }
+        });
+        body.addView(help, topMargin(matchWrap(), dp(16)));
+        LinearLayout guide = kit.vertical();
+        guide.setVisibility(onboardingSpotifyHelpExpanded ? View.VISIBLE : View.GONE);
+        if (onboardingSpotifyHelpExpanded) guide.addView(buildSpotifyApiSetupInstructions(), matchWrap());
+        body.addView(guide, topMargin(matchWrap(), dp(12)));
+        help.setOnClickListener(view -> {
+            onboardingSpotifyHelpExpanded = !onboardingSpotifyHelpExpanded;
+            help.setCompoundDrawablesRelativeWithIntrinsicBounds(
+                    kit.icon(onboardingSpotifyHelpExpanded ? "down" : "right", kit.p.text, 17f), null, null, null);
+            if (onboardingSpotifyHelpExpanded && guide.getChildCount() == 0) {
+                guide.addView(buildSpotifyApiSetupInstructions(), matchWrap());
+            }
+            guide.setVisibility(onboardingSpotifyHelpExpanded ? View.VISIBLE : View.GONE);
+        });
+        populateSpotifyCredentialInputs(aiLyricsSettings == null ? null : aiLyricsSettings.snapshot());
+    }
+
+    private void addOnboardingHeading(LinearLayout body, String titleKey, String descriptionKey) {
+        SettingsKit kit = onboardingKit;
+        body.addView(kit.largeTitle(ui(titleKey)), matchWrap());
+        TextView description = kit.text(ui(descriptionKey), 15f, kit.p.text2, kit.regular);
+        description.setLineSpacing(dp(4), 1f);
+        body.addView(description, matchWrap());
+    }
+
+    private void rememberSpotifySetupDraft() {
+        if (spotifySetupClientIdInput != null) onboardingClientIdDraft = spotifySetupClientIdInput.getText().toString();
+        if (spotifySetupClientSecretInput != null) onboardingClientSecretDraft = spotifySetupClientSecretInput.getText().toString();
+    }
+
+    private void updateOnboardingActionState() {
+        boolean checking = onboardingStep == ONBOARDING_STEP_COUNT - 1 && spotifyCredentialsValidationInFlight;
+        if (onboardingNextButton != null) {
+            onboardingNextButton.setText(onboardingNextButtonText());
+            onboardingNextButton.setEnabled(!checking);
+            onboardingNextButton.setAlpha(checking ? 0.5f : 1f);
+        }
+        if (spotifySetupClientIdInput != null) spotifySetupClientIdInput.setEnabled(!checking);
+        if (spotifySetupClientSecretInput != null) spotifySetupClientSecretInput.setEnabled(!checking);
+    }
+
+    private void rebuildSpotifySetupPanel() {
+        if (spotifySetupPanel == null || !(spotifySetupPanel.getParent() instanceof ViewGroup)) return;
+        ViewGroup parent = (ViewGroup) spotifySetupPanel.getParent();
+        int index = parent.indexOfChild(spotifySetupPanel);
+        parent.removeView(spotifySetupPanel);
+        spotifySetupPanel = buildSpotifySetupPanel();
+        parent.addView(spotifySetupPanel, index, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        spotifySetupPanel.requestApplyInsets();
+        applySystemBarsForOrientation();
+    }
+
+    private void attachSpotifySetupKeyboardScroll(EditText input) {
+        if (input == null) {
+            return;
+        }
+        input.setOnFocusChangeListener((view, hasFocus) -> {
+            if (hasFocus) {
+                scrollSpotifySetupInputIntoView(view);
+            }
+        });
+        input.setOnClickListener(this::scrollSpotifySetupInputIntoView);
+    }
+
+    private void scrollSpotifySetupInputIntoView(View target) {
+        if (spotifySetupScrollView == null || target == null) {
+            return;
+        }
+        target.postDelayed(() -> scrollSpotifySetupInputIntoViewNow(target), 180L);
+        target.postDelayed(() -> scrollSpotifySetupInputIntoViewNow(target), 420L);
+    }
+
+    private void scrollSpotifySetupInputIntoViewNow(View target) {
+        if (spotifySetupScrollView == null || target == null || target.getWindowToken() == null) {
+            return;
+        }
+
+        int scrollY = spotifySetupScrollView.getScrollY();
+        int targetTop = verticalOffsetInSpotifySetupScroll(target);
+        int targetBottom = targetTop + target.getHeight();
+        int visibleBottom = scrollY + spotifySetupScrollView.getHeight() - spotifySetupScrollView.getPaddingBottom();
+        int topTarget = Math.max(0, targetTop - dp(28));
+        int bottomTarget = targetBottom + dp(110);
+
+        if (bottomTarget > visibleBottom) {
+            spotifySetupScrollView.smoothScrollTo(0, Math.max(0, bottomTarget - spotifySetupScrollView.getHeight()));
+        } else if (topTarget < scrollY) {
+            spotifySetupScrollView.smoothScrollTo(0, topTarget);
+        }
+    }
+
+    private int verticalOffsetInSpotifySetupScroll(View target) {
+        int top = 0;
+        View current = target;
+        while (current != null && current != spotifySetupScrollView) {
+            top += current.getTop();
+            Object parent = current.getParent();
+            current = parent instanceof View ? (View) parent : null;
+        }
+        return top;
+    }
+
+    private void updateOnboardingUiLanguageSelect() {
+        if (onboardingUiLanguageSelectButton == null || aiLyricsSettings == null) {
+            return;
+        }
+        String lang = aiLyricsSettings.snapshot().uiLang;
+        onboardingUiLanguageSelectButton.setText(AppI18n.label(lang));
+    }
+
+    private void showOnboardingUiLanguagePopup(View anchor) {
+        if (anchor == null || aiLyricsSettings == null) {
+            return;
+        }
+        String selected = aiLyricsSettings.snapshot().uiLang;
+        onboardingGreetingRotation.interactWithLanguage(selected);
+        showSettingsChoicePopup(anchor, uiLanguageChoices(), selected, code -> {
+            onboardingGreetingRotation.interactWithLanguage(code);
+            aiLyricsSettings.setUiLang(code);
+            applyUiLanguageChange();
+            showSavedToast(ui("toast.ui_language_saved"));
+        });
+    }
+
+    private void showLanguageSelectPopup(
+            View anchor,
+            List<LanguageChoice> choices,
+            String selected,
+            ChoiceHandler handler
+    ) {
+        if (anchor == null || choices == null || choices.isEmpty() || handler == null) {
+            return;
+        }
+
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setFocusable(true);
+        content.setFocusableInTouchMode(true);
+        content.setPadding(dp(8), dp(8), dp(8), dp(8));
+        content.setBackground(roundDrawable(Color.rgb(30, 32, 42), dp(14)));
+
+        int visibleCount = Math.min(7, choices.size());
+        PopupWindow popup = new PopupWindow(
+                content,
+                Math.max(1, Math.min(visibleSettingsWindowBounds().width() - dp(16), Math.max(anchor.getWidth(), dp(220)))),
+                Math.max(1, Math.min(visibleSettingsWindowBounds().height() - dp(16), dp(48) * visibleCount + dp(16))),
+                true
+        );
+        popup.setOutsideTouchable(true);
+        popup.setBackgroundDrawable(roundDrawable(Color.rgb(30, 32, 42), dp(14)));
+        content.setOnKeyListener((view, keyCode, event) -> {
+            if (event != null
+                    && event.getAction() == KeyEvent.ACTION_DOWN
+                    && (keyCode == KeyEvent.KEYCODE_ESCAPE || keyCode == KeyEvent.KEYCODE_DEL)) {
+                popup.dismiss();
+                return true;
+            }
+            return false;
+        });
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            popup.setElevation(dp(10));
+        }
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(false);
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        scroll.addView(list, new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        content.addView(scroll, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        for (LanguageChoice choice : choices) {
+            boolean active = sameChoice(choice.code, selected);
+            TextView item = SettingsAppearance.button(this, choice.label, 14f);
+            item.setSelected(active);
+            item.setTextColor(active ? SettingsAppearance.BACKGROUND : SettingsAppearance.TEXT);
+            makeRemoteFocusable(item);
+            item.setGravity(Gravity.CENTER_VERTICAL);
+            item.setBackground(roundDrawable(
+                    active ? Color.argb(238, 255, 255, 255) : Color.TRANSPARENT,
+                    dp(10)
+            ));
+            item.setOnClickListener(view -> {
+                popup.dismiss();
+                handler.onChoice(choice.code);
+            });
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            if (list.getChildCount() > 0) {
+                params.topMargin = dp(4);
+            }
+            list.addView(item, params);
+            if (active) {
+                item.post(item::requestFocus);
+            }
+        }
+
+        popup.showAsDropDown(anchor, 0, dp(6));
+    }
+
+    /** The settings screen's choice list: the language popup in the settings palette. */
+    private void showSettingsChoicePopup(
+            View anchor,
+            List<LanguageChoice> choices,
+            String selected,
+            ChoiceHandler handler
+    ) {
+        if (settingsKit == null) {
+            showLanguageSelectPopup(anchor, choices, selected, handler);
+            return;
+        }
+        if (anchor == null || choices == null || choices.isEmpty() || handler == null) {
+            return;
+        }
+        SettingsKit kit = settingsKit;
+        LinearLayout content = kit.vertical();
+        content.setFocusable(true);
+        content.setFocusableInTouchMode(true);
+        content.setPadding(dp(6), dp(6), dp(6), dp(6));
+        content.setBackground(kit.rect(kit.p.surface, 12f, kit.p.line2, 1f));
+
+        int visibleCount = Math.min(7, choices.size());
+        PopupWindow popup = new PopupWindow(
+                content,
+                Math.max(1, Math.min(visibleSettingsWindowBounds().width() - dp(16), Math.max(anchor.getWidth(), dp(220)))),
+                Math.max(1, Math.min(visibleSettingsWindowBounds().height() - dp(16), dp(50) * visibleCount + dp(12))),
+                true
+        );
+        popup.setOutsideTouchable(true);
+        popup.setBackgroundDrawable(kit.rect(kit.p.surface, 12f));
+        popup.setElevation(dp(10));
+        content.setOnKeyListener((view, keyCode, event) -> {
+            if (event != null
+                    && event.getAction() == KeyEvent.ACTION_DOWN
+                    && (keyCode == KeyEvent.KEYCODE_ESCAPE || keyCode == KeyEvent.KEYCODE_DEL)) {
+                popup.dismiss();
+                return true;
+            }
+            return false;
+        });
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(false);
+        LinearLayout list = kit.vertical();
+        scroll.addView(list, new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        content.addView(scroll, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        for (LanguageChoice choice : choices) {
+            boolean active = sameChoice(choice.code, selected);
+            TextView item = kit.text(choice.label, 15.5f, active ? kit.p.accentText : kit.p.text,
+                    active ? kit.semi : kit.regular);
+            makeRemoteFocusable(item);
+            item.setSelected(active);
+            item.setGravity(Gravity.CENTER_VERTICAL);
+            item.setMinHeight(dp(48));
+            item.setPaddingRelative(dp(12), dp(10), dp(12), dp(10));
+            item.setBackground(kit.pressable(kit.rect(active ? kit.p.accentSoft : 0x00000000, 8f), 8f));
+            if (active) {
+                item.setCompoundDrawablePadding(dp(10));
+                item.setCompoundDrawablesRelativeWithIntrinsicBounds(null, null, kit.icon("check", kit.p.accentText, 18f), null);
+            }
+            item.setOnClickListener(view -> {
+                popup.dismiss();
+                handler.onChoice(choice.code);
+            });
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            if (list.getChildCount() > 0) {
+                params.topMargin = dp(2);
+            }
+            list.addView(item, params);
+            if (active) {
+                item.post(() -> {
+                    item.requestFocus();
+                    scroll.scrollTo(0, Math.max(0, item.getTop() - dp(48)));
+                });
+            }
+        }
+
+        popup.showAsDropDown(anchor, 0, dp(6));
+    }
+
+    private void applyUiLanguageChange() {
+        boolean wasSettingsVisible = isSettingsPanelVisible();
+        boolean wasDebugVisible = debugPanel != null && debugPanel.getVisibility() == View.VISIBLE;
+        boolean wasLyricsVisible = lyricsPageVisible;
+        // The language is changed from a settings menu: come back to it at the same scroll position.
+        String previousSettingsRoute = settingsRoute;
+        rememberSettingsScroll();
+        Map<String, Integer> previousSettingsScroll = new HashMap<>(settingsScrollMemory);
+        int previousOnboardingStep = onboardingStep;
+        TrackSnapshot snapshot = currentTrack;
+        LyricsResult lyricsResult = currentLyricsResult;
+        Bitmap artwork = currentArtworkBitmap;
+        String artworkKey = currentArtworkKey;
+        boolean artworkFromSpotify = currentArtworkFromSpotify;
+
+        destroyInAppBrowserWebView();
+        inAppBrowserVisible = false;
+        inAppBrowserInitialUrl = "";
+        if (vinylPlayerModeView != null) {
+            vinylPlayerModeView.release();
+        }
+        setContentView(buildContentView());
+        settingsScrollMemory.putAll(previousSettingsScroll);
+        settingsRoute = previousSettingsRoute;
+        showSettingsRoute(settingsRoute, true);
+        applySystemBarsForOrientation();
+        AiLyricsSettings.Snapshot settingsSnapshot = aiLyricsSettings.snapshot();
+        applyKeepScreenOnSetting(settingsSnapshot);
+        applyBackgroundSettings(settingsSnapshot);
+        applyTypographySettings(settingsSnapshot);
+        applySpeakerColorSettings(settingsSnapshot);
+        updatePermissionState();
+
+        currentTrack = snapshot;
+        currentLyricsResult = lyricsResult == null ? LyricsResult.empty(ui("status.lyrics_waiting")) : lyricsResult;
+        currentArtworkKey = artworkKey == null ? "" : artworkKey;
+        currentArtworkFromSpotify = artworkFromSpotify;
+        updateArtwork(artwork, currentArtworkKey);
+        restoreNowPlayingViewsAfterUiLanguageChange();
+        syncYouTubeBackgroundState();
+
+        if (!isInitialSetupComplete()) {
+            onboardingStep = Math.max(0, Math.min(ONBOARDING_STEP_COUNT - 1, previousOnboardingStep));
+            showOnboardingStep(onboardingStep);
+            updateSpotifySetupGate(false);
+        } else {
+            updateSpotifySetupGate(false);
+            if (wasSettingsVisible) {
+                showSettingsPanel(true, false);
+            }
+            if (wasDebugVisible && debugPanel != null) {
+                debugPanel.setVisibility(View.VISIBLE);
+            }
+            if (wasLyricsVisible) {
+                showLyricsPage(true);
+            }
+        }
+        applyLandscapeControlsAutoHideSetting();
+        requestDefaultRemoteFocus(false);
+    }
+
+    private void rebuildContentViewAfterConfigurationChange() {
+        // Opening motion lyrics from settings closes them and turns the window in the same moment.
+        boolean wasSettingsVisible = isSettingsPanelVisible() && !settingsPanelClosing;
+        boolean wasDebugVisible = debugPanel != null && debugPanel.getVisibility() == View.VISIBLE;
+        boolean wasLyricsVisible = lyricsPageVisible;
+        int previousOnboardingStep = onboardingStep;
+        dismissLyricsMetaTip();
+        cancelLyricsMetaLongPress();
+
+        rebuildOrientationSensitivePages();
+        attachTrackPanelToSettings();
+        applySystemBarsForOrientation();
+        AiLyricsSettings.Snapshot settingsSnapshot = aiLyricsSettings.snapshot();
+        applyKeepScreenOnSetting(settingsSnapshot);
+        applyBackgroundSettings(settingsSnapshot);
+        applyTypographySettings(settingsSnapshot);
+        applySpeakerColorSettings(settingsSnapshot);
+        updatePermissionState();
+        updateArtwork(currentArtworkBitmap, currentArtworkKey);
+        restoreNowPlayingViewsAfterUiLanguageChange();
+        if (currentLyricsResult != null && currentTrack != null && currentTrack.hasUsableMetadata()) {
+            sourceView.setText(currentLyricsResult.providerLabel);
+            statusView.setText(currentLyricsResult.detail);
+        }
+        syncYouTubeBackgroundState();
+
+        if (!isInitialSetupComplete()) {
+            onboardingStep = Math.max(0, Math.min(ONBOARDING_STEP_COUNT - 1, previousOnboardingStep));
+            showOnboardingStep(onboardingStep);
+            updateSpotifySetupGate(false);
+        } else {
+            updateSpotifySetupGate(false);
+            if (wasSettingsVisible) {
+                showSettingsPanel(true, false);
+            }
+            if (wasDebugVisible && debugPanel != null) {
+                debugPanel.setVisibility(View.VISIBLE);
+            }
+            if (wasLyricsVisible && !isLandscapeLayout()) {
+                showLyricsPage(true);
+            } else if (isLandscapeLayout()) {
+                lyricsPageVisible = false;
+            }
+            reopenLyricsPageAfterMotionMode();
+        }
+        applyLandscapeControlsAutoHideSetting();
+        requestDefaultRemoteFocus(false);
+    }
+
+    private void rebuildOrientationSensitivePages() {
+        if (rootView == null || mainPage == null || lyricsPage == null) {
+            setContentView(buildContentView());
+            return;
+        }
+        int mainIndex = rootView.indexOfChild(mainPage);
+        if (mainIndex < 0) {
+            mainIndex = Math.min(2, rootView.getChildCount());
+        }
+        rootView.removeView(mainPage);
+        rootView.removeView(lyricsPage);
+
+        coveredMainPage = null;
+        mainPage = buildMainPage();
+        rootView.addView(mainPage, Math.min(mainIndex, rootView.getChildCount()), new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        lyricsPage = buildLyricsPage();
+        lyricsPage.setVisibility(View.GONE);
+        lyricsPageVisible = false;
+        stopLyricsPageSlide();
+        rootView.addView(lyricsPage, Math.min(mainIndex + 1, rootView.getChildCount()), new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        if (vinylModeVisible) {
+            mainPage.setVisibility(View.INVISIBLE);
+            lyricsPage.setVisibility(View.INVISIBLE);
+            if (vinylPlayerModeView != null) {
+                vinylPlayerModeView.bringToFront();
+            }
+        }
+        // Motion lyrics turns a phone to landscape as it opens, which rebuilds these pages under it.
+        if (motionModeVisible) {
+            mainPage.setVisibility(View.INVISIBLE);
+            lyricsPage.setVisibility(View.INVISIBLE);
+        }
+    }
+
+    private void restoreNowPlayingViewsAfterUiLanguageChange() {
+        if (currentTrack == null || !currentTrack.hasUsableMetadata()) {
+            if (titleView != null) titleView.setText("ivLyrics");
+            if (artistView != null) artistView.setText(ui("status.waiting_spotify"));
+            lyricsTitleView.setText("ivLyrics");
+            lyricsArtistView.setText(ui("status.waiting_spotify"));
+            updatePictureInPictureMetadataText("ivLyrics", ui("status.waiting_spotify"));
+            sourceView.setText("");
+            statusView.setText("");
+            debugProgressView.setText("0:00 / 0:00");
+            setLyricsTrackDurationOnViews(0L);
+            setLyricsResultOnViews(currentLyricsResult);
+            setLyricsSupplementLoading(false, false);
+            updateLyricPreview(0L);
+            return;
+        }
+        updateTrackMetadataTextViews(currentTrack);
+        long playerPosition = currentPlaybackPosition(currentTrack);
+        updateProgressViews(playerPosition, currentTrack.durationMs);
+        long lyricsPosition = lyricsPlaybackPosition(playerPosition, currentTrack.durationMs);
+        setLyricsTrackDurationOnViews(currentTrack.durationMs);
+        setLyricsPlaybackPositionOnViews(lyricsPosition);
+        setLyricsResultOnViews(currentLyricsResult);
+        setLyricsSupplementLoading(lyricsSupplementPronunciationLoading, lyricsSupplementTranslationLoading, lyricsSupplementFuriganaLoading);
+        updateLyricPreview(lyricsPosition);
+        if (playPauseButton != null) playPauseButton.setPlaying(currentTrack.playing);
+        updateLyricsLanguageSettingsUi();
+        updateLyricsSyncSettingsUi();
+        updateVideoSyncSettingsUi();
+    }
+
+    private List<LanguageChoice> uiLanguageChoices() {
+        List<LanguageChoice> choices = new ArrayList<>();
+        for (AiLyricsSettings.Language language : AppI18n.UI_LANGUAGES) {
+            choices.add(new LanguageChoice(language.code, language.nativeName + " · " + language.name));
+        }
+        return choices;
+    }
+
+    private TextView sectionTitle(String text) {
+        TextView title = label(text, 17f, Color.WHITE, AppFonts.bold(this));
+        title.setTag(SettingsAppearance.SECTION_TITLE);
+        return title;
+    }
+
+    private TextView sectionDescription(String text) {
+        TextView view = label(text, 12f, Color.argb(160, 255, 255, 255), AppFonts.regular(this));
+        view.setLineSpacing(dp(2), 1f);
+        view.setTag(SettingsAppearance.SECTION_NOTE);
+        return view;
+    }
+
+    private void rebuildLyricsProviderSettingsUi() {
+        if (lyricsProviderSettingsContainer == null || lyricsProviderSettings == null || settingsKit == null) {
+            return;
+        }
+        LyricsProviderSettings.Snapshot snapshot = lyricsProviderSettings.snapshot();
+        lyricsProviderSettingsContainer.removeAllViews();
+        lyricsProviderTypeChips.clear();
+        for (int index = 0; index < snapshot.order.size(); index++) {
+            LyricsProviderSettings.ProviderConfig config = snapshot.config(snapshot.order.get(index));
+            if (config == null) {
+                continue;
+            }
+            View card = buildLyricsProviderSettingsCard(config, index, snapshot.order.size());
+            LinearLayout.LayoutParams params = matchWrap();
+            if (lyricsProviderSettingsContainer.getChildCount() > 0) params.topMargin = dp(8);
+            lyricsProviderSettingsContainer.addView(card, params);
+        }
+        updateLyricsProviderOwners();
+        updateLyricsLookupChain();
+    }
+
+    /** One provider: rank, name, move up/down and on/off, then the lyric types it may return. */
+    private View buildLyricsProviderSettingsCard(
+            LyricsProviderSettings.ProviderConfig config,
+            int index,
+            int providerCount
+    ) {
+        SettingsKit kit = settingsKit;
+        LinearLayout card = kit.vertical();
+        card.setBackground(kit.rect(kit.p.surface, 12f, kit.p.line, 1f));
+        card.setPaddingRelative(dp(14), dp(12), dp(12), dp(12));
+
+        SettingsKit.AdaptiveRow top = new SettingsKit.AdaptiveRow(this, dp(120), dp(8));
+        LinearLayout identity = kit.horizontal();
+        identity.addView(settingsRank(index + 1, config.enabled), new LinearLayout.LayoutParams(dp(24), dp(24)));
+        LinearLayout names = kit.vertical();
+        names.addView(kit.text(config.provider.label, 16f, kit.p.text, kit.semi), matchWrap());
+        TextView author = kit.text(uiFormat("lyrics_provider.author_format", config.provider.author), 12.5f,
+                kit.p.text3, kit.regular);
+        names.addView(author, topMargin(matchWrap(), dp(3)));
+        names.setAlpha(config.enabled ? 1f : 0.5f);
+        LinearLayout.LayoutParams namesParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        namesParams.setMarginStart(dp(10));
+        identity.addView(names, namesParams);
+        top.addView(identity);
+
+        LinearLayout order = providerOrderControls(
+                index, providerCount, config.provider.label,
+                () -> {
+                    lyricsProviderSettings.moveProvider(config.provider.id, -1);
+                    onLyricsProviderSettingsChanged(true);
+                },
+                () -> {
+                    lyricsProviderSettings.moveProvider(config.provider.id, 1);
+                    onLyricsProviderSettingsChanged(true);
+                });
+        top.addView(order);
+
+        Switch enabledSwitch = new Switch(this);
+        kit.styleSwitch(enabledSwitch);
+        makeRemoteFocusable(enabledSwitch);
+        enabledSwitch.setContentDescription(config.provider.label + ", " + ui("lyrics_provider.enabled"));
+        enabledSwitch.setChecked(config.enabled);
+        enabledSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || lyricsProviderSettings == null) return;
+            lyricsProviderSettings.setProviderEnabled(config.provider.id, isChecked);
+            onLyricsProviderSettingsChanged(true);
+        });
+        top.addView(enabledSwitch);
+        card.addView(top, matchWrap());
+
+        SettingsKit.FlowLayout types = kit.flow(8f, 0f);
+        String[] typeIds = {LyricsProviderSettings.TYPE_KARAOKE, LyricsProviderSettings.TYPE_SYNCED, LyricsProviderSettings.TYPE_PLAIN};
+        String[] typeLabels = {ui("lyrics_provider.karaoke"), ui("lyrics_provider.synced"), ui("lyrics_provider.plain")};
+        String[] typeIcons = {"karaoke", "synced", "plain"};
+        Map<String, CheckBox> chips = new HashMap<>();
+        for (int typeIndex = 0; typeIndex < typeIds.length; typeIndex++) {
+            CheckBox chip = buildLyricsProviderTypeSwitch(config, typeIds[typeIndex], typeLabels[typeIndex], typeIcons[typeIndex]);
+            chips.put(typeIds[typeIndex], chip);
+            types.addView(chip);
+        }
+        lyricsProviderTypeChips.put(config.provider.id, chips);
+        card.addView(types, topMargin(matchWrap(), dp(6)));
+
+        Button project = kit.button(config.provider.label, SettingsKit.BUTTON_NORMAL, "external");
+        makeRemoteFocusable(project);
+        project.setContentDescription(config.provider.label + ", " + ui("lyrics_provider.project"));
+        project.setOnClickListener(view -> openExternalUrl(config.provider.projectUrl));
+        card.addView(project, topMargin(SettingsKit.wrap(), dp(4)));
+        return card;
+    }
+
+    private TextView settingsRank(int rank, boolean enabled) {
+        SettingsKit kit = settingsKit;
+        TextView view = kit.text(String.valueOf(rank), 12f, enabled ? kit.p.text : kit.p.text3, kit.semi);
+        view.setGravity(Gravity.CENTER);
+        view.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
+        view.setBackground(kit.rect(enabled ? kit.p.surface4 : kit.p.surface3, 4f));
+        view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        return view;
+    }
+
+    private LinearLayout providerOrderControls(int index, int total, String providerName, Runnable moveUp, Runnable moveDown) {
+        LinearLayout order = settingsKit.horizontal();
+        ImageButton up = providerOrderButton("up", ui("lyrics_provider.move_up"), providerName, index > 0, moveUp);
+        ImageButton down = providerOrderButton("down", ui("lyrics_provider.move_down"), providerName, index < total - 1, moveDown);
+        order.addView(up, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        LinearLayout.LayoutParams downParams = new LinearLayout.LayoutParams(dp(44), dp(44));
+        downParams.setMarginStart(dp(8));
+        order.addView(down, downParams);
+        return order;
+    }
+
+    private ImageButton providerOrderButton(String icon, String action, String providerName, boolean enabled, Runnable callback) {
+        ImageButton button = settingsKit.iconButton(icon, providerName + ", " + action, 18f);
+        button.setImageDrawable(settingsKit.icon(icon, settingsKit.p.text2, 18f));
+        button.setBackground(settingsKit.pressable(settingsKit.rect(settingsKit.p.surface2, 8f, settingsKit.p.line2, 1f), 8f));
+        makeRemoteFocusable(button);
+        button.setEnabled(enabled);
+        button.setAlpha(enabled ? 1f : 0.3f);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) button.setTooltipText(action);
+        button.setOnClickListener(view -> callback.run());
+        return button;
+    }
+
+    private CheckBox buildLyricsProviderTypeSwitch(
+            LyricsProviderSettings.ProviderConfig config,
+            String type,
+            String label,
+            String icon
+    ) {
+        CheckBox chip = settingsKit.chip(label.replaceAll("\\s*\\([^)]*\\)", ""),
+                settingsKit.icon(icon, settingsKit.p.text3, 15f));
+        makeRemoteFocusable(chip);
+        chip.setContentDescription(config.provider.label + ", " + label);
+        chip.setChecked(config.allows(type));
+        chip.setEnabled(config.enabled);
+        chip.setAlpha(config.enabled ? 1f : 0.5f);
+        chip.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || lyricsProviderSettings == null) return;
+            lyricsProviderSettings.setTypeAllowed(config.provider.id, type, isChecked);
+            onLyricsProviderSettingsChanged(false);
+        });
+        return chip;
+    }
+
+    /** Fills the chip of the provider that is tried first for each lyric type. */
+    private void updateLyricsProviderOwners() {
+        if (lyricsProviderSettings == null || settingsKit == null) return;
+        LyricsProviderSettings.Snapshot snapshot = lyricsProviderSettings.snapshot();
+        for (String type : new String[]{LyricsProviderSettings.TYPE_KARAOKE, LyricsProviderSettings.TYPE_SYNCED,
+                LyricsProviderSettings.TYPE_PLAIN}) {
+            String owner = null;
+            for (String providerId : snapshot.order) {
+                LyricsProviderSettings.ProviderConfig config = snapshot.config(providerId);
+                if (config != null && config.enabled && config.allows(type)) {
+                    owner = providerId;
+                    break;
+                }
+            }
+            for (Map.Entry<String, Map<String, CheckBox>> entry : lyricsProviderTypeChips.entrySet()) {
+                CheckBox chip = entry.getValue().get(type);
+                if (chip != null) settingsKit.paintChip(chip, entry.getKey().equals(owner));
+            }
+        }
+    }
+
+    /** The lookup order as a chain: ivLyrics Sync first when preferred, then lyric types or providers. */
+    private void updateLyricsLookupChain() {
+        if (lyricsLookupChain == null || lyricsProviderSettings == null || settingsKit == null) return;
+        SettingsKit kit = settingsKit;
+        lyricsLookupChain.removeAllViews();
+        LyricsProviderSettings.Snapshot snapshot = lyricsProviderSettings.snapshot();
+        List<String> steps = new ArrayList<>();
+        if (snapshot.preferSyncDataProvider) steps.add("ivLyrics Sync");
+        if (snapshot.typeFirst) {
+            for (String key : new String[]{"lyrics_provider.karaoke", "lyrics_provider.synced", "lyrics_provider.plain"}) {
+                steps.add(ui(key).replaceAll("\\s*\\([^)]*\\)", ""));
+            }
+        } else {
+            for (String providerId : snapshot.order) {
+                LyricsProviderSettings.ProviderConfig config = snapshot.config(providerId);
+                if (config != null && config.enabled) steps.add(config.provider.label);
+            }
+        }
+        StringBuilder description = new StringBuilder();
+        for (int index = 0; index < steps.size(); index++) {
+            if (index > 0) {
+                ImageView arrow = new ImageView(this);
+                arrow.setImageDrawable(kit.icon("right", kit.p.text4, 14f));
+                arrow.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+                lyricsLookupChain.addView(arrow);
+                description.append(" → ");
+            }
+            boolean sync = index == 0 && snapshot.preferSyncDataProvider;
+            TextView step = kit.text(steps.get(index), 13f, sync ? kit.p.accentText : kit.p.text, kit.semi);
+            step.setPaddingRelative(dp(10), dp(6), dp(10), dp(6));
+            step.setBackground(sync ? kit.rect(kit.p.accentSoft, 6f, kit.p.accentLine, 1f)
+                    : kit.rect(kit.p.surface2, 6f, kit.p.line2, 1f));
+            step.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            lyricsLookupChain.addView(step);
+            description.append(steps.get(index));
+        }
+        lyricsLookupChain.setContentDescription(description.toString());
+    }
+
+    private void onLyricsProviderSettingsChanged(boolean rebuildProviderCards) {
+        if (rebuildProviderCards) {
+            rebuildLyricsProviderSettingsUi();
+        } else {
+            updateLyricsProviderOwners();
+            updateLyricsLookupChain();
+        }
+        if (lyricsRepository != null) {
+            lyricsRepository.invalidateProviderSelection();
+        }
+        showSavedToast(ui("toast.lyrics_provider_settings_saved"));
+        if (pendingLyricsProviderReload != null) {
+            handler.removeCallbacks(pendingLyricsProviderReload);
+        }
+        pendingLyricsProviderReload = () -> {
+            pendingLyricsProviderReload = null;
+            TrackSnapshot snapshot = currentTrack;
+            if (snapshot != null && snapshot.hasUsableMetadata() && lyricsRepository != null) {
+                lyricsRepository.clearCacheForTrack(snapshot.stableKey());
+            }
+            reloadCurrentLyricsFromSettings();
+        };
+        handler.postDelayed(pendingLyricsProviderReload, 250L);
+    }
+
+    private void saveLrclibPlaybackEndpoint() {
+        if (lrclibPlaybackEndpointInput == null || lyricsProviderSettings == null || suppressSettingsEvents) return;
+        try {
+            if (lyricsProviderSettings.setLrclibPlaybackEndpoint(textOf(lrclibPlaybackEndpointInput))) {
+                if (lyricsRepository != null) lyricsRepository.onLrclibPlaybackEndpointChanged();
+                onLyricsProviderSettingsChanged(false);
+            }
+        } catch (IllegalArgumentException error) {
+            lrclibPlaybackEndpointInput.setError(ui("setting.lrclib_endpoint_error"));
+        }
+    }
+
+    /** The six-step Spotify developer dashboard guide as one card with progress, copy rows and navigation. */
+    private LinearLayout buildSpotifyApiSetupInstructions() {
+        SettingsKit kit = settingsKit;
+        LinearLayout group = kit.group();
+        LinearLayout card = kit.vertical();
+        card.setPaddingRelative(dp(16), dp(14), dp(16), dp(16));
+        group.addView(card, matchWrap());
+
+        LinearLayout header = kit.horizontal();
+        TextView heading = kit.text(ui("section.spotify_api") + " · " + ui("settings.title"), 13.5f, kit.p.text, kit.semi);
+        header.addView(heading, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        TextView stepCounter = kit.pill("", SettingsKit.TONE_NEUTRAL);
+        stepCounter.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        LinearLayout.LayoutParams counterParams = SettingsKit.wrap();
+        counterParams.setMarginStart(dp(8));
+        header.addView(stepCounter, counterParams);
+        card.addView(header, matchWrap());
+
+        final int stepCount = 6;
+        LinearLayout progress = kit.horizontal();
+        View[] segments = new View[stepCount];
+        for (int index = 0; index < stepCount; index++) {
+            segments[index] = new View(this);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(3), 1f);
+            if (index > 0) params.setMarginStart(dp(4));
+            progress.addView(segments[index], params);
+        }
+        progress.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        card.addView(progress, topMargin(matchWrap(), dp(10)));
+
+        TextView title = kit.text("", 16f, kit.p.text, kit.semi);
+        title.setLineSpacing(dp(2), 1f);
+        card.addView(title, topMargin(matchWrap(), dp(14)));
+        LinearLayout body = kit.vertical();
+        card.addView(body, topMargin(matchWrap(), dp(8)));
+
+        SettingsKit.AdaptiveRow nav = new SettingsKit.AdaptiveRow(this, dp(120), dp(8));
+        LinearLayout lead = kit.horizontal();
+        Button openButton = kit.button(ui("button.open_browser"), SettingsKit.BUTTON_NORMAL, "external");
+        makeRemoteFocusable(openButton);
+        openButton.setOnClickListener(view -> startActivity(new Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("https://developer.spotify.com/dashboard")
+        )));
+        lead.addView(openButton, SettingsKit.wrap());
+        nav.addView(lead);
+        Button previousButton = kit.button(ui("button.previous"), SettingsKit.BUTTON_NORMAL, null);
+        makeRemoteFocusable(previousButton);
+        nav.addView(previousButton);
+        Button nextButton = kit.button(ui("button.next"), SettingsKit.BUTTON_PRIMARY, null);
+        makeRemoteFocusable(nextButton);
+        nav.addView(nextButton);
+        card.addView(nav, topMargin(matchWrap(), dp(14)));
+
+        final int[] currentStep = {Math.max(0, Math.min(stepCount - 1, spotifyInstructionStep))};
+        final Runnable[] refresh = new Runnable[1];
+        refresh[0] = () -> {
+            body.removeAllViews();
+            int step = currentStep[0];
+            spotifyInstructionStep = step;
+            stepCounter.setText(uiFormat("onboarding.step_format", step + 1, stepCount));
+            for (int index = 0; index < stepCount; index++) {
+                int color = index == step ? kit.p.accent : index < step ? kit.p.accentLine : kit.p.surface4;
+                segments[index].setBackground(kit.rect(color, 2f));
+            }
+            switch (step) {
+                case 0:
+                    title.setText(ui("spotify.step0.title"));
+                    addSpotifyInstructionText(body, ui("spotify.step0.desc"));
+                    body.addView(copyableInstructionRow("Dashboard URL", "https://developer.spotify.com/dashboard"), topMargin(matchWrap(), dp(10)));
+                    break;
+                case 1:
+                    title.setText(ui("spotify.step1.title"));
+                    addSpotifyInstructionText(body, ui("spotify.step1.desc"));
+                    body.addView(copyableInstructionRow("App name", "trackinfo"), topMargin(matchWrap(), dp(10)));
+                    break;
+                case 2:
+                    title.setText(ui("spotify.step2.title"));
+                    addSpotifyInstructionText(body, ui("spotify.step2.desc"));
+                    body.addView(copyableInstructionRow("App description", "trackinfo"), topMargin(matchWrap(), dp(10)));
+                    break;
+                case 3:
+                    title.setText(ui("spotify.step3.title"));
+                    addSpotifyInstructionText(body, ui("spotify.step3.desc"));
+                    body.addView(copyableInstructionRow("Redirect URIs", "https://localhost/"), topMargin(matchWrap(), dp(10)));
+                    break;
+                case 4:
+                    title.setText(ui("spotify.step4.title"));
+                    addSpotifyInstructionText(body, ui("spotify.step4.desc"));
+                    break;
+                default:
+                    title.setText(ui("spotify.step5.title"));
+                    addSpotifyInstructionText(body, ui("spotify.step5.desc"));
+                    break;
+            }
+            openButton.setVisibility(step == 0 ? View.VISIBLE : View.GONE);
+            previousButton.setEnabled(step > 0);
+            previousButton.setAlpha(step > 0 ? 1f : 0.45f);
+            nextButton.setText(step == stepCount - 1 ? ui("button.restart") : ui("button.next"));
+        };
+        previousButton.setOnClickListener(view -> {
+            if (currentStep[0] > 0) {
+                currentStep[0]--;
+                refresh[0].run();
+            }
+        });
+        nextButton.setOnClickListener(view -> {
+            currentStep[0] = currentStep[0] >= stepCount - 1 ? 0 : currentStep[0] + 1;
+            refresh[0].run();
+        });
+        refresh[0].run();
+        registerSetting(group, ui("spotify.step0.title"), ui("spotify.step0.desc"), null);
+        return group;
+    }
+
+    private void addSpotifyInstructionText(LinearLayout parent, String text) {
+        TextView view = settingsKit.text(text, 14f, settingsKit.p.text2, settingsKit.regular);
+        view.setLineSpacing(dp(3), 1f);
+        parent.addView(view, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+    }
+
+    private LinearLayout copyableInstructionRow(String title, String value) {
+        SettingsKit kit = settingsKit;
+        LinearLayout box = kit.vertical();
+        box.setBackground(kit.rect(kit.p.surface2, 8f, kit.p.line, 1f));
+        box.setPaddingRelative(dp(12), dp(10), dp(8), dp(10));
+        SettingsKit.AdaptiveRow row = new SettingsKit.AdaptiveRow(this, dp(140), dp(10));
+        LinearLayout textColumn = kit.vertical();
+        TextView titleView = kit.text(title, 12f, kit.p.text3, kit.regular);
+        textColumn.addView(titleView, matchWrap());
+        TextView valueView = kit.text(value, 13.5f, kit.p.text, Typeface.MONOSPACE);
+        valueView.setLineSpacing(dp(2), 1f);
+        valueView.setTextIsSelectable(true);
+        textColumn.addView(valueView, topMargin(matchWrap(), dp(4)));
+        row.addView(textColumn);
+        Button copyButton = kit.button(ui("button.copy"), SettingsKit.BUTTON_NORMAL, "copy");
+        makeRemoteFocusable(copyButton);
+        copyButton.setContentDescription(ui("button.copy") + ", " + title);
+        copyButton.setOnClickListener(view -> copyTextToClipboard(title, value));
+        row.addView(copyButton);
+        box.addView(row, matchWrap());
+        return box;
+    }
+
+    /**
+     * One of a dialog's side-by-side actions. It keeps its former fixed height for one line at the
+     * default font size and grows with wrapped translations or a large system font instead of clipping;
+     * MATCH_PARENT in the wrap-content row gives both actions the height of the taller one.
+     */
+    private LinearLayout.LayoutParams dialogActionParams(TextView button, int minHeightDp, float weight) {
+        keepActionMinimumSize(button, 48, minHeightDp);
+        return new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, weight);
+    }
+
+    /** Replaces the 48dp settings minimum with a compact control's own minimum; content can still grow. */
+    private void keepActionMinimumSize(TextView button, int minWidthDp, int minHeightDp) {
+        button.setMinWidth(dp(minWidthDp));
+        button.setMinimumWidth(dp(minWidthDp));
+        button.setMinHeight(dp(minHeightDp));
+        button.setMinimumHeight(dp(minHeightDp));
+        button.setPadding(button.getPaddingLeft(), dp(8), button.getPaddingRight(), dp(8));
+    }
+
+    private void copyTextToClipboard(String label, String value) {
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        if (clipboard != null) {
+            clipboard.setPrimaryClip(ClipData.newPlainText(label, value));
+            showSavedToast(uiFormat("toast.copied_format", value));
+        }
+    }
+
+    private Switch settingSwitch(String title, String subtitle) {
+        Switch view = new Switch(this);
+        view.setText(SettingsAppearance.switchLabel(this, title, subtitle));
+        view.setTextColor(SettingsAppearance.TEXT);
+        view.setTextSize(15f);
+        view.setTypeface(AppFonts.semiBold(this));
+        view.setPadding(dp(16), dp(14), dp(16), dp(14));
+        view.setMinHeight(dp(56));
+        view.setBackground(SettingsAppearance.surface(this, SettingsAppearance.SURFACE, 18, false));
+        view.setLineSpacing(dp(2), 1f);
+        SettingsAppearance.styleSwitch(view);
+        return view;
+    }
+
+    private void buildCloudSettingsControl(LinearLayout section) {
+        LinearLayout group = settingsGroup(section);
+        cloudSettingsStatusView = settingsKit.text("", 14f, settingsKit.p.text2, settingsKit.regular);
+        cloudSettingsStatusView.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        group.addView(settingsKit.statusLine(cloudSettingsStatusView), matchWrap());
+        cloudSettingsRefreshButton = settingsAction(group, ui("cloud_sync.refresh"), null, SettingsKit.ACTION_NORMAL,
+                view -> refreshCloudSettings());
+        cloudSettingsUploadButton = settingsAction(group, ui("cloud_sync.upload"), null, SettingsKit.ACTION_NORMAL,
+                view -> uploadCloudSettings());
+        cloudSettingsApplyButton = settingsAction(group, ui("cloud_sync.apply"), null, SettingsKit.ACTION_NORMAL,
+                view -> confirmApplyCloudSettings());
+        // Deleting the cloud copy sits apart from the everyday actions.
+        LinearLayout danger = settingsGroup(section);
+        cloudSettingsDeleteButton = settingsAction(danger, ui("cloud_sync.delete"), null, SettingsKit.ACTION_DANGER,
+                view -> confirmDeleteCloudSettings());
+        updateCloudSettingsControls();
+    }
+
+    private void updateCloudSettingsControls() {
+        if (cloudSettingsRepository == null || creatorPrivacyRepository == null) return;
+        boolean authenticated = creatorPrivacyRepository.hasAuthenticatedSession();
+        if (cloudSettingsStatusView != null) {
+            String status;
+            if (cloudSettingsRequestInFlight) {
+                status = ui("cloud_sync.status_working");
+            } else if (!authenticated) {
+                status = ui("cloud_sync.login_required");
+            } else if (!cloudSettingsStatusOverride.isEmpty()) {
+                status = ui(cloudSettingsStatusOverride);
+            } else if (!cloudSettingsLoaded) {
+                status = ui("cloud_sync.status_not_loaded");
+            } else if (!cloudSettingsRecord.exists) {
+                status = ui("cloud_sync.status_empty");
+            } else {
+                Locale locale = Locale.forLanguageTag(currentUiLanguageTag());
+                String updated = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, locale)
+                        .format(new Date(cloudSettingsRecord.updatedAt * 1000L));
+                status = uiFormat("cloud_sync.status_found_format", cloudSettingsRecord.revision, updated);
+            }
+            cloudSettingsStatusView.setText(status);
+        }
+        boolean enabled = authenticated && !cloudSettingsRequestInFlight;
+        if (cloudSettingsRefreshButton != null) cloudSettingsRefreshButton.setEnabled(enabled);
+        if (cloudSettingsUploadButton != null) cloudSettingsUploadButton.setEnabled(enabled);
+        if (cloudSettingsApplyButton != null) {
+            boolean canApply = enabled && cloudSettingsLoaded && cloudSettingsRecord.exists;
+            cloudSettingsApplyButton.setEnabled(canApply);
+            cloudSettingsApplyButton.setAlpha(canApply ? 1f : 0.45f);
+        }
+        if (cloudSettingsDeleteButton != null) cloudSettingsDeleteButton.setEnabled(enabled);
+        float alpha = enabled ? 1f : 0.45f;
+        if (cloudSettingsRefreshButton != null) cloudSettingsRefreshButton.setAlpha(alpha);
+        if (cloudSettingsUploadButton != null) cloudSettingsUploadButton.setAlpha(alpha);
+        if (cloudSettingsDeleteButton != null) cloudSettingsDeleteButton.setAlpha(alpha);
+    }
+
+    private void refreshCloudSettings() {
+        runCloudSettingsOperation("refresh", () -> cloudSettingsRepository.load(currentUiLanguageTag()));
+    }
+
+    private void uploadCloudSettings() {
+        if (!prepareCloudSettingsOperation()) return;
+        cloudSettingsStatusOverride = "";
+        cloudSettingsRequestInFlight = true;
+        updateCloudSettingsControls();
+        String languageTag = currentUiLanguageTag();
+        creatorPrivacyExecutor.execute(() -> {
+            try {
+                requireMonthlyCloudSupport();
+                CloudSettingsRepository.CloudRecord current = cloudSettingsRepository.load(languageTag);
+                CloudSettingsRepository.CloudRecord saved = cloudSettingsRepository.save(current.revision, languageTag);
+                handler.post(() -> {
+                    cloudSettingsRequestInFlight = false;
+                    cloudSettingsLoaded = true;
+                    cloudSettingsRecord = saved;
+                    cloudSettingsStatusOverride = "";
+                    updateCloudSettingsControls();
+                    showSavedToast(ui("cloud_sync.uploaded"));
+                });
+            } catch (Exception error) {
+                handler.post(() -> finishCloudSettingsFailure(error));
+            }
+        });
+    }
+
+    private void confirmApplyCloudSettings() {
+        if (!cloudSettingsLoaded || !cloudSettingsRecord.exists) return;
+        new AlertDialog.Builder(this)
+                .setTitle(ui("cloud_sync.apply"))
+                .setMessage(ui("cloud_sync.confirm_apply"))
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(android.R.string.ok, (dialog, which) -> applyCloudSettings())
+                .show();
+    }
+
+    private void applyCloudSettings() {
+        if (!prepareCloudSettingsOperation()) return;
+        cloudSettingsStatusOverride = "";
+        cloudSettingsRequestInFlight = true;
+        updateCloudSettingsControls();
+        String languageTag = currentUiLanguageTag();
+        creatorPrivacyExecutor.execute(() -> {
+            try {
+                requireMonthlyCloudSupport();
+                CloudSettingsRepository.CloudRecord record = cloudSettingsRepository.load(languageTag);
+                cloudSettingsRepository.apply(record);
+                handler.post(() -> {
+                    cloudSettingsRequestInFlight = false;
+                    cloudSettingsLoaded = true;
+                    cloudSettingsRecord = record;
+                    cloudSettingsStatusOverride = "";
+                    showSavedToast(ui("cloud_sync.applied"));
+                    recreate();
+                });
+            } catch (Exception error) {
+                handler.post(() -> finishCloudSettingsFailure(error));
+            }
+        });
+    }
+
+    private void confirmDeleteCloudSettings() {
+        if (!prepareCloudSettingsOperation()) return;
+        new AlertDialog.Builder(this)
+                .setTitle(ui("cloud_sync.delete"))
+                .setMessage(ui("cloud_sync.confirm_delete"))
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(android.R.string.ok, (dialog, which) -> deleteCloudSettings())
+                .show();
+    }
+
+    private void deleteCloudSettings() {
+        if (!prepareCloudSettingsOperation()) return;
+        cloudSettingsStatusOverride = "";
+        cloudSettingsRequestInFlight = true;
+        updateCloudSettingsControls();
+        String languageTag = currentUiLanguageTag();
+        creatorPrivacyExecutor.execute(() -> {
+            try {
+                cloudSettingsRepository.delete(languageTag);
+                handler.post(() -> {
+                    cloudSettingsRequestInFlight = false;
+                    cloudSettingsLoaded = true;
+                    cloudSettingsRecord = CloudSettingsRepository.CloudRecord.empty();
+                    cloudSettingsStatusOverride = "";
+                    updateCloudSettingsControls();
+                    showSavedToast(ui("cloud_sync.deleted"));
+                });
+            } catch (Exception error) {
+                handler.post(() -> finishCloudSettingsFailure(error));
+            }
+        });
+    }
+
+    private interface CloudRecordOperation {
+        CloudSettingsRepository.CloudRecord run() throws Exception;
+    }
+
+    private void runCloudSettingsOperation(String label, CloudRecordOperation operation) {
+        if (!prepareCloudSettingsOperation()) return;
+        cloudSettingsStatusOverride = "";
+        cloudSettingsRequestInFlight = true;
+        updateCloudSettingsControls();
+        creatorPrivacyExecutor.execute(() -> {
+            try {
+                requireMonthlyCloudSupport();
+                CloudSettingsRepository.CloudRecord record = operation.run();
+                handler.post(() -> {
+                    cloudSettingsRequestInFlight = false;
+                    cloudSettingsLoaded = true;
+                    cloudSettingsRecord = record;
+                    cloudSettingsStatusOverride = "";
+                    updateCloudSettingsControls();
+                });
+            } catch (Exception error) {
+                appendLog("cloud settings " + label + " failed: " + error.getMessage());
+                handler.post(() -> finishCloudSettingsFailure(error));
+            }
+        });
+    }
+
+    private boolean prepareCloudSettingsOperation() {
+        if (cloudSettingsRepository == null || creatorPrivacyRepository == null || cloudSettingsRequestInFlight) {
+            return false;
+        }
+        if (!creatorPrivacyRepository.hasAuthenticatedSession()) {
+            showSavedToast(ui("cloud_sync.login_required"));
+            beginCreatorPrivacyLogin();
+            return false;
+        }
+        return true;
+    }
+
+    private void requireMonthlyCloudSupport() throws Exception {
+        if (creatorSupportRepository == null || creatorPrivacyRepository == null) {
+            throw new IOException("Supporter role lookup is unavailable");
+        }
+        String userHash = creatorPrivacyRepository.authenticatedUserHash();
+        String tier = creatorSupportRepository.refreshTierForUser(userHash);
+        if (!"monthly".equals(tier)) {
+            throw new CloudSettingsRepository.CloudSaveException(
+                    "Cloud sync is available to Monthly Supporters only",
+                    "monthly_supporter_required",
+                    403
+            );
+        }
+    }
+
+    private void finishCloudSettingsFailure(Exception error) {
+        cloudSettingsRequestInFlight = false;
+        String key = "cloud_sync.failed";
+        if (error instanceof CreatorPrivacyRepository.AuthenticationException) {
+            key = "cloud_sync.login_required";
+        } else if (error instanceof CloudSettingsRepository.CloudSaveException) {
+            String code = ((CloudSettingsRepository.CloudSaveException) error).code;
+            if ("monthly_supporter_required".equals(code)) {
+                key = "cloud_sync.monthly_required";
+            } else if ("revision_conflict".equals(code)) {
+                key = "cloud_sync.conflict";
+            } else if ("discord_login_required".equals(code)) {
+                key = "cloud_sync.login_required";
+            }
+        }
+        cloudSettingsStatusOverride = key;
+        updateCloudSettingsControls();
+        appendLog("cloud settings failed: " + error.getMessage());
+        showSavedToast(ui(key));
+        if ("cloud_sync.monthly_required".equals(key) && !isFinishing()) {
+            new AlertDialog.Builder(this)
+                    .setTitle(ui("cloud_sync.section"))
+                    .setMessage(ui("cloud_sync.monthly_required"))
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show();
+        }
+    }
+
+    private void buildCreatorPrivacyControl(LinearLayout section) {
+        LinearLayout group = settingsGroup(section);
+        LinearLayout noteRow = settingsKit.vertical();
+        noteRow.setPaddingRelative(dp(16), dp(14), dp(16), dp(14));
+        LinearLayout note = settingsKit.note("", SettingsKit.TONE_INFO);
+        creatorPrivacyNoteText = (TextView) note.getChildAt(1);
+        creatorPrivacyNoteText.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        noteRow.addView(note, matchWrap());
+        creatorPrivacyNoteRow = noteRow;
+        group.addView(noteRow, matchWrap());
+        creatorPrivacyStatusView = settingsKit.text("", 14f, settingsKit.p.text2, settingsKit.regular);
+        creatorPrivacyStatusView.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        creatorPrivacyStatusRow = settingsKit.statusLine(creatorPrivacyStatusView);
+        group.addView(creatorPrivacyStatusRow, matchWrap());
+
+        creatorPrivacyAccountButton = settingsAction(group, ui("creator_privacy.login"), null, SettingsKit.ACTION_NORMAL, view -> {
+            if (creatorPrivacyRepository == null || creatorPrivacyRequestInFlight) {
+                return;
+            }
+            if (creatorPrivacyRepository.hasAuthenticatedSession()) {
+                disconnectCreatorPrivacyAccount();
+                return;
+            }
+            beginCreatorPrivacyLogin();
+        });
+        registerSetting(creatorPrivacyAccountButton, ui("creator_privacy.disconnect"), null, null);
+        creatorPrivacyRefreshButton = settingsAction(group, ui("creator_privacy.refresh"), null, SettingsKit.ACTION_NORMAL,
+                view -> refreshCreatorPrivacy(true));
+
+        creatorProfilePrivacySwitch = settingsToggle(group, ui("creator_privacy.private_title"), ui("creator_privacy.private_desc"));
+        creatorProfilePrivacySwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || creatorPrivacyRepository == null) {
+                return;
+            }
+            if (!creatorPrivacyRepository.hasAuthenticatedSession()) {
+                setCreatorPrivacySwitchChecked(false);
+                showSavedToast(ui("creator_privacy.login_required"));
+                beginCreatorPrivacyLogin();
+                return;
+            }
+            updateCreatorPrivacy(isChecked);
+        });
+        updateCreatorPrivacyControls();
+    }
+
+    private void updateCreatorPrivacyControls() {
+        if (creatorPrivacyRepository == null) {
+            return;
+        }
+        boolean authenticated = creatorPrivacyRepository.hasAuthenticatedSession();
+        boolean controlsEnabled = authenticated && creatorPrivacyLoaded && !creatorPrivacyRequestInFlight;
+        if (creatorProfilePrivacySwitch != null) {
+            setCreatorPrivacySwitchChecked(authenticated && creatorPrivacyLoaded && creatorProfilePrivate);
+            creatorProfilePrivacySwitch.setEnabled(controlsEnabled);
+            creatorProfilePrivacySwitch.setAlpha(authenticated ? 1f : 0.58f);
+        }
+        if (creatorPrivacyStatusView != null) {
+            String status;
+            if (creatorPrivacyRequestInFlight) {
+                status = ui("creator_privacy.status_loading");
+            } else if (!authenticated) {
+                status = ui("creator_privacy.status_signed_out");
+            } else if (!creatorPrivacyLoaded) {
+                status = ui("creator_privacy.status_not_loaded");
+            } else {
+                status = creatorProfilePrivate
+                        ? ui("creator_privacy.status_private")
+                        : ui("creator_privacy.status_public");
+            }
+            creatorPrivacyStatusView.setText(status);
+            // Signed out, the status is the lab's sign-in note; signed in, a plain status line.
+            boolean note = !authenticated && !creatorPrivacyRequestInFlight;
+            if (creatorPrivacyNoteText != null) creatorPrivacyNoteText.setText(status);
+            if (creatorPrivacyNoteRow != null) creatorPrivacyNoteRow.setVisibility(note ? View.VISIBLE : View.GONE);
+            if (creatorPrivacyStatusRow != null) creatorPrivacyStatusRow.setVisibility(note ? View.GONE : View.VISIBLE);
+        }
+        if (creatorPrivacyAccountButton != null) {
+            creatorPrivacyAccountButton.setText(authenticated
+                    ? ui("creator_privacy.disconnect")
+                    : ui("creator_privacy.login"));
+            creatorPrivacyAccountButton.setEnabled(!creatorPrivacyRequestInFlight);
+            creatorPrivacyAccountButton.setAlpha(creatorPrivacyRequestInFlight ? 0.55f : 1f);
+        }
+        if (creatorPrivacyRefreshButton != null) {
+            boolean enabled = authenticated && !creatorPrivacyRequestInFlight;
+            creatorPrivacyRefreshButton.setVisibility(authenticated ? View.VISIBLE : View.GONE);
+            creatorPrivacyRefreshButton.setEnabled(enabled);
+            creatorPrivacyRefreshButton.setAlpha(enabled ? 1f : 0.45f);
+        }
+        updateCloudSettingsControls();
+    }
+
+    private void setCreatorPrivacySwitchChecked(boolean checked) {
+        if (creatorProfilePrivacySwitch == null || creatorProfilePrivacySwitch.isChecked() == checked) {
+            return;
+        }
+        boolean previousSuppression = suppressSettingsEvents;
+        suppressSettingsEvents = true;
+        creatorProfilePrivacySwitch.setChecked(checked);
+        suppressSettingsEvents = previousSuppression;
+    }
+
+    private void refreshCreatorPrivacy(boolean announceFailure) {
+        if (creatorPrivacyRepository == null || creatorPrivacyRequestInFlight) {
+            return;
+        }
+        if (!creatorPrivacyRepository.hasAuthenticatedSession()) {
+            creatorPrivacyLoaded = false;
+            creatorProfilePrivate = false;
+            updateCreatorPrivacyControls();
+            return;
+        }
+        creatorPrivacyRequestInFlight = true;
+        updateCreatorPrivacyControls();
+        String languageTag = currentUiLanguageTag();
+        creatorPrivacyExecutor.execute(() -> {
+            try {
+                CreatorPrivacyRepository.Privacy privacy = creatorPrivacyRepository.getPrivacy(languageTag);
+                handler.post(() -> {
+                    boolean visibilityChanged = !creatorPrivacyLoaded
+                            || creatorProfilePrivate != privacy.isPrivate;
+                    creatorPrivacyRequestInFlight = false;
+                    creatorPrivacyLoaded = true;
+                    creatorProfilePrivate = privacy.isPrivate;
+                    updateCreatorPrivacyControls();
+                    if (visibilityChanged) {
+                        clearCreatorIdentityCachesAndReload();
+                    }
+                });
+            } catch (Exception error) {
+                handler.post(() -> {
+                    creatorPrivacyRequestInFlight = false;
+                    creatorPrivacyLoaded = false;
+                    updateCreatorPrivacyControls();
+                    appendLog("creator privacy load failed: " + error.getMessage());
+                    if (announceFailure) {
+                        showSavedToast(error instanceof CreatorPrivacyRepository.AuthenticationException
+                                ? ui("creator_privacy.login_required")
+                                : ui("creator_privacy.load_failed"));
+                    }
+                });
+            }
+        });
+    }
+
+    private void updateCreatorPrivacy(boolean isPrivate) {
+        if (creatorPrivacyRepository == null || creatorPrivacyRequestInFlight) {
+            return;
+        }
+        boolean previousValue = creatorProfilePrivate;
+        creatorPrivacyRequestInFlight = true;
+        creatorProfilePrivate = isPrivate;
+        updateCreatorPrivacyControls();
+        String languageTag = currentUiLanguageTag();
+        creatorPrivacyExecutor.execute(() -> {
+            try {
+                CreatorPrivacyRepository.Privacy privacy = creatorPrivacyRepository.setPrivacy(isPrivate, languageTag);
+                handler.post(() -> {
+                    creatorPrivacyRequestInFlight = false;
+                    creatorPrivacyLoaded = true;
+                    creatorProfilePrivate = privacy.isPrivate;
+                    updateCreatorPrivacyControls();
+                    clearCreatorIdentityCachesAndReload();
+                    showSavedToast(privacy.isPrivate
+                            ? ui("creator_privacy.saved_private")
+                            : ui("creator_privacy.saved_public"));
+                });
+            } catch (Exception error) {
+                handler.post(() -> {
+                    creatorPrivacyRequestInFlight = false;
+                    creatorProfilePrivate = previousValue;
+                    creatorPrivacyLoaded = creatorPrivacyRepository.hasAuthenticatedSession();
+                    updateCreatorPrivacyControls();
+                    appendLog("creator privacy update failed: " + error.getMessage());
+                    showSavedToast(error instanceof CreatorPrivacyRepository.AuthenticationException
+                            ? ui("creator_privacy.login_required")
+                            : ui("creator_privacy.save_failed"));
+                });
+            }
+        });
+    }
+
+    private void beginCreatorPrivacyLogin() {
+        if (creatorPrivacyRepository == null || creatorPrivacyRequestInFlight || creatorPrivacyLoginInProgress) {
+            return;
+        }
+        creatorPrivacyRequestInFlight = true;
+        updateCreatorPrivacyControls();
+        String languageTag = currentUiLanguageTag();
+        creatorPrivacyExecutor.execute(() -> {
+            try {
+                CreatorPrivacyRepository.LoginStart start = creatorPrivacyRepository.startDiscordLogin(languageTag);
+                handler.post(() -> {
+                    creatorPrivacyRequestInFlight = false;
+                    creatorPrivacyLoginInProgress = true;
+                    updateCreatorPrivacyControls();
+                    openInAppBrowser(start.authorizeUrl);
+                });
+            } catch (Exception error) {
+                handler.post(() -> {
+                    creatorPrivacyRequestInFlight = false;
+                    creatorPrivacyLoginInProgress = false;
+                    updateCreatorPrivacyControls();
+                    appendLog("creator privacy login start failed: " + error.getMessage());
+                    showSavedToast(ui("creator_privacy.login_failed"));
+                });
+            }
+        });
+    }
+
+    private void disconnectCreatorPrivacyAccount() {
+        if (creatorPrivacyRepository == null || creatorPrivacyRequestInFlight) {
+            return;
+        }
+        creatorPrivacyRequestInFlight = true;
+        updateCreatorPrivacyControls();
+        String languageTag = currentUiLanguageTag();
+        creatorPrivacyExecutor.execute(() -> {
+            try {
+                creatorPrivacyRepository.logout(languageTag);
+                handler.post(() -> {
+                    creatorPrivacyRequestInFlight = false;
+                    creatorPrivacyLoaded = false;
+                    creatorProfilePrivate = false;
+                    updateCreatorPrivacyControls();
+                    showSavedToast(ui("creator_privacy.disconnected"));
+                });
+            } catch (Exception error) {
+                handler.post(() -> {
+                    creatorPrivacyRequestInFlight = false;
+                    updateCreatorPrivacyControls();
+                    appendLog("creator privacy logout failed: " + error.getMessage());
+                    showSavedToast(ui("creator_privacy.logout_failed"));
+                });
+            }
+        });
+    }
+
+    private void finishCreatorPrivacyLogin(String loginToken) {
+        if (creatorPrivacyRepository == null || creatorPrivacyRequestInFlight) {
+            return;
+        }
+        creatorPrivacyRequestInFlight = true;
+        updateCreatorPrivacyControls();
+        String languageTag = currentUiLanguageTag();
+        creatorPrivacyExecutor.execute(() -> {
+            try {
+                creatorPrivacyRepository.finishDiscordLogin(loginToken, languageTag);
+                handler.post(() -> {
+                    creatorPrivacyLoginInProgress = false;
+                    creatorPrivacyRequestInFlight = false;
+                    creatorPrivacyLoaded = false;
+                    showInAppBrowser(false);
+                    updateCreatorPrivacyControls();
+                    showSavedToast(ui("creator_privacy.login_success"));
+                    refreshCreatorPrivacy(false);
+                });
+            } catch (Exception error) {
+                handler.post(() -> {
+                    creatorPrivacyRequestInFlight = false;
+                    creatorPrivacyLoginInProgress = false;
+                    showInAppBrowser(false);
+                    updateCreatorPrivacyControls();
+                    appendLog("creator privacy login finish failed: " + error.getMessage());
+                    showSavedToast(ui("creator_privacy.login_failed"));
+                });
+            }
+        });
+    }
+
+    private void clearCreatorIdentityCachesAndReload() {
+        if (lyricsRepository != null) {
+            lyricsRepository.clearCache();
+        }
+        if (aiLyricsRepository != null) {
+            aiLyricsRepository.clearCache();
+        }
+        if (furiganaRepository != null) {
+            furiganaRepository.clearCache();
+        }
+        reloadCurrentLyricsFromSettings();
+    }
+
+    private String currentUiLanguageTag() {
+        return aiLyricsSettings == null ? "en" : aiLyricsSettings.snapshot().uiLang;
+    }
+
+    private LinearLayout settingField(String title, String subtitle, EditText input) {
+        LinearLayout field = new LinearLayout(this);
+        field.setOrientation(LinearLayout.VERTICAL);
+        field.setPadding(dp(14), dp(12), dp(14), dp(12));
+        field.setBackground(SettingsAppearance.surface(this, SettingsAppearance.SURFACE, 18, false));
+
+        TextView label = label(title, 15f, SettingsAppearance.TEXT, AppFonts.semiBold(this));
+        field.addView(label, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        if (subtitle != null && !subtitle.trim().isEmpty()) {
+            TextView helper = label(subtitle, 12.5f, SettingsAppearance.MUTED, AppFonts.regular(this));
+            helper.setLineSpacing(dp(2), 1f);
+            field.addView(helper, topMargin(matchWrap(), dp(5)));
+        }
+
+        if (input.getId() == View.NO_ID) input.setId(View.generateViewId());
+        label.setLabelFor(input.getId());
+        field.addView(input, topMargin(matchWrap(), dp(9)));
+        return field;
+    }
+
+    private LinearLayout settingGroup(String title, String subtitle, View body) {
+        LinearLayout field = new LinearLayout(this);
+        field.setOrientation(LinearLayout.VERTICAL);
+        field.setPadding(dp(14), dp(12), dp(14), dp(12));
+        field.setBackground(SettingsAppearance.surface(this, SettingsAppearance.SURFACE, 18, false));
+
+        TextView label = label(title, 15f, SettingsAppearance.TEXT, AppFonts.semiBold(this));
+        field.addView(label, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        if (subtitle != null && !subtitle.trim().isEmpty()) {
+            TextView helper = label(subtitle, 12.5f, SettingsAppearance.MUTED, AppFonts.regular(this));
+            helper.setLineSpacing(dp(2), 1f);
+            field.addView(helper, topMargin(matchWrap(), dp(5)));
+        }
+
+        field.addView(body, topMargin(matchWrap(), dp(10)));
+        return field;
+    }
+
+    private LinearLayout buildSliderRow(SeekBar seekBar, TextView valueView) {
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.HORIZONTAL);
+        container.setGravity(Gravity.CENTER_VERTICAL);
+        SettingsAppearance.styleSlider(seekBar);
+        container.addView(seekBar, new LinearLayout.LayoutParams(0, dp(44), 1f));
+        LinearLayout.LayoutParams valueParams = new LinearLayout.LayoutParams(dp(48), ViewGroup.LayoutParams.WRAP_CONTENT);
+        valueParams.leftMargin = dp(8);
+        container.addView(valueView, valueParams);
+        return container;
+    }
+
+    private LinearLayout buildPollinationsAuthControl() {
+        SettingsKit kit = settingsKit;
+        LinearLayout container = kit.vertical();
+        pollinationsAuthStatusView = kit.text("", 13.5f, kit.p.text2, kit.regular);
+        pollinationsAuthStatusView.setLineSpacing(dp(3), 1f);
+        pollinationsAuthStatusView.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        container.addView(pollinationsAuthStatusView, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        pollinationsAuthCodeView = kit.text("", 20f, kit.p.text, kit.bold);
+        pollinationsAuthCodeView.setGravity(Gravity.CENTER);
+        pollinationsAuthCodeView.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
+        pollinationsAuthCodeView.setLetterSpacing(0.08f);
+        pollinationsAuthCodeView.setPadding(dp(12), dp(10), dp(12), dp(10));
+        pollinationsAuthCodeView.setBackground(kit.rect(kit.p.surface2, 8f, kit.p.line2, 1f));
+        pollinationsAuthCodeView.setTextIsSelectable(true);
+        pollinationsAuthCodeView.setVisibility(View.GONE);
+        container.addView(pollinationsAuthCodeView, topMargin(matchWrap(), dp(10)));
+
+        SettingsKit.FlowLayout actions = kit.flow(8f, 8f);
+        pollinationsAuthConnectButton = kit.button(ui("pollinations.connect"), SettingsKit.BUTTON_PRIMARY, null);
+        makeRemoteFocusable(pollinationsAuthConnectButton);
+        pollinationsAuthConnectButton.setOnClickListener(view -> startPollinationsLogin());
+        actions.addView(pollinationsAuthConnectButton);
+
+        pollinationsAuthOpenButton = kit.button(ui("pollinations.open_login"), SettingsKit.BUTTON_NORMAL, "external");
+        makeRemoteFocusable(pollinationsAuthOpenButton);
+        pollinationsAuthOpenButton.setOnClickListener(view -> openPollinationsLoginPage());
+        actions.addView(pollinationsAuthOpenButton);
+
+        pollinationsAuthTestButton = kit.button(ui("pollinations.test"), SettingsKit.BUTTON_NORMAL, null);
+        makeRemoteFocusable(pollinationsAuthTestButton);
+        pollinationsAuthTestButton.setOnClickListener(view -> testPollinationsToken());
+        actions.addView(pollinationsAuthTestButton);
+
+        pollinationsAuthDisconnectButton = kit.button(ui("pollinations.disconnect"), SettingsKit.BUTTON_DANGER, null);
+        makeRemoteFocusable(pollinationsAuthDisconnectButton);
+        pollinationsAuthDisconnectButton.setOnClickListener(view -> disconnectPollinationsLogin());
+        actions.addView(pollinationsAuthDisconnectButton);
+        container.addView(actions, topMargin(matchWrap(), dp(12)));
+        return container;
+    }
+
+    private LinearLayout buildTypographySettingsList(List<AiLyricsSettings.TypographySlot> slots) {
+        LinearLayout list = settingsKit.group();
+        for (AiLyricsSettings.TypographySlot slot : slots) {
+            if (IvLyricsBridge.isEmbedded(this) && !slot.id.startsWith("lyrics_")) continue;
+            list.addView(buildTypographySlotControl(slot), matchWrap());
+        }
+        return list;
+    }
+
+    /** Vocal colour swatches grouped by voice (Normal, Duet, Male, Female) with a reset action. */
+    private void buildSpeakerColorSettingsList(LinearLayout group) {
+        SettingsKit kit = settingsKit;
+        speakerColorValueViews.clear();
+        speakerColorSwatches.clear();
+        LinearLayout body = kit.vertical();
+        body.setPaddingRelative(dp(16), dp(14), dp(16), dp(16));
+        AiLyricsSettings.SpeakerColorSettings settings = aiLyricsSettings == null
+                ? AiLyricsSettings.SpeakerColorSettings.defaults() : aiLyricsSettings.snapshot().speakerColors;
+        // Each cell must fit its 12sp hex caption at the system font size, so narrow screens use fewer columns.
+        // SettingsKit.columns scales the minimum width by the font scale itself, so it is divided out here.
+        android.text.TextPaint hexProbe = new android.text.TextPaint();
+        hexProbe.setTypeface(Typeface.MONOSPACE);
+        hexProbe.setTextSize(android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, 12f,
+                getResources().getDisplayMetrics()));
+        float columnScale = Math.max(1f, Math.min(2f, getResources().getConfiguration().fontScale));
+        float cellMinDp = Math.max(50f, (hexProbe.measureText("#FFFFFF") / getResources().getDisplayMetrics().density + 9f)
+                / columnScale);
+        String previousCategory = "";
+        SettingsKit.ColumnsLayout cells = null;
+        for (AiLyricsSettings.SpeakerColorSlot slot : AiLyricsSettings.SPEAKER_COLOR_SLOTS) {
+            if (!slot.titleKey.equals(previousCategory) || cells == null) {
+                previousCategory = slot.titleKey;
+                TextView heading = kit.text(ui(slot.titleKey), 13f, kit.p.text2, kit.semi);
+                body.addView(heading, topMargin(matchWrap(), body.getChildCount() == 0 ? 0 : dp(14)));
+                cells = kit.columns(5, cellMinDp, 6f);
+                body.addView(cells, topMargin(matchWrap(), dp(8)));
+            }
+            String color = settings.hex(slot.id);
+            LinearLayout cell = kit.vertical();
+            cell.setGravity(Gravity.CENTER_HORIZONTAL);
+            cell.setPadding(dp(4), dp(5), dp(4), dp(6));
+            cell.setMinimumHeight(dp(48));
+            cell.setBackground(kit.pressable(kit.rect(kit.p.surface2, 8f, kit.p.line, 1f), 8f));
+            cell.setClickable(true);
+            makeRemoteFocusable(cell);
+            View swatch = new View(this);
+            swatch.setBackground(speakerSwatchDrawable(color, slot));
+            swatch.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            cell.addView(swatch, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(30)));
+            TextView hex = kit.text(color.toUpperCase(Locale.ROOT), 12f, kit.p.text3, Typeface.MONOSPACE);
+            hex.setGravity(Gravity.CENTER);
+            hex.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
+            hex.setSingleLine(true);
+            hex.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            cell.addView(hex, topMargin(matchWrap(), dp(5)));
+            cell.setContentDescription(speakerColorSlotLabel(slot) + ", " + color);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                cell.setTooltipText(speakerColorSlotLabel(slot) + " · " + color);
+            }
+            cell.setOnClickListener(view -> showSpeakerColorPicker(slot));
+            cells.addView(cell);
+            speakerColorSwatches.put(slot.id, cell);
+            speakerColorValueViews.put(slot.id, hex);
+            registerSetting(cell, speakerColorSlotLabel(slot), null, null);
+        }
+        group.addView(body, matchWrap());
+        LinearLayout footer = kit.horizontal();
+        footer.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
+        footer.setPaddingRelative(dp(16), dp(10), dp(16), dp(12));
+        Button reset = kit.button(ui("button.reset_colors"), SettingsKit.BUTTON_NORMAL, "reset");
+        makeRemoteFocusable(reset);
+        reset.setOnClickListener(view -> resetSpeakerColorSettingsFromUi());
+        footer.addView(reset, SettingsKit.wrap());
+        group.addView(footer, matchWrap());
+        registerSetting(reset, ui("button.reset_colors"), ui("section.speaker_colors"), null);
+    }
+
+    private android.graphics.drawable.Drawable speakerSwatchDrawable(String color, AiLyricsSettings.SpeakerColorSlot slot) {
+        GradientDrawable swatch = roundDrawable(parseColor(color, slot == null ? Color.WHITE : slot.defaultColorInt()), dp(4));
+        swatch.setStroke(Math.max(1, dp(1)), 0x40808080);
+        return swatch;
+    }
+
+    private GradientDrawable solidSwatchDrawable(String color) {
+        GradientDrawable swatch = roundDrawable(parseColor(color, Color.rgb(30, 58, 138)), dp(5));
+        swatch.setStroke(Math.max(1, dp(1)), 0x40808080);
+        return swatch;
+    }
+
+    private View buildBackgroundSolidColorControl() {
+        SettingsKit kit = settingsKit;
+        String color = aiLyricsSettings == null
+                ? "#1e3a8a"
+                : aiLyricsSettings.snapshot().background.solidColor;
+        LinearLayout button = kit.horizontal();
+        button.setPaddingRelative(dp(7), dp(7), dp(12), dp(7));
+        button.setMinimumHeight(dp(48));
+        button.setBackground(kit.pressable(kit.rect(kit.p.surface2, 8f, kit.p.line2, 1f), 8f));
+        button.setClickable(true);
+        makeRemoteFocusable(button);
+        backgroundSolidColorSwatch = new View(this);
+        backgroundSolidColorSwatch.setBackground(solidSwatchDrawable(color));
+        button.addView(backgroundSolidColorSwatch, new LinearLayout.LayoutParams(dp(28), dp(28)));
+        backgroundSolidColorValueView = kit.text(color.toUpperCase(Locale.ROOT), 14f, kit.p.text2, Typeface.MONOSPACE);
+        LinearLayout.LayoutParams valueParams = SettingsKit.wrap();
+        valueParams.setMarginStart(dp(10));
+        button.addView(backgroundSolidColorValueView, valueParams);
+        button.setContentDescription(ui("field.solid_color") + ", " + color);
+        button.setOnClickListener(view -> showBackgroundSolidColorPicker());
+        return button;
+    }
+
+    private LinearLayout buildLyricsBackgroundSolidColorControl() {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(2), 0, 0);
+
+        AiLyricsSettings.BackgroundSettings background = editableTrackBackgroundSettings();
+        String color = background == null ? "#1e3a8a" : background.solidColor;
+        lyricsBackgroundSolidColorSwatch = new View(this);
+        lyricsBackgroundSolidColorSwatch.setBackground(roundDrawable(parseColor(color, Color.rgb(30, 58, 138)), dp(10)));
+        row.addView(lyricsBackgroundSolidColorSwatch, new LinearLayout.LayoutParams(dp(42), dp(42)));
+
+        TextView label = label(ui("speaker_color.hex_hint"), 12f, Color.argb(160, 255, 255, 255), AppFonts.regular(this));
+        LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        labelParams.leftMargin = dp(10);
+        row.addView(label, labelParams);
+
+        lyricsBackgroundSolidColorValueView = colorValueButton(color);
+        row.addView(lyricsBackgroundSolidColorValueView, new LinearLayout.LayoutParams(dp(112), dp(42)));
+
+        View.OnClickListener pickerListener = view -> showLyricsBackgroundSolidColorPicker();
+        row.setOnClickListener(pickerListener);
+        lyricsBackgroundSolidColorSwatch.setOnClickListener(pickerListener);
+        label.setOnClickListener(pickerListener);
+        lyricsBackgroundSolidColorValueView.setOnClickListener(pickerListener);
+        return row;
+    }
+
+    private TextView colorValueButton(String color) {
+        TextView value = label(color, 12f, Color.WHITE, AppFonts.semiBold(this));
+        makeRemoteFocusable(value);
+        value.setGravity(Gravity.CENTER);
+        value.setMinHeight(dp(42));
+        value.setBackground(roundDrawable(Color.argb(38, 255, 255, 255), dp(9)));
+        value.setPadding(dp(8), 0, dp(8), 0);
+        return value;
+    }
+
+    private void showSpeakerColorPicker(AiLyricsSettings.SpeakerColorSlot slot) {
+        if (aiLyricsSettings == null || slot == null) {
+            return;
+        }
+        String color = aiLyricsSettings.snapshot().speakerColors.hex(slot.id);
+        showColorPickerDialog(
+                speakerColorSlotLabel(slot),
+                color,
+                slot.defaultColorInt(),
+                selectedColor -> saveSpeakerColor(slot, hexColor(selectedColor), true)
+        );
+    }
+
+    private void showBackgroundSolidColorPicker() {
+        if (aiLyricsSettings == null) {
+            return;
+        }
+        String color = aiLyricsSettings.snapshot().background.solidColor;
+        showColorPickerDialog(
+                ui("field.solid_color"),
+                color,
+                Color.rgb(30, 58, 138),
+                selectedColor -> {
+                    aiLyricsSettings.setBackgroundSolidColor(hexColor(selectedColor));
+                    AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+                    updateBackgroundSettingsUi(snapshot, false);
+                    applyBackgroundSettings(snapshot);
+                    showSavedToast(ui("toast.background_saved"));
+                }
+        );
+    }
+
+    private void showLyricsBackgroundSolidColorPicker() {
+        if (aiLyricsSettings == null) {
+            return;
+        }
+        AiLyricsSettings.BackgroundSettings current = editableTrackBackgroundSettings();
+        if (current == null) {
+            return;
+        }
+        showColorPickerDialog(
+                ui("field.solid_color"),
+                current.solidColor,
+                Color.rgb(30, 58, 138),
+                selectedColor -> {
+                    AiLyricsSettings.BackgroundSettings latest = editableTrackBackgroundSettings();
+                    if (latest == null) {
+                        return;
+                    }
+                    saveCurrentTrackBackgroundSettings(new AiLyricsSettings.BackgroundSettings(
+                            latest.mode,
+                            latest.brightness,
+                            latest.blur,
+                            latest.noise,
+                            latest.reduceMotion,
+                            hexColor(selectedColor),
+                            latest.videoScale
+                    ), false);
+                }
+        );
+    }
+
+    private void showColorPickerDialog(String title, String initialHex, int fallbackColor, ColorPickedCallback callback) {
+        int initialColor = parseColor(initialHex, fallbackColor);
+
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(18), dp(14), dp(18), dp(6));
+
+        ColorPickerView picker = new ColorPickerView(this);
+        picker.setColor(initialColor);
+        content.addView(picker, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(286)));
+
+        LinearLayout previewRow = new LinearLayout(this);
+        previewRow.setOrientation(LinearLayout.HORIZONTAL);
+        previewRow.setGravity(Gravity.CENTER_VERTICAL);
+        View swatch = new View(this);
+        swatch.setBackground(roundDrawable(initialColor, dp(10)));
+        previewRow.addView(swatch, new LinearLayout.LayoutParams(dp(42), dp(42)));
+        EditText value = new EditText(this);
+        value.setSingleLine(true);
+        value.setSelectAllOnFocus(true);
+        value.setText(hexColor(initialColor));
+        value.setTextColor(Color.WHITE);
+        value.setHintTextColor(Color.argb(125, 255, 255, 255));
+        value.setTextSize(12f);
+        value.setTypeface(AppFonts.semiBold(this));
+        value.setGravity(Gravity.CENTER_VERTICAL);
+        value.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        value.setBackground(roundDrawable(Color.argb(38, 255, 255, 255), dp(9)));
+        value.setPadding(dp(12), 0, dp(12), 0);
+        value.setHint("#000000");
+        LinearLayout.LayoutParams valueParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        valueParams.leftMargin = dp(10);
+        previewRow.addView(value, valueParams);
+        content.addView(previewRow, topMargin(matchWrap(), dp(12)));
+
+        final boolean[] updatingColorInput = {false};
+        picker.setOnColorChangedListener(color -> {
+            String hex = hexColor(color);
+            swatch.setBackground(roundDrawable(color, dp(10)));
+            updatingColorInput[0] = true;
+            value.setText(hex);
+            value.setSelection(value.getText().length());
+            value.setTextColor(Color.WHITE);
+            updatingColorInput[0] = false;
+        });
+        value.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence sequence, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence sequence, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable editable) {
+                if (updatingColorInput[0]) {
+                    return;
+                }
+                String normalized = normalizeColorInput(editable == null ? "" : editable.toString());
+                if (normalized == null) {
+                    value.setTextColor(editable == null || editable.toString().trim().isEmpty()
+                            ? Color.WHITE
+                            : Color.rgb(255, 171, 171));
+                    return;
+                }
+                int color = parseColor(normalized, fallbackColor);
+                picker.setColor(color);
+                swatch.setBackground(roundDrawable(color, dp(10)));
+                value.setTextColor(Color.WHITE);
+            }
+        });
+
+        android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(this)
+                .setTitle(title)
+                .setView(content)
+                .setNegativeButton(ui("button.close"), null)
+                .setPositiveButton(ui("button.apply_colors"), null)
+                .create();
+        dialog.setOnShowListener(dialogInterface -> {
+            dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setTextColor(Color.rgb(37, 99, 235));
+            dialog.getButton(android.app.AlertDialog.BUTTON_NEGATIVE).setTextColor(Color.rgb(84, 91, 110));
+            dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener(button -> {
+                String normalized = normalizeColorInput(value.getText().toString());
+                if (normalized == null) {
+                    value.setTextColor(Color.rgb(255, 171, 171));
+                    showSavedToast(uiFormat("toast.invalid_color_format", title));
+                    return;
+                }
+                if (callback != null) {
+                    callback.onColorPicked(parseColor(normalized, fallbackColor));
+                }
+                dialog.dismiss();
+            });
+        });
+        dialog.show();
+    }
+
+    private interface ColorPickedCallback {
+        void onColorPicked(int color);
+    }
+
+    private void saveSpeakerColor(AiLyricsSettings.SpeakerColorSlot changedSlot, String color, boolean showToast) {
+        if (aiLyricsSettings == null || changedSlot == null) {
+            return;
+        }
+        AiLyricsSettings.Snapshot current = aiLyricsSettings.snapshot();
+        Map<String, String> colors = new LinkedHashMap<>();
+        for (AiLyricsSettings.SpeakerColorSlot slot : AiLyricsSettings.SPEAKER_COLOR_SLOTS) {
+            String value = slot.id.equals(changedSlot.id) ? color : current.speakerColors.hex(slot.id);
+            colors.put(slot.id, AiLyricsSettings.isHexColor(value) ? value : slot.defaultColor);
+        }
+        aiLyricsSettings.setSpeakerColors(colors);
+        AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+        updateSpeakerColorSettingsUi(snapshot);
+        applySpeakerColorSettings(snapshot);
+        if (showToast) {
+            showSavedToast(ui("toast.speaker_colors_saved"));
+        }
+    }
+
+    private void resetSpeakerColorSettingsFromUi() {
+        if (aiLyricsSettings == null) {
+            return;
+        }
+        aiLyricsSettings.resetSpeakerColors();
+        AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+        updateSpeakerColorSettingsUi(snapshot);
+        applySpeakerColorSettings(snapshot);
+        showSavedToast(ui("toast.speaker_colors_reset"));
+    }
+
+    private void updateSpeakerColorSettingsUi(AiLyricsSettings.Snapshot snapshot) {
+        AiLyricsSettings.SpeakerColorSettings settings = snapshot == null
+                ? AiLyricsSettings.SpeakerColorSettings.defaults()
+                : snapshot.speakerColors;
+        if (useSyncCreatorSpeakerColorsSwitch != null) {
+            suppressSettingsEvents = true;
+            useSyncCreatorSpeakerColorsSwitch.setChecked(snapshot == null || snapshot.useSyncCreatorSpeakerColors);
+            suppressSettingsEvents = false;
+        }
+        for (AiLyricsSettings.SpeakerColorSlot slot : AiLyricsSettings.SPEAKER_COLOR_SLOTS) {
+            String color = settings.hex(slot.id);
+            TextView valueView = speakerColorValueViews.get(slot.id);
+            if (valueView != null) {
+                valueView.setText(color.toUpperCase(Locale.ROOT));
+            }
+            updateSpeakerColorSwatch(slot.id, color);
+        }
+    }
+
+    private void updateSpeakerColorSwatch(String slotId, String color) {
+        View cell = speakerColorSwatches.get(slotId);
+        if (cell == null) {
+            return;
+        }
+        AiLyricsSettings.SpeakerColorSlot slot = AiLyricsSettings.speakerColorSlotById(slotId);
+        View swatch = cell instanceof ViewGroup && ((ViewGroup) cell).getChildCount() > 0
+                ? ((ViewGroup) cell).getChildAt(0) : cell;
+        swatch.setBackground(speakerSwatchDrawable(color, slot));
+        cell.setContentDescription(speakerColorSlotLabel(slot) + ", " + color);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            cell.setTooltipText(speakerColorSlotLabel(slot) + " · " + color);
+        }
+    }
+
+    private String speakerColorSlotLabel(AiLyricsSettings.SpeakerColorSlot slot) {
+        if (slot == null) {
+            return "";
+        }
+        if (AiLyricsSettings.SPEAKER_COLOR_NORMAL.equals(slot.id)) {
+            return ui(slot.titleKey);
+        }
+        int number = trailingNumber(slot.id);
+        return number > 0 ? ui(slot.titleKey) + " " + number : ui(slot.titleKey);
+    }
+
+    private int trailingNumber(String value) {
+        String text = value == null ? "" : value.trim();
+        int end = text.length();
+        int start = end;
+        while (start > 0 && Character.isDigit(text.charAt(start - 1))) {
+            start--;
+        }
+        if (start >= end) {
+            return -1;
+        }
+        try {
+            return Integer.parseInt(text.substring(start, end));
+        } catch (Exception ignored) {
+            return -1;
+        }
+    }
+
+    private int parseColor(String color, int fallback) {
+        try {
+            return Color.parseColor(color);
+        } catch (Exception ignored) {
+            return fallback;
+        }
+    }
+
+    private String hexColor(int color) {
+        return String.format(Locale.ROOT, "#%06x", color & 0x00ffffff);
+    }
+
+    private String normalizeColorInput(String color) {
+        String value = color == null ? "" : color.trim();
+        if (!AiLyricsSettings.isHexColor(value)) {
+            return null;
+        }
+        return (value.startsWith("#") ? value : "#" + value).toLowerCase(Locale.ROOT);
+    }
+
+    /** One typography item: layer mark, label and summary, a size slider with a % field and the weight. */
+    private View buildTypographySlotControl(AiLyricsSettings.TypographySlot slot) {
+        SettingsKit kit = settingsKit;
+        LinearLayout row = kit.vertical();
+        row.setPaddingRelative(dp(16), dp(14), dp(16), dp(15));
+        LinearLayout head = kit.horizontal();
+        View mark = new View(this);
+        mark.setBackground(kit.rect(typographyRoleColor(slot.id), 2f));
+        mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        head.addView(mark, new LinearLayout.LayoutParams(dp(8), dp(8)));
+        TextView title = kit.text(ui(slot.titleKey), 15.5f, kit.p.text, kit.semi);
+        title.setLineSpacing(dp(2), 1f);
+        title.setContentDescription(ui(slot.titleKey) + ". " + ui(slot.descriptionKey));
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        titleParams.setMarginStart(dp(10));
+        titleParams.setMarginEnd(dp(8));
+        head.addView(title, titleParams);
+        TextView value = kit.text("", 13f, kit.p.text3, kit.regular);
+        head.addView(value, SettingsKit.wrap());
+        typographyValueViews.put(slot.id, value);
+        row.addView(head, matchWrap());
+
+        AiLyricsSettings.TypographyStyle initial = aiLyricsSettings.snapshot().typography.style(slot.id);
+        SettingsKit.Range size = settingsRange(70, 160, 1, "%", ui(slot.titleKey) + ", " + ui("typography.size"));
+        size.setValue(initial.sizePercent);
+        size.listener = (sizePercent, commit) -> {
+            if (commit) {
+                showSavedToast(ui("toast.typography_saved"));
+                return;
+            }
+            if (suppressSettingsEvents || aiLyricsSettings == null) {
+                return;
+            }
+            AiLyricsSettings.TypographyStyle current = aiLyricsSettings.snapshot().typography.style(slot.id);
+            aiLyricsSettings.setTypographyStyle(slot.id, sizePercent, current.weight);
+            applyTypographySettings(aiLyricsSettings.snapshot());
+            updateTypographyValue(slot.id);
+        };
+        typographySizeRanges.put(slot.id, size);
+        row.addView(size.view, topMargin(matchWrap(), dp(8)));
+
+        String[] weights = {
+                AiLyricsSettings.TYPO_WEIGHT_REGULAR,
+                AiLyricsSettings.TYPO_WEIGHT_SEMIBOLD,
+                AiLyricsSettings.TYPO_WEIGHT_BOLD
+        };
+        List<SettingsKit.Option> options = new ArrayList<>();
+        for (String weight : weights) options.add(new SettingsKit.Option(weight, typographyWeightLabel(weight)));
+        SettingsKit.Choice weightChoice = kit.segmented(options, AiLyricsSettings.normalizeTypographyWeight(initial.weight), weight -> {
+            if (aiLyricsSettings == null) return;
+            AiLyricsSettings.TypographyStyle current = aiLyricsSettings.snapshot().typography.style(slot.id);
+            aiLyricsSettings.setTypographyStyle(slot.id, current.sizePercent, weight);
+            applyTypographySettings(aiLyricsSettings.snapshot());
+            updateTypographyValue(slot.id);
+            showSavedToast(ui("toast.typography_saved"));
+        });
+        for (int index = 0; index < weights.length; index++) {
+            weightChoice.items.get(index).setContentDescription(ui(slot.titleKey) + ", " + typographyWeightLabel(weights[index]));
+        }
+        focusableItems(weightChoice);
+        typographyWeightChoices.put(slot.id, weightChoice);
+        row.addView(weightChoice.view, topMargin(matchWrap(), dp(10)));
+        updateTypographyValue(slot.id);
+        Runnable reveal = slot.id.startsWith("vinyl_") ? null
+                : () -> showTypographyGroup(slot.id.startsWith("lyrics_") ? "lyrics" : "main");
+        registerSetting(row, ui(slot.titleKey), ui(slot.descriptionKey), reveal);
+        return row;
+    }
+
+    private int typographyRoleColor(String slotId) {
+        if (slotId.endsWith("_title")) return settingsKit.p.text3;
+        if (slotId.endsWith("_artist")) return settingsKit.p.text4;
+        if (slotId.contains("pronunciation")) return settingsKit.p.layerPhonetic;
+        if (slotId.contains("translation")) return settingsKit.p.layerTranslation;
+        return settingsKit.p.layerOriginal;
+    }
+
+    private void updateTypographyValue(String slotId) {
+        TextView value = typographyValueViews.get(slotId);
+        if (value == null || aiLyricsSettings == null) return;
+        AiLyricsSettings.TypographyStyle style = aiLyricsSettings.snapshot().typography.style(slotId);
+        value.setText(style.sizePercent + "% · " + typographyWeightLabel(style.weight));
+    }
+
+    private void syncTypographyControls(AiLyricsSettings.Snapshot snapshot) {
+        if (snapshot == null) return;
+        for (Map.Entry<String, SettingsKit.Range> entry : typographySizeRanges.entrySet()) {
+            AiLyricsSettings.TypographyStyle style = snapshot.typography.style(entry.getKey());
+            entry.getValue().setValue(style.sizePercent);
+            SettingsKit.Choice weight = typographyWeightChoices.get(entry.getKey());
+            if (weight != null) weight.select(AiLyricsSettings.normalizeTypographyWeight(style.weight));
+            updateTypographyValue(entry.getKey());
+        }
+    }
+
+    /** Explanation style for the standard lyrics view and, in the app, LP mode (switched like the lab's columns). */
+    private View buildCulturalAnnotationStyleControl() {
+        SettingsKit kit = settingsKit;
+        LinearLayout body = kit.vertical();
+        culturalAnnotationStyleGroup = body;
+        boolean embedded = IvLyricsBridge.isEmbedded(this);
+        culturalAnnotationColumnChoice = null;
+        if (!embedded) {
+            List<SettingsKit.Option> columns = new ArrayList<>();
+            columns.add(new SettingsKit.Option("standard", ui("settings.annotation_standard"))
+                    .icon(kit.layerMark(kit.p.layerOriginal, 8f)));
+            columns.add(new SettingsKit.Option("vinyl", ui("vinyl.mode")).icon(kit.layerMark(kit.p.text3, 8f)));
+            culturalAnnotationColumnChoice = kit.segmented(columns, "standard", this::showCulturalAnnotationColumn);
+            focusableItems(culturalAnnotationColumnChoice);
+            LinearLayout switchRow = kit.vertical();
+            switchRow.setPaddingRelative(dp(16), dp(12), dp(16), dp(4));
+            switchRow.addView(culturalAnnotationColumnChoice.view, matchWrap());
+            body.addView(switchRow, matchWrap());
+        }
+        culturalAnnotationStandardColumn = buildCulturalAnnotationColumn(false);
+        body.addView(culturalAnnotationStandardColumn, matchWrap());
+        culturalAnnotationVinylColumn = null;
+        if (!embedded) {
+            culturalAnnotationVinylColumn = buildCulturalAnnotationColumn(true);
+            culturalAnnotationVinylColumn.setVisibility(View.GONE);
+            body.addView(culturalAnnotationVinylColumn, matchWrap());
+        }
+        return body;
+    }
+
+    private LinearLayout buildCulturalAnnotationColumn(boolean vinyl) {
+        SettingsKit kit = settingsKit;
+        LinearLayout column = kit.dividedList();
+        String prefix = vinyl ? ui("vinyl.mode") + " · " : "";
+        Runnable reveal = vinyl ? () -> showCulturalAnnotationColumn("vinyl") : () -> showCulturalAnnotationColumn("standard");
+        String[][] fonts = {
+                {AiLyricsSettings.CULTURAL_FONT_PRETENDARD, "font.pretendard"},
+                {AiLyricsSettings.CULTURAL_FONT_SYSTEM, "font.system"},
+                {AiLyricsSettings.CULTURAL_FONT_SERIF, "font.serif"},
+                {AiLyricsSettings.CULTURAL_FONT_MONOSPACE, "font.monospace"}
+        };
+        List<SettingsKit.Option> options = new ArrayList<>();
+        for (String[] font : fonts) options.add(new SettingsKit.Option(font[0], ui(font[1])));
+        SettingsKit.Choice font = kit.segmented(options, AiLyricsSettings.CULTURAL_FONT_PRETENDARD, family -> {
+            if (aiLyricsSettings == null) return;
+            if (vinyl) {
+                aiLyricsSettings.setCulturalAnnotationsVinylFontFamily(family);
+                applyCulturalAnnotationsToVinylView();
+            } else {
+                aiLyricsSettings.setCulturalAnnotationsFontFamily(family);
+                applyCulturalAnnotationsToViews();
+            }
+        });
+        focusableItems(font);
+        if (vinyl) culturalAnnotationVinylFontChoice = font; else culturalAnnotationFontChoice = font;
+        LinearLayout fontRow = kit.stackRow(ui("setting.cultural_font_family"), null, font.view);
+        column.addView(fontRow, matchWrap());
+        registerSetting(fontRow, prefix + ui("setting.cultural_font_family"), null, reveal);
+
+        SettingsKit.Range size = settingsRange(10, 28, 1, "px", prefix + ui("setting.cultural_font_size"));
+        size.listener = (value, commit) -> {
+            if (commit || suppressSettingsEvents || aiLyricsSettings == null) return;
+            if (vinyl) {
+                aiLyricsSettings.setCulturalAnnotationsVinylFontSize(value);
+                applyCulturalAnnotationsToVinylView();
+            } else {
+                aiLyricsSettings.setCulturalAnnotationsFontSize(value);
+                applyCulturalAnnotationsToViews();
+            }
+        };
+        if (vinyl) culturalAnnotationVinylFontSizeSeekBar = size.seekBar; else culturalAnnotationFontSizeSeekBar = size.seekBar;
+        LinearLayout sizeRow = kit.stackRow(ui("setting.cultural_font_size"), null, size.view);
+        column.addView(sizeRow, matchWrap());
+        registerSetting(sizeRow, prefix + ui("setting.cultural_font_size"), null, reveal);
+
+        SettingsKit.Range weight = settingsRange(100, 900, 100, "", prefix + ui("setting.cultural_font_weight"));
+        weight.listener = (value, commit) -> {
+            if (commit || suppressSettingsEvents || aiLyricsSettings == null) return;
+            if (vinyl) {
+                aiLyricsSettings.setCulturalAnnotationsVinylFontWeight(value);
+                applyCulturalAnnotationsToVinylView();
+            } else {
+                aiLyricsSettings.setCulturalAnnotationsFontWeight(value);
+                applyCulturalAnnotationsToViews();
+            }
+        };
+        if (vinyl) culturalAnnotationVinylFontWeightSeekBar = weight.seekBar; else culturalAnnotationFontWeightSeekBar = weight.seekBar;
+        LinearLayout weightRow = kit.stackRow(ui("setting.cultural_font_weight"), null, weight.view);
+        column.addView(weightRow, matchWrap());
+        registerSetting(weightRow, prefix + ui("setting.cultural_font_weight"), null, reveal);
+
+        SettingsKit.Range opacity = settingsRange(20, 100, 1, "%", prefix + ui("setting.cultural_opacity"));
+        opacity.listener = (value, commit) -> {
+            if (commit || suppressSettingsEvents || aiLyricsSettings == null) return;
+            if (vinyl) {
+                aiLyricsSettings.setCulturalAnnotationsVinylOpacity(value);
+                applyCulturalAnnotationsToVinylView();
+            } else {
+                aiLyricsSettings.setCulturalAnnotationsOpacity(value);
+                applyCulturalAnnotationsToViews();
+            }
+        };
+        if (vinyl) culturalAnnotationVinylOpacitySeekBar = opacity.seekBar; else culturalAnnotationOpacitySeekBar = opacity.seekBar;
+        LinearLayout opacityRow = kit.stackRow(ui("setting.cultural_opacity"), null, opacity.view);
+        column.addView(opacityRow, matchWrap());
+        registerSetting(opacityRow, prefix + ui("setting.cultural_opacity"), null, reveal);
+        return column;
+    }
+
+    private void showCulturalAnnotationColumn(String column) {
+        boolean vinyl = "vinyl".equals(column) && culturalAnnotationVinylColumn != null;
+        if (culturalAnnotationStandardColumn != null) culturalAnnotationStandardColumn.setVisibility(vinyl ? View.GONE : View.VISIBLE);
+        if (culturalAnnotationVinylColumn != null) culturalAnnotationVinylColumn.setVisibility(vinyl ? View.VISIBLE : View.GONE);
+        if (culturalAnnotationColumnChoice != null && !column.equals(culturalAnnotationColumnChoice.selected)) {
+            culturalAnnotationColumnChoice.select(column);
+        }
+        updateSettingsPreviewKind();
+    }
+
+    /** With explanations off their style stays visible but inactive, as in the lab. */
+    private void setCulturalAnnotationStyleEnabled(boolean enabled) {
+        if (culturalAnnotationStyleGroup == null) return;
+        culturalAnnotationStyleGroup.setAlpha(enabled ? 1f : 0.42f);
+        setSubtreeEnabled(culturalAnnotationStyleGroup, enabled);
+    }
+
+    private void rebuildCulturalAnnotationFontButtons() {
+        if (culturalAnnotationFontChoice == null || aiLyricsSettings == null) {
+            return;
+        }
+        culturalAnnotationFontChoice.select(AiLyricsSettings.normalizeCulturalFontFamily(
+                aiLyricsSettings.snapshot().culturalAnnotationsFontFamily));
+    }
+
+    private void rebuildCulturalAnnotationVinylFontButtons() {
+        if (culturalAnnotationVinylFontChoice == null || aiLyricsSettings == null) {
+            return;
+        }
+        culturalAnnotationVinylFontChoice.select(AiLyricsSettings.normalizeCulturalFontFamily(
+                aiLyricsSettings.snapshot().culturalAnnotationsVinylFontFamily));
+    }
+
+    private String typographyWeightLabel(String weight) {
+        String normalized = AiLyricsSettings.normalizeTypographyWeight(weight);
+        if (AiLyricsSettings.TYPO_WEIGHT_REGULAR.equals(normalized)) {
+            return ui("typography.weight.regular");
+        }
+        if (AiLyricsSettings.TYPO_WEIGHT_BOLD.equals(normalized)) {
+            return ui("typography.weight.bold");
+        }
+        return ui("typography.weight.semibold");
+    }
+
+    private EditText settingEditText(String hint, boolean multiLine, boolean secret) {
+        EditText input = new EditText(this);
+        input.setHint(hint);
+        input.setHintTextColor(SettingsAppearance.MUTED);
+        input.setTextColor(SettingsAppearance.TEXT);
+        input.setTextSize(13f);
+        input.setTypeface(AppFonts.regular(this));
+        input.setSingleLine(!multiLine);
+        input.setMinHeight(dp(multiLine ? 72 : 42));
+        input.setPadding(dp(12), 0, dp(12), 0);
+        input.setBackground(SettingsAppearance.surface(this, SettingsAppearance.CONTROL, 11, true));
+        int type = InputType.TYPE_CLASS_TEXT;
+        if (multiLine) {
+            type |= InputType.TYPE_TEXT_FLAG_MULTI_LINE;
+            input.setGravity(Gravity.TOP | Gravity.START);
+            input.setMinLines(2);
+            input.setMaxLines(4);
+            input.setPadding(dp(12), dp(10), dp(12), dp(10));
+        }
+        if (secret) {
+            type |= InputType.TYPE_TEXT_VARIATION_PASSWORD;
+        }
+        input.setInputType(type);
+        input.setMinHeight(dp(multiLine ? 72 : 48));
+        input.setMinimumHeight(dp(multiLine ? 72 : 48));
+        input.setPadding(dp(12), dp(12), dp(12), dp(12));
+        return input;
+    }
+
+    private TextView primaryButton(String label) {
+        TextView view = SettingsAppearance.button(this, label, 13.5f);
+        view.setTag(SettingsAppearance.PRIMARY_ACTION);
+        makeRemoteFocusable(view);
+        SettingsAppearance.styleControls(view);
+        return view;
+    }
+
+    private LinearLayout addChoiceGridRow(LinearLayout container) {
+        LinearLayout row = new SettingsControlRow(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        if (container.getChildCount() > 0) {
+            rowParams.topMargin = dp(8);
+        }
+        container.addView(row, rowParams);
+        return row;
+    }
+
+    private LinearLayout.LayoutParams choiceGridButtonParams(int index, int heightDp) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        params.leftMargin = index % 2 == 0 ? 0 : dp(8);
+        return params;
+    }
+
+    private void buildProviderButtons() {
+        if (providerButtonsContainer == null || aiLyricsSettings == null || settingsKit == null) {
+            return;
+        }
+        if (providerDetailsContainer != null && providerDetailsContainer.getParent() instanceof ViewGroup) {
+            ((ViewGroup) providerDetailsContainer.getParent()).removeView(providerDetailsContainer);
+        }
+        if (localAiSettingsView != null && localAiSettingsView.getParent() instanceof ViewGroup) {
+            ((ViewGroup) localAiSettingsView.getParent()).removeView(localAiSettingsView);
+        }
+        providerButtonsContainer.removeAllViews();
+        AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+        updateAiProviderOwners(snapshot);
+        for (int index = 0; index < snapshot.aiProviderOrder.size(); index++) {
+            AiLyricsSettings.Provider provider = AiLyricsSettings.aiProviderById(snapshot.aiProviderOrder.get(index));
+            if (provider == null) {
+                continue;
+            }
+            View card = providerButton(provider, snapshot, index);
+            LinearLayout.LayoutParams params = matchWrap();
+            if (providerButtonsContainer.getChildCount() > 0) params.topMargin = dp(8);
+            providerButtonsContainer.addView(card, params);
+        }
+        rebuildAiConnectionsUi(snapshot);
+        int aiControlsVisibility = snapshot.provider.translationOnly() ? View.GONE : View.VISIBLE;
+        if (providerBaseUrlGroup != null) providerBaseUrlGroup.setVisibility(aiControlsVisibility);
+        if (providerModelGroup != null) providerModelGroup.setVisibility(aiControlsVisibility);
+        if (providerAdvancedGroup != null) providerAdvancedGroup.setVisibility(aiControlsVisibility);
+        updatePollinationsAuthUi(snapshot);
+        updateAiModelPickerUi(snapshot);
+        rebuildOpenAIConnectionsUi();
+    }
+
+    /** One provider in try order: rank, name, move up/down, on/off and what it can do (translation, pronunciation). */
+    private View providerButton(
+            AiLyricsSettings.Provider provider,
+            AiLyricsSettings.Snapshot snapshot,
+            int providerIndex
+    ) {
+        SettingsKit kit = settingsKit;
+        boolean enabled = snapshot.isAiProviderEnabled(provider.id);
+        LinearLayout card = kit.vertical();
+        card.setTag(provider.id);
+        card.setBackground(kit.rect(kit.p.surface, 12f, kit.p.line, 1f));
+        card.setPaddingRelative(dp(14), dp(12), dp(12), dp(12));
+
+        SettingsKit.AdaptiveRow top = new SettingsKit.AdaptiveRow(this, dp(120), dp(8));
+        LinearLayout identity = kit.horizontal();
+        identity.setGravity(Gravity.TOP);
+        LinearLayout.LayoutParams rankParams = new LinearLayout.LayoutParams(dp(24), dp(24));
+        rankParams.topMargin = dp(1);
+        identity.addView(settingsRank(providerIndex + 1, enabled), rankParams);
+        LinearLayout textColumn = kit.vertical();
+        textColumn.setMinimumHeight(dp(44));
+        textColumn.addView(kit.text(provider.label, 16f, kit.p.text, kit.semi), matchWrap());
+        TextView description = kit.text(providerDescription(provider), 12.5f, kit.p.text3, kit.regular);
+        description.setLineSpacing(dp(2), 1f);
+        textColumn.addView(description, topMargin(matchWrap(), dp(3)));
+        if (provider.localModel) {
+            // Translation runs on the phone itself, so the card says up front that it needs a high-end device.
+            TextView performanceNote = kit.text(ui("local_ai.performance_note"), 12f, kit.p.warn, kit.regular);
+            performanceNote.setLineSpacing(dp(2), 1f);
+            textColumn.addView(performanceNote, topMargin(matchWrap(), dp(5)));
+        }
+        textColumn.setAlpha(enabled ? 1f : 0.5f);
+        if (!provider.keyless) {
+            // The provider's connection details (API key, model, local model) live in its card below.
+            makeRemoteFocusable(textColumn);
+            textColumn.setBackground(kit.pressable(kit.rect(0x00000000, 6f), 6f));
+            textColumn.setContentDescription(provider.label + ", " + providerDescription(provider)
+                    + (provider.localModel ? ", " + ui("local_ai.performance_note") : ""));
+            textColumn.setOnClickListener(view -> revealAiConnection(provider));
+        }
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        textParams.setMarginStart(dp(10));
+        identity.addView(textColumn, textParams);
+        top.addView(identity);
+
+        LinearLayout order = providerOrderControls(providerIndex, snapshot.aiProviderOrder.size(), provider.label,
+                () -> moveAiProviderFromSettings(provider.id, -1),
+                () -> moveAiProviderFromSettings(provider.id, 1));
+        order.setContentDescription(uiFormat("setting.ai_provider_drag_format", provider.label));
+        View.OnLongClickListener startProviderDrag = view -> {
+            ClipData data = ClipData.newPlainText("ivlyrics-ai-provider", provider.id);
+            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                view.startDragAndDrop(data, new View.DragShadowBuilder(card), provider.id, 0);
+            } else {
+                view.startDrag(data, new View.DragShadowBuilder(card), provider.id, 0);
+            }
+            return true;
+        };
+        order.setOnLongClickListener(startProviderDrag);
+        for (int index = 0; index < order.getChildCount(); index++) {
+            order.getChildAt(index).setOnLongClickListener(startProviderDrag);
+        }
+        installProviderAccessibilityActions(order, provider, providerIndex, snapshot.aiProviderOrder.size());
+        top.addView(order);
+
+        Switch enabledSwitch = new Switch(this);
+        kit.styleSwitch(enabledSwitch);
+        makeRemoteFocusable(enabledSwitch);
+        enabledSwitch.setChecked(enabled);
+        enabledSwitch.setContentDescription(uiFormat("setting.ai_provider_toggle_format", provider.label));
+        enabledSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSettingsEvents || aiLyricsSettings == null) return;
+            aiLyricsSettings.setAiProviderEnabled(provider.id, isChecked);
+            buildProviderButtons();
+            requestAiLyrics(true);
+            showSavedToast(ui("toast.translation_provider_saved"));
+        });
+        top.addView(enabledSwitch);
+        card.addView(top, matchWrap());
+
+        SettingsKit.FlowLayout capabilities = kit.flow(8f, 6f);
+        capabilities.addView(kit.tag(ui("preview.translation"), kit.icon("translate", kit.p.text3, 15f),
+                provider.id.equals(aiTranslationOwnerId)));
+        if (!provider.translationOnly()) {
+            capabilities.addView(kit.tag(ui("preview.pronunciation"), kit.icon("pronunciation", kit.p.text3, 15f),
+                    provider.id.equals(aiPronunciationOwnerId)));
+        }
+        capabilities.setAlpha(enabled ? 1f : 0.5f);
+        capabilities.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+        card.addView(capabilities, topMargin(matchWrap(), dp(10)));
+        card.setOnDragListener((view, event) -> handleProviderDrag(card, provider.id, event));
+        return card;
+    }
+
+    /** "Translation: X · Pronunciation: Y" — the first enabled provider that can do each, in try order. */
+    private void updateAiProviderOwners(AiLyricsSettings.Snapshot snapshot) {
+        aiTranslationOwnerId = "";
+        aiPronunciationOwnerId = "";
+        AiLyricsSettings.Provider translation = null;
+        AiLyricsSettings.Provider pronunciation = null;
+        for (String providerId : snapshot.aiProviderOrder) {
+            if (!snapshot.isAiProviderEnabled(providerId)) continue;
+            AiLyricsSettings.Provider provider = AiLyricsSettings.aiProviderById(providerId);
+            if (provider == null) continue;
+            if (translation == null) translation = provider;
+            if (pronunciation == null && !provider.translationOnly()) pronunciation = provider;
+        }
+        if (translation != null) aiTranslationOwnerId = translation.id;
+        if (pronunciation != null) aiPronunciationOwnerId = pronunciation.id;
+        if (aiProviderOwnerLine == null || settingsKit == null) return;
+        aiProviderOwnerLine.removeAllViews();
+        aiProviderOwnerLine.addView(aiOwnerPill(ui("preview.translation"), translation, settingsKit.p.layerTranslation));
+        aiProviderOwnerLine.addView(aiOwnerPill(ui("preview.pronunciation"), pronunciation, settingsKit.p.layerPhonetic));
+    }
+
+    private View aiOwnerPill(String label, AiLyricsSettings.Provider provider, int color) {
+        SettingsKit kit = settingsKit;
+        LinearLayout pill = kit.horizontal();
+        pill.setBackground(kit.rect(kit.p.surface, 8f, kit.p.line2, 1f));
+        pill.setPaddingRelative(dp(10), dp(7), dp(11), dp(7));
+        pill.setMinimumHeight(dp(34));
+        View mark = new View(this);
+        mark.setBackground(kit.rect(color, 2f));
+        pill.addView(mark, new LinearLayout.LayoutParams(dp(7), dp(7)));
+        TextView name = kit.text(label, 13f, kit.p.text3, kit.semi);
+        LinearLayout.LayoutParams nameParams = SettingsKit.wrap();
+        nameParams.setMarginStart(dp(7));
+        pill.addView(name, nameParams);
+        String value = provider == null ? ui("settings.owner_none") : provider.label;
+        TextView valueView = kit.text(value, 13f, provider == null ? kit.p.text3 : kit.p.text,
+                provider == null ? kit.regular : kit.semi);
+        LinearLayout.LayoutParams valueParams = SettingsKit.wrap();
+        valueParams.setMarginStart(dp(6));
+        pill.addView(valueView, valueParams);
+        pill.setContentDescription(label + ": " + value);
+        pill.setFocusable(true);
+        return pill;
+    }
+
+    private void rebuildAiConnectionsUi(AiLyricsSettings.Snapshot snapshot) {
+        if (aiConnectionsContainer == null) return;
+        aiConnectionsContainer.removeAllViews();
+        for (String providerId : snapshot.aiProviderOrder) {
+            AiLyricsSettings.Provider provider = AiLyricsSettings.aiProviderById(providerId);
+            if (provider == null || provider.keyless) continue;
+            View card = aiConnectionCard(provider, snapshot);
+            LinearLayout.LayoutParams params = matchWrap();
+            if (aiConnectionsContainer.getChildCount() > 0) params.topMargin = dp(8);
+            aiConnectionsContainer.addView(card, params);
+        }
+    }
+
+    /** A provider's connection: opening it selects the provider for editing and shows its fields. */
+    private View aiConnectionCard(AiLyricsSettings.Provider provider, AiLyricsSettings.Snapshot snapshot) {
+        SettingsKit kit = settingsKit;
+        boolean selected = !provider.localModel && provider.id.equals(snapshot.provider.id);
+        boolean expanded = provider.localModel ? localAiDetailsExpanded : selected && providerDetailsExpanded;
+        boolean enabled = snapshot.isAiProviderEnabled(provider.id);
+        LinearLayout card = kit.vertical();
+        card.setTag("connection:" + provider.id);
+        card.setBackground(kit.rect(kit.p.surface, 12f, expanded ? kit.p.line2 : kit.p.line, 1f));
+        card.setClipToOutline(true);
+
+        SettingsKit.AdaptiveRow summary = new SettingsKit.AdaptiveRow(this, dp(150), dp(8));
+        summary.setPaddingRelative(dp(14), dp(11), dp(10), dp(11));
+        summary.setMinimumHeight(dp(64));
+        summary.setClickable(true);
+        makeRemoteFocusable(summary);
+        summary.setBackground(kit.pressable(kit.rect(0x00000000, 0f), 0f));
+        LinearLayout identity = kit.horizontal();
+        identity.setGravity(Gravity.TOP);
+        TextView avatar = kit.text(connectionInitials(provider.label), 12f, kit.p.text2, kit.semi);
+        avatar.setGravity(Gravity.CENTER);
+        avatar.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
+        avatar.setBackground(kit.rect(kit.p.surface3, 7f, kit.p.line, 1f));
+        identity.addView(avatar, new LinearLayout.LayoutParams(dp(34), dp(34)));
+        LinearLayout texts = kit.vertical();
+        texts.addView(kit.text(provider.label, 15.5f, kit.p.text, kit.semi), matchWrap());
+        TextView description = kit.text(providerDescription(provider), 12.5f, kit.p.text3, kit.regular);
+        description.setLineSpacing(dp(2), 1f);
+        texts.addView(description, topMargin(matchWrap(), dp(3)));
+        if (selected) {
+            TextView badge = kit.pill(ui("setting.ai_provider_selected"), SettingsKit.TONE_ACCENT);
+            badge.setSingleLine(false);
+            texts.addView(badge, topMargin(SettingsKit.wrap(), dp(7)));
+        }
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        textParams.setMarginStart(dp(12));
+        identity.addView(texts, textParams);
+        summary.addView(identity);
+        String state = ui(enabled ? "label.on" : "label.off");
+        summary.addView(kit.pill(state, enabled ? SettingsKit.TONE_OK : SettingsKit.TONE_NEUTRAL));
+        ImageView chevron = new ImageView(this);
+        chevron.setImageDrawable(kit.icon(expanded ? "up" : "down", kit.p.text3, 18f));
+        summary.addView(chevron);
+        summary.setContentDescription(provider.label + ", " + providerDescription(provider) + ", " + state
+                + (selected ? ", " + ui("setting.ai_provider_selected") : ""));
+        summary.setOnClickListener(view -> toggleAiConnection(provider));
+        card.addView(summary, matchWrap());
+
+        if (expanded) {
+            View divider = new View(this);
+            divider.setBackgroundColor(kit.p.line);
+            card.addView(divider, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(1))));
+            if (provider.localModel) {
+                if (localAiSettingsView == null) {
+                    localAiSettingsView = new LocalAiSettingsView(this, aiLyricsSettings, kit.p);
+                } else if (localAiSettingsView.getParent() instanceof ViewGroup) {
+                    ((ViewGroup) localAiSettingsView.getParent()).removeView(localAiSettingsView);
+                }
+                LinearLayout body = kit.vertical();
+                body.setPaddingRelative(dp(16), dp(14), dp(16), dp(16));
+                body.addView(localAiSettingsView, matchWrap());
+                card.addView(body, matchWrap());
+            } else if (providerDetailsContainer != null) {
+                card.addView(providerDetailsContainer, matchWrap());
+            }
+        }
+        return card;
+    }
+
+    private static String connectionInitials(String label) {
+        String[] words = label.replaceAll("[^\\p{L}\\p{N} ]", " ").trim().split("\\s+");
+        if (words.length > 1 && !words[0].isEmpty() && !words[1].isEmpty()) {
+            return (words[0].substring(0, 1) + words[1].substring(0, 1)).toUpperCase(Locale.ROOT);
+        }
+        String compact = label.trim();
+        return compact.substring(0, Math.min(2, compact.length())).toUpperCase(Locale.ROOT);
+    }
+
+    private void moveAiProviderFromSettings(String providerId, int offset) {
+        if (aiLyricsSettings == null) return;
+        aiLyricsSettings.moveAiProviderByOffset(providerId, offset);
+        buildProviderButtons();
+        showSavedToast(ui("toast.translation_provider_saved"));
+    }
+
+    private boolean handleProviderDrag(View card, String targetId, DragEvent event) {
+        if (aiLyricsSettings == null || event == null) {
+            return false;
+        }
+        switch (event.getAction()) {
+            case DragEvent.ACTION_DRAG_STARTED:
+                return event.getLocalState() instanceof String;
+            case DragEvent.ACTION_DRAG_ENTERED:
+                card.setAlpha(0.68f);
+                return true;
+            case DragEvent.ACTION_DRAG_EXITED:
+            case DragEvent.ACTION_DRAG_ENDED:
+                card.setAlpha(1f);
+                return true;
+            case DragEvent.ACTION_DROP:
+                card.setAlpha(1f);
+                String sourceId = event.getLocalState() instanceof String
+                        ? (String) event.getLocalState()
+                        : "";
+                boolean after = event.getY() > card.getHeight() / 2f;
+                aiLyricsSettings.moveAiProvider(sourceId, targetId, after);
+                buildProviderButtons();
+                showSavedToast(ui("toast.translation_provider_saved"));
+                return true;
+            default:
+                return true;
+        }
+    }
+
+    private void installProviderAccessibilityActions(
+            View grip,
+            AiLyricsSettings.Provider provider,
+            int index,
+            int total
+    ) {
+        final int moveUpAction = 0x01021001;
+        final int moveDownAction = 0x01021002;
+        grip.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+            @Override
+            public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                if (index > 0) {
+                    info.addAction(new AccessibilityNodeInfo.AccessibilityAction(moveUpAction, ui("accessibility.move_up")));
+                }
+                if (index < total - 1) {
+                    info.addAction(new AccessibilityNodeInfo.AccessibilityAction(moveDownAction, ui("accessibility.move_down")));
+                }
+            }
+
+            @Override
+            public boolean performAccessibilityAction(View host, int action, Bundle args) {
+                if (action == moveUpAction || action == moveDownAction) {
+                    aiLyricsSettings.moveAiProviderByOffset(provider.id, action == moveUpAction ? -1 : 1);
+                    buildProviderButtons();
+                    host.announceForAccessibility(ui("toast.translation_provider_saved"));
+                    return true;
+                }
+                return super.performAccessibilityAction(host, action, args);
+            }
+        });
+    }
+
+    private void updateProviderButtons() {
+        if (providerButtonsContainer == null || aiLyricsSettings == null) {
+            return;
+        }
+        buildProviderButtons();
+    }
+
+    private void updateAiModelPickerUi(AiLyricsSettings.Snapshot snapshot) {
+        if (aiModelPickerButton == null) return;
+        aiModelRequestId++;
+        aiModelPickerButton.setVisibility(snapshot != null && !snapshot.provider.translationOnly() ? View.VISIBLE : View.GONE);
+        aiModelPickerButton.setEnabled(true);
+        aiModelPickerButton.setText(ui("button.choose_model"));
+    }
+
+    private boolean isCurrentModelRequest(int requestId, AiLyricsSettings.Snapshot snapshot) {
+        if (isFinishing() || isDestroyed() || requestId != aiModelRequestId) return false;
+        AiLyricsSettings.Snapshot current = aiLyricsSettings.snapshot();
+        String baseUrl = textOf(baseUrlInput);
+        if (baseUrl.isEmpty()) baseUrl = current.provider.defaultBaseUrl;
+        return current.provider.id.equals(snapshot.provider.id)
+                && baseUrl.equals(snapshot.baseUrl)
+                && textOf(apiKeysInput).equals(snapshot.apiKeys)
+                && java.util.Objects.equals(current.pollinationsAccessToken, snapshot.pollinationsAccessToken);
+    }
+
+    private void loadAiModels() {
+        if (aiLyricsSettings == null || aiModelPickerButton == null) return;
+        applyAiSettingsFromUi(false);
+        AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+        if (snapshot.provider.translationOnly()) return;
+        String accessToken = snapshot.pollinationsAccessToken == null ? "" : snapshot.pollinationsAccessToken.trim();
+        String apiKey = "pollinations".equals(snapshot.provider.id) && !accessToken.isEmpty()
+                ? accessToken : firstApiKey(snapshot.apiKeys);
+        final int requestId = ++aiModelRequestId;
+        aiModelPickerButton.setEnabled(false);
+        aiModelPickerButton.setText(ui("status.model_loading"));
+        aiModelExecutor.execute(() -> {
+            AiProviderModels.Catalog catalog = null;
+            Exception failure = null;
+            try {
+                catalog = AiProviderModels.fetch(snapshot.provider.id, snapshot.baseUrl, apiKey);
+            } catch (Exception error) {
+                failure = error;
+            }
+            AiProviderModels.Catalog loaded = catalog;
+            Exception loadFailure = failure;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed() || requestId != aiModelRequestId) return;
+                aiModelPickerButton.setEnabled(true);
+                aiModelPickerButton.setText(ui("button.choose_model"));
+                if (!isCurrentModelRequest(requestId, snapshot)) return;
+                if (loadFailure != null) {
+                    appendLog(snapshot.provider.id + " model list error: " + loadFailure.getMessage());
+                    showSavedToast(ui("toast.model_load_failed"));
+                    return;
+                }
+                if (loaded.models.isEmpty()) {
+                    showSavedToast(ui("toast.model_empty"));
+                    return;
+                }
+                showAiModelDialog(loaded.models, requestId, snapshot);
+            });
+        });
+    }
+
+    private void showAiModelDialog(List<AiProviderModels.Model> models, int requestId, AiLyricsSettings.Snapshot snapshot) {
+        if (models == null || models.isEmpty() || isFinishing()) return;
+        String[] labels = new String[models.size()];
+        int selected = -1;
+        for (int index = 0; index < models.size(); index++) {
+            labels[index] = models.get(index).displayLabel();
+            if (models.get(index).id.equals(textOf(modelInput))) selected = index;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(ui("dialog.select_model"))
+                .setSingleChoiceItems(labels, selected, (dialog, which) -> {
+                    if (which < 0 || which >= models.size() || !isCurrentModelRequest(requestId, snapshot)) return;
+                    String modelId = models.get(which).id;
+                    modelInput.setText(modelId);
+                    modelInput.setSelection(modelId.length());
+                    aiLyricsSettings.setModel(modelId);
+                    if (aiSettingsStatusView != null) aiSettingsStatusView.setText(ui("toast.settings_saved"));
+                    showSavedToast(ui("toast.settings_saved"));
+                    dialog.dismiss();
+                })
+                .setNegativeButton(ui("button.close"), null)
+                .show();
+    }
+
+    private String firstApiKey(String rawValue) {
+        String value = rawValue == null ? "" : rawValue.trim();
+        if (value.isEmpty()) return "";
+        if (value.startsWith("[")) {
+            try {
+                org.json.JSONArray array = new org.json.JSONArray(value);
+                for (int index = 0; index < array.length(); index++) {
+                    String key = array.optString(index, "").trim();
+                    if (!key.isEmpty()) return key;
+                }
+            } catch (Exception ignored) {
+                // Fall through to newline/comma parsing.
+            }
+        }
+        for (String item : value.split("[\\n,]")) {
+            String key = item.trim();
+            if (!key.isEmpty()) return key;
+        }
+        return "";
+    }
+
+    private void saveOpenAIConnections(List<OpenAIConnection> connections) {
+        aiLyricsSettings.setOpenAIConnections(connections);
+        rebuildOpenAIConnectionsUi();
+    }
+
+    private void rebuildOpenAIConnectionsUi() {
+        if (openAIConnectionsContainer == null || aiLyricsSettings == null || settingsKit == null) return;
+        openAIConnectionsContainer.removeAllViews();
+        boolean visible = "chatgpt".equals(aiLyricsSettings.snapshot().provider.id);
+        openAIConnectionsContainer.setVisibility(visible ? View.VISIBLE : View.GONE);
+        if (!visible) return;
+        SettingsKit kit = settingsKit;
+        openAIConnectionsContainer.addView(kit.rowLabel(ui("openai.connections")), matchWrap());
+        openAIConnectionsContainer.addView(kit.rowDescription(ui("openai.connections_desc")), topMargin(matchWrap(), dp(4)));
+        List<OpenAIConnection> connections = aiLyricsSettings.openAIConnections();
+        for (int index = 0; index < connections.size(); index++) {
+            OpenAIConnection connection = connections.get(index);
+            final int position = index;
+            String name = (index + 2) + ". " + (connection.name.isEmpty() ? "API" : connection.name);
+            LinearLayout item = kit.vertical();
+            item.setBackground(kit.rect(kit.p.surface2, 10f, kit.p.line, 1f));
+            item.setPaddingRelative(dp(10), dp(8), dp(8), dp(8));
+            SettingsKit.AdaptiveRow head = new SettingsKit.AdaptiveRow(this, dp(110), dp(8));
+            Button edit = kit.button(name, SettingsKit.BUTTON_NORMAL, null);
+            edit.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+            edit.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
+            makeRemoteFocusable(edit);
+            edit.setContentDescription(name + ", " + ui("openai.connection"));
+            edit.setOnClickListener(view -> editOpenAIConnection(connection));
+            head.addView(edit);
+            for (int delta : new int[]{-1, 1}) {
+                ImageButton move = providerOrderButton(delta < 0 ? "up" : "down",
+                        ui(delta < 0 ? "openai.move_up" : "openai.move_down"), name,
+                        index + delta >= 0 && index + delta < connections.size(), () -> {
+                            List<OpenAIConnection> next = new ArrayList<>(aiLyricsSettings.openAIConnections());
+                            if (position + delta < 0 || position + delta >= next.size()) return;
+                            Collections.swap(next, position, position + delta);
+                            saveOpenAIConnections(next);
+                        });
+                head.addView(move);
+            }
+            ImageButton remove = providerOrderButton("trash", ui("openai.remove_connection"), name, true, () -> {
+                List<OpenAIConnection> next = new ArrayList<>(aiLyricsSettings.openAIConnections());
+                next.removeIf(entry -> entry.id.equals(connection.id));
+                saveOpenAIConnections(next);
+            });
+            remove.setImageDrawable(kit.icon("trash", kit.p.danger, 18f));
+            head.addView(remove);
+            Switch enabled = new Switch(this);
+            kit.styleSwitch(enabled);
+            makeRemoteFocusable(enabled);
+            enabled.setContentDescription(name);
+            enabled.setChecked(connection.enabled);
+            enabled.setOnCheckedChangeListener((button, checked) -> {
+                List<OpenAIConnection> next = new ArrayList<>(aiLyricsSettings.openAIConnections());
+                for (int i = 0; i < next.size(); i++) if (next.get(i).id.equals(connection.id)) {
+                    next.set(i, new OpenAIConnection(connection.id, connection.name, connection.baseUrl,
+                            connection.apiKeys, connection.model, checked));
+                }
+                saveOpenAIConnections(next);
+            });
+            head.addView(enabled);
+            item.addView(head, matchWrap());
+            openAIConnectionsContainer.addView(item, topMargin(matchWrap(), dp(10)));
+        }
+        Button add = kit.button(ui("openai.add_connection"), SettingsKit.BUTTON_NORMAL, "plus");
+        makeRemoteFocusable(add);
+        add.setOnClickListener(view -> editOpenAIConnection(new OpenAIConnection("", "API", "", "", "", true)));
+        openAIConnectionsContainer.addView(add, topMargin(SettingsKit.wrap(), dp(12)));
+    }
+
+    private void editOpenAIConnection(OpenAIConnection connection) {
+        applyAiSettingsFromUi(false);
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(LinearLayout.VERTICAL);
+        form.setPadding(dp(18), dp(8), dp(18), dp(8));
+        EditText name = settingEditText("API", false, false);
+        name.setText(connection.name);
+        form.addView(settingField(ui("openai.connection_name"), "", name), matchWrap());
+        EditText baseUrl = settingEditText("https://api.openai.com/v1", false, false);
+        baseUrl.setText(connection.baseUrl);
+        form.addView(settingField(ui("field.base_url"), "", baseUrl), topMargin(matchWrap(), dp(8)));
+        EditText keys = settingEditText("", true, true);
+        keys.setText(connection.apiKeys);
+        form.addView(settingField(ui("field.api_key"), "", keys), topMargin(matchWrap(), dp(8)));
+        EditText model = settingEditText("", false, false);
+        model.setText(connection.model);
+        form.addView(settingField(ui("field.model"), "", model), topMargin(matchWrap(), dp(8)));
+        TextView choose = debugButton(ui("button.choose_model"));
+        form.addView(choose, topMargin(matchWrap(), dp(8)));
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(form);
+        AlertDialog editor = new AlertDialog.Builder(this)
+                .setTitle(ui("openai.connection"))
+                .setView(scroll)
+                .setPositiveButton(ui("openai.save_connection"), (dialog, which) -> {
+                    OpenAIConnection saved = new OpenAIConnection(connection.id, textOf(name), textOf(baseUrl),
+                            textOf(keys), textOf(model), connection.enabled);
+                    List<OpenAIConnection> next = new ArrayList<>(aiLyricsSettings.openAIConnections());
+                    int existing = -1;
+                    for (int i = 0; i < next.size(); i++) if (next.get(i).id.equals(saved.id)) existing = i;
+                    if (existing >= 0) next.set(existing, saved); else next.add(saved);
+                    saveOpenAIConnections(next);
+                })
+                .setNegativeButton(ui("button.close"), null).create();
+        choose.setOnClickListener(view -> {
+            String requestBase = textOf(baseUrl).isEmpty() ? "https://api.openai.com/v1" : textOf(baseUrl);
+            String requestKeys = textOf(keys);
+            choose.setEnabled(false);
+            choose.setText(ui("status.model_loading"));
+            aiModelExecutor.execute(() -> {
+                AiProviderModels.Catalog catalog = null;
+                try { catalog = AiProviderModels.fetch("chatgpt", requestBase, firstApiKey(requestKeys)); }
+                catch (Exception ignored) { }
+                AiProviderModels.Catalog loaded = catalog;
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed() || !editor.isShowing()) return;
+                    choose.setEnabled(true);
+                    choose.setText(ui("button.choose_model"));
+                    String currentBase = textOf(baseUrl).isEmpty() ? "https://api.openai.com/v1" : textOf(baseUrl);
+                    if (!currentBase.equals(requestBase) || !textOf(keys).equals(requestKeys)) return;
+                    if (loaded == null || loaded.models.isEmpty()) { showSavedToast(ui("toast.model_load_failed")); return; }
+                    String[] labels = new String[loaded.models.size()];
+                    for (int i = 0; i < labels.length; i++) labels[i] = loaded.models.get(i).displayLabel();
+                    new AlertDialog.Builder(this).setTitle(ui("dialog.select_model"))
+                            .setItems(labels, (dialog, which) -> { if (editor.isShowing()) model.setText(loaded.models.get(which).id); })
+                            .setNegativeButton(ui("button.close"), null).show();
+                });
+            });
+        });
+        editor.show();
+    }
+
+    private String providerDescription(AiLyricsSettings.Provider provider) {
+        if (provider == null) {
+            return "";
+        }
+        if (KeylessTranslationProviders.BING_ID.equals(provider.id)) {
+            return ui("setting.bing_translate_provider_desc");
+        }
+        if (KeylessTranslationProviders.GOOGLE_ID.equals(provider.id)) {
+            return ui("setting.google_translate_provider_desc");
+        }
+        if ("deepl".equals(provider.id)) return provider.description;
+        return ui("provider.desc." + provider.id);
+    }
+
+    private String backgroundModeLabel(String modeId) {
+        String normalized = AiLyricsSettings.normalizeBackgroundMode(modeId);
+        if (AiLyricsSettings.BACKGROUND_MODE_BLUR_GRADIENT.equals(normalized)) {
+            return ui("background.mode.blur_gradient");
+        }
+        if (AiLyricsSettings.BACKGROUND_MODE_VIDEO.equals(normalized)) {
+            return ui("background.mode.video");
+        }
+        if (AiLyricsSettings.BACKGROUND_MODE_SOLID.equals(normalized)) {
+            return ui("background.mode.solid");
+        }
+        return ui("background.mode.gradient");
+    }
+
+    private String backgroundModeDescription(String modeId) {
+        String normalized = AiLyricsSettings.normalizeBackgroundMode(modeId);
+        if (AiLyricsSettings.BACKGROUND_MODE_BLUR_GRADIENT.equals(normalized)) {
+            return ui("background.mode.blur_gradient_desc");
+        }
+        if (AiLyricsSettings.BACKGROUND_MODE_VIDEO.equals(normalized)) {
+            return ui("background.mode.video_desc");
+        }
+        if (AiLyricsSettings.BACKGROUND_MODE_SOLID.equals(normalized)) {
+            return ui("background.mode.solid_desc");
+        }
+        return ui("background.mode.gradient_desc");
+    }
+
+    private String currentBackgroundTrackKey() {
+        if (currentLyricsKey != null && !currentLyricsKey.trim().isEmpty()) {
+            return currentLyricsKey.trim();
+        }
+        return currentTrack == null || !currentTrack.hasUsableMetadata()
+                ? ""
+                : currentTrack.stableKey();
+    }
+
+    private AiLyricsSettings.BackgroundSettings effectiveBackgroundSettings(AiLyricsSettings.Snapshot snapshot) {
+        if (snapshot == null) {
+            return null;
+        }
+        if (aiLyricsSettings == null) {
+            return snapshot.background;
+        }
+        AiLyricsSettings.BackgroundSettings trackSettings = aiLyricsSettings.trackBackgroundSettings(currentBackgroundTrackKey());
+        return trackSettings == null ? snapshot.background : trackSettings;
+    }
+
+    private AiLyricsSettings.BackgroundSettings editableTrackBackgroundSettings() {
+        if (aiLyricsSettings == null) {
+            return null;
+        }
+        return editableTrackBackgroundSettings(aiLyricsSettings.snapshot());
+    }
+
+    private AiLyricsSettings.BackgroundSettings editableTrackBackgroundSettings(AiLyricsSettings.Snapshot snapshot) {
+        if (snapshot == null) {
+            return null;
+        }
+        AiLyricsSettings.BackgroundSettings trackSettings = aiLyricsSettings == null
+                ? null
+                : aiLyricsSettings.trackBackgroundSettings(currentBackgroundTrackKey());
+        return trackSettings == null ? snapshot.background : trackSettings;
+    }
+
+    private boolean currentTrackHasBackgroundOverride() {
+        return aiLyricsSettings != null
+                && aiLyricsSettings.trackBackgroundSettings(currentBackgroundTrackKey()) != null;
+    }
+
+    private void saveCurrentTrackBackgroundSettings(AiLyricsSettings.BackgroundSettings settings, boolean rebuildModes) {
+        if (aiLyricsSettings == null || settings == null) {
+            return;
+        }
+        String trackKey = currentBackgroundTrackKey();
+        if (trackKey.isEmpty()) {
+            showSavedToast(ui("toast.current_track_missing"));
+            return;
+        }
+        aiLyricsSettings.setTrackBackgroundSettings(trackKey, settings);
+        AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+        updateLyricsBackgroundSettingsUi(rebuildModes);
+        applyBackgroundSettings(snapshot);
+        showSavedToast(ui("toast.track_background_saved"));
+    }
+
+    private void clearCurrentTrackBackgroundSettings(boolean notify) {
+        if (aiLyricsSettings == null) {
+            return;
+        }
+        String trackKey = currentBackgroundTrackKey();
+        if (trackKey.isEmpty()) {
+            showSavedToast(ui("toast.current_track_missing"));
+            return;
+        }
+        aiLyricsSettings.clearTrackBackgroundSettings(trackKey);
+        AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+        updateLyricsBackgroundSettingsUi(true);
+        applyBackgroundSettings(snapshot);
+        if (notify) {
+            showSavedToast(ui("toast.track_background_cleared"));
+        }
+    }
+
+    private void rebuildLanguageSettingsUi(AiLyricsSettings.Snapshot snapshot) {
+        if (snapshot == null) {
+            return;
+        }
+        updateUiLanguageSelect(snapshot.uiLang);
+        updateOutputLanguageSelect(snapshot.outputLang);
+        updatePronunciationNotationSelect(snapshot.pronunciationNotation);
+        rebuildPreviewModeButtons(snapshot.previewItems);
+        updateSourceLanguageSelect();
+        populateSelectedLanguageRule(snapshot);
+        if (culturalAnnotationRegenerateButton != null) {
+            culturalAnnotationRegenerateButton.setVisibility(
+                    snapshot.culturalAnnotationsEnabled ? View.VISIBLE : View.GONE
+            );
+        }
+        updateLyricsRegenerateActions();
+    }
+
+    private void updateLyricsRegenerateActions() {
+        boolean hasLyrics = currentTrack != null && currentBaseLyricsResult != null
+                && !currentBaseLyricsResult.lines.isEmpty() && !lyricsLookupInFlight;
+        boolean busy = aiLyricsGenerating || lyricsSupplementPronunciationLoading
+                || lyricsSupplementTranslationLoading || lyricsSupplementFuriganaLoading;
+        if (lyricsRegenerateButton != null) {
+            lyricsRegenerateButton.setEnabled(hasLyrics && !busy && !lyricsCulturalAnnotationsLoading);
+            lyricsRegenerateButton.setText(busy ? ui("status.ai_generating") : ui("lyrics.regenerate_supplements"));
+            lyricsRegenerateButton.setAlpha(lyricsRegenerateButton.isEnabled() ? 1f : 0.5f);
+            lyricsRegenerateButton.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        }
+        if (culturalAnnotationRegenerateButton != null) {
+            culturalAnnotationRegenerateButton.setEnabled(hasLyrics && !lyricsCulturalAnnotationsLoading && !busy);
+            culturalAnnotationRegenerateButton.setText(lyricsCulturalAnnotationsLoading
+                    ? ui("loading.cultural_annotations")
+                    : ui("tmi.regenerate") + " · " + ui("loading.cultural_annotations"));
+            culturalAnnotationRegenerateButton.setAlpha(culturalAnnotationRegenerateButton.isEnabled() ? 1f : 0.5f);
+        }
+    }
+
+    private void updateUiLanguageSelect(String selectedLang) {
+        if (uiLanguageSelectButton == null) {
+            return;
+        }
+        uiLanguageSelectButton.setText(AppI18n.label(selectedLang));
+    }
+
+    private void showSettingsUiLanguagePopup(View anchor) {
+        if (anchor == null || aiLyricsSettings == null) {
+            return;
+        }
+        showSettingsChoicePopup(anchor, uiLanguageChoices(), aiLyricsSettings.snapshot().uiLang, code -> {
+            aiLyricsSettings.setUiLang(code);
+            applyUiLanguageChange();
+            AiLyricsSettings.Snapshot nextSnapshot = aiLyricsSettings.snapshot();
+            if (AiLyricsSettings.OUTPUT_LANG_SAME_UI.equalsIgnoreCase(nextSnapshot.outputLang)) {
+                translatedTrackTitle = "";
+                translatedTrackArtist = "";
+                updateTrackMetadataTextViews(currentTrack);
+                requestMetadataTranslation(true);
+                requestAiLyrics(true);
+            }
+            showSavedToast(ui("toast.ui_language_saved"));
+        });
+    }
+
+    private void updateOutputLanguageSelect(String selectedLang) {
+        if (outputLanguageSelectButton == null) {
+            return;
+        }
+        outputLanguageSelectButton.setText(outputLanguageSelectLabel(selectedLang));
+    }
+
+    private void showSettingsOutputLanguagePopup(View anchor) {
+        if (anchor == null || aiLyricsSettings == null) {
+            return;
+        }
+        showSettingsChoicePopup(anchor, outputLanguageChoices(), aiLyricsSettings.snapshot().outputLang, code -> {
+            aiLyricsSettings.setOutputLang(code);
+            rebuildLanguageSettingsUi(aiLyricsSettings.snapshot());
+            requestAiLyrics(false);
+            showSavedToast(ui("toast.pronunciation_language_saved"));
+        });
+    }
+
+    private void updatePronunciationNotationSelect(String notation) {
+        if (pronunciationNotationChoice == null) {
+            return;
+        }
+        pronunciationNotationChoice.select(AiLyricsSettings.normalizePronunciationNotation(notation));
+    }
+
+    private List<LanguageChoice> pronunciationNotationChoices() {
+        List<LanguageChoice> choices = new ArrayList<>();
+        choices.add(new LanguageChoice(
+                AiLyricsSettings.PRONUNCIATION_NOTATION_TRANSLATION,
+                ui("pronunciation.notation.translation")
+        ));
+        choices.add(new LanguageChoice(
+                AiLyricsSettings.PRONUNCIATION_NOTATION_LATIN,
+                ui("pronunciation.notation.latin")
+        ));
+        choices.add(new LanguageChoice(
+                AiLyricsSettings.PRONUNCIATION_NOTATION_IPA,
+                ui("pronunciation.notation.ipa")
+        ));
+        return choices;
+    }
+
+    private List<LanguageChoice> outputLanguageChoices() {
+        List<LanguageChoice> choices = new ArrayList<>();
+        choices.add(new LanguageChoice(AiLyricsSettings.OUTPUT_LANG_SAME_UI, ui("label.same_as_ui_language")));
+        for (AiLyricsSettings.Language language : AiLyricsSettings.SUPPORTED_LANGUAGES) {
+            choices.add(new LanguageChoice(language.code, language.nativeName + " · " + language.name));
+        }
+        return choices;
+    }
+
+    private String outputLanguageSelectLabel(String selectedLang) {
+        if (AiLyricsSettings.OUTPUT_LANG_SAME_UI.equalsIgnoreCase(selectedLang)) {
+            return ui("label.same_as_ui_language");
+        }
+        return AiLyricsSettings.languageLabel(selectedLang);
+    }
+
+    private void rebuildPreviewModeButtons(int selectedItems) {
+        if (previewItemChips.isEmpty()) {
+            return;
+        }
+        int normalized = AiLyricsSettings.normalizePreviewItems(selectedItems);
+        boolean previous = suppressSettingsEvents;
+        suppressSettingsEvents = true;
+        for (CheckBox chip : previewItemChips) {
+            int item = (Integer) chip.getTag();
+            chip.setChecked(item == AiLyricsSettings.PREVIEW_ITEM_NONE
+                    ? normalized == AiLyricsSettings.PREVIEW_ITEM_NONE
+                    : AiLyricsSettings.previewItemEnabled(normalized, item));
+        }
+        suppressSettingsEvents = previous;
+    }
+
+    private void rebuildLyricsAlignmentButtons(String selectedAlignment) {
+        if (lyricsAlignmentChoice != null) {
+            lyricsAlignmentChoice.select(AiLyricsSettings.normalizeLyricsTextAlignment(selectedAlignment));
+        }
+    }
+
+    private void rebuildKaraokeDisplayGranularityButtons(String selectedGranularity) {
+        if (karaokeDisplayGranularityChoice != null) {
+            karaokeDisplayGranularityChoice.select(AiLyricsSettings.normalizeKaraokeDisplayGranularity(selectedGranularity));
+        }
+    }
+
+    private void rebuildVinylTonearmStyleButtons() {
+        if (vinylTonearmStyleChoice == null || aiLyricsSettings == null) return;
+        vinylTonearmStyleChoice.select(aiLyricsSettings.snapshot().vinyl.tonearmStyle);
+    }
+
+    private void rebuildVinylTonearmFinishButtons() {
+        if (vinylTonearmFinishChoice == null || aiLyricsSettings == null) return;
+        vinylTonearmFinishChoice.select(aiLyricsSettings.snapshot().vinyl.tonearmFinish);
+    }
+
+    private String vinylTonearmStyleLabel(String style) {
+        if (AiLyricsSettings.VINYL_TONEARM_STYLE_STRAIGHT.equals(style)) {
+            return ui("vinyl.settings.tonearm_style_straight");
+        }
+        if (AiLyricsSettings.VINYL_TONEARM_STYLE_J.equals(style)) {
+            return ui("vinyl.settings.tonearm_style_j");
+        }
+        if (AiLyricsSettings.VINYL_TONEARM_STYLE_LINEAR.equals(style)) {
+            return ui("vinyl.settings.tonearm_style_linear");
+        }
+        return ui("vinyl.settings.tonearm_style_s");
+    }
+
+    private String vinylTonearmFinishLabel(String finish) {
+        if (AiLyricsSettings.VINYL_TONEARM_FINISH_SILVER.equals(finish)) {
+            return ui("vinyl.settings.tonearm_finish_silver");
+        }
+        if (AiLyricsSettings.VINYL_TONEARM_FINISH_BLACK.equals(finish)) {
+            return ui("vinyl.settings.tonearm_finish_black");
+        }
+        return ui("vinyl.settings.tonearm_finish_white");
+    }
+
+    private void rebuildPictureInPictureOrientationButtons(String selectedOrientation) {
+        if (pipOrientationChoice != null) {
+            pipOrientationChoice.select(AiLyricsSettings.normalizePipOrientation(selectedOrientation));
+        }
+    }
+
+    private String pipOrientationLabel(String orientation) {
+        String normalized = AiLyricsSettings.normalizePipOrientation(orientation);
+        if (AiLyricsSettings.PIP_ORIENTATION_PORTRAIT.equals(normalized)) {
+            return ui("pip.orientation.portrait");
+        }
+        if (AiLyricsSettings.PIP_ORIENTATION_SQUARE.equals(normalized)) {
+            return ui("pip.orientation.square");
+        }
+        return ui("pip.orientation.landscape");
+    }
+
+    private void rebuildPipLyricsAlignmentButtons(String selectedAlignment) {
+        if (pipLyricsAlignmentChoice != null) {
+            pipLyricsAlignmentChoice.select(AiLyricsSettings.normalizeLyricsTextAlignment(selectedAlignment));
+        }
+    }
+
+    private String lyricsAlignmentLabel(String alignment) {
+        String normalized = AiLyricsSettings.normalizeLyricsTextAlignment(alignment);
+        if (AiLyricsSettings.LYRICS_ALIGN_CENTER.equals(normalized)) {
+            return ui("lyrics_alignment.center");
+        }
+        if (AiLyricsSettings.LYRICS_ALIGN_RIGHT.equals(normalized)) {
+            return ui("lyrics_alignment.right");
+        }
+        return ui("lyrics_alignment.left");
+    }
+
+    private void rebuildBackgroundModeButtons(String selectedMode) {
+        if (backgroundModeChoice != null) {
+            backgroundModeChoice.select(AiLyricsSettings.normalizeBackgroundMode(selectedMode));
+        }
+    }
+
+    private void rebuildLyricsBackgroundModeButtons(String selectedMode) {
+        if (lyricsBackgroundModeButtonsContainer == null || aiLyricsSettings == null) {
+            return;
+        }
+        String normalized = AiLyricsSettings.normalizeBackgroundMode(selectedMode);
+        lyricsBackgroundModeButtonsContainer.removeAllViews();
+        LinearLayout row = null;
+        for (int index = 0; index < AiLyricsSettings.BACKGROUND_MODES.size(); index++) {
+            if (index % 2 == 0) {
+                row = addChoiceGridRow(lyricsBackgroundModeButtonsContainer);
+            }
+            AiLyricsSettings.BackgroundMode mode = AiLyricsSettings.BACKGROUND_MODES.get(index);
+            TextView button = languageButton(backgroundModeLabel(mode.id), mode.id.equals(normalized));
+            button.setContentDescription(backgroundModeDescription(mode.id));
+            button.setOnClickListener(view -> {
+                AiLyricsSettings.BackgroundSettings current = editableTrackBackgroundSettings();
+                if (current == null) {
+                    return;
+                }
+                saveCurrentTrackBackgroundSettings(new AiLyricsSettings.BackgroundSettings(
+                        mode.id,
+                        current.brightness,
+                        current.blur,
+                        current.noise,
+                        current.reduceMotion,
+                        current.solidColor,
+                        current.videoScale
+                ), true);
+            });
+            row.addView(button, choiceGridButtonParams(index, 46));
+        }
+    }
+
+    private void updateBackgroundSettingsUi(AiLyricsSettings.Snapshot snapshot, boolean rebuildModes) {
+        if (snapshot == null) {
+            return;
+        }
+        AiLyricsSettings.BackgroundSettings background = snapshot.background;
+        if (rebuildModes) {
+            rebuildBackgroundModeButtons(background.mode);
+        }
+        suppressSettingsEvents = true;
+        if (backgroundBrightnessSeekBar != null) {
+            backgroundBrightnessSeekBar.setProgress(background.brightness);
+        }
+        if (backgroundBlurSeekBar != null) {
+            backgroundBlurSeekBar.setProgress(background.blur);
+        }
+        if (backgroundVideoScaleSeekBar != null) {
+            backgroundVideoScaleSeekBar.setProgress(background.videoScale - 100);
+        }
+        if (backgroundNoiseSwitch != null) {
+            backgroundNoiseSwitch.setChecked(background.noise);
+        }
+        if (backgroundReduceMotionSwitch != null) {
+            backgroundReduceMotionSwitch.setChecked(background.reduceMotion);
+        }
+        if (backgroundSolidColorValueView != null) {
+            backgroundSolidColorValueView.setText(background.solidColor.toUpperCase(Locale.ROOT));
+            if (backgroundSolidColorValueView.getParent() instanceof View) {
+                ((View) backgroundSolidColorValueView.getParent()).setContentDescription(
+                        ui("field.solid_color") + ", " + background.solidColor);
+            }
+        }
+        if (backgroundSolidColorSwatch != null) {
+            backgroundSolidColorSwatch.setBackground(solidSwatchDrawable(background.solidColor));
+        }
+        if (backgroundSolidModeVisual != null && settingsKit != null) {
+            backgroundSolidModeVisual.setBackground(settingsKit.modeDrawable(SettingsKit.VISUAL_SOLID,
+                    parseColor(background.solidColor, Color.rgb(30, 58, 138))));
+        }
+        suppressSettingsEvents = false;
+        // Video and solid-colour details follow the background mode (see the conditional rows).
+        refreshSettingsVisibility();
+    }
+
+    private void updateLyricsBackgroundSettingsUi(boolean rebuildModes) {
+        if (aiLyricsSettings == null) {
+            return;
+        }
+        AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+        AiLyricsSettings.BackgroundSettings background = editableTrackBackgroundSettings(snapshot);
+        if (background == null) {
+            return;
+        }
+        if (rebuildModes) {
+            rebuildLyricsBackgroundModeButtons(background.mode);
+        }
+        suppressSettingsEvents = true;
+        if (lyricsTrackBackgroundOverrideSwitch != null) {
+            lyricsTrackBackgroundOverrideSwitch.setChecked(currentTrackHasBackgroundOverride());
+        }
+        if (lyricsBackgroundBrightnessSeekBar != null) {
+            lyricsBackgroundBrightnessSeekBar.setProgress(background.brightness);
+        }
+        if (lyricsBackgroundBlurSeekBar != null) {
+            lyricsBackgroundBlurSeekBar.setProgress(background.blur);
+        }
+        if (lyricsBackgroundVideoScaleSeekBar != null) {
+            lyricsBackgroundVideoScaleSeekBar.setProgress(background.videoScale - 100);
+        }
+        if (lyricsBackgroundNoiseSwitch != null) {
+            lyricsBackgroundNoiseSwitch.setChecked(background.noise);
+        }
+        if (lyricsBackgroundReduceMotionSwitch != null) {
+            lyricsBackgroundReduceMotionSwitch.setChecked(background.reduceMotion);
+        }
+        if (lyricsBackgroundSolidColorValueView != null) {
+            lyricsBackgroundSolidColorValueView.setText(background.solidColor);
+        }
+        if (lyricsBackgroundSolidColorSwatch != null) {
+            lyricsBackgroundSolidColorSwatch.setBackground(roundDrawable(parseColor(background.solidColor, Color.rgb(30, 58, 138)), dp(10)));
+        }
+        suppressSettingsEvents = false;
+        boolean videoMode = AiLyricsSettings.BACKGROUND_MODE_VIDEO.equals(background.mode);
+        boolean solidMode = AiLyricsSettings.BACKGROUND_MODE_SOLID.equals(background.mode);
+        setBackgroundOptionVisibility(lyricsBackgroundVideoScaleGroup, videoMode);
+        setBackgroundOptionVisibility(lyricsBackgroundSolidColorGroup, solidMode);
+        if (lyricsBackgroundBrightnessValueView != null) {
+            lyricsBackgroundBrightnessValueView.setText(background.brightness + "%");
+        }
+        if (lyricsBackgroundBlurValueView != null) {
+            lyricsBackgroundBlurValueView.setText(background.blur + "%");
+        }
+        if (lyricsBackgroundVideoScaleValueView != null) {
+            lyricsBackgroundVideoScaleValueView.setText(background.videoScale + "%");
+        }
+    }
+
+    private void setBackgroundOptionVisibility(View view, boolean visible) {
+        if (view != null) {
+            view.setVisibility(visible ? View.VISIBLE : View.GONE);
+        }
+    }
+
+    private void applyBackgroundSettings(AiLyricsSettings.Snapshot snapshot) {
+        if (snapshot == null) {
+            return;
+        }
+        AiLyricsSettings.BackgroundSettings settings = effectiveBackgroundSettings(snapshot);
+        if (settings == null) {
+            return;
+        }
+        if (backgroundView != null) {
+            backgroundView.setBackgroundSettings(fallbackBackgroundSettings(settings));
+        }
+        if (pictureInPictureBackgroundView != null) {
+            pictureInPictureBackgroundView.setBackgroundSettings(fallbackBackgroundSettings(settings));
+        }
+        if (youtubeBackgroundView != null) {
+            youtubeBackgroundView.setBackgroundSettings(settings);
+            youtubeBackgroundView.setVideoAspect(aiLyricsSettings.videoAspect());
+        }
+        applyMobileAppearance();
+        syncYouTubeBackgroundState();
+    }
+
+    private AiLyricsSettings.BackgroundSettings fallbackBackgroundSettings(AiLyricsSettings.BackgroundSettings settings) {
+        if (!AiLyricsSettings.BACKGROUND_MODE_VIDEO.equals(settings.mode)) return settings;
+        return new AiLyricsSettings.BackgroundSettings(aiLyricsSettings.videoFallback(), settings.brightness,
+                settings.blur, settings.noise, settings.reduceMotion, settings.solidColor, settings.videoScale);
+    }
+
+    private void applyMobileAppearance() {
+        if (aiLyricsSettings == null) return;
+        boolean landscape = getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
+        if (lyricsBackgroundShade != null) {
+            // Video dimming belongs to the background layer, never the foreground content.
+            lyricsBackgroundShade.setBackgroundColor(isVideoBackgroundMode() ? Color.TRANSPARENT : Color.argb(54, 6, 7, 12));
+        }
+        if (lyricsView != null) {
+            lyricsView.setOriginalVisible(!landscape || aiLyricsSettings.landscapeShowOriginal());
+            lyricsView.setEmptyNoticeVisible(aiLyricsSettings.showLyricsNotFound());
+        }
+        if (landscapeLyricsView != null) {
+            landscapeLyricsView.setOriginalVisible(aiLyricsSettings.landscapeShowOriginal());
+            landscapeLyricsView.setEmptyNoticeVisible(aiLyricsSettings.showLyricsNotFound());
+        }
+        if (pictureInPictureLyricsView != null) pictureInPictureLyricsView.setEmptyNoticeVisible(aiLyricsSettings.showLyricsNotFound());
+        if (landscape && artworkView != null) artworkView.setVisibility(aiLyricsSettings.landscapeShowArtwork() ? View.VISIBLE : View.GONE);
+        if (landscape && lyricsArtworkView != null) lyricsArtworkView.setVisibility(aiLyricsSettings.landscapeShowArtwork() ? View.VISIBLE : View.GONE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && getWindow() != null) {
+            WindowManager.LayoutParams attributes = getWindow().getAttributes();
+            attributes.layoutInDisplayCutoutMode = landscape && aiLyricsSettings.videoEdgeToEdge()
+                    ? WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                    : WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT;
+            getWindow().setAttributes(attributes);
+        }
+        if (rootView != null) rootView.requestApplyInsets();
+    }
+
+    @SuppressWarnings("deprecation")
+    private void applyAppearanceInsets(WindowInsets insets) {
+        if (aiLyricsSettings == null || isPictureInPictureUiActive()) return;
+        if (getResources().getConfiguration().orientation != Configuration.ORIENTATION_LANDSCAPE) {
+            // Upright, the video fills the screen whatever the landscape setting kept clear.
+            insetVideoBackground(0, 0, 0, 0);
+            return;
+        }
+        int left, right, top, bottom;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            android.graphics.Insets safe = insets.getInsetsIgnoringVisibility(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+            left = safe.left; right = safe.right; top = safe.top; bottom = safe.bottom;
+        } else {
+            left = insets.getSystemWindowInsetLeft(); right = insets.getSystemWindowInsetRight();
+            top = insets.getSystemWindowInsetTop(); bottom = insets.getSystemWindowInsetBottom();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && insets.getDisplayCutout() != null) {
+                left = Math.max(left, insets.getDisplayCutout().getSafeInsetLeft());
+                right = Math.max(right, insets.getDisplayCutout().getSafeInsetRight());
+            }
+        }
+        if (mainPage != null) mainPage.setPadding(dp(22) + left, dp(16) + top, dp(22) + right, dp(16) + bottom);
+        if (lyricsPage != null) lyricsPage.setPadding(left, 0, right, bottom);
+        // The settings shell owns its system/cutout/IME insets. Padding its outer
+        // panel too subtracts the cutout twice and can collapse narrow form fields.
+        boolean edges = aiLyricsSettings.videoEdgeToEdge();
+        insetVideoBackground(edges ? 0 : left, edges ? 0 : top, edges ? 0 : right, edges ? 0 : bottom);
+    }
+
+    /**
+     * Without edge-to-edge a landscape video stays clear of the bars and the cutout. The view
+     * keeps filling the screen and insets the video inside itself, so what the video leaves
+     * uncovered is the view's black, not the artwork behind it.
+     */
+    private void insetVideoBackground(int left, int top, int right, int bottom) {
+        if (youtubeBackgroundView != null && !youtubeBackgroundAttachedToPictureInPicture) {
+            youtubeBackgroundView.setVideoInsets(left, top, right, bottom);
+        }
+    }
+
+    private boolean isVideoBackgroundMode() {
+        if (aiLyricsSettings == null) {
+            return false;
+        }
+        AiLyricsSettings.BackgroundSettings settings = effectiveBackgroundSettings(aiLyricsSettings.snapshot());
+        return settings != null && AiLyricsSettings.BACKGROUND_MODE_VIDEO.equals(settings.mode);
+    }
+
+    private void syncYouTubeBackgroundState() {
+        if (youtubeBackgroundView == null) {
+            return;
+        }
+        boolean videoMode = isVideoBackgroundMode();
+        syncPictureInPictureBackgroundLayer(videoMode);
+        youtubeBackgroundView.setVideoBackgroundEnabled(videoMode);
+        if (!videoMode) {
+            return;
+        }
+        if (currentYouTubeBackgroundInfo != null) {
+            youtubeBackgroundView.loadVideo(currentYouTubeBackgroundInfo);
+        } else {
+            requestYouTubeBackgroundIfNeeded();
+        }
+        updateYouTubeBackgroundPlaybackState();
+    }
+
+    private void syncPictureInPictureBackgroundLayer(boolean videoMode) {
+        if (youtubeBackgroundView == null) {
+            return;
+        }
+        if (videoMode && aiLyricsSettings != null) {
+            AiLyricsSettings.BackgroundSettings settings = effectiveBackgroundSettings(aiLyricsSettings.snapshot());
+            if (settings != null) {
+                youtubeBackgroundView.setBackgroundSettings(settings);
+            }
+        }
+        if (isPictureInPictureUiActive() && videoMode) {
+            attachYouTubeBackgroundToPictureInPicture();
+        } else {
+            attachYouTubeBackgroundToRoot();
+        }
+    }
+
+    private void attachYouTubeBackgroundToPictureInPicture() {
+        if (youtubeBackgroundView == null || pictureInPictureStage == null || youtubeBackgroundAttachedToPictureInPicture) {
+            return;
+        }
+        detachFromParent(youtubeBackgroundView);
+        youtubeBackgroundView.setVideoInsets(0, 0, 0, 0);
+        pictureInPictureStage.addView(youtubeBackgroundView, Math.min(1, pictureInPictureStage.getChildCount()), new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        youtubeBackgroundAttachedToPictureInPicture = true;
+    }
+
+    private void attachYouTubeBackgroundToRoot() {
+        if (youtubeBackgroundView == null || rootView == null) {
+            return;
+        }
+        if (!youtubeBackgroundAttachedToPictureInPicture && youtubeBackgroundView.getParent() == rootView) {
+            return;
+        }
+        detachFromParent(youtubeBackgroundView);
+        int insertIndex = 1;
+        if (backgroundView != null) {
+            int backgroundIndex = rootView.indexOfChild(backgroundView);
+            if (backgroundIndex >= 0) {
+                insertIndex = backgroundIndex + 1;
+            }
+        }
+        rootView.addView(youtubeBackgroundView, Math.min(insertIndex, rootView.getChildCount()), new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        youtubeBackgroundAttachedToPictureInPicture = false;
+        // Back from picture-in-picture, the video takes the window's insets again.
+        rootView.requestApplyInsets();
+    }
+
+    protected void showVideoSelectionDialog() {
+        if (currentTrack == null || !currentTrack.hasUsableMetadata() || youtubeBackgroundRepository == null) {
+            showSavedToast(ui("toast.current_track_missing"));
+            return;
+        }
+        TrackSnapshot track = currentTrack;
+        String trackKey = track.stableKey();
+        String isrc = nonEmpty(currentResolvedIsrc, nonEmpty(currentBaseLyricsResult == null ? "" : currentBaseLyricsResult.isrc, track.isrc));
+        String[] options = {ui("label.auto"), ui("video.url"), ui("video.community")};
+        new AlertDialog.Builder(this).setTitle(ui("video.choose"))
+                .setItems(options, (dialog, which) -> {
+                    if (!isCurrentVideoSelectionTrack(trackKey)) return;
+                    if (which == 0) {
+                        applySelectedVideo(trackKey, null);
+                    } else if (which == 1) {
+                        EditText input = settingEditText("https://www.youtube.com/watch?v=...", false, false);
+                        YouTubeBackgroundRepository.VideoInfo selected = youtubeBackgroundRepository.selectedVideo(trackKey);
+                        if (selected != null) input.setText("https://www.youtube.com/watch?v=" + selected.youtubeVideoId);
+                        AlertDialog editor = new AlertDialog.Builder(this).setTitle(ui("video.url"))
+                                .setView(input).setPositiveButton(android.R.string.ok, null)
+                                .setNegativeButton(android.R.string.cancel, null).create();
+                        editor.setOnShowListener(ignored -> editor.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> {
+                            String id = YouTubeVideoSelection.extractId(textOf(input));
+                            if (id.isEmpty()) { input.setError(ui("video.invalid")); return; }
+                            applySelectedVideo(trackKey, new YouTubeBackgroundRepository.VideoInfo(
+                                    isrc, track.trackId, id, id, false, 0d, false, ""));
+                            editor.dismiss();
+                        }));
+                        editor.show();
+                    } else {
+                        youtubeBackgroundRepository.loadCommunityVideos(isrc, track, (videos, error) -> {
+                            if (!isCurrentVideoSelectionTrack(trackKey)) return;
+                            if (error != null || videos.isEmpty()) {
+                                showSavedToast(ui(error == null ? "video.empty" : "video.failed"));
+                                return;
+                            }
+                            String[] titles = new String[videos.size()];
+                            for (int index = 0; index < videos.size(); index++) {
+                                var video = videos.get(index);
+                                titles[index] = nonEmpty(video.youtubeTitle, video.youtubeVideoId);
+                            }
+                            new AlertDialog.Builder(this).setTitle(ui("video.community"))
+                                    .setItems(titles, (choices, index) -> applySelectedVideo(trackKey, videos.get(index)))
+                                    .setNegativeButton(android.R.string.cancel, null).show();
+                        });
+                    }
+                }).setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    private boolean isCurrentVideoSelectionTrack(String trackKey) {
+        return !isFinishing() && !isDestroyed() && currentTrack != null && trackKey.equals(currentTrack.stableKey());
+    }
+
+    private void applySelectedVideo(String trackKey, YouTubeBackgroundRepository.VideoInfo info) {
+        if (!isCurrentVideoSelectionTrack(trackKey)) return;
+        youtubeBackgroundRepository.selectVideo(trackKey, info);
+        if (info == null) {
+            String isrc = nonEmpty(currentResolvedIsrc, nonEmpty(currentBaseLyricsResult == null ? "" : currentBaseLyricsResult.isrc, currentTrack.isrc));
+            youtubeBackgroundRepository.clearCacheForIsrc(isrc);
+        }
+        resetYouTubeBackgroundForTrack();
+        syncYouTubeBackgroundState();
+        showSavedToast(ui("toast.settings_saved"));
+    }
+
+    private void requestYouTubeBackgroundIfNeeded() {
+        if (!isVideoBackgroundMode()
+                || youtubeBackgroundRepository == null
+                || currentTrack == null
+                || !currentTrack.hasUsableMetadata()
+                || currentTrack.isSpotifyDjSegment()) {
+            return;
+        }
+        LyricsResult lyricsResult = currentBaseLyricsResult == null ? LyricsResult.empty("") : currentBaseLyricsResult;
+        String isrc = nonEmpty(lyricsResult.isrc, nonEmpty(currentResolvedIsrc, currentTrack.isrc));
+        if (isrc.isEmpty() && youtubeBackgroundRepository.selectedVideo(currentTrack.stableKey()) == null) {
+            appendLog("youtube background: waiting for ISRC");
+            return;
+        }
+        String trackId = nonEmpty(lyricsResult.spotifyTrackId, nonEmpty(currentResolvedSpotifyTrackId, currentTrack.trackId));
+        String requestPrefix = "track:" + currentTrack.stableKey() + ":isrc:" + isrc + "#";
+        if (currentYouTubeBackgroundRequestKey.startsWith(requestPrefix)
+                && (currentYouTubeBackgroundLoading || currentYouTubeBackgroundInfo != null)) {
+            return;
+        }
+        String requestKey = requestPrefix + (++youtubeBackgroundRequestGeneration);
+        currentYouTubeBackgroundRequestKey = requestKey;
+        currentYouTubeBackgroundLoading = true;
+        youtubeBackgroundRepository.load(requestKey, currentTrack, youtubeMetadataResult(lyricsResult, isrc, trackId), this);
+    }
+
+    private LyricsResult youtubeMetadataResult(LyricsResult source, String isrc, String spotifyTrackId) {
+        LyricsResult safeSource = source == null ? LyricsResult.empty("") : source;
+        String normalizedIsrc = TrackSnapshot.normalizeIsrc(isrc);
+        String safeSpotifyTrackId = spotifyTrackId == null ? "" : spotifyTrackId.trim();
+        if (normalizedIsrc.equals(safeSource.isrc)
+                && safeSpotifyTrackId.equals(safeSource.spotifyTrackId)) {
+            return safeSource;
+        }
+        return safeSource.withMetadata(normalizedIsrc, safeSpotifyTrackId);
+    }
+
+    private boolean isCurrentYouTubeBackgroundRequest(String requestKey) {
+        return requestKey != null && requestKey.equals(currentYouTubeBackgroundRequestKey);
+    }
+
+    private void resetYouTubeBackgroundForTrack() {
+        currentYouTubeBackgroundInfo = null;
+        currentYouTubeBackgroundLoading = false;
+        currentYouTubeBackgroundRequestKey = "";
+        if (youtubeBackgroundView != null) {
+            youtubeBackgroundView.clearVideo();
+            youtubeBackgroundView.setVideoBackgroundEnabled(isVideoBackgroundMode());
+        }
+    }
+
+    private void updateYouTubeBackgroundPlaybackState() {
+        if (youtubeBackgroundView == null
+                || !isVideoBackgroundMode()
+                || currentTrack == null
+                || !currentTrack.hasUsableMetadata()) {
+            return;
+        }
+        long position = currentPlaybackPosition(currentTrack);
+        youtubeBackgroundView.setPlaybackState(
+                position,
+                currentTrack.playing,
+                firstLyricTimeMs(currentBaseLyricsResult),
+                currentGlobalSyncOffsetMs + currentTrackSyncOffsetMs + currentBluetoothLyricsOffsetMs + currentVideoSyncOffsetMs
+        );
+    }
+
+    private long firstLyricTimeMs(LyricsResult result) {
+        if (result == null || result.lines == null || result.lines.isEmpty()) {
+            return 0L;
+        }
+        long best = Long.MAX_VALUE;
+        for (LyricsLine line : result.lines) {
+            if (line == null) {
+                continue;
+            }
+            if (line.vocalParts != null && !line.vocalParts.isEmpty()) {
+                for (LyricsLine.VocalPart part : line.vocalParts) {
+                    if (part != null && part.startTimeMs >= 0L) {
+                        best = Math.min(best, part.startTimeMs);
+                    }
+                }
+            } else if (line.isTimed()) {
+                best = Math.min(best, line.startTimeMs);
+            }
+        }
+        return best == Long.MAX_VALUE ? 0L : best;
+    }
+
+    private void destroyYouTubeBackgroundView() {
+        if (youtubeBackgroundView != null) {
+            youtubeBackgroundView.destroy();
+            youtubeBackgroundView = null;
+        }
+    }
+
+    private void applyTypographySettings(AiLyricsSettings.Snapshot snapshot) {
+        if (snapshot == null) {
+            return;
+        }
+        AiLyricsSettings.TypographySettings typography = snapshot.typography;
+        boolean landscape = isLandscapeLayout();
+        applyTypographyToTextView(titleView, typography, AiLyricsSettings.TYPO_MAIN_TITLE, landscape ? 23f : 28f);
+        applyTypographyToTextView(artistView, typography, AiLyricsSettings.TYPO_MAIN_ARTIST, landscape ? 15f : 18f);
+        applyTypographyToTextView(lyricsTitleView, typography, AiLyricsSettings.TYPO_LYRICS_HEADER_TITLE, 19f);
+        applyTypographyToTextView(lyricsArtistView, typography, AiLyricsSettings.TYPO_LYRICS_HEADER_ARTIST, 14f);
+        if (lyricPreviewView != null) {
+            lyricPreviewView.setTypographySettings(typography);
+        }
+        if (vinylPlayerModeView != null) {
+            vinylPlayerModeView.setCustomization(snapshot.vinyl, typography);
+            vinylPlayerModeView.setCulturalAnnotationStyle(
+                    snapshot.culturalAnnotationsEnabled,
+                    snapshot.culturalAnnotationsVinylFontFamily,
+                    snapshot.culturalAnnotationsVinylFontSize,
+                    snapshot.culturalAnnotationsVinylFontWeight,
+                    snapshot.culturalAnnotationsVinylOpacity
+            );
+        }
+        if (lyricsView != null) {
+            lyricsView.setTypographySettings(typography);
+        }
+        if (landscapeLyricsView != null) {
+            landscapeLyricsView.setTypographySettings(typography);
+        }
+        if (pictureInPictureTitleView != null) {
+            applyTypographyToTextView(pictureInPictureTitleView, typography, AiLyricsSettings.TYPO_LYRICS_HEADER_TITLE, 13f);
+        }
+        if (pictureInPictureArtistView != null) {
+            applyTypographyToTextView(pictureInPictureArtistView, typography, AiLyricsSettings.TYPO_LYRICS_HEADER_ARTIST, 10f);
+        }
+        if (pictureInPictureLyricsView != null) {
+            pictureInPictureLyricsView.setTypographySettings(typography);
+            pictureInPictureLyricsView.setTypographySizeMultiplier(snapshot.pipLyricsSizePercent / 100f);
+        }
+    }
+
+    private void applyVinylSettings(AiLyricsSettings.Snapshot snapshot) {
+        if (snapshot == null || vinylPlayerModeView == null) {
+            return;
+        }
+        vinylPlayerModeView.setCustomization(snapshot.vinyl, snapshot.typography);
+        vinylPlayerModeView.setCulturalAnnotationStyle(
+                snapshot.culturalAnnotationsEnabled,
+                snapshot.culturalAnnotationsVinylFontFamily,
+                snapshot.culturalAnnotationsVinylFontSize,
+                snapshot.culturalAnnotationsVinylFontWeight,
+                snapshot.culturalAnnotationsVinylOpacity
+        );
+    }
+
+    private void applyLyricsTextAlignmentSetting(AiLyricsSettings.Snapshot snapshot) {
+        if (snapshot == null) {
+            return;
+        }
+        if (lyricPreviewView != null) {
+            lyricPreviewView.setLyricTextAlignment(snapshot.lyricsTextAlignment);
+        }
+        if (lyricsView != null) {
+            lyricsView.setLyricTextAlignment(snapshot.lyricsTextAlignment);
+        }
+        if (landscapeLyricsView != null) {
+            landscapeLyricsView.setLyricTextAlignment(snapshot.lyricsTextAlignment);
+        }
+        if (pictureInPictureLyricsView != null) {
+            pictureInPictureLyricsView.setLyricTextAlignment(snapshot.pipLyricsTextAlignment);
+        }
+    }
+
+    private void applySpeakerColorSettings(AiLyricsSettings.Snapshot snapshot) {
+        if (snapshot == null) {
+            return;
+        }
+        AiLyricsSettings.SpeakerColorSettings speakerColors = snapshot.speakerColors;
+        if (lyricsView != null) {
+            lyricsView.setSpeakerColorSettings(speakerColors);
+            lyricsView.setUseCreatorSpeakerColors(snapshot.useSyncCreatorSpeakerColors);
+        }
+        if (landscapeLyricsView != null) {
+            landscapeLyricsView.setSpeakerColorSettings(speakerColors);
+            landscapeLyricsView.setUseCreatorSpeakerColors(snapshot.useSyncCreatorSpeakerColors);
+        }
+        if (pictureInPictureLyricsView != null) {
+            pictureInPictureLyricsView.setSpeakerColorSettings(speakerColors);
+            pictureInPictureLyricsView.setUseCreatorSpeakerColors(snapshot.useSyncCreatorSpeakerColors);
+        }
+    }
+
+    private void configureLyricsViewFromSettings(LyricsView view, float verticalCenterBias, boolean seekable) {
+        if (view == null || aiLyricsSettings == null) {
+            return;
+        }
+        AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+        view.setVerticalCenterBias(verticalCenterBias);
+        view.setAutoInstrumentalBreakEnabled(snapshot.autoInstrumentalBreakEnabled);
+        view.setInterludeLabelsEnabled(snapshot.interludeLabelsEnabled);
+        view.setSyncedLyricsKaraokeAnimationEnabled(snapshot.syncedLyricsKaraokeAnimationEnabled);
+        view.setKaraokeBounceEffectEnabled(snapshot.karaokeBounceEffectEnabled);
+        view.setKaraokeExpressiveMotion(aiLyricsSettings != null && aiLyricsSettings.karaokeExpressiveMotionEnabled());
+        view.setKaraokeDisplayGranularity(snapshot.karaokeDisplayGranularity);
+        view.setJapaneseFuriganaEnabled(snapshot.japaneseFuriganaEnabled);
+        view.setTypographySettings(snapshot.typography);
+        view.setTypographySizeMultiplier(1f);
+        view.setLyricTextAlignment(snapshot.lyricsTextAlignment);
+        view.setSpeakerColorSettings(snapshot.speakerColors);
+        view.setUseCreatorSpeakerColors(snapshot.useSyncCreatorSpeakerColors);
+        view.setOnSeekListener(seekable ? this::seekToPosition : null);
+    }
+
+    private void configurePictureInPictureLyricsViewFromSettings(LyricsView view, float verticalCenterBias) {
+        configureLyricsViewFromSettings(view, verticalCenterBias, false);
+        if (view != null && aiLyricsSettings != null) {
+            AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+            view.setTypographySizeMultiplier(snapshot.pipLyricsSizePercent / 100f);
+            view.setLyricTextAlignment(snapshot.pipLyricsTextAlignment);
+        }
+    }
+
+    private void applyTypographyToTextView(
+            TextView view,
+            AiLyricsSettings.TypographySettings typography,
+            String slotId,
+            float baseSizeSp
+    ) {
+        if (view == null) {
+            return;
+        }
+        AiLyricsSettings.TypographyStyle style = typography == null
+                ? AiLyricsSettings.TypographySettings.defaults().style(slotId)
+                : typography.style(slotId);
+        view.setTextSize(Math.max(8f, baseSizeSp * style.scale()));
+        view.setTypeface(AppFonts.byWeight(this, style.weight));
+        view.invalidate();
+    }
+
+    private void applyKeepScreenOnSetting(AiLyricsSettings.Snapshot snapshot) {
+        Window window = getWindow();
+        if (window == null) {
+            return;
+        }
+        // Motion lyrics keeps the screen on while it shows: nobody touches it while a song plays.
+        if ((snapshot != null && snapshot.keepScreenOn) || motionModeVisible) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
+    }
+
+    private void addLyricsPopupTabButton(String tabId, String text) {
+        if (lyricsPopupTabButtonsContainer == null) {
+            return;
+        }
+        TextView button = SettingsAppearance.button(this, text, 14f);
+        button.setMaxWidth(dp(200));
+        makeRemoteFocusable(button);
+        button.setTag(tabId);
+        button.setGravity(Gravity.CENTER);
+        button.setPadding(dp(16), dp(12), dp(16), dp(12));
+        button.setMinWidth(dp(72));
+        button.setOnClickListener(view -> switchLyricsPopupTab(tabId));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        if (lyricsPopupTabButtonsContainer.getChildCount() > 0) {
+            params.leftMargin = dp(8);
+        }
+        lyricsPopupTabButtonsContainer.addView(button, params);
+    }
+
+    private void switchLyricsPopupTab(String tabId) {
+        activeLyricsPopupTab = normalizeLyricsPopupTab(tabId);
+        if (lyricsLanguageSettingsContent != null) {
+            lyricsLanguageSettingsContent.setVisibility(
+                    LYRICS_POPUP_TAB_LANGUAGE.equals(activeLyricsPopupTab) ? View.VISIBLE : View.GONE
+            );
+        }
+        if (lyricsSyncSettingsContent != null) {
+            lyricsSyncSettingsContent.setVisibility(
+                    LYRICS_POPUP_TAB_SYNC.equals(activeLyricsPopupTab) ? View.VISIBLE : View.GONE
+            );
+        }
+        if (videoSyncSettingsContent != null) {
+            videoSyncSettingsContent.setVisibility(
+                    LYRICS_POPUP_TAB_VIDEO.equals(activeLyricsPopupTab) ? View.VISIBLE : View.GONE
+            );
+        }
+        if (lyricsBackgroundSettingsContent != null) {
+            lyricsBackgroundSettingsContent.setVisibility(
+                    LYRICS_POPUP_TAB_BACKGROUND.equals(activeLyricsPopupTab) ? View.VISIBLE : View.GONE
+            );
+            if (LYRICS_POPUP_TAB_BACKGROUND.equals(activeLyricsPopupTab)) {
+                updateLyricsBackgroundSettingsUi(true);
+            }
+        }
+        if (lyricsManualSearchContent != null) {
+            lyricsManualSearchContent.setVisibility(
+                    LYRICS_POPUP_TAB_LRCLIB.equals(activeLyricsPopupTab) ? View.VISIBLE : View.GONE
+            );
+            if (LYRICS_POPUP_TAB_LRCLIB.equals(activeLyricsPopupTab)) {
+                populateManualLrclibSearchDefaults(false);
+            }
+        }
+        updateLyricsPopupTabButtons();
+        scrollSelectedTabIntoView(lyricsPopupTabButtonsContainer);
+        updateLyricsSyncSettingsUi();
+        updateVideoSyncSettingsUi();
+        resizeLyricsMetaMenuPopupForActiveTab(true);
+    }
+
+    private void scrollSelectedTabIntoView(LinearLayout buttons) {
+        if (buttons == null || !(buttons.getParent() instanceof HorizontalScrollView)) return;
+        HorizontalScrollView scroll = (HorizontalScrollView) buttons.getParent();
+        scroll.post(() -> {
+            for (int index = 0; index < buttons.getChildCount(); index++) {
+                View button = buttons.getChildAt(index);
+                if (button.isSelected()) {
+                    scroll.scrollTo(Math.max(0, button.getLeft() - (scroll.getWidth() - button.getWidth()) / 2), 0);
+                    break;
+                }
+            }
+        });
+    }
+
+    private void updateLyricsPopupTabButtons() {
+        updateTaggedSelectableButtons(lyricsPopupTabButtonsContainer, activeLyricsPopupTab);
+    }
+
+    private void updateTaggedSelectableButtons(LinearLayout container, String selectedTag) {
+        if (container == null) {
+            return;
+        }
+        for (int index = 0; index < container.getChildCount(); index++) {
+            View child = container.getChildAt(index);
+            if (!(child instanceof TextView)) {
+                continue;
+            }
+            TextView button = (TextView) child;
+            boolean selected = selectedTag != null && selectedTag.equals(child.getTag());
+            setSelectableButtonState(button, selected, 12f);
+        }
+    }
+
+    private String normalizeLyricsPopupTab(String tabId) {
+        if (LYRICS_POPUP_TAB_SYNC.equals(tabId)) {
+            return LYRICS_POPUP_TAB_SYNC;
+        }
+        if (LYRICS_POPUP_TAB_VIDEO.equals(tabId)) {
+            return LYRICS_POPUP_TAB_VIDEO;
+        }
+        if (LYRICS_POPUP_TAB_BACKGROUND.equals(tabId)) {
+            return LYRICS_POPUP_TAB_BACKGROUND;
+        }
+        if (LYRICS_POPUP_TAB_LRCLIB.equals(tabId)) {
+            return LYRICS_POPUP_TAB_LRCLIB;
+        }
+        return LYRICS_POPUP_TAB_LANGUAGE;
+    }
+
+    private void updateLyricsSyncSettingsUi() {
+        if (globalSyncOffsetValueView != null) {
+            globalSyncOffsetValueView.setText(formatSignedMs(currentGlobalSyncOffsetMs));
+        }
+        if (globalSyncOffsetDescriptionView != null) {
+            globalSyncOffsetDescriptionView.setText(ui("lyrics.global_sync.help"));
+        }
+        if (lyricsSyncOffsetValueView != null) {
+            lyricsSyncOffsetValueView.setText(formatSignedMs(currentTrackSyncOffsetMs));
+        }
+        if (lyricsSyncOffsetDescriptionView != null) {
+            String trackText = currentTrack == null || !currentTrack.hasUsableMetadata()
+                    ? ui("lyrics.sync.no_track")
+                    : uiFormat("lyrics.sync.track_scope", currentTrack.title);
+            lyricsSyncOffsetDescriptionView.setText(trackText
+                    + "\n" + ui("lyrics.sync.help"));
+        }
+        if (bluetoothSyncOffsetValueView != null) {
+            bluetoothSyncOffsetValueView.setText(currentBluetoothAudioDeviceKey.isEmpty()
+                    ? "--"
+                    : formatSignedMs(currentBluetoothLyricsOffsetMs));
+        }
+        if (bluetoothSyncOffsetDescriptionView != null) {
+            String deviceText = currentBluetoothAudioDeviceKey.isEmpty()
+                    ? ui("lyrics.bluetooth_sync.no_device")
+                    : uiFormat("lyrics.bluetooth_sync.device_scope", currentBluetoothAudioDeviceName);
+            bluetoothSyncOffsetDescriptionView.setText(deviceText
+                    + "\n" + ui("lyrics.bluetooth_sync.help"));
+        }
+    }
+
+    private void updateVideoSyncSettingsUi() {
+        if (videoTimingShareButton != null) {
+            videoTimingShareButton.setEnabled(!videoTimingShareInFlight
+                    && currentTrack != null && currentTrack.hasUsableMetadata());
+            videoTimingShareButton.setAlpha(videoTimingShareButton.isEnabled() ? 1f : 0.5f);
+        }
+        if (videoSyncOffsetValueView != null) {
+            videoSyncOffsetValueView.setText(formatSignedMs(currentVideoSyncOffsetMs));
+        }
+        if (videoSyncOffsetDescriptionView != null) {
+            String trackText = currentTrack == null || !currentTrack.hasUsableMetadata()
+                    ? ui("lyrics.video_sync.no_track")
+                    : uiFormat("lyrics.video_sync.track_scope", currentTrack.title);
+            videoSyncOffsetDescriptionView.setText(trackText
+                    + "\n" + ui("lyrics.video_sync.help"));
+        }
+    }
+
+    private VideoTimingSubmission captureCurrentVideoTiming() {
+        if (!isVideoBackgroundMode() || youtubeBackgroundView == null || currentBaseLyricsResult == null
+                || !isCurrentVideoSelectionTrack(currentLyricsKey)) return null;
+        YouTubeBackgroundRepository.VideoInfo applied = youtubeBackgroundView.appliedVideoInfo();
+        if (applied == null || applied != currentYouTubeBackgroundInfo) return null;
+        long firstLyricMs = currentVideoFirstLyricTimeMs();
+        if (firstLyricMs < 0L) return null;
+        String isrc = nonEmpty(currentBaseLyricsResult.isrc, nonEmpty(currentResolvedIsrc, currentTrack.isrc));
+        String trackId = nonEmpty(currentBaseLyricsResult.spotifyTrackId,
+                nonEmpty(currentResolvedSpotifyTrackId, currentTrack.trackId));
+        return VideoTimingSubmission.capture(currentTrack, isrc, trackId, applied,
+                firstLyricMs, currentVideoSyncOffsetMs);
+    }
+
+    private long currentVideoFirstLyricTimeMs() {
+        if (currentBaseLyricsResult == null) return -1L;
+        for (LyricsLine line : currentBaseLyricsResult.lines) {
+            if (line != null && (line.isTimed() || (line.vocalParts != null && !line.vocalParts.isEmpty()))) {
+                return firstLyricTimeMs(currentBaseLyricsResult);
+            }
+        }
+        return -1L;
+    }
+
+    private void materializeEditedVideoTiming(String trackKey) {
+        YouTubeBackgroundRepository.VideoInfo applied = currentYouTubeBackgroundInfo;
+        if (!isCurrentVideoSelectionTrack(trackKey) || applied == null || !applied.autoGenerated
+                || youtubeBackgroundRepository == null || youtubeBackgroundView == null) return;
+        YouTubeBackgroundRepository.VideoInfo manual = applied.withManualTiming(currentVideoFirstLyricTimeMs());
+        if (manual == null) return;
+        youtubeBackgroundRepository.selectVideo(trackKey, manual);
+        currentYouTubeBackgroundInfo = manual;
+        youtubeBackgroundView.loadVideo(manual);
+    }
+
+    private void shareCurrentVideoTiming() {
+        if (videoTimingShareInFlight || creatorPrivacyRepository == null) return;
+        final VideoTimingSubmission submission = captureCurrentVideoTiming();
+        if (submission == null) {
+            showSavedToast(ui("video.cannot_share_timing"));
+            return;
+        }
+        if (!creatorPrivacyRepository.hasAuthenticatedSession()) {
+            showSavedToast(ui("creator_privacy.login_required"));
+            dismissLyricsMetaMenuPopup();
+            showSettingsPanel(true);
+            switchSettingsTab(SETTINGS_TAB_SYSTEM);
+            return; // Authentication never resumes a share automatically: click Share again afterward.
+        }
+        final String language = currentUiLanguageTag();
+        videoTimingShareInFlight = true;
+        updateVideoSyncSettingsUi();
+        creatorPrivacyExecutor.execute(() -> {
+            String message;
+            try {
+                creatorPrivacyRepository.shareVideoTiming(submission, language);
+                message = "video.timing_shared";
+            } catch (Exception error) {
+                message = error instanceof CreatorPrivacyRepository.AuthenticationException
+                        ? "creator_privacy.login_required" : "video.share_timing_failed";
+            }
+            final String result = message;
+            handler.post(() -> {
+                videoTimingShareInFlight = false;
+                if (isFinishing() || isDestroyed()) return;
+                updateVideoSyncSettingsUi();
+                showSavedToast(ui(result));
+            });
+        });
+    }
+
+    private void populateManualLrclibSearchDefaults(boolean overwrite) {
+        if (currentTrack == null || !currentTrack.hasUsableMetadata()) {
+            return;
+        }
+        if (lyricsManualSearchTitleInput != null && (overwrite || textOf(lyricsManualSearchTitleInput).isEmpty())) {
+            lyricsManualSearchTitleInput.setText(currentTrack.title);
+        }
+        if (lyricsManualSearchArtistInput != null && (overwrite || textOf(lyricsManualSearchArtistInput).isEmpty())) {
+            lyricsManualSearchArtistInput.setText(currentTrack.artist);
+        }
+    }
+
+    private void resetManualLrclibSearchForTrack(TrackSnapshot snapshot) {
+        manualLrclibSearchInFlight = false;
+        if (lyricsManualSearchResultsContainer != null) {
+            lyricsManualSearchResultsContainer.removeAllViews();
+        }
+        if (snapshot != null && snapshot.hasUsableMetadata()) {
+            if (lyricsManualSearchTitleInput != null) {
+                lyricsManualSearchTitleInput.setText(snapshot.title);
+            }
+            if (lyricsManualSearchArtistInput != null) {
+                lyricsManualSearchArtistInput.setText(snapshot.artist);
+            }
+        } else {
+            if (lyricsManualSearchTitleInput != null) {
+                lyricsManualSearchTitleInput.setText("");
+            }
+            if (lyricsManualSearchArtistInput != null) {
+                lyricsManualSearchArtistInput.setText("");
+            }
+        }
+        setManualLrclibStatus(ui("lyrics.lrclib_search.ready"));
+    }
+
+    private void showTrackLyricsProviderDialog() {
+        if (currentTrack == null || !currentTrack.hasUsableMetadata() || lyricsProviderSettings == null) {
+            showSavedToast(ui("toast.current_track_missing"));
+            return;
+        }
+        String trackKey = currentTrack.stableKey();
+        String selectedProvider = lyricsProviderSettings.providerForTrack(trackKey);
+        List<LyricsProviderSettings.Provider> providers = LyricsProviderSettings.PROVIDERS;
+        String[] labels = new String[providers.size() + 1];
+        labels[0] = ui("label.auto");
+        int selected = 0;
+        for (int index = 0; index < providers.size(); index++) {
+            labels[index + 1] = providers.get(index).label;
+            if (providers.get(index).id.equals(selectedProvider)) selected = index + 1;
+        }
+        new AlertDialog.Builder(this).setTitle(ui("section.lyrics_providers"))
+                .setSingleChoiceItems(labels, selected, (dialog, which) -> {
+                    if (currentTrack != null && trackKey.equals(currentTrack.stableKey())) {
+                        lyricsProviderSettings.setProviderForTrack(trackKey, which == 0 ? "" : providers.get(which - 1).id);
+                        onLyricsProviderSettingsChanged(false);
+                    }
+                    dialog.dismiss();
+                }).setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    protected void performManualLrclibSearch() {
+        if (manualLrclibSearchInFlight) {
+            return;
+        }
+        if (lyricsRepository == null) {
+            setManualLrclibStatus(ui("spotify.error.repository_unavailable"));
+            return;
+        }
+        populateManualLrclibSearchDefaults(false);
+        String title = textOf(lyricsManualSearchTitleInput);
+        String artist = textOf(lyricsManualSearchArtistInput);
+        if (title.isEmpty()) {
+            setManualLrclibStatus(ui("lyrics.lrclib_search.empty_title"));
+            return;
+        }
+        manualLrclibSearchInFlight = true;
+        setManualLrclibStatus(ui("lyrics.lrclib_search.loading"));
+        if (lyricsManualSearchResultsContainer != null) {
+            lyricsManualSearchResultsContainer.removeAllViews();
+        }
+        lyricsRepository.searchManualLrclib(currentTrack, title, artist, this);
+    }
+
+    private void renderManualLrclibCandidates(List<LyricsRepository.ManualLrclibCandidate> candidates) {
+        if (lyricsManualSearchResultsContainer == null) {
+            return;
+        }
+        lyricsManualSearchResultsContainer.removeAllViews();
+        if (candidates == null || candidates.isEmpty()) {
+            setManualLrclibStatus(ui("lyrics.lrclib_search.no_results"));
+            resizeLyricsMetaMenuPopupForActiveTab(false);
+            return;
+        }
+        setManualLrclibStatus(uiFormat("lyrics.lrclib_search.result_count_format", candidates.size()));
+        for (LyricsRepository.ManualLrclibCandidate candidate : candidates) {
+            View row = manualLrclibCandidateRow(candidate);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            if (lyricsManualSearchResultsContainer.getChildCount() > 0) {
+                params.topMargin = dp(8);
+            }
+            lyricsManualSearchResultsContainer.addView(row, params);
+        }
+        resizeLyricsMetaMenuPopupForActiveTab(false);
+    }
+
+    private View manualLrclibCandidateRow(LyricsRepository.ManualLrclibCandidate candidate) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setPadding(dp(11), dp(10), dp(11), dp(10));
+        row.setBackground(roundDrawable(Color.argb(38, 255, 255, 255), dp(10)));
+        row.setClickable(true);
+        makeRemoteFocusable(row);
+        row.setOnClickListener(view -> selectManualLrclibCandidate(candidate));
+
+        TextView title = label(
+                candidate.trackName.isEmpty() ? "LRCLIB #" + candidate.id : candidate.trackName,
+                13f,
+                Color.WHITE,
+                AppFonts.bold(this)
+        );
+        title.setSingleLine(true);
+        title.setEllipsize(TextUtils.TruncateAt.END);
+        row.addView(title, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        String artistAlbum = manualLrclibArtistAlbumText(candidate);
+        if (!artistAlbum.isEmpty()) {
+            TextView artist = label(artistAlbum, 11f, Color.argb(168, 255, 255, 255), AppFonts.regular(this));
+            artist.setSingleLine(true);
+            artist.setEllipsize(TextUtils.TruncateAt.END);
+            row.addView(artist, topMargin(matchWrap(), dp(4)));
+        }
+
+        TextView meta = label(manualLrclibMetaText(candidate), 10f, Color.argb(134, 255, 255, 255), AppFonts.semiBold(this));
+        meta.setSingleLine(true);
+        meta.setEllipsize(TextUtils.TruncateAt.END);
+        row.addView(meta, topMargin(matchWrap(), dp(6)));
+        return row;
+    }
+
+    private String manualLrclibArtistAlbumText(LyricsRepository.ManualLrclibCandidate candidate) {
+        if (candidate.albumName.isEmpty()) {
+            return candidate.artistName;
+        }
+        if (candidate.artistName.isEmpty()) {
+            return candidate.albumName;
+        }
+        return candidate.artistName + " · " + candidate.albumName;
+    }
+
+    private String manualLrclibMetaText(LyricsRepository.ManualLrclibCandidate candidate) {
+        List<String> pieces = new ArrayList<>();
+        pieces.add(manualLrclibKindLabel(candidate));
+        if (candidate.durationSeconds > 0.0) {
+            pieces.add(formatDurationSeconds(candidate.durationSeconds));
+        }
+        if (!candidate.isrc.isEmpty()) {
+            pieces.add(candidate.isrc);
+        }
+        if (candidate.id > 0L) {
+            pieces.add("#" + candidate.id);
+        }
+        return TextUtils.join(" · ", pieces);
+    }
+
+    private String manualLrclibKindLabel(LyricsRepository.ManualLrclibCandidate candidate) {
+        if (candidate.instrumental) {
+            return ui("lyrics.lrclib_search.instrumental");
+        }
+        if (candidate.synced) {
+            return ui("lyrics.lrclib_search.synced");
+        }
+        return ui("lyrics.lrclib_search.plain");
+    }
+
+    private String formatDurationSeconds(double seconds) {
+        return formatTime(Math.round(Math.max(0.0, seconds) * 1000.0));
+    }
+
+    private void selectManualLrclibCandidate(LyricsRepository.ManualLrclibCandidate candidate) {
+        if (lyricsRepository == null || candidate == null || manualLrclibSearchInFlight) {
+            return;
+        }
+        lyricsRepository.invalidateProviderSelection();
+        manualLrclibSearchInFlight = true;
+        lyricsLookupInFlight = true;
+        lyricsLoadingProviderName = "LRCLIB";
+        setManualLrclibStatus(ui("lyrics.lrclib_search.selecting"));
+        lyricsRepository.loadManualLrclibCandidate(currentTrack, candidate, this);
+    }
+
+    private void setManualLrclibStatus(String message) {
+        if (lyricsManualSearchStatusView != null) {
+            lyricsManualSearchStatusView.setText(message == null ? "" : message);
+        }
+    }
+
+    private boolean isCurrentManualLrclibTrack(String trackKey) {
+        String safeKey = trackKey == null ? "" : trackKey;
+        if (!currentLyricsKey.trim().isEmpty()) {
+            return currentLyricsKey.equals(safeKey);
+        }
+        String currentKey = currentTrack == null || !currentTrack.hasUsableMetadata()
+                ? ""
+                : currentTrack.stableKey();
+        return currentKey.equals(safeKey);
+    }
+
+    private void adjustCurrentTrackSyncOffset(int deltaMs) {
+        setCurrentTrackSyncOffset(currentTrackSyncOffsetMs + deltaMs, true);
+    }
+
+    private void adjustGlobalSyncOffset(int deltaMs) {
+        setGlobalSyncOffset(currentGlobalSyncOffsetMs + deltaMs, true);
+    }
+
+    private void adjustCurrentBluetoothSyncOffset(int deltaMs) {
+        setCurrentBluetoothSyncOffset(currentBluetoothLyricsOffsetMs + deltaMs, true);
+    }
+
+    private void adjustCurrentVideoSyncOffset(int deltaMs) {
+        setCurrentVideoSyncOffset(currentVideoSyncOffsetMs + deltaMs, true);
+    }
+
+    private void setGlobalSyncOffset(int offsetMs, boolean notify) {
+        int nextOffset = clampSyncOffset(offsetMs);
+        currentGlobalSyncOffsetMs = nextOffset;
+        if (aiLyricsSettings != null) {
+            aiLyricsSettings.setGlobalSyncOffsetMs(nextOffset);
+        }
+        updateLyricsSyncSettingsUi();
+        updateLyricsOffsetSensitiveViews();
+        if (notify) {
+            showSavedToast(uiFormat("toast.global_sync_offset_format", formatSignedMs(nextOffset)));
+        }
+    }
+
+    private void setCurrentTrackSyncOffset(int offsetMs, boolean notify) {
+        int nextOffset = clampSyncOffset(offsetMs);
+        currentTrackSyncOffsetMs = nextOffset;
+        String key = currentLyricsKey == null || currentLyricsKey.trim().isEmpty()
+                ? currentTrack == null ? "" : currentTrack.stableKey()
+                : currentLyricsKey;
+        if (aiLyricsSettings != null && !key.trim().isEmpty()) {
+            aiLyricsSettings.setTrackSyncOffsetMs(key, nextOffset);
+        }
+        updateLyricsSyncSettingsUi();
+        updateLyricsOffsetSensitiveViews();
+        if (notify) {
+            showSavedToast(uiFormat("toast.sync_offset_format", formatSignedMs(nextOffset)));
+        }
+    }
+
+    private void setCurrentBluetoothSyncOffset(int offsetMs, boolean notify) {
+        if (currentBluetoothAudioDeviceKey == null || currentBluetoothAudioDeviceKey.trim().isEmpty()) {
+            updateLyricsSyncSettingsUi();
+            if (notify) {
+                showSavedToast(ui("lyrics.bluetooth_sync.no_device"));
+            }
+            return;
+        }
+        int nextOffset = clampSyncOffset(offsetMs);
+        currentBluetoothLyricsOffsetMs = nextOffset;
+        if (aiLyricsSettings != null) {
+            aiLyricsSettings.setBluetoothSyncOffsetMs(currentBluetoothAudioDeviceKey, nextOffset);
+        }
+        updateLyricsSyncSettingsUi();
+        updateLyricsOffsetSensitiveViews();
+        if (notify) {
+            showSavedToast(uiFormat("toast.bluetooth_sync_offset_format", currentBluetoothAudioDeviceName, formatSignedMs(nextOffset)));
+        }
+    }
+
+    private void setCurrentVideoSyncOffset(int offsetMs, boolean notify) {
+        int nextOffset = clampSyncOffset(offsetMs);
+        boolean edited = notify && nextOffset != currentVideoSyncOffsetMs;
+        currentVideoSyncOffsetMs = nextOffset;
+        String key = currentLyricsKey == null || currentLyricsKey.trim().isEmpty()
+                ? currentTrack == null ? "" : currentTrack.stableKey()
+                : currentLyricsKey;
+        if (aiLyricsSettings != null && !key.trim().isEmpty()) {
+            aiLyricsSettings.setTrackVideoSyncOffsetMs(key, nextOffset);
+        }
+        if (edited) materializeEditedVideoTiming(key);
+        updateVideoSyncSettingsUi();
+        updateYouTubeBackgroundPlaybackState();
+        if (notify) {
+            showSavedToast(uiFormat("toast.video_sync_offset_format", formatSignedMs(nextOffset)));
+        }
+    }
+
+    private void updateLyricsOffsetSensitiveViews() {
+        if (currentTrack == null || !currentTrack.hasUsableMetadata()) {
+            return;
+        }
+        long position = currentPlaybackPosition(currentTrack);
+        long lyricsPosition = lyricsPlaybackPosition(position, currentTrack.durationMs);
+        setLyricsPlaybackPositionOnViews(lyricsPosition);
+        updateLyricPreview(lyricsPosition);
+        updateYouTubeBackgroundPlaybackState();
+    }
+
+    private long lyricsPlaybackPosition(long playerPositionMs, long durationMs) {
+        long adjusted =
+                playerPositionMs
+                + currentSpotifyDjLyricsOffsetMs
+                + currentGlobalSyncOffsetMs
+                + currentTrackSyncOffsetMs
+                + currentBluetoothLyricsOffsetMs
+                + pronunciationLeadMs;
+        long lyricsDurationMs = lyricsTrackDuration(durationMs);
+        return lyricsDurationMs > 0L
+                ? Math.max(0L, Math.min(lyricsDurationMs, adjusted))
+                : Math.max(0L, adjusted);
+    }
+
+    /** {@link #lyricsPlaybackPosition} without rounding, for a frame-synchronized position. */
+    private double lyricsPlaybackFramePosition(double playerPositionMs, long durationMs) {
+        double adjusted =
+                playerPositionMs
+                + currentSpotifyDjLyricsOffsetMs
+                + currentGlobalSyncOffsetMs
+                + currentTrackSyncOffsetMs
+                + currentBluetoothLyricsOffsetMs
+                + pronunciationLeadMs;
+        long lyricsDurationMs = lyricsTrackDuration(durationMs);
+        return lyricsDurationMs > 0L
+                ? Math.max(0d, Math.min(lyricsDurationMs, adjusted))
+                : Math.max(0d, adjusted);
+    }
+
+    private long playerPositionForLyricsTime(long lyricsTimeMs, long durationMs) {
+        long target =
+                lyricsTimeMs
+                - currentSpotifyDjLyricsOffsetMs
+                - currentGlobalSyncOffsetMs
+                - currentTrackSyncOffsetMs
+                - currentBluetoothLyricsOffsetMs
+                - pronunciationLeadMs;
+        return durationMs > 0L
+                ? Math.max(0L, Math.min(durationMs, target))
+                : Math.max(0L, target);
+    }
+
+    private long lyricsTrackDuration(long playerDurationMs) {
+        return playerDurationMs > 0L
+                ? playerDurationMs + currentSpotifyDjLyricsOffsetMs
+                : 0L;
+    }
+
+    private int clampSyncOffset(int offsetMs) {
+        return Math.max(-10000, Math.min(10000, offsetMs));
+    }
+
+    private String offsetDeltaLabel(int deltaMs) {
+        return (deltaMs > 0 ? "+" : "") + deltaMs + "ms";
+    }
+
+    private String formatSignedMs(int offsetMs) {
+        return offsetMs > 0 ? "+" + offsetMs + "ms" : offsetMs + "ms";
+    }
+
+    private void updateSourceLanguageSelect() {
+        if (sourceLanguageSelectButton == null) {
+            return;
+        }
+        sourceLanguageSelectButton.setText(sourceLanguageLabel(selectedRuleSourceLang));
+    }
+
+    private void showLyricsSourceLanguagePopup(View anchor) {
+        if (anchor == null || aiLyricsSettings == null) {
+            return;
+        }
+        showLanguageSelectPopup(anchor, sourceLanguageChoices(), selectedRuleSourceLang, code -> {
+            selectedRuleSourceLang = "auto".equalsIgnoreCase(code)
+                    ? "auto"
+                    : AiLyricsSettings.normalizeSourceLanguageKey(code);
+            populateSelectedLanguageRule(aiLyricsSettings.snapshot());
+            updateSourceLanguageSelect();
+            requestAiLyrics(true);
+        });
+    }
+
+    private List<LanguageChoice> sourceLanguageChoices() {
+        List<LanguageChoice> choices = new ArrayList<>();
+        choices.add(new LanguageChoice("auto", autoSourceLanguageLabel()));
+        for (AiLyricsSettings.Language language : AiLyricsSettings.SUPPORTED_LANGUAGES) {
+            choices.add(new LanguageChoice(language.code, language.nativeName + " · " + language.name));
+        }
+        return choices;
+    }
+
+    private TextView languageButton(String text, boolean selected) {
+        TextView button = SettingsAppearance.button(this, text, 13f);
+        makeRemoteFocusable(button);
+        button.setGravity(Gravity.CENTER);
+        setSelectableButtonState(button, selected, 11f);
+        return button;
+    }
+
+    private void setSelectableButtonState(TextView button, boolean selected) {
+        setSelectableButtonState(button, selected, 12f);
+    }
+
+    private void setSelectableButtonState(TextView button, boolean selected, float radiusDp) {
+        button.setSelected(selected);
+        button.setTextColor(selected ? Color.rgb(12, 13, 17) : Color.WHITE);
+        button.setBackground(SettingsAppearance.actionBackground(this,
+                selected ? SettingsAppearance.TEXT : SettingsAppearance.CONTROL,
+                Math.round(radiusDp), false
+        ));
+    }
+
+    private TextView settingsSelectButton(String text) {
+        TextView button = SettingsAppearance.button(this, text, 14.5f);
+        makeRemoteFocusable(button);
+        button.setGravity(Gravity.CENTER_VERTICAL);
+        button.setBackground(SettingsAppearance.actionBackground(this, SettingsAppearance.CONTROL, 11, false));
+        button.setCompoundDrawablesRelativeWithIntrinsicBounds(null, null, SettingsAppearance.chevron(this), null);
+        button.setCompoundDrawablePadding(dp(10));
+        return button;
+    }
+
+    private boolean sameChoice(String left, String right) {
+        String a = "auto".equalsIgnoreCase(left)
+                ? "auto"
+                : AiLyricsSettings.OUTPUT_LANG_SAME_UI.equalsIgnoreCase(left)
+                ? AiLyricsSettings.OUTPUT_LANG_SAME_UI
+                : AiLyricsSettings.normalizeSourceLanguageKey(left);
+        String b = "auto".equalsIgnoreCase(right)
+                ? "auto"
+                : AiLyricsSettings.OUTPUT_LANG_SAME_UI.equalsIgnoreCase(right)
+                ? AiLyricsSettings.OUTPUT_LANG_SAME_UI
+                : AiLyricsSettings.normalizeSourceLanguageKey(right);
+        return a.equalsIgnoreCase(b);
+    }
+
+    private void populateSelectedLanguageRule(AiLyricsSettings.Snapshot snapshot) {
+        if (snapshot == null || languageTranslationSwitch == null || languagePronunciationSwitch == null) {
+            return;
+        }
+        AiLyricsSettings.LanguageRule rule = snapshot.ruleForSource(effectiveSelectedSourceLang());
+        suppressLanguageRuleEvents = true;
+        languageTranslationSwitch.setChecked(rule.translationEnabled);
+        languagePronunciationSwitch.setChecked(rule.pronunciationEnabled);
+        suppressLanguageRuleEvents = false;
+        updateSelectedLanguageRuleStatusFromUi();
+    }
+
+    private void updateSelectedLanguageRuleStatusFromUi() {
+        if (selectedLanguageRuleView == null || languageTranslationSwitch == null || languagePronunciationSwitch == null) {
+            return;
+        }
+        selectedLanguageRuleView.setText(ui("lyrics.rule.track_language") + ": " + sourceLanguageLabel(selectedRuleSourceLang)
+                + ("auto".equalsIgnoreCase(selectedRuleSourceLang)
+                ? "\n" + ui("lyrics.rule.save_target") + ": " + AiLyricsSettings.languageLabel(effectiveSelectedSourceLang())
+                : "")
+                + "\n" + ui("lyrics.translation") + ": " + onOff(languageTranslationSwitch.isChecked())
+                + " · " + ui("lyrics.pronunciation") + ": " + onOff(languagePronunciationSwitch.isChecked()));
+    }
+
+    private void applySelectedLanguageRuleFromUi(boolean refreshRuleUi) {
+        if (suppressLanguageRuleEvents || aiLyricsSettings == null || languageTranslationSwitch == null || languagePronunciationSwitch == null) {
+            return;
+        }
+        aiLyricsSettings.setLanguageRule(
+                effectiveSelectedSourceLang(),
+                languageTranslationSwitch.isChecked(),
+                languagePronunciationSwitch.isChecked(),
+                aiLyricsSettings.snapshot().defaultRule.targetLang
+        );
+        if (refreshRuleUi) {
+            populateSelectedLanguageRule(aiLyricsSettings.snapshot());
+        }
+    }
+
+    private String sourceLanguageLabel(String lang) {
+        if ("auto".equalsIgnoreCase(lang)) {
+            return autoSourceLanguageLabel();
+        }
+        return AiLyricsSettings.languageLabel(lang);
+    }
+
+    private String autoSourceLanguageLabel() {
+        return uiFormat("label.auto_target", languageDisplayName(effectiveDetectedSourceLang()));
+    }
+
+    /** A language's name in the UI language, such as 일본어 for ja; the code only when no name is known. */
+    private String languageDisplayName(String languageCode) {
+        String code = languageCode == null ? "" : languageCode.trim().replace('_', '-');
+        if (code.isEmpty() || aiLyricsSettings == null) {
+            return code;
+        }
+        Locale language = Locale.forLanguageTag(code);
+        String name = language.getDisplayLanguage(Locale.forLanguageTag(
+                aiLyricsSettings.snapshot().uiLang.replace('_', '-')));
+        return name == null || name.trim().isEmpty() || name.equalsIgnoreCase(language.getLanguage()) ? code : name;
+    }
+
+    private String effectiveDetectedSourceLang() {
+        String normalized = AiLyricsSettings.normalizeLanguageCode(detectedLyricsSourceLang);
+        return normalized.isEmpty() ? "en" : normalized;
+    }
+
+    private String effectiveSelectedSourceLang() {
+        return "auto".equalsIgnoreCase(selectedRuleSourceLang)
+                ? effectiveDetectedSourceLang()
+                : AiLyricsSettings.normalizeSourceLanguageKey(selectedRuleSourceLang);
+    }
+
+    private String onOff(boolean enabled) {
+        return enabled ? ui("label.on") : ui("label.off");
+    }
+
+    private void attachSpotifyMetaTap(View view) {
+        if (view == null) {
+            return;
+        }
+        makeRemoteFocusable(view);
+        view.setClickable(true);
+        view.setOnLongClickListener(target -> {
+            openLyricsMetaMenuFromMain(target);
+            return true;
+        });
+        view.setOnTouchListener((target, event) -> {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    mainMetaTouchStartX = event.getRawX();
+                    mainMetaTouchStartY = event.getRawY();
+                    scheduleMainMetaLongPress(target);
+                    if (target.getParent() != null) {
+                        target.getParent().requestDisallowInterceptTouchEvent(true);
+                    }
+                    return true;
+                case MotionEvent.ACTION_MOVE: {
+                    float dx = event.getRawX() - mainMetaTouchStartX;
+                    float dy = event.getRawY() - mainMetaTouchStartY;
+                    if (Math.hypot(dx, dy) > dp(12)) {
+                        cancelLyricsMetaLongPress();
+                    }
+                    return true;
+                }
+                case MotionEvent.ACTION_UP:
+                    cancelLyricsMetaLongPress();
+                    if (target.getParent() != null) {
+                        target.getParent().requestDisallowInterceptTouchEvent(false);
+                    }
+                    if (lyricsMetaLongPressTriggered) {
+                        lyricsMetaLongPressTriggered = false;
+                    } else {
+                        target.performClick();
+                    }
+                    return true;
+                case MotionEvent.ACTION_CANCEL:
+                    cancelLyricsMetaLongPress();
+                    lyricsMetaLongPressTriggered = false;
+                    if (target.getParent() != null) {
+                        target.getParent().requestDisallowInterceptTouchEvent(false);
+                    }
+                    return true;
+                default:
+                    return true;
+            }
+        });
+        view.setOnClickListener(target -> handleLyricsMetaTap());
+    }
+
+    private void handleLyricsMetaTap() {
+        dismissLyricsMetaTip();
+        String action = aiLyricsSettings.titleTapAction();
+        if ("disabled".equals(action)) return;
+        if ("player".equals(action)) {
+            openSpotifyForCurrentTrack();
+            return;
+        }
+        String destination = NowPlayingService.navigationDestination("album".equals(action));
+        if (!destination.isEmpty()) {
+            openSpotifyDestination(destination);
+        } else if ("album".equals(action) && currentTrack != null && lyricsRepository != null) {
+            String trackKey = currentTrack.stableKey();
+            String trackId = nonEmpty(currentTrack.trackId, currentResolvedSpotifyTrackId);
+            lyricsRepository.resolveAlbumDestination(trackId, uri -> {
+                if (currentTrack == null || !trackKey.equals(currentTrack.stableKey())
+                        || !"album".equals(aiLyricsSettings.titleTapAction())) return;
+                if (uri.isEmpty()) showSavedToast(ui("toast.spotify_open_failed"));
+                else openSpotifyDestination(uri);
+            });
+        } else {
+            showSavedToast(ui("appearance.context_unavailable"));
+        }
+    }
+
+    private void openSpotifyDestination(String uri) {
+        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(uri));
+        intent.setPackage(currentTrack != null && isSpotifyPackage(currentTrack.packageName)
+                ? currentTrack.packageName : "com.spotify.music");
+        if (tryStartActivity(intent)) {
+            if (IvLyricsBridge.isEmbedded(this)) finish();
+        } else showSavedToast(ui("toast.spotify_open_failed"));
+    }
+
+    private void handleLyricsMetaLongPress(View target) {
+        openLyricsMetaMenuFromMain(target);
+    }
+
+    private void scheduleLyricsMetaLongPress(View target) {
+        cancelLyricsMetaLongPress();
+        lyricsMetaLongPressTriggered = false;
+        lyricsMetaLongPressRunnable = () -> {
+            lyricsMetaLongPressRunnable = null;
+            lyricsMetaLongPressTriggered = true;
+            handleLyricsMetaLongPress(target);
+        };
+        handler.postDelayed(lyricsMetaLongPressRunnable, ViewConfiguration.getLongPressTimeout());
+    }
+
+    private void scheduleMainMetaLongPress(View target) {
+        cancelLyricsMetaLongPress();
+        lyricsMetaLongPressTriggered = false;
+        lyricsMetaLongPressRunnable = () -> {
+            lyricsMetaLongPressRunnable = null;
+            lyricsMetaLongPressTriggered = true;
+            openLyricsMetaMenuFromMain(target);
+        };
+        handler.postDelayed(lyricsMetaLongPressRunnable, ViewConfiguration.getLongPressTimeout());
+    }
+
+    private void openLyricsMetaMenuFromMain(View target) {
+        dismissLyricsMetaTip();
+        if (target != null) {
+            target.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+        }
+        showLyricsMetaMenuPopup(target);
+    }
+
+    private boolean isLyricsMetaMenuPopupVisible() {
+        return lyricsMetaMenuPopup != null && lyricsMetaMenuPopup.isShowing();
+    }
+
+    private void showLyricsMetaMenuPopup(View anchor) {
+        if (rootView == null || lyricsLanguageSettingsPanel == null) {
+            return;
+        }
+        dismissLyricsMetaMenuPopup();
+        updateLyricsLanguageSettingsUi();
+        switchLyricsPopupTab(activeLyricsPopupTab);
+        rememberLyricsLanguageSettingsParent();
+        detachFromParent(lyricsLanguageSettingsPanel);
+
+        FrameLayout popupContent = new FrameLayout(this);
+        popupContent.setFocusable(true);
+        popupContent.setFocusableInTouchMode(true);
+        popupContent.setOnKeyListener((view, keyCode, event) -> {
+            if (event != null
+                    && event.getAction() == KeyEvent.ACTION_DOWN
+                    && (keyCode == KeyEvent.KEYCODE_ESCAPE || keyCode == KeyEvent.KEYCODE_DEL)) {
+                dismissLyricsMetaMenuPopup();
+                return true;
+            }
+            return false;
+        });
+        popupContent.setPadding(dp(16), dp(10), dp(16), dp(10));
+        popupContent.setBackground(SettingsAppearance.surface(this, SettingsAppearance.SURFACE, 18, false));
+        popupContent.setClipChildren(false);
+        popupContent.setClipToPadding(false);
+
+        lyricsMetaMenuScrollView = new ScrollView(this);
+        lyricsMetaMenuScrollView.setFillViewport(true);
+        lyricsMetaMenuScrollView.setClipToPadding(false);
+        lyricsMetaMenuScrollView.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+        lyricsMetaMenuScrollView.addView(lyricsLanguageSettingsPanel, new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        popupContent.addView(lyricsMetaMenuScrollView, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        int width = Math.min(visibleSettingsWindowBounds().width() - dp(16),
+                dp(isLandscapeLayout() ? 480 : 430));
+        int popupTop = lyricsMetaMenuPopupTop(anchor);
+        lyricsMetaMenuPopupWidthPx = Math.max(1, width);
+        int popupHeight = lyricsMetaMenuPopupHeight(lyricsMetaMenuPopupWidthPx, popupTop);
+        lyricsMetaMenuPopupTopPx = popupTop;
+        lyricsMetaMenuPopup = new PopupWindow(
+                popupContent,
+                lyricsMetaMenuPopupWidthPx,
+                popupHeight,
+                true
+        );
+        lyricsMetaMenuPopup.setOutsideTouchable(true);
+        lyricsMetaMenuPopup.setInputMethodMode(PopupWindow.INPUT_METHOD_NEEDED);
+        lyricsMetaMenuPopup.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        lyricsMetaMenuPopup.setBackgroundDrawable(roundDrawable(SettingsAppearance.SURFACE, dp(18)));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            lyricsMetaMenuPopup.setElevation(dp(14));
+        }
+        lyricsMetaMenuPopup.setOnDismissListener(() -> {
+            restoreLyricsLanguageSettingsPanelFromPopup();
+            lyricsMetaMenuScrollView = null;
+            lyricsMetaMenuPopupWidthPx = 0;
+            lyricsMetaMenuPopupTopPx = 0;
+            lyricsMetaMenuPopup = null;
+        });
+
+        lyricsLanguageSettingsVisible = true;
+        lyricsLanguageSettingsPanel.animate().cancel();
+        lyricsLanguageSettingsPanel.setBackground(lyricsLanguageSettingsPanelBackground(true));
+        lyricsLanguageSettingsPanel.setVisibility(View.VISIBLE);
+        lyricsLanguageSettingsPanel.setAlpha(1f);
+        lyricsLanguageSettingsPanel.setTranslationY(0f);
+        updateLyricsLanguageButtonState();
+        lyricsMetaMenuPopup.showAtLocation(rootView, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, popupTop);
+        requestDefaultRemoteFocus(true);
+    }
+
+    private int lyricsMetaMenuPopupTop(View anchor) {
+        android.graphics.Rect visible = visibleSettingsWindowBounds();
+        int top = visible.top + dp(12);
+        if (anchor != null && anchor.getWindowToken() != null) {
+            int[] location = new int[2];
+            anchor.getLocationOnScreen(location);
+            top = location[1] + anchor.getHeight() + dp(10);
+        }
+        int maxTop = Math.max(visible.top, visible.bottom - dp(isLandscapeLayout() ? 230 : 380));
+        return Math.max(visible.top, Math.min(top, maxTop));
+    }
+
+    private android.graphics.Rect visibleSettingsWindowBounds() {
+        android.graphics.Rect bounds = new android.graphics.Rect();
+        getWindow().getDecorView().getWindowVisibleDisplayFrame(bounds);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            android.view.WindowMetrics metrics = getWindowManager().getCurrentWindowMetrics();
+            android.graphics.Rect safe = new android.graphics.Rect(metrics.getBounds());
+            android.graphics.Insets bars = metrics.getWindowInsets().getInsetsIgnoringVisibility(
+                    WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+            safe.left += bars.left;
+            safe.top += bars.top;
+            safe.right -= bars.right;
+            safe.bottom -= bars.bottom;
+            // Focusable popups may reveal navigation/task bars over immersive
+            // lyrics. Reserve their area even while the host currently hides them.
+            if (bounds.isEmpty()) bounds.set(safe);
+            else bounds.intersect(safe);
+        }
+        if (bounds.isEmpty()) bounds.set(0, 0, getResources().getDisplayMetrics().widthPixels,
+                getResources().getDisplayMetrics().heightPixels);
+        return bounds;
+    }
+
+    private int lyricsMetaMenuPopupHeight(int width, int top) {
+        int maxHeight = lyricsMetaMenuPopupMaxHeight(top);
+        int desiredHeight = measureLyricsMetaMenuPopupHeight(width);
+        int minHeight = Math.min(maxHeight, dp(isLandscapeLayout() ? 210 : 240));
+        return Math.max(minHeight, Math.min(desiredHeight, maxHeight));
+    }
+
+    private int lyricsMetaMenuPopupMaxHeight(int top) {
+        int screenHeight = visibleSettingsWindowBounds().bottom;
+        int bottomMargin = dp(isLandscapeLayout() ? 14 : 22);
+        return Math.max(1, screenHeight - top - bottomMargin);
+    }
+
+    private int measureLyricsMetaMenuPopupHeight(int popupWidth) {
+        if (lyricsLanguageSettingsPanel == null) {
+            return dp(260);
+        }
+        int panelWidth = Math.max(1, popupWidth - dp(32));
+        int widthSpec = View.MeasureSpec.makeMeasureSpec(panelWidth, View.MeasureSpec.EXACTLY);
+        int heightSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
+        lyricsLanguageSettingsPanel.measure(widthSpec, heightSpec);
+        return lyricsLanguageSettingsPanel.getMeasuredHeight() + dp(20);
+    }
+
+    private void resizeLyricsMetaMenuPopupForActiveTab(boolean scrollToTop) {
+        if (lyricsMetaMenuPopup == null
+                || !lyricsMetaMenuPopup.isShowing()
+                || lyricsMetaMenuPopupWidthPx <= 0) {
+            return;
+        }
+        int top = lyricsMetaMenuPopupTopPx > 0 ? lyricsMetaMenuPopupTopPx : lyricsMetaMenuPopupTop(null);
+        int height = lyricsMetaMenuPopupHeight(lyricsMetaMenuPopupWidthPx, top);
+        lyricsMetaMenuPopup.update(lyricsMetaMenuPopupWidthPx, height);
+        if (scrollToTop && lyricsMetaMenuScrollView != null) {
+            lyricsMetaMenuScrollView.post(() -> lyricsMetaMenuScrollView.scrollTo(0, 0));
+        }
+    }
+
+    private void rememberLyricsLanguageSettingsParent() {
+        ViewParent parent = lyricsLanguageSettingsPanel.getParent();
+        lyricsLanguageSettingsOriginalParent = parent instanceof ViewGroup ? (ViewGroup) parent : null;
+        lyricsLanguageSettingsOriginalLayoutParams = lyricsLanguageSettingsPanel.getLayoutParams();
+        lyricsLanguageSettingsOriginalIndex = -1;
+        if (lyricsLanguageSettingsOriginalParent != null) {
+            for (int index = 0; index < lyricsLanguageSettingsOriginalParent.getChildCount(); index++) {
+                if (lyricsLanguageSettingsOriginalParent.getChildAt(index) == lyricsLanguageSettingsPanel) {
+                    lyricsLanguageSettingsOriginalIndex = index;
+                    break;
+                }
+            }
+        }
+    }
+
+    private void dismissLyricsMetaMenuPopup() {
+        if (lyricsMetaMenuPopup != null) {
+            lyricsMetaMenuPopup.dismiss();
+            return;
+        }
+        if (lyricsLanguageSettingsOriginalParent != null) {
+            restoreLyricsLanguageSettingsPanelFromPopup();
+        }
+    }
+
+    private void restoreLyricsLanguageSettingsPanelFromPopup() {
+        if (lyricsLanguageSettingsPanel == null) {
+            return;
+        }
+        lyricsLanguageSettingsPanel.animate().cancel();
+        detachFromParent(lyricsLanguageSettingsPanel);
+        if (lyricsLanguageSettingsOriginalParent != null) {
+            int index = lyricsLanguageSettingsOriginalIndex >= 0
+                    ? Math.min(lyricsLanguageSettingsOriginalIndex, lyricsLanguageSettingsOriginalParent.getChildCount())
+                    : lyricsLanguageSettingsOriginalParent.getChildCount();
+            ViewGroup.LayoutParams params = lyricsLanguageSettingsOriginalLayoutParams == null
+                    ? new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                    : lyricsLanguageSettingsOriginalLayoutParams;
+            lyricsLanguageSettingsOriginalParent.addView(lyricsLanguageSettingsPanel, index, params);
+        }
+        lyricsLanguageSettingsPanel.setVisibility(View.GONE);
+        lyricsLanguageSettingsPanel.setAlpha(1f);
+        lyricsLanguageSettingsPanel.setTranslationY(0f);
+        lyricsLanguageSettingsPanel.setBackground(lyricsLanguageSettingsPanelBackground(false));
+        lyricsLanguageSettingsVisible = false;
+        lyricsLanguageSettingsOriginalParent = null;
+        lyricsLanguageSettingsOriginalLayoutParams = null;
+        lyricsLanguageSettingsOriginalIndex = -1;
+        updateLyricsLanguageButtonState();
+        if (lyricsLanguageSettingsPanel.getParent() == settingsMenuPages.get(SETTINGS_TAB_CURRENT_TRACK)) {
+            lyricsLanguageSettingsPanel.setBackground(lyricsLanguageSettingsPanelBackground(true));
+            updateCurrentTrackSettingsMenu();
+        }
+    }
+
+    private void enterLyricsPictureInPicture() {
+        if (IvLyricsBridge.isEmbedded(this)) return;
+        if (!supportsLyricsPictureInPicture()) {
+            showSavedToast(ui("pip.unavailable"));
+            return;
+        }
+        lyricsPageVisibleBeforePictureInPicture = lyricsPageVisible;
+        dismissLyricsMetaTip();
+        dismissLyricsMetaMenuPopup();
+        if (isSettingsPanelVisible()) {
+            showSettingsPanel(false);
+        }
+        if (isInAppBrowserVisible()) {
+            showInAppBrowser(false);
+        }
+        rebuildPictureInPictureStageContent();
+        updatePictureInPictureUiFromCurrentState();
+        setPictureInPictureUiVisible(true);
+        pictureInPictureUiActive = true;
+        try {
+            boolean entered = enterPictureInPictureMode(buildLyricsPictureInPictureParams());
+            if (!entered) {
+                pictureInPictureUiActive = false;
+                setPictureInPictureUiVisible(false);
+                showSavedToast(ui("pip.enter_failed"));
+            }
+        } catch (RuntimeException error) {
+            pictureInPictureUiActive = false;
+            setPictureInPictureUiVisible(false);
+            showSavedToast(ui("pip.enter_failed"));
+        }
+    }
+
+    private boolean supportsLyricsPictureInPicture() {
+        if (IvLyricsBridge.isEmbedded(this)) return false;
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                && getPackageManager().hasSystemFeature("android.software.picture_in_picture");
+    }
+
+    private PictureInPictureParams buildLyricsPictureInPictureParams() {
+        PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder()
+                .setAspectRatio(new Rational(pictureInPictureAspectWidth(), pictureInPictureAspectHeight()))
+                .setActions(buildPictureInPictureActions());
+        Rect bounds = new Rect();
+        if (pictureInPictureStage != null && pictureInPictureStage.copyScaledContentBoundsOnScreen(bounds)) {
+            builder.setSourceRectHint(bounds);
+        } else if (pictureInPicturePage != null && pictureInPicturePage.getGlobalVisibleRect(bounds)) {
+            builder.setSourceRectHint(bounds);
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            builder.setSeamlessResizeEnabled(true);
+        }
+        return builder.build();
+    }
+
+    private List<RemoteAction> buildPictureInPictureActions() {
+        boolean playing = currentTrack != null && currentTrack.playing;
+        List<RemoteAction> actions = new ArrayList<>(3);
+        actions.add(pictureInPictureAction(
+                PictureInPictureActionReceiver.ACTION_PREVIOUS,
+                41,
+                R.drawable.ic_pip_previous,
+                ui("button.prev_track")
+        ));
+        actions.add(pictureInPictureAction(
+                PictureInPictureActionReceiver.ACTION_TOGGLE_PLAYBACK,
+                42,
+                playing ? R.drawable.ic_pip_pause : R.drawable.ic_pip_play,
+                ui("debug.play_pause")
+        ));
+        actions.add(pictureInPictureAction(
+                PictureInPictureActionReceiver.ACTION_NEXT,
+                43,
+                R.drawable.ic_pip_next,
+                ui("button.next_track")
+        ));
+        return actions;
+    }
+
+    private RemoteAction pictureInPictureAction(String action, int requestCode, int iconResource, String label) {
+        Intent intent = new Intent(this, PictureInPictureActionReceiver.class).setAction(action);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(
+                this,
+                requestCode,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+        String safeLabel = label == null || label.trim().isEmpty() ? "ivLyrics" : label.trim();
+        return new RemoteAction(
+                Icon.createWithResource(this, iconResource),
+                safeLabel,
+                safeLabel,
+                pendingIntent
+        );
+    }
+
+    private int pictureInPictureAspectWidth() {
+        if (pictureInPictureSquare()) {
+            return 1;
+        }
+        return pictureInPicturePortrait() ? LYRICS_PIP_ASPECT_HEIGHT : LYRICS_PIP_ASPECT_WIDTH;
+    }
+
+    private int pictureInPictureAspectHeight() {
+        if (pictureInPictureSquare()) {
+            return 1;
+        }
+        return pictureInPicturePortrait() ? LYRICS_PIP_ASPECT_WIDTH : LYRICS_PIP_ASPECT_HEIGHT;
+    }
+
+    private boolean isPictureInPictureUiActive() {
+        if (IvLyricsBridge.isEmbedded(this)) return false;
+        return pictureInPictureUiActive
+                || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode());
+    }
+
+    private void updatePictureInPictureParamsIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || !isInPictureInPictureMode()) {
+            return;
+        }
+        try {
+            setPictureInPictureParams(buildLyricsPictureInPictureParams());
+        } catch (RuntimeException ignored) {
+            // PiP params may be rejected while the system is resizing the activity.
+        }
+    }
+
+    private void updatePictureInPictureActionsIfNeeded(boolean playing) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || !isInPictureInPictureMode()) {
+            return;
+        }
+        if (pictureInPictureActionsInitialized && pictureInPictureActionsPlaying == playing) {
+            return;
+        }
+        pictureInPictureActionsInitialized = true;
+        pictureInPictureActionsPlaying = playing;
+        updatePictureInPictureParamsIfNeeded();
+    }
+
+    private void setPictureInPictureUiVisible(boolean visible) {
+        if (pictureInPicturePage == null) {
+            return;
+        }
+        pictureInPicturePage.animate().cancel();
+        pictureInPicturePage.setAlpha(1f);
+        pictureInPicturePage.setVisibility(visible ? View.VISIBLE : View.GONE);
+        if (visible) {
+            syncPictureInPictureBackgroundLayer(isVideoBackgroundMode());
+            pictureInPicturePage.bringToFront();
+            updatePictureInPictureUiFromCurrentState();
+        } else {
+            attachYouTubeBackgroundToRoot();
+        }
+    }
+
+    private void updatePictureInPictureUiFromCurrentState() {
+        if (pictureInPictureLyricsView != null) {
+            configureLyricsViewUiText(pictureInPictureLyricsView);
+            configurePictureInPictureLyricsViewFromSettings(pictureInPictureLyricsView, 0.50f);
+            pictureInPictureLyricsView.setTrackDuration(currentTrack == null ? 0L : lyricsTrackDuration(currentTrack.durationMs));
+            pictureInPictureLyricsView.setPlaybackPosition(currentTrack == null ? 0L : currentLyricsPlaybackPosition(currentTrack));
+            pictureInPictureLyricsView.setResult(currentLyricsResult);
+            pictureInPictureLyricsView.setSupplementLoading(lyricsSupplementPronunciationLoading, lyricsSupplementTranslationLoading);
+        }
+        if (currentTrack != null && currentTrack.hasUsableMetadata()) {
+            String title = translatedTrackTitle == null || translatedTrackTitle.trim().isEmpty()
+                    ? currentTrack.title
+                    : translatedTrackTitle.trim();
+            String artist = translatedTrackArtist == null || translatedTrackArtist.trim().isEmpty()
+                    ? currentTrack.artist
+                    : translatedTrackArtist.trim();
+            updatePictureInPictureMetadataText(title, artist);
+        } else if (spotifySetupRequired) {
+            updatePictureInPictureMetadataText(ui("status.spotify_required_title"), ui("status.spotify_required_subtitle"));
+        } else {
+            updatePictureInPictureMetadataText("ivLyrics", ui("status.waiting_spotify"));
+        }
+        updateArtwork(currentArtworkBitmap, currentArtworkKey);
+    }
+
+    private void cancelLyricsMetaLongPress() {
+        if (lyricsMetaLongPressRunnable != null) {
+            handler.removeCallbacks(lyricsMetaLongPressRunnable);
+            lyricsMetaLongPressRunnable = null;
+        }
+    }
+
+    private void handleLaunchIntent(Intent intent) {
+        if (intent == null) {
+            return;
+        }
+        if (intent.getBooleanExtra(EXTRA_OPEN_LYRICS_PAGE, false)) {
+            pendingOpenLyricsPageFromIntent = true;
+        }
+    }
+
+    private void applyDebugLyricsLoadingState(Intent intent) {
+        if (IvLyricsBridge.isEmbedded(this)) return;
+        boolean debuggable = (getApplicationInfo().flags
+                & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+        if (!debuggable || intent == null) {
+            return;
+        }
+        String providerName = intent.getStringExtra(EXTRA_DEBUG_LYRICS_LOADING_PROVIDER);
+        providerName = providerName == null ? "" : providerName.trim();
+        if (providerName.isEmpty()) {
+            return;
+        }
+        currentLyricsKey = "debug-provider-loading";
+        lyricsLookupInFlight = true;
+        lyricsLoadingProviderName = providerName;
+        currentLyricsResult = LyricsResult.loading(lyricsLoadingText());
+        currentBaseLyricsResult = currentLyricsResult;
+        sourceView.setText(providerName);
+        statusView.setText(lyricsLoadingText());
+        setLyricsResultOnViews(currentLyricsResult);
+        updateLyricPreview(0L);
+        updateVinylLoadingIndicator(false);
+    }
+
+    private boolean isDebugLyricsLoadingIntent(Intent intent) {
+        if (IvLyricsBridge.isEmbedded(this)) return false;
+        if (intent == null) {
+            return false;
+        }
+        boolean debuggable = (getApplicationInfo().flags
+                & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+        String providerName = intent.getStringExtra(EXTRA_DEBUG_LYRICS_LOADING_PROVIDER);
+        return debuggable && providerName != null && !providerName.trim().isEmpty();
+    }
+
+    private void consumeOpenLyricsPageRequest() {
+        if (!pendingOpenLyricsPageFromIntent) {
+            return;
+        }
+        pendingOpenLyricsPageFromIntent = false;
+        if (!isInitialSetupComplete()) {
+            return;
+        }
+        handler.postDelayed(() -> {
+            if (!isLandscapeLayout()) {
+                showLyricsPage(true);
+            }
+        }, 90L);
+    }
+
+    private void openSpotifyForCurrentTrack() {
+        if (IvLyricsBridge.isEmbedded(this)) {
+            finish();
+            return;
+        }
+        TrackSnapshot snapshot = currentTrack != null ? currentTrack : NowPlayingService.getLatestSnapshot();
+        String packageName = snapshot != null && isSpotifyPackage(snapshot.packageName)
+                ? snapshot.packageName
+                : "com.spotify.music";
+        Intent launchIntent = getPackageManager().getLaunchIntentForPackage(packageName);
+        if (launchIntent == null && !"com.spotify.music".equals(packageName)) {
+            launchIntent = getPackageManager().getLaunchIntentForPackage("com.spotify.music");
+        }
+        if (launchIntent != null) {
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            if (tryStartActivity(launchIntent)) {
+                return;
+            }
+        }
+        Intent launcherIntent = new Intent(Intent.ACTION_MAIN);
+        launcherIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+        launcherIntent.setPackage(packageName);
+        launcherIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        if (tryStartActivity(launcherIntent)) {
+            return;
+        }
+        showSavedToast(ui("toast.spotify_open_failed"));
+    }
+
+    private boolean tryStartActivity(Intent intent) {
+        try {
+            startActivity(intent);
+            return true;
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    private boolean isSpotifyPackage(String packageName) {
+        String value = packageName == null ? "" : packageName.trim().toLowerCase(Locale.ROOT);
+        return value.startsWith("com.spotify.");
+    }
+
+    private void saveLyricsLanguageRuleAndRefresh() {
+        if (suppressLanguageRuleEvents) {
+            return;
+        }
+        applySelectedLanguageRuleFromUi(false);
+        updateLyricsLanguageButtonState();
+        if (aiSettingsStatusView != null) {
+            aiSettingsStatusView.setText(ui("toast.language_rule_saved"));
+        }
+        showSavedToast(ui("toast.language_rule_saved"));
+        translatedTrackTitle = "";
+        translatedTrackArtist = "";
+        updateTrackMetadataTextViews(currentTrack);
+        requestMetadataTranslation(true);
+        requestAiLyrics(true);
+    }
+
+    private void updateLyricsLanguageSettingsUi() {
+        if (aiLyricsSettings == null) {
+            return;
+        }
+        updateCurrentTrackSettingsMenu();
+        AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+        updateSourceLanguageSelect();
+        populateSelectedLanguageRule(snapshot);
+        updateLyricsLanguageButtonState();
+        switchLyricsPopupTab(activeLyricsPopupTab);
+        updateLyricsSyncSettingsUi();
+        updateVideoSyncSettingsUi();
+        updateLyricsRegenerateActions();
+        updatePlayerModeRow();
+    }
+
+    private void updateLyricsLanguageButtonState() {
+        if (lyricsLanguageButton == null || aiLyricsSettings == null) {
+            return;
+        }
+        AiLyricsSettings.LanguageRule rule = aiLyricsSettings.snapshot().ruleForSource(effectiveSelectedSourceLang());
+        boolean active = rule.enabled();
+        String label = active ? ui("lyrics.button.translation_on") : ui("lyrics.translation");
+        if (rule.pronunciationEnabled && !rule.translationEnabled) {
+            label = ui("lyrics.button.pronunciation_on");
+        } else if (rule.pronunciationEnabled) {
+            label = ui("lyrics.button.translation_plus");
+        }
+        lyricsLanguageButton.setText(label);
+        lyricsLanguageButton.setTextColor(active || lyricsLanguageSettingsVisible ? Color.rgb(12, 13, 17) : Color.WHITE);
+        lyricsLanguageButton.setBackground(roundDrawable(
+                active || lyricsLanguageSettingsVisible ? Color.argb(238, 255, 255, 255) : Color.argb(34, 255, 255, 255),
+                dp(14)
+        ));
+    }
+
+    private void updateDetectedLyricsSourceLanguage(LyricsResult result) {
+        if (result == null || result.lines == null || result.lines.isEmpty()) {
+            detectedLyricsSourceLang = detectCurrentTrackMetadataLanguage();
+            applyLyricsSegmentationLocaleToViews();
+            return;
+        }
+        String detected = AiLyricsRepository.detectLanguage(AiLyricsRepository.buildPayloadText(result.lines));
+        detectedLyricsSourceLang = AiLyricsSettings.normalizeLanguageCode(detected);
+        if (detectedLyricsSourceLang == null || detectedLyricsSourceLang.trim().isEmpty()) {
+            detectedLyricsSourceLang = detectCurrentTrackMetadataLanguage();
+        }
+        applyLyricsSegmentationLocaleToViews();
+    }
+
+    private void applyLyricsSegmentationLocaleToViews() {
+        String locale = effectiveSelectedSourceLang();
+        if (lyricsView != null) lyricsView.setLyricsSegmentationLocale(locale);
+        if (landscapeLyricsView != null) landscapeLyricsView.setLyricsSegmentationLocale(locale);
+        if (pictureInPictureLyricsView != null) pictureInPictureLyricsView.setLyricsSegmentationLocale(locale);
+        if (lyricPreviewView != null) lyricPreviewView.setLyricsSegmentationLocale(locale);
+        if (vinylPlayerModeView != null) vinylPlayerModeView.lyricView().setLyricsSegmentationLocale(locale);
+    }
+
+    private String detectCurrentTrackMetadataLanguage() {
+        if (currentTrack == null || !currentTrack.hasUsableMetadata()) {
+            return "en";
+        }
+        String detected = AiLyricsRepository.detectLanguage(currentTrack.title + "\n" + currentTrack.artist);
+        String normalized = AiLyricsSettings.normalizeLanguageCode(detected);
+        return normalized.isEmpty() ? "en" : normalized;
+    }
+
+    private void updateTrackMetadataTextViews(TrackSnapshot snapshot) {
+        if (snapshot == null || !snapshot.hasUsableMetadata()) {
+            return;
+        }
+        String title = translatedTrackTitle == null || translatedTrackTitle.trim().isEmpty()
+                ? snapshot.title
+                : translatedTrackTitle.trim();
+        String artist = translatedTrackArtist == null || translatedTrackArtist.trim().isEmpty()
+                ? snapshot.artist
+                : translatedTrackArtist.trim();
+        if (titleView != null) titleView.setText(title);
+        if (artistView != null) artistView.setText(artist);
+        applyNowPlayingTextColors();
+        lyricsTitleView.setText(title);
+        lyricsArtistView.setText(artist);
+        updatePictureInPictureMetadataText(title, artist);
+        updateVinylDisplayMetadata(vinylPlayerModeView, snapshot);
+    }
+
+    private void updateVinylDisplayMetadata(VinylPlayerModeView view, TrackSnapshot snapshot) {
+        if (view == null || snapshot == null || !snapshot.hasUsableMetadata()) return;
+        view.setDisplayMetadata(snapshot.stableKey(), nonEmpty(translatedTrackTitle, snapshot.title),
+                nonEmpty(translatedTrackArtist, snapshot.artist));
+    }
+
+    private void updatePictureInPictureMetadataText(String title, String artist) {
+        if (pictureInPictureTitleView != null) {
+            pictureInPictureTitleView.setText(title == null || title.trim().isEmpty() ? "ivLyrics" : title.trim());
+        }
+        if (pictureInPictureArtistView != null) {
+            pictureInPictureArtistView.setText(artist == null ? "" : artist.trim());
+        }
+    }
+
+    private void applyNowPlayingTextColors() {
+        if (titleView != null) {
+            titleView.setTextColor(Color.WHITE);
+        }
+        if (artistView != null) {
+            artistView.setTextColor(Color.argb(220, 255, 255, 255));
+        }
+    }
+
+    private void populateAiSettingsUi() {
+        if (aiLyricsSettings == null) {
+            return;
+        }
+        AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+        rebuildLanguageSettingsUi(snapshot);
+        if (albumArtOpenLpSwitch != null) {
+            boolean previousSuppression = suppressSettingsEvents;
+            suppressSettingsEvents = true;
+            albumArtOpenLpSwitch.setChecked(aiLyricsSettings.albumArtOpenLp());
+            suppressSettingsEvents = previousSuppression;
+        }
+        updateArtworkTapHint(artworkView);
+        if (vinylAlbumSizeSeekBar != null) {
+            boolean previousVinylSuppression = suppressSettingsEvents;
+            suppressSettingsEvents = true;
+            if (vinylTrackChangesSwitch != null) vinylTrackChangesSwitch.setChecked(snapshot.vinyl.trackChangesEnabled);
+            if (vinylSimplifiedTitleSwitch != null) vinylSimplifiedTitleSwitch.setChecked(snapshot.vinyl.simplifiedTitle);
+            if (vinylRotationSpeedSeekBar != null) vinylRotationSpeedSeekBar.setProgress(snapshot.vinyl.rotationSpeedPercent - 25);
+            suppressSettingsEvents = previousVinylSuppression;
+            vinylAlbumSizeSeekBar.setProgress(snapshot.vinyl.albumSizePercent - 70);
+        }
+        if (vinylRecordSizeSeekBar != null) {
+            vinylRecordSizeSeekBar.setProgress(snapshot.vinyl.recordSizePercent - 70);
+        }
+        if (vinylTonearmSizeSeekBar != null) {
+            vinylTonearmSizeSeekBar.setProgress(snapshot.vinyl.tonearmSizePercent - 80);
+        }
+        rebuildVinylTonearmStyleButtons();
+        rebuildVinylTonearmFinishButtons();
+        if (vinylAnimationsSwitch != null) {
+            suppressSettingsEvents = true;
+            vinylAnimationsSwitch.setChecked(snapshot.vinyl.animationsEnabled);
+            suppressSettingsEvents = false;
+        }
+        if (vinylCenterRotationSwitch != null) {
+            suppressSettingsEvents = true;
+            vinylCenterRotationSwitch.setChecked(snapshot.vinyl.centerRotationEnabled);
+            suppressSettingsEvents = false;
+        }
+        if (vinylLyricsSwitch != null) {
+            suppressSettingsEvents = true;
+            vinylLyricsSwitch.setChecked(snapshot.vinyl.lyricsEnabled);
+            suppressSettingsEvents = false;
+        }
+        boolean previousSuppression = suppressSettingsEvents;
+        suppressSettingsEvents = true;
+        if (apiKeysInput != null) {
+            apiKeysInput.setText(snapshot.apiKeys);
+        }
+        if (modelInput != null) {
+            modelInput.setText(snapshot.model);
+        }
+        if (baseUrlInput != null) {
+            baseUrlInput.setText(snapshot.baseUrl);
+        }
+        if (maxTokensInput != null) {
+            maxTokensInput.setText(String.valueOf(snapshot.maxTokens));
+        }
+        if (temperatureRange != null) {
+            temperatureRange.setValue(Math.round(snapshot.temperature * 100f));
+            temperatureInput.setText(temperatureRange.format(Math.round(snapshot.temperature * 100f)));
+        } else if (temperatureInput != null) {
+            temperatureInput.setText(String.format(Locale.ROOT, "%.2f", snapshot.temperature));
+        }
+        suppressSettingsEvents = previousSuppression;
+        populateSpotifyCredentialInputs(snapshot);
+        if (metadataTranslationSwitch != null) {
+            suppressSettingsEvents = true;
+            metadataTranslationSwitch.setChecked(snapshot.metadataTranslationEnabled);
+            suppressSettingsEvents = false;
+        }
+        if (japaneseFuriganaSwitch != null) {
+            suppressSettingsEvents = true;
+            japaneseFuriganaSwitch.setChecked(snapshot.japaneseFuriganaEnabled);
+            suppressSettingsEvents = false;
+        }
+        if (culturalAnnotationsSwitch != null) {
+            suppressSettingsEvents = true;
+            culturalAnnotationsSwitch.setChecked(snapshot.culturalAnnotationsEnabled);
+            suppressSettingsEvents = false;
+        }
+        setCulturalAnnotationStyleEnabled(snapshot.culturalAnnotationsEnabled);
+        rebuildCulturalAnnotationFontButtons();
+        rebuildCulturalAnnotationVinylFontButtons();
+        if (culturalAnnotationFontSizeSeekBar != null) {
+            culturalAnnotationFontSizeSeekBar.setProgress(snapshot.culturalAnnotationsFontSize - 10);
+        }
+        if (culturalAnnotationFontWeightSeekBar != null) {
+            culturalAnnotationFontWeightSeekBar.setProgress(snapshot.culturalAnnotationsFontWeight / 100 - 1);
+        }
+        if (culturalAnnotationOpacitySeekBar != null) {
+            culturalAnnotationOpacitySeekBar.setProgress(snapshot.culturalAnnotationsOpacity - 20);
+        }
+        if (culturalAnnotationVinylFontSizeSeekBar != null) {
+            culturalAnnotationVinylFontSizeSeekBar.setProgress(snapshot.culturalAnnotationsVinylFontSize - 10);
+        }
+        if (culturalAnnotationVinylFontWeightSeekBar != null) {
+            culturalAnnotationVinylFontWeightSeekBar.setProgress(snapshot.culturalAnnotationsVinylFontWeight / 100 - 1);
+        }
+        if (culturalAnnotationVinylOpacitySeekBar != null) {
+            culturalAnnotationVinylOpacitySeekBar.setProgress(snapshot.culturalAnnotationsVinylOpacity - 20);
+        }
+        if (autoInstrumentalBreakSwitch != null) {
+            suppressSettingsEvents = true;
+            autoInstrumentalBreakSwitch.setChecked(snapshot.autoInstrumentalBreakEnabled);
+            suppressSettingsEvents = false;
+        }
+        if (interludeLabelsSwitch != null) {
+            suppressSettingsEvents = true;
+            interludeLabelsSwitch.setChecked(snapshot.interludeLabelsEnabled);
+            suppressSettingsEvents = false;
+        }
+        if (syncedLyricsKaraokeSwitch != null) {
+            suppressSettingsEvents = true;
+            syncedLyricsKaraokeSwitch.setChecked(snapshot.syncedLyricsKaraokeAnimationEnabled);
+            suppressSettingsEvents = false;
+        }
+        if (karaokeBounceSwitch != null) {
+            suppressSettingsEvents = true;
+            karaokeBounceSwitch.setChecked(snapshot.karaokeBounceEffectEnabled);
+            suppressSettingsEvents = false;
+        }
+        if (karaokeMotionStyleChoice != null && aiLyricsSettings != null) {
+            karaokeMotionStyleChoice.select(aiLyricsSettings.karaokeMotionStyle());
+        }
+        if (pronunciationFillSwitch != null && aiLyricsSettings != null) {
+            suppressSettingsEvents = true;
+            pronunciationFillSwitch.setChecked(aiLyricsSettings.pronunciationKaraokeFillEnabled());
+            suppressSettingsEvents = false;
+        }
+        if (syncedPronunciationSwitch != null && aiLyricsSettings != null) {
+            suppressSettingsEvents = true;
+            syncedPronunciationSwitch.setChecked(aiLyricsSettings.syncedPronunciationEnabled());
+            suppressSettingsEvents = false;
+        }
+        rebuildKaraokeDisplayGranularityButtons(snapshot.karaokeDisplayGranularity);
+        if (lyricsProviderSettings != null) {
+            LyricsProviderSettings.Snapshot providerSettings = lyricsProviderSettings.snapshot();
+            if (lrclibPlaybackEndpointInput != null && !lrclibPlaybackEndpointInput.hasFocus()) {
+                suppressSettingsEvents = true;
+                lrclibPlaybackEndpointInput.setText(providerSettings.lrclibPlaybackEndpoint);
+                suppressSettingsEvents = false;
+            }
+            if (preferLyricsTypeFirstSwitch != null) {
+                suppressSettingsEvents = true;
+                preferLyricsTypeFirstSwitch.setChecked(providerSettings.typeFirst);
+                suppressSettingsEvents = false;
+            }
+            if (preferSyncDataProviderSwitch != null) {
+                suppressSettingsEvents = true;
+                preferSyncDataProviderSwitch.setChecked(providerSettings.preferSyncDataProvider);
+                suppressSettingsEvents = false;
+            }
+            rebuildLyricsProviderSettingsUi();
+        }
+        if (landscapeAutoHideControlsSwitch != null) {
+            suppressSettingsEvents = true;
+            landscapeAutoHideControlsSwitch.setChecked(snapshot.landscapeAutoHideControls);
+            suppressSettingsEvents = false;
+        }
+        if (landscapeCenterNoLyricsSwitch != null) {
+            suppressSettingsEvents = true;
+            landscapeCenterNoLyricsSwitch.setChecked(snapshot.landscapeCenterNoLyrics);
+            suppressSettingsEvents = false;
+        }
+        if (keepScreenOnSwitch != null) {
+            suppressSettingsEvents = true;
+            keepScreenOnSwitch.setChecked(snapshot.keepScreenOn);
+            suppressSettingsEvents = false;
+        }
+        if (playerCardBackgroundSwitch != null) {
+            suppressSettingsEvents = true;
+            playerCardBackgroundSwitch.setChecked(aiLyricsSettings.playerCardBackgroundEnabled());
+            suppressSettingsEvents = false;
+        }
+        if (pipShowArtworkSwitch != null) {
+            suppressSettingsEvents = true;
+            pipShowArtworkSwitch.setChecked(snapshot.pipShowArtwork);
+            suppressSettingsEvents = false;
+        }
+        rebuildPictureInPictureOrientationButtons(snapshot.pipOrientation);
+        rebuildPipLyricsAlignmentButtons(snapshot.pipLyricsTextAlignment);
+        if (pipLyricsSizeSeekBar != null) {
+            suppressSettingsEvents = true;
+            int sizePercent = AiLyricsSettings.normalizePipLyricsSizePercent(snapshot.pipLyricsSizePercent);
+            pipLyricsSizeSeekBar.setProgress(sizePercent - 50);
+            suppressSettingsEvents = false;
+        }
+        syncAppearanceOptionControls();
+        updateBackgroundSettingsUi(snapshot, true);
+        rebuildLyricsAlignmentButtons(snapshot.lyricsTextAlignment);
+        applyLyricsTextAlignmentSetting(snapshot);
+        applyTypographySettings(snapshot);
+        syncTypographyControls(snapshot);
+        updateSpeakerColorSettingsUi(snapshot);
+        applySpeakerColorSettings(snapshot);
+        if (providerSummaryView != null) {
+            providerSummaryView.setText(ui("setting.ai_provider_order_desc"));
+        }
+        updatePollinationsAuthUi(snapshot);
+        if (aiSettingsStatusView != null) {
+            String status = ui("status.ai_disabled");
+            if (snapshot.enabled()) {
+                status = snapshot.hasLyricsTranslationProvider() || snapshot.hasReadyAiProvider()
+                        ? ui("status.ai_lyrics_active")
+                        : ui("status.ai_key_needed");
+            }
+            aiSettingsStatusView.setText(status);
+        }
+        updateProviderButtons();
+        refreshSettingsVisibility();
+        onSettingsControlChanged();
+    }
+
+    private void applyAiSettingsFromUi() {
+        applyAiSettingsFromUi(true);
+    }
+
+    private void applyAiSettingsFromUi(boolean updateStatus) {
+        if (aiLyricsSettings == null) {
+            return;
+        }
+        AiLyricsSettings.Snapshot current = aiLyricsSettings.snapshot();
+        aiLyricsSettings.setProviderProfile(
+                current.provider.id,
+                textOf(apiKeysInput),
+                textOf(baseUrlInput),
+                textOf(modelInput),
+                parseInt(textOf(maxTokensInput), 16000),
+                parseFloat(textOf(temperatureInput), 0.3f)
+        );
+        applyBackgroundSettings(aiLyricsSettings.snapshot());
+        if (updateStatus && aiSettingsStatusView != null) {
+            aiSettingsStatusView.setText(ui("toast.settings_saved"));
+        }
+        if (updateStatus) {
+            showSavedToast(ui("toast.settings_saved"));
+        }
+    }
+
+    private void updatePollinationsAuthUi(AiLyricsSettings.Snapshot snapshot) {
+        boolean pollinations = snapshot != null && "pollinations".equals(snapshot.provider.id);
+        if (pollinationsAuthGroup != null) {
+            pollinationsAuthGroup.setVisibility(pollinations ? View.VISIBLE : View.GONE);
+        }
+        if (!pollinations) {
+            return;
+        }
+        String token = snapshot.pollinationsAccessToken == null ? "" : snapshot.pollinationsAccessToken.trim();
+        boolean connected = !token.isEmpty();
+        if (pollinationsAuthStatusView != null) {
+            if (pollinationsAuthInFlight) {
+                pollinationsAuthStatusView.setText(ui("pollinations.status_waiting"));
+            } else if (connected) {
+                pollinationsAuthStatusView.setText(uiFormat("pollinations.status_connected_format", maskAccessToken(token)));
+            } else {
+                pollinationsAuthStatusView.setText(ui("pollinations.status_disconnected"));
+            }
+        }
+        if (pollinationsAuthCodeView != null) {
+            boolean showCode = pollinationsAuthInFlight && !pollinationsAuthUserCode.trim().isEmpty();
+            pollinationsAuthCodeView.setVisibility(showCode ? View.VISIBLE : View.GONE);
+            if (showCode) {
+                pollinationsAuthCodeView.setText(pollinationsAuthUserCode);
+                pollinationsAuthCodeView.setContentDescription(uiFormat("pollinations.user_code_format", pollinationsAuthUserCode));
+            }
+        }
+        if (pollinationsAuthConnectButton != null) {
+            pollinationsAuthConnectButton.setEnabled(!pollinationsAuthInFlight);
+            pollinationsAuthConnectButton.setAlpha(pollinationsAuthInFlight ? 0.58f : 1f);
+            pollinationsAuthConnectButton.setText(pollinationsAuthInFlight
+                    ? ui("pollinations.waiting")
+                    : connected ? ui("pollinations.reconnect") : ui("pollinations.connect"));
+        }
+        if (pollinationsAuthOpenButton != null) {
+            boolean canOpen = pollinationsAuthInFlight && !pollinationsAuthVerificationUrl.trim().isEmpty();
+            pollinationsAuthOpenButton.setEnabled(canOpen);
+            pollinationsAuthOpenButton.setAlpha(canOpen ? 1f : 0.42f);
+        }
+        if (pollinationsAuthDisconnectButton != null) {
+            pollinationsAuthDisconnectButton.setEnabled(connected && !pollinationsAuthInFlight);
+            pollinationsAuthDisconnectButton.setAlpha(connected && !pollinationsAuthInFlight ? 1f : 0.42f);
+        }
+        if (pollinationsAuthTestButton != null) {
+            boolean canTest = (connected || !textOf(apiKeysInput).isEmpty()) && !pollinationsAuthInFlight;
+            pollinationsAuthTestButton.setEnabled(canTest);
+            pollinationsAuthTestButton.setAlpha(canTest ? 1f : 0.42f);
+        }
+    }
+
+    private void startPollinationsLogin() {
+        if (aiLyricsSettings == null || pollinationsAuthInFlight) {
+            return;
+        }
+        applyAiSettingsFromUi(false);
+        pollinationsAuthInFlight = true;
+        pollinationsAuthVerificationUrl = "";
+        pollinationsAuthUserCode = "";
+        setPollinationsAuthStatus(ui("pollinations.status_requesting"));
+        updatePollinationsAuthUi(aiLyricsSettings.snapshot());
+        updateExecutor.execute(() -> {
+            try {
+                PollinationsAuthClient.DeviceCode device = pollinationsAuthClient.requestDeviceCode();
+                handler.post(() -> {
+                    pollinationsAuthVerificationUrl = device.verificationUrl;
+                    pollinationsAuthUserCode = device.userCode;
+                    setPollinationsAuthStatus(uiFormat("pollinations.status_code_format", device.userCode));
+                    updatePollinationsAuthUi(aiLyricsSettings.snapshot());
+                    openPollinationsLoginPage();
+                });
+
+                long intervalMs = device.intervalMs;
+                while (pollinationsAuthInFlight && System.currentTimeMillis() < device.expiresAtMs) {
+                    Thread.sleep(intervalMs);
+                    PollinationsAuthClient.TokenPollResult result = pollinationsAuthClient.pollDeviceToken(device.deviceCode);
+                    if (result.pending) {
+                        if (result.slowDown) {
+                            intervalMs += 2_000L;
+                        }
+                        continue;
+                    }
+                    handler.post(() -> finishPollinationsLogin(result.accessToken));
+                    return;
+                }
+                throw new IOException("Pollinations login timed out.");
+            } catch (Exception error) {
+                handler.post(() -> failPollinationsLogin(error));
+            }
+        });
+    }
+
+    private void finishPollinationsLogin(String accessToken) {
+        pollinationsAuthInFlight = false;
+        pollinationsAuthVerificationUrl = "";
+        pollinationsAuthUserCode = "";
+        if (aiLyricsSettings == null) {
+            return;
+        }
+        aiLyricsSettings.setPollinationsAccessToken(accessToken);
+        AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+        updatePollinationsAuthUi(snapshot);
+        if (aiSettingsStatusView != null) {
+            aiSettingsStatusView.setText(ui("pollinations.status_saved"));
+        }
+        appendLog("pollinations auth: connected through device login");
+        showSavedToast(ui("pollinations.toast_connected"));
+        requestMetadataTranslation(true);
+        requestAiLyrics(true);
+    }
+
+    private void failPollinationsLogin(Exception error) {
+        pollinationsAuthInFlight = false;
+        pollinationsAuthVerificationUrl = "";
+        pollinationsAuthUserCode = "";
+        String detail = error == null || error.getMessage() == null || error.getMessage().trim().isEmpty()
+                ? "unknown error"
+                : error.getMessage().trim();
+        setPollinationsAuthStatus(uiFormat("pollinations.status_failed_format", detail));
+        appendLog("pollinations auth failed: " + detail);
+        showSavedToast(ui("pollinations.toast_failed"));
+        if (aiLyricsSettings != null) {
+            updatePollinationsAuthUi(aiLyricsSettings.snapshot());
+        }
+    }
+
+    private void disconnectPollinationsLogin() {
+        pollinationsAuthInFlight = false;
+        pollinationsAuthVerificationUrl = "";
+        pollinationsAuthUserCode = "";
+        if (aiLyricsSettings != null) {
+            aiLyricsSettings.clearPollinationsAccessToken();
+            updatePollinationsAuthUi(aiLyricsSettings.snapshot());
+        }
+        setPollinationsAuthStatus(ui("pollinations.status_disconnected"));
+        showSavedToast(ui("pollinations.toast_disconnected"));
+    }
+
+    private void openPollinationsLoginPage() {
+        String url = pollinationsAuthVerificationUrl == null || pollinationsAuthVerificationUrl.trim().isEmpty()
+                ? PollinationsAuthClient.AUTH_BASE_URL
+                : pollinationsAuthVerificationUrl;
+        openExternalUrl(url);
+    }
+
+    private void testPollinationsToken() {
+        if (aiLyricsSettings == null) {
+            return;
+        }
+        applyAiSettingsFromUi(false);
+        String token = firstPollinationsAuthToken(aiLyricsSettings.snapshot());
+        if (token.isEmpty()) {
+            setPollinationsAuthStatus(ui("pollinations.status_no_token"));
+            showSavedToast(ui("status.ai_key_needed"));
+            return;
+        }
+        setPollinationsAuthStatus(ui("pollinations.status_testing"));
+        updateExecutor.execute(() -> {
+            try {
+                PollinationsAuthClient.KeyInfo info = pollinationsAuthClient.fetchKeyInfo(token);
+                handler.post(() -> {
+                    String type = info.type.trim().isEmpty() ? "API" : info.type.trim();
+                    String expires = info.expiresInSeconds > 0L
+                            ? " · " + uiFormat("pollinations.expires_days_format", Math.max(1L, (info.expiresInSeconds + 86_399L) / 86_400L))
+                            : "";
+                    setPollinationsAuthStatus((info.valid ? ui("pollinations.status_valid") : ui("pollinations.status_invalid"))
+                            + " · " + type + expires);
+                    showSavedToast(info.valid ? ui("pollinations.toast_valid") : ui("pollinations.toast_failed"));
+                });
+            } catch (Exception error) {
+                handler.post(() -> {
+                    String detail = error.getMessage() == null ? "unknown error" : error.getMessage().trim();
+                    setPollinationsAuthStatus(uiFormat("pollinations.status_failed_format", detail));
+                    showSavedToast(ui("pollinations.toast_failed"));
+                });
+            }
+        });
+    }
+
+    private String firstPollinationsAuthToken(AiLyricsSettings.Snapshot snapshot) {
+        if (snapshot == null) {
+            return "";
+        }
+        String loginToken = snapshot.pollinationsAccessToken == null ? "" : snapshot.pollinationsAccessToken.trim();
+        if (!loginToken.isEmpty()) {
+            return loginToken;
+        }
+        String manual = snapshot.apiKeys == null ? "" : snapshot.apiKeys.trim();
+        if (manual.isEmpty()) {
+            return "";
+        }
+        if (manual.startsWith("[")) {
+            int firstQuote = manual.indexOf('"');
+            int secondQuote = firstQuote < 0 ? -1 : manual.indexOf('"', firstQuote + 1);
+            if (firstQuote >= 0 && secondQuote > firstQuote) {
+                return manual.substring(firstQuote + 1, secondQuote).trim();
+            }
+        }
+        String[] pieces = manual.split("[\\n,]");
+        return pieces.length == 0 ? "" : pieces[0].trim();
+    }
+
+    private void setPollinationsAuthStatus(String message) {
+        String value = message == null ? "" : message;
+        if (pollinationsAuthStatusView != null) {
+            pollinationsAuthStatusView.setText(value);
+        }
+        if (aiSettingsStatusView != null && !value.trim().isEmpty()) {
+            aiSettingsStatusView.setText(value);
+        }
+    }
+
+    private String maskAccessToken(String token) {
+        String value = token == null ? "" : token.trim();
+        if (value.length() <= 12) {
+            return ui("pollinations.configured");
+        }
+        return value.substring(0, 5) + "..." + value.substring(value.length() - 4);
+    }
+
+    private void applySpotifySettingsFromUi() {
+        if (IvLyricsBridge.isEmbedded(this)) return;
+        saveSpotifyCredentials(textOf(spotifyClientIdInput), textOf(spotifyClientSecretInput), true);
+    }
+
+    private void applySpotifySetupFromRequiredPanel() {
+        if (IvLyricsBridge.isEmbedded(this)) return;
+        rememberSpotifySetupDraft();
+        saveSpotifyCredentials(textOf(spotifySetupClientIdInput), textOf(spotifySetupClientSecretInput), true);
+    }
+
+    private boolean saveSpotifyCredentials(String nextClientId, String nextClientSecret, boolean reloadOnChange) {
+        if (IvLyricsBridge.isEmbedded(this)) return false;
+        if (aiLyricsSettings == null) {
+            return false;
+        }
+        if (spotifyCredentialsValidationInFlight) {
+            showSavedToast(ui("toast.spotify_checking"));
+            return false;
+        }
+        AiLyricsSettings.Snapshot before = aiLyricsSettings.snapshot();
+        String clientId = nextClientId == null ? "" : nextClientId.trim();
+        String clientSecret = nextClientSecret == null ? "" : nextClientSecret.trim();
+        if (clientId.isEmpty() || clientSecret.isEmpty()) {
+            String message = ui("toast.spotify_missing");
+            setSpotifyValidationStatus(message);
+            showSavedToast(message);
+            return false;
+        }
+        if (lyricsRepository == null) {
+            setSpotifyValidationStatus(uiFormat("spotify.status_invalid_format", ui("spotify.error.repository_unavailable")));
+            showSavedToast(ui("toast.spotify_invalid"));
+            return false;
+        }
+
+        spotifyCredentialsValidationInFlight = true;
+        setSpotifyValidationStatus(ui("spotify.status_checking"));
+        showSavedToast(ui("toast.spotify_checking"));
+        lyricsRepository.validateSpotifyCredentials(
+                clientId,
+                clientSecret,
+                new LyricsRepository.SpotifyTokenValidationCallback() {
+                    @Override
+                    public void onSpotifyTokenValidated(long expiresInSeconds) {
+                        finishSpotifyCredentialsSave(before, clientId, clientSecret, reloadOnChange);
+                    }
+
+                    @Override
+                    public void onSpotifyTokenValidationFailed(String message) {
+                        spotifyCredentialsValidationInFlight = false;
+                        String detail = message == null || message.trim().isEmpty()
+                                ? "unknown error"
+                                : message.trim();
+                        setSpotifyValidationStatus(uiFormat("spotify.status_invalid_format", detail));
+                        showSavedToast(ui("toast.spotify_invalid"));
+                    }
+
+                    @Override
+                    public void onSpotifyTokenValidationLog(String message) {
+                        appendLog(message);
+                    }
+                }
+        );
+        return false;
+    }
+
+    private void finishSpotifyCredentialsSave(
+            AiLyricsSettings.Snapshot before,
+            String clientId,
+            String clientSecret,
+            boolean reloadOnChange
+    ) {
+        spotifyCredentialsValidationInFlight = false;
+        boolean changed = before == null
+                || !before.spotifyClientId.equals(clientId)
+                || !before.spotifyClientSecret.equals(clientSecret);
+        aiLyricsSettings.setSpotifyApiCredentials(clientId, clientSecret);
+        onboardingClientIdDraft = clientId;
+        onboardingClientSecretDraft = clientSecret;
+        AiLyricsSettings.Snapshot after = aiLyricsSettings.snapshot();
+        if (lyricsRepository != null && changed) {
+            lyricsRepository.clearCache();
+        }
+        populateSpotifyCredentialInputs(after);
+        setSpotifyValidationStatus(ui("spotify.status_configured"));
+        updateSpotifySetupGate(true);
+        if (changed && reloadOnChange) {
+            appendLog("spotify api settings changed: token verified, credentials saved, lyrics cache cleared");
+            reloadCurrentLyricsFromSettings();
+        }
+        showSavedToast(ui("toast.spotify_saved"));
+    }
+
+    private void setSpotifyValidationStatus(String message) {
+        String value = message == null ? "" : message;
+        onboardingValidationStatus = value;
+        updateOnboardingActionState();
+        if (spotifySetupStatusView != null) {
+            spotifySetupStatusView.setText(value);
+        }
+        if (aiSettingsStatusView != null) {
+            aiSettingsStatusView.setText(value);
+        }
+    }
+
+    private void populateSpotifyCredentialInputs(AiLyricsSettings.Snapshot snapshot) {
+        String clientId = snapshot == null ? "" : snapshot.spotifyClientId;
+        String clientSecret = snapshot == null ? "" : snapshot.spotifyClientSecret;
+        if (spotifyClientIdInput != null) {
+            spotifyClientIdInput.setText(clientId);
+        }
+        if (spotifyClientSecretInput != null) {
+            spotifyClientSecretInput.setText(clientSecret);
+        }
+        if (spotifySetupClientIdInput != null) {
+            spotifySetupClientIdInput.setText(onboardingClientIdDraft == null ? clientId : onboardingClientIdDraft);
+        }
+        if (spotifySetupClientSecretInput != null) {
+            spotifySetupClientSecretInput.setText(onboardingClientSecretDraft == null ? clientSecret : onboardingClientSecretDraft);
+        }
+        if (spotifySetupStatusView != null) {
+            spotifySetupStatusView.setText(onboardingValidationStatus != null ? onboardingValidationStatus
+                    : snapshot != null && snapshot.hasSpotifyApiCredentials()
+                    ? ui("spotify.status_configured")
+                    : ui("spotify.status_required"));
+        }
+    }
+
+    private void reloadCurrentLyricsFromSettings() {
+        TrackSnapshot snapshot = currentTrack;
+        if (snapshot == null || !snapshot.hasUsableMetadata() || lyricsRepository == null) {
+            showCurrentTrackReloadLoading(null);
+            NowPlayingService.requestRefresh(this);
+            return;
+        }
+        showCurrentTrackReloadLoading(snapshot);
+        currentLyricsKey = "";
+        resetWordSyncState();
+        currentArtworkKey = "";
+        currentArtworkFromSpotify = false;
+        onNowPlayingChanged(snapshot);
+        NowPlayingService.requestRefresh(this);
+    }
+
+    private void clearCurrentLyricsCacheFromSettings() {
+        TrackSnapshot snapshot = currentTrack;
+        if (snapshot == null || !snapshot.hasUsableMetadata()) {
+            showSavedToast(ui("toast.current_track_missing"));
+            return;
+        }
+        String key = snapshot.stableKey();
+        if (lyricsRepository != null) {
+            lyricsRepository.clearCacheForTrack(key);
+            lyricsRepository.clearSyncDataCacheForIsrc(nonEmpty(
+                    currentBaseLyricsResult == null ? "" : currentBaseLyricsResult.isrc,
+                    nonEmpty(currentResolvedIsrc, snapshot.isrc)
+            ));
+        }
+        if (youtubeBackgroundRepository != null) {
+            youtubeBackgroundRepository.clearCacheForIsrc(nonEmpty(
+                    currentBaseLyricsResult == null ? "" : currentBaseLyricsResult.isrc,
+                    nonEmpty(currentResolvedIsrc, snapshot.isrc)
+            ));
+        }
+        if (aiLyricsRepository != null) {
+            aiLyricsRepository.clearTrackCache(key);
+        }
+        if (furiganaRepository != null) {
+            furiganaRepository.clearTrackCache(key);
+        }
+        translatedTrackTitle = "";
+        translatedTrackArtist = "";
+        appendLog("lyrics cache cleared: current track / title=\"" + snapshot.title + "\" / artist=\"" + snapshot.artist + "\"");
+        if (aiSettingsStatusView != null) {
+            aiSettingsStatusView.setText(ui("toast.current_cache_cleared"));
+        }
+        showSavedToast(ui("toast.current_cache_cleared"));
+        reloadCurrentLyricsFromSettings();
+    }
+
+    private void clearAllLyricsCacheFromSettings() {
+        if (lyricsRepository != null) {
+            lyricsRepository.clearCache();
+        }
+        if (aiLyricsRepository != null) {
+            aiLyricsRepository.clearCache();
+        }
+        if (furiganaRepository != null) {
+            furiganaRepository.clearCache();
+        }
+        if (youtubeBackgroundRepository != null) {
+            youtubeBackgroundRepository.clearCache();
+        }
+        translatedTrackTitle = "";
+        translatedTrackArtist = "";
+        appendLog("lyrics cache cleared: all tracks");
+        if (aiSettingsStatusView != null) {
+            aiSettingsStatusView.setText(ui("toast.all_cache_cleared"));
+        }
+        showSavedToast(ui("toast.all_cache_cleared"));
+        reloadCurrentLyricsFromSettings();
+    }
+
+    private void showCurrentTrackReloadLoading(TrackSnapshot snapshot) {
+        spotifySetupRequired = false;
+        aiLyricsGenerating = false;
+        lyricsLoadingProviderName = "";
+        pendingSeekPositionMs = -1L;
+        currentLyricsResult = LyricsResult.loading(lyricsLoadingText());
+        currentBaseLyricsResult = currentLyricsResult;
+        currentFuriganaResult = null;
+        currentFuriganaKey = "";
+        currentCulturalAnnotations = Collections.emptyList();
+        currentCulturalAnnotationRequestKey = "";
+        setCulturalAnnotationsLoading(false);
+        currentTrackSyncOffsetMs = snapshot == null || aiLyricsSettings == null
+                ? 0
+                : aiLyricsSettings.trackSyncOffsetMs(snapshot.stableKey());
+        currentVideoSyncOffsetMs = snapshot == null || aiLyricsSettings == null
+                ? 0
+                : aiLyricsSettings.trackVideoSyncOffsetMs(snapshot.stableKey());
+        sourceView.setText(lyricsLoadingText());
+        statusView.setText(ui("status.reload_after_spotify"));
+        setLyricsTrackDurationOnViews(snapshot == null ? 0L : snapshot.durationMs);
+        setLyricsResultOnViews(currentLyricsResult);
+        setLyricsSupplementLoading(false, false);
+        updateLyricPreview(snapshot == null ? 0L : currentLyricsPlaybackPosition(snapshot));
+    }
+
+    private void showSavedToast(String message) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+        // Every settings change ends with this confirmation: keep the live preview in step with it.
+        onSettingsControlChanged();
+    }
+
+    private void maybeStartAutomaticUpdateCheck() {
+        if (IvLyricsBridge.isEmbedded(this)) return;
+        if (automaticUpdateCheckStarted || !isInitialSetupComplete()) {
+            return;
+        }
+        SharedPreferences prefs = getSharedPreferences(UPDATE_PREFS, MODE_PRIVATE);
+        long now = System.currentTimeMillis();
+        long last = prefs.getLong(KEY_LAST_AUTO_UPDATE_CHECK_MS, 0L);
+        if (now - last < AUTO_UPDATE_CHECK_INTERVAL_MS) {
+            return;
+        }
+        automaticUpdateCheckStarted = true;
+        prefs.edit().putLong(KEY_LAST_AUTO_UPDATE_CHECK_MS, now).apply();
+        handler.postDelayed(() -> checkForUpdates(false), 1_600L);
+    }
+
+    private void checkForUpdates(boolean manual) {
+        if (IvLyricsBridge.isEmbedded(this)) return;
+        if (updateChecker == null) {
+            setUpdateStatus(uiFormat("update.status_failed_format", ui("spotify.error.repository_unavailable")));
+            return;
+        }
+        if (updateCheckInFlight) {
+            if (manual) {
+                showSavedToast(ui("toast.update_checking"));
+            }
+            return;
+        }
+        updateCheckInFlight = true;
+        setUpdateStatus(ui("update.status_checking"));
+        if (manual) {
+            showSavedToast(ui("toast.update_checking"));
+        }
+        updateChecker.checkLatest(new UpdateChecker.Callback() {
+            @Override
+            public void onUpdateChecked(UpdateChecker.UpdateInfo info) {
+                updateCheckInFlight = false;
+                if (info == null) {
+                    onUpdateCheckFailed("empty response");
+                    return;
+                }
+                pendingUpdateInfo = info;
+                if (info.updateAvailable) {
+                    String version = info.latestDisplayVersion();
+                    setUpdateStatus(uiFormat("update.status_available_format", version));
+                    if (manual) {
+                        showSavedToast(uiFormat("toast.update_available_format", version));
+                    }
+                    showUpdateAvailableDialog(info);
+                    return;
+                }
+                setUpdateStatus(uiFormat("update.status_latest_format", info.currentVersionName));
+                if (manual) {
+                    showSavedToast(ui("toast.update_latest"));
+                }
+            }
+
+            @Override
+            public void onUpdateCheckFailed(String message) {
+                updateCheckInFlight = false;
+                String detail = message == null || message.trim().isEmpty() ? "unknown error" : message.trim();
+                setUpdateStatus(uiFormat("update.status_failed_format", detail));
+                appendLog("update check failed: " + detail);
+                if (manual) {
+                    showSavedToast(ui("toast.update_failed"));
+                }
+            }
+        });
+    }
+
+    private void setUpdateStatus(String message) {
+        if (updateStatusView != null) {
+            updateStatusView.setText(message == null ? "" : message);
+        }
+        if (aiSettingsStatusView != null && message != null && !message.trim().isEmpty()) {
+            aiSettingsStatusView.setText(message);
+        }
+    }
+
+    private void showUpdateAvailableDialog(UpdateChecker.UpdateInfo info) {
+        if (IvLyricsBridge.isEmbedded(this)) return;
+        if (isFinishing() || info == null) {
+            return;
+        }
+        String version = info.latestDisplayVersion();
+        String notes = compactReleaseNotes(info.releaseNotes);
+        if (notes.isEmpty()) {
+            notes = ui("update.dialog_message_no_notes");
+        }
+        String message = uiFormat(
+                "update.dialog_message_format",
+                info.currentVersionName,
+                info.currentVersionCode,
+                version,
+                info.latestVersionCode,
+                notes
+        );
+        new AlertDialog.Builder(this)
+                .setTitle(ui("update.dialog_title"))
+                .setMessage(message)
+                .setPositiveButton(ui("update.download"), (dialog, which) -> downloadUpdateApk(info))
+                .setNegativeButton(ui("update.later"), null)
+                .setNeutralButton(ui("update.open_release"), (dialog, which) -> openUpdateReleasePage(info))
+                .show();
+    }
+
+    private String compactReleaseNotes(String notes) {
+        if (notes == null) {
+            return "";
+        }
+        String value = notes.trim();
+        if (value.length() <= 700) {
+            return value;
+        }
+        return value.substring(0, 700).trim() + "\n...";
+    }
+
+    private void downloadUpdateApk(UpdateChecker.UpdateInfo info) {
+        if (IvLyricsBridge.isEmbedded(this)) return;
+        if (info == null || info.apkDownloadUrl.isEmpty()) {
+            openUpdateReleasePage(info);
+            return;
+        }
+        if (updateDownloadInFlight) {
+            return;
+        }
+        if (!canRequestPackageInstalls()) {
+            pendingUpdateInfo = info;
+            setUpdateStatus(ui("update.install_failed"));
+            openInstallPermissionSettings();
+            return;
+        }
+        updateDownloadInFlight = true;
+        pendingUpdateInfo = info;
+        String fileName = info.apkName.isEmpty()
+                ? "ivLyrics-Android-" + info.latestDisplayVersion() + ".apk"
+                : info.apkName;
+        setUpdateStatus(uiFormat("update.download_started_format", fileName));
+        showSavedToast(uiFormat("update.download_started_format", fileName));
+        updateExecutor.execute(() -> downloadAndInstallUpdate(info, fileName));
+    }
+
+    private void downloadAndInstallUpdate(UpdateChecker.UpdateInfo info, String fileName) {
+        if (IvLyricsBridge.isEmbedded(this)) return;
+        File apkFile = null;
+        try {
+            File updatesDir = new File(getCacheDir(), "updates");
+            if (!updatesDir.exists() && !updatesDir.mkdirs()) {
+                throw new IOException("Could not create update cache");
+            }
+            deleteOldUpdateApks(updatesDir);
+            apkFile = new File(updatesDir, sanitizeApkFileName(fileName));
+            downloadUpdateToFile(info, apkFile, fileName);
+            UpdatePackageVerifier.verify(getApplicationContext(), apkFile, info);
+            postUpdateStatus(ui("update.download_complete"));
+            stageUpdateInstall(apkFile, info);
+        } catch (Exception error) {
+            postAppendLog("update download/install failed: " + error.getMessage());
+            handler.post(() -> {
+                setUpdateStatus(ui("update.install_failed"));
+                showSavedToast(ui("update.install_failed"));
+            });
+        } finally {
+            deleteQuietly(apkFile);
+            handler.post(() -> updateDownloadInFlight = false);
+        }
+    }
+
+    private void downloadUpdateToFile(
+            UpdateChecker.UpdateInfo info,
+            File target,
+            String displayName
+    ) throws IOException {
+        HttpURLConnection connection = null;
+        try {
+            URL releaseUrl = UpdatePackageVerifier.requireReleaseAssetUrl(info.apkDownloadUrl);
+            connection = (HttpURLConnection) releaseUrl.openConnection();
+            connection.setConnectTimeout(10_000);
+            connection.setReadTimeout(30_000);
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("Accept", "application/vnd.android.package-archive,*/*");
+            connection.setRequestProperty("User-Agent", "ivLyrics-Android/" + currentAppVersionName());
+            int code = connection.getResponseCode();
+            if (code < 200 || code >= 300) {
+                throw new IOException("HTTP " + code);
+            }
+            UpdatePackageVerifier.requireTrustedDownloadUrl(connection.getURL());
+            long total = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N
+                    ? connection.getContentLengthLong()
+                    : connection.getContentLength();
+            if (info.apkSize <= 0L || (total > 0L && total != info.apkSize)) {
+                throw new IOException("Update APK size does not match release metadata");
+            }
+            try (InputStream input = connection.getInputStream();
+                 OutputStream output = new FileOutputStream(target)) {
+                byte[] buffer = new byte[32 * 1024];
+                long written = 0L;
+                int lastPercent = -1;
+                int read;
+                while ((read = input.read(buffer)) != -1) {
+                    output.write(buffer, 0, read);
+                    written += read;
+                    if (written > info.apkSize) {
+                        throw new IOException("Update APK exceeded its declared size");
+                    }
+                    if (total > 0L) {
+                        int percent = (int) Math.min(100L, (written * 100L) / total);
+                        if (percent != lastPercent && (percent == 100 || percent - lastPercent >= 4)) {
+                            lastPercent = percent;
+                            postUpdateStatus(uiFormat("update.download_started_format", displayName) + " · " + percent + "%");
+                        }
+                    }
+                }
+                if (written != info.apkSize) {
+                    throw new IOException("Update APK size does not match release metadata");
+                }
+            }
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    private void stageUpdateInstall(File apkFile, UpdateChecker.UpdateInfo info) throws IOException {
+        if (IvLyricsBridge.isEmbedded(this)) return;
+        if (apkFile == null || !apkFile.exists() || apkFile.length() <= 0L) {
+            throw new IOException("Downloaded APK is empty");
+        }
+        PackageInstaller installer = getPackageManager().getPackageInstaller();
+        PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(
+                PackageInstaller.SessionParams.MODE_FULL_INSTALL
+        );
+        params.setAppPackageName(getPackageName());
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_REQUIRED);
+        }
+        int sessionId = installer.createSession(params);
+        boolean committed = false;
+        try (PackageInstaller.Session session = installer.openSession(sessionId)) {
+            try (InputStream input = new FileInputStream(apkFile);
+                 OutputStream output = session.openWrite(apkFile.getName(), 0L, apkFile.length())) {
+                byte[] buffer = new byte[32 * 1024];
+                int read;
+                while ((read = input.read(buffer)) != -1) {
+                    output.write(buffer, 0, read);
+                }
+                session.fsync(output);
+            }
+
+            Intent callback = new Intent(this, UpdateInstallResultReceiver.class);
+            callback.setAction(UpdateInstallResultReceiver.ACTION_UPDATE_INSTALL_RESULT);
+            callback.putExtra("version", info == null ? "" : info.latestDisplayVersion());
+            callback.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                flags |= PendingIntent.FLAG_MUTABLE;
+            }
+            PendingIntent pendingIntent = PendingIntent.getBroadcast(this, sessionId, callback, flags);
+            session.commit(pendingIntent.getIntentSender());
+            committed = true;
+        } finally {
+            if (!committed) {
+                installer.abandonSession(sessionId);
+            }
+        }
+    }
+
+    private boolean canRequestPackageInstalls() {
+        if (IvLyricsBridge.isEmbedded(this)) return false;
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.O || getPackageManager().canRequestPackageInstalls();
+    }
+
+    private void openInstallPermissionSettings() {
+        if (IvLyricsBridge.isEmbedded(this)) return;
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return;
+        }
+        try {
+            Intent intent = new Intent(
+                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:" + getPackageName())
+            );
+            startActivity(intent);
+        } catch (ActivityNotFoundException error) {
+            try {
+                startActivity(new Intent(Settings.ACTION_SECURITY_SETTINGS));
+            } catch (ActivityNotFoundException ignored) {
+            }
+        }
+    }
+
+    private void postUpdateStatus(String message) {
+        handler.post(() -> setUpdateStatus(message));
+    }
+
+    private void postAppendLog(String message) {
+        handler.post(() -> appendLog(message));
+    }
+
+    private String sanitizeApkFileName(String fileName) {
+        String value = fileName == null ? "" : fileName.trim();
+        if (value.isEmpty()) {
+            value = "ivLyrics-update.apk";
+        }
+        value = value.replaceAll("[^A-Za-z0-9._-]", "_");
+        return value.toLowerCase(Locale.ROOT).endsWith(".apk") ? value : value + ".apk";
+    }
+
+    private void deleteOldUpdateApks(File directory) {
+        if (directory == null || !directory.isDirectory()) {
+            return;
+        }
+        File[] files = directory.listFiles();
+        if (files == null) {
+            return;
+        }
+        for (File file : files) {
+            if (file != null && file.isFile() && file.getName().toLowerCase(Locale.ROOT).endsWith(".apk")) {
+                deleteQuietly(file);
+            }
+        }
+    }
+
+    private void deleteQuietly(File file) {
+        if (file == null || !file.exists()) {
+            return;
+        }
+        try {
+            if (!file.delete()) {
+                postAppendLog("update cache cleanup skipped: " + file.getName());
+            }
+        } catch (SecurityException ignored) {
+        }
+    }
+
+    private String currentAppVersionName() {
+        try {
+            String versionName = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+            return versionName == null ? "" : versionName;
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private void openUpdateReleasePage(UpdateChecker.UpdateInfo info) {
+        String url = info == null || info.releaseUrl.isEmpty()
+                ? "https://github.com/ivLis-Studio/ivLyrics-Android/releases"
+                : info.releaseUrl;
+        openExternalUrl(url);
+    }
+
+    private void openExternalUrl(String url) {
+        String safeUrl = url == null ? "" : url.trim();
+        if (safeUrl.isEmpty()) {
+            return;
+        }
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(safeUrl)));
+        } catch (ActivityNotFoundException error) {
+            showSavedToast(ui("update.install_failed"));
+        }
+    }
+
+    private void showTmiForCurrentTrack(boolean bypassCache) {
+        TrackSnapshot snapshot = currentTrack != null ? currentTrack : NowPlayingService.getLatestSnapshot();
+        if (snapshot == null || !snapshot.hasUsableMetadata() || snapshot.isSpotifyDjSegment()) {
+            showSavedToast(ui("toast.current_track_missing"));
+            return;
+        }
+        if (aiLyricsRepository == null || aiLyricsSettings == null) {
+            return;
+        }
+        AiLyricsSettings.Snapshot settings = aiLyricsSettings.snapshot();
+        if (settings.hasApiKey() && settings.hasModel() && !hasResearchTokenConsent()) {
+            showResearchTokenConsentDialog(bypassCache);
+            return;
+        }
+        String trackKey = snapshot.stableKey();
+        boolean sameRequest = trackKey.equals(currentTmiRequestKey);
+        boolean needsNewDialog = tmiDialog == null
+                || !tmiDialog.isShowing()
+                || !trackKey.equals(currentTmiRequestKey);
+        currentTmiRequestKey = trackKey;
+        if (needsNewDialog) {
+            showTmiDialog(snapshot);
+        }
+
+        if (sameRequest && tmiRequestInFlight && !bypassCache) {
+            if (currentTmiInfo != null) renderTmiInfo(currentTmiInfo, true);
+            else renderTmiLoading(snapshot);
+            return;
+        }
+
+        renderTmiLoading(snapshot);
+        if (!settings.hasApiKey()) {
+            renderTmiError(ui("tmi.require_key"));
+            return;
+        }
+        if (!settings.hasModel()) {
+            renderTmiError(ui("status.ai_model_needed"));
+            return;
+        }
+        tmiRequestInFlight = true;
+        aiLyricsRepository.loadTmi(snapshot, currentBaseLyricsResult, settings, bypassCache, this);
+    }
+
+    private boolean hasResearchTokenConsent() {
+        return getSharedPreferences(RESEARCH_PREFS, MODE_PRIVATE)
+                .getBoolean(KEY_RESEARCH_TOKEN_CONSENT_V1, false);
+    }
+
+    private void rememberResearchTokenConsent() {
+        getSharedPreferences(RESEARCH_PREFS, MODE_PRIVATE)
+                .edit()
+                .putBoolean(KEY_RESEARCH_TOKEN_CONSENT_V1, true)
+                .apply();
+    }
+
+    private void showResearchTokenConsentDialog(boolean bypassCache) {
+        if (isFinishing()) {
+            return;
+        }
+        if (researchTokenConsentDialog != null && researchTokenConsentDialog.isShowing()) {
+            return;
+        }
+
+        LinearLayout shell = new LinearLayout(this);
+        shell.setOrientation(LinearLayout.VERTICAL);
+        shell.setGravity(Gravity.CENTER_HORIZONTAL);
+        shell.setPadding(dp(24), dp(24), dp(24), dp(20));
+        GradientDrawable shellBackground = roundDrawable(Color.rgb(18, 20, 30), dp(22));
+        shellBackground.setStroke(dp(1), Color.argb(46, 245, 158, 11));
+        shell.setBackground(shellBackground);
+
+        TextView icon = label("!", 23f, Color.rgb(251, 191, 36), AppFonts.bold(this));
+        icon.setGravity(Gravity.CENTER);
+        icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        icon.setBackground(roundDrawable(Color.argb(42, 245, 158, 11), dp(28)));
+        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(56), dp(56));
+        iconParams.gravity = Gravity.CENTER_HORIZONTAL;
+        shell.addView(icon, iconParams);
+
+        TextView eyebrow = label(
+                ui("tmi.title"),
+                11f,
+                Color.rgb(251, 191, 36),
+                AppFonts.semiBold(this)
+        );
+        eyebrow.setGravity(Gravity.CENTER);
+        eyebrow.setLetterSpacing(0.08f);
+        shell.addView(eyebrow, topMargin(matchWrap(), dp(14)));
+
+        TextView title = label(
+                ui("research.token_consent_title"),
+                20f,
+                Color.rgb(248, 250, 252),
+                AppFonts.bold(this)
+        );
+        title.setGravity(Gravity.CENTER);
+        title.setLineSpacing(0f, 1.08f);
+        shell.addView(title, topMargin(matchWrap(), dp(7)));
+
+        TextView body = label(
+                ui("research.token_consent_body"),
+                14.5f,
+                Color.argb(190, 248, 250, 252),
+                AppFonts.regular(this)
+        );
+        body.setGravity(Gravity.CENTER);
+        body.setLineSpacing(0f, 1.15f);
+        shell.addView(body, topMargin(matchWrap(), dp(12)));
+
+        TextView note = label(
+                "•  " + ui("research.token_consent_note"),
+                12.5f,
+                Color.rgb(254, 243, 199),
+                AppFonts.regular(this)
+        );
+        note.setLineSpacing(0f, 1.14f);
+        note.setPadding(dp(12), dp(11), dp(12), dp(11));
+        GradientDrawable noteBackground = roundDrawable(Color.argb(28, 245, 158, 11), dp(11));
+        noteBackground.setStroke(dp(1), Color.argb(58, 245, 158, 11));
+        note.setBackground(noteBackground);
+        shell.addView(note, topMargin(matchWrap(), dp(16)));
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setGravity(Gravity.CENTER_VERTICAL);
+        shell.addView(actions, topMargin(matchWrap(), dp(18)));
+
+        TextView cancel = debugButton(ui("button.close"));
+        actions.addView(cancel, dialogActionParams(cancel, 46, 0.8f));
+
+        TextView agree = debugButton(ui("research.token_consent_agree"));
+        agree.setTextColor(Color.rgb(30, 24, 10));
+        agree.setBackground(roundDrawable(Color.rgb(251, 191, 36), dp(10)));
+        LinearLayout.LayoutParams agreeParams = dialogActionParams(agree, 46, 1.35f);
+        agreeParams.leftMargin = dp(8);
+        actions.addView(agree, agreeParams);
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setFillViewport(false);
+        scrollView.setClipToPadding(false);
+        scrollView.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+        scrollView.addView(shell, new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setView(scrollView)
+                .create();
+        researchTokenConsentDialog = dialog;
+        dialog.setCanceledOnTouchOutside(true);
+        dialog.setOnDismissListener(ignored -> {
+            if (researchTokenConsentDialog == dialog) {
+                researchTokenConsentDialog = null;
+            }
+        });
+        cancel.setOnClickListener(view -> dialog.dismiss());
+        agree.setOnClickListener(view -> {
+            rememberResearchTokenConsent();
+            dialog.dismiss();
+            showTmiForCurrentTrack(bypassCache);
+        });
+        dialog.show();
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            window.setDimAmount(0.56f);
+            int width = Math.min(
+                    getResources().getDisplayMetrics().widthPixels - dp(32),
+                    dp(440)
+            );
+            window.setLayout(Math.max(dp(300), width), ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+    }
+
+    private void dismissResearchTokenConsentDialog() {
+        if (researchTokenConsentDialog != null) {
+            researchTokenConsentDialog.dismiss();
+        }
+        researchTokenConsentDialog = null;
+    }
+
+    private void showTmiDialog(TrackSnapshot snapshot) {
+        if (isFinishing()) {
+            return;
+        }
+        dismissTmiDialog();
+
+        LinearLayout shell = new LinearLayout(this);
+        shell.setOrientation(LinearLayout.VERTICAL);
+        shell.setPadding(dp(18), dp(16), dp(18), dp(16));
+        shell.setBackground(roundDrawable(Color.rgb(18, 20, 30), dp(22)));
+
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        shell.addView(header, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        ImageView cover = new ImageView(this);
+        cover.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        Bitmap artwork = currentArtworkBitmap != null ? currentArtworkBitmap : snapshot.artwork;
+        if (artwork == null) {
+            cover.setBackground(albumFallbackDrawable());
+        } else {
+            cover.setImageBitmap(artwork);
+        }
+        clipRound(cover, 12);
+        header.addView(cover, new LinearLayout.LayoutParams(dp(56), dp(56)));
+
+        LinearLayout meta = new LinearLayout(this);
+        meta.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams metaParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        metaParams.leftMargin = dp(12);
+        header.addView(meta, metaParams);
+
+        TextView eyebrow = label(ui("tmi.title"), 11f, Color.argb(172, 255, 255, 255), AppFonts.semiBold(this));
+        eyebrow.setSingleLine(true);
+        eyebrow.setEllipsize(TextUtils.TruncateAt.END);
+        meta.addView(eyebrow, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        TextView title = label(snapshot.title, 17f, Color.WHITE, AppFonts.bold(this));
+        title.setSingleLine(true);
+        title.setEllipsize(TextUtils.TruncateAt.END);
+        meta.addView(title, topMargin(matchWrap(), dp(6)));
+
+        TextView artist = label(snapshot.artist, 13f, Color.argb(205, 255, 255, 255), AppFonts.regular(this));
+        artist.setSingleLine(true);
+        artist.setEllipsize(TextUtils.TruncateAt.END);
+        meta.addView(artist, topMargin(matchWrap(), dp(5)));
+
+        TextView close = label("×", 25f, Color.argb(220, 255, 255, 255), AppFonts.regular(this));
+        makeRemoteFocusable(close);
+        close.setGravity(Gravity.CENTER);
+        close.setOnClickListener(view -> dismissTmiDialog());
+        header.addView(close, new LinearLayout.LayoutParams(dp(40), dp(40)));
+
+        TextView smaller = label("A−", 12f, Color.argb(200, 255, 255, 255), AppFonts.semiBold(this));
+        smaller.setGravity(Gravity.CENTER);
+        makeRemoteFocusable(smaller);
+        smaller.setOnClickListener(view -> changeResearchTextScale(-0.1f));
+        header.addView(smaller, new LinearLayout.LayoutParams(dp(38), dp(38)));
+
+        TextView larger = label("A+", 12f, Color.argb(200, 255, 255, 255), AppFonts.semiBold(this));
+        larger.setGravity(Gravity.CENTER);
+        makeRemoteFocusable(larger);
+        larger.setOnClickListener(view -> changeResearchTextScale(0.1f));
+        header.addView(larger, new LinearLayout.LayoutParams(dp(38), dp(38)));
+
+        TextView disclaimer = label(
+                ui("tmi.disclaimer"),
+                11.5f,
+                Color.argb(154, 255, 255, 255),
+                AppFonts.regular(this)
+        );
+        disclaimer.setLineSpacing(0f, 1.12f);
+        shell.addView(disclaimer, topMargin(matchWrap(), dp(10)));
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setFillViewport(false);
+        scrollView.setClipToPadding(false);
+        scrollView.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+        tmiDialogBody = new LinearLayout(this);
+        tmiDialogBody.setOrientation(LinearLayout.VERTICAL);
+        scrollView.addView(tmiDialogBody, new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        int maxBodyHeight = Math.round(getResources().getDisplayMetrics().heightPixels * (isLandscapeLayout() ? 0.48f : 0.54f));
+        shell.addView(scrollView, topMargin(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                Math.max(dp(220), Math.min(maxBodyHeight, dp(isLandscapeLayout() ? 360 : 460)))
+        ), dp(14)));
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setGravity(Gravity.CENTER_VERTICAL);
+        shell.addView(actions, topMargin(matchWrap(), dp(14)));
+
+        tmiDialogRegenerateButton = debugButton(ui("tmi.regenerate"));
+        tmiDialogRegenerateButton.setOnClickListener(view -> showTmiForCurrentTrack(true));
+        actions.addView(tmiDialogRegenerateButton, dialogActionParams(tmiDialogRegenerateButton, 42, 1f));
+
+        TextView closeButton = debugButton(ui("button.close"));
+        closeButton.setOnClickListener(view -> dismissTmiDialog());
+        LinearLayout.LayoutParams closeParams = dialogActionParams(closeButton, 42, 1f);
+        closeParams.leftMargin = dp(8);
+        actions.addView(closeButton, closeParams);
+
+        tmiDialog = new AlertDialog.Builder(this)
+                .setView(shell)
+                .create();
+        tmiDialog.setOnDismissListener(dialog -> {
+            tmiDialog = null;
+            tmiDialogBody = null;
+            tmiDialogRegenerateButton = null;
+            currentTmiInfo = null;
+        });
+        tmiDialog.show();
+        Window window = tmiDialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.setDimAmount(0.52f);
+            int width = Math.min(getResources().getDisplayMetrics().widthPixels - dp(32), dp(isLandscapeLayout() ? 520 : 430));
+            window.setLayout(Math.max(dp(300), width), ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+    }
+
+    private void dismissTmiDialog() {
+        if (tmiDialog != null) {
+            tmiDialog.dismiss();
+        }
+        tmiDialog = null;
+        tmiDialogBody = null;
+        tmiDialogRegenerateButton = null;
+        currentTmiInfo = null;
+    }
+
+    private void renderTmiLoading(TrackSnapshot snapshot) {
+        if (tmiDialogBody == null) {
+            return;
+        }
+        setTmiRegenerateEnabled(false);
+        tmiDialogBody.removeAllViews();
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(12), dp(12), dp(12), dp(12));
+        row.setBackground(roundDrawable(Color.argb(28, 255, 255, 255), dp(14)));
+        ProgressBar progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleSmall);
+        progressBar.setIndeterminate(true);
+        if (progressBar.getIndeterminateDrawable() != null) {
+            progressBar.getIndeterminateDrawable().setTint(Color.argb(220, 255, 255, 255));
+        }
+        row.addView(progressBar, new LinearLayout.LayoutParams(dp(18), dp(18)));
+        TextView text = label(
+                aiProviderLoadingText("tmi.loading_provider_format", "tmi.loading"),
+                13f,
+                Color.argb(220, 255, 255, 255),
+                AppFonts.semiBold(this)
+        );
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        textParams.leftMargin = dp(10);
+        row.addView(text, textParams);
+        tmiDialogBody.addView(row, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+    }
+
+    private void renderTmiError(String message) {
+        if (tmiDialogBody == null) {
+            return;
+        }
+        setTmiRegenerateEnabled(true);
+        tmiDialogBody.removeAllViews();
+        TextView title = label(ui("tmi.error_fetch"), 15f, Color.WHITE, AppFonts.bold(this));
+        tmiDialogBody.addView(title, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        TextView body = tmiBodyText(message == null || message.trim().isEmpty() ? ui("tmi.no_data") : message.trim());
+        tmiDialogBody.addView(body, topMargin(matchWrap(), dp(9)));
+    }
+
+    private void renderTmiInfo(AiLyricsRepository.TmiInfo info) {
+        renderTmiInfo(info, false);
+    }
+
+    private void renderTmiInfo(AiLyricsRepository.TmiInfo info, boolean generating) {
+        if (tmiDialogBody == null) {
+            return;
+        }
+        currentTmiInfo = info;
+        setTmiRegenerateEnabled(!generating);
+        tmiDialogBody.removeAllViews();
+        if (info == null || !info.hasContent()) {
+            TextView empty = tmiBodyText(ui("tmi.no_data"));
+            tmiDialogBody.addView(empty, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            ));
+            return;
+        }
+
+        if (info.webSearchFallback) renderResearchSearchWarning();
+        if (info.research != null) {
+            renderResearchDocument(info.research, generating);
+            return;
+        }
+
+        if (!info.description.isEmpty()) {
+            LinearLayout card = tmiCard();
+            TextView description = tmiBodyText(info.description);
+            card.addView(description, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            ));
+            tmiDialogBody.addView(card, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            ));
+        }
+
+        if (!info.trivia.isEmpty()) {
+            tmiDialogBody.addView(tmiSectionTitle(ui("tmi.did_you_know")), topMargin(matchWrap(), dp(16)));
+            for (int index = 0; index < info.trivia.size(); index++) {
+                LinearLayout item = tmiCard();
+                item.setOrientation(LinearLayout.HORIZONTAL);
+                TextView bullet = label("•", 17f, Color.WHITE, AppFonts.bold(this));
+                item.addView(bullet, new LinearLayout.LayoutParams(dp(18), ViewGroup.LayoutParams.WRAP_CONTENT));
+                TextView text = tmiBodyText(info.trivia.get(index));
+                item.addView(text, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+                tmiDialogBody.addView(item, topMargin(matchWrap(), dp(index == 0 ? 8 : 7)));
+            }
+        }
+
+        if (!info.confidence.isEmpty()) {
+            TextView confidence = label(uiFormat("tmi.confidence_format", info.confidence), 11f, Color.argb(150, 255, 255, 255), AppFonts.regular(this));
+            tmiDialogBody.addView(confidence, topMargin(matchWrap(), dp(14)));
+        }
+
+        addTmiSourceGroup(ui("tmi.verified_sources"), info.verifiedSources);
+        addTmiSourceGroup(ui("tmi.related_sources"), info.relatedSources);
+        addTmiSourceGroup(ui("tmi.other_sources"), info.otherSources);
+    }
+
+    private void renderResearchSearchWarning() {
+        if (tmiDialogBody == null) return;
+        TextView warning = tmiBodyText(ui("research.web_fallback_warning"));
+        warning.setTextColor(Color.rgb(244, 190, 92));
+        warning.setPadding(dp(11), dp(9), dp(11), dp(9));
+        warning.setBackground(roundDrawable(Color.argb(34, 244, 190, 92), dp(11)));
+        tmiDialogBody.addView(warning, topMargin(matchWrap(), dp(8)));
+    }
+
+    private void renderResearchDocument(ResearchDocument research, boolean generating) {
+        if (tmiDialogBody == null || research == null) return;
+        if (!research.hook.isEmpty()) {
+            TextView hook = label(research.hook, 12.5f * tmiTextScale,
+                    Color.rgb(82, 220, 143), AppFonts.semiBold(this));
+            hook.setLineSpacing(dp(3), 1.05f);
+            tmiDialogBody.addView(hook, topMargin(matchWrap(), dp(8)));
+        }
+        if (!research.thesis.isEmpty() || !research.thesisExpanded.isEmpty()) {
+            LinearLayout thesis = tmiCard();
+            thesis.addView(tmiSectionTitle(ui("research.thesis")));
+            if (!research.thesis.isEmpty()) thesis.addView(tmiBodyText(research.thesis), topMargin(matchWrap(), dp(8)));
+            if (!research.thesisExpanded.isEmpty()) thesis.addView(tmiBodyText(research.thesisExpanded), topMargin(matchWrap(), dp(8)));
+            tmiDialogBody.addView(thesis, topMargin(matchWrap(), dp(12)));
+        }
+        renderResearchMedia(research.mediaGallery);
+        for (ResearchDocument.Section section : research.sections) {
+            if (section == null || !section.hasContent()) continue;
+            LinearLayout card = tmiCard();
+            String label = ui("research.section." + section.id);
+            if (label.equals("research.section." + section.id)) label = section.headline;
+            card.addView(tmiSectionTitle(label));
+            if (!section.headline.isEmpty() && !section.headline.equals(label)) {
+                TextView headline = label(section.headline, 16f * tmiTextScale, Color.WHITE, AppFonts.semiBold(this));
+                headline.setLineSpacing(dp(3), 1.04f);
+                card.addView(headline, topMargin(matchWrap(), dp(7)));
+            }
+            for (String paragraph : section.paragraphs) {
+                card.addView(tmiBodyText(paragraph), topMargin(matchWrap(), dp(9)));
+            }
+            for (String detail : section.details) {
+                card.addView(tmiBodyText("• " + detail), topMargin(matchWrap(), dp(7)));
+            }
+            tmiDialogBody.addView(card, topMargin(matchWrap(), dp(10)));
+        }
+        if (!research.funFacts.isEmpty()) {
+            tmiDialogBody.addView(tmiSectionTitle(ui("research.fun_facts")), topMargin(matchWrap(), dp(18)));
+            for (ResearchDocument.Fact fact : research.funFacts) {
+                LinearLayout card = tmiCard();
+                if (!fact.title.isEmpty()) card.addView(tmiSectionTitle(fact.title));
+                if (!fact.body.isEmpty()) card.addView(tmiBodyText(fact.body), topMargin(matchWrap(), dp(7)));
+                if (!fact.whyInteresting.isEmpty()) card.addView(tmiBodyText(fact.whyInteresting), topMargin(matchWrap(), dp(7)));
+                if (!fact.sourceUrl.isEmpty()) card.addView(researchFootnote(fact.sourceUrl), topMargin(matchWrap(), dp(6)));
+                tmiDialogBody.addView(card, topMargin(matchWrap(), dp(8)));
+            }
+        }
+        if (!research.timeline.isEmpty()) {
+            tmiDialogBody.addView(tmiSectionTitle(ui("research.timeline")), topMargin(matchWrap(), dp(18)));
+            for (ResearchDocument.TimelineEvent event : research.timeline) {
+                String text = (event.date.isEmpty() ? "" : event.date + "  ") + event.event
+                        + (event.whyItMatters.isEmpty() ? "" : "\n" + event.whyItMatters);
+                LinearLayout card = tmiCard();
+                card.addView(tmiBodyText(text));
+                if (!event.sourceUrl.isEmpty()) card.addView(researchFootnote(event.sourceUrl), topMargin(matchWrap(), dp(6)));
+                tmiDialogBody.addView(card, topMargin(matchWrap(), dp(8)));
+            }
+        }
+        if (!research.pullQuote.isEmpty()) {
+            TextView quote = label("“" + research.pullQuote + "”", 17f * tmiTextScale,
+                    Color.WHITE, AppFonts.semiBold(this));
+            quote.setLineSpacing(dp(5), 1.06f);
+            quote.setPadding(dp(14), dp(14), dp(14), dp(14));
+            quote.setBackground(roundDrawable(Color.argb(30, 82, 220, 143), dp(14)));
+            tmiDialogBody.addView(quote, topMargin(matchWrap(), dp(18)));
+        }
+        if (!research.sources.isEmpty()) {
+            tmiDialogBody.addView(tmiSectionTitle(ui("research.sources")), topMargin(matchWrap(), dp(18)));
+            for (ResearchDocument.Source source : research.sources) {
+                View row = tmiSourceRow(new AiLyricsRepository.TmiSource(source.title, source.url));
+                if (row != null) tmiDialogBody.addView(row, topMargin(matchWrap(), dp(7)));
+            }
+        }
+        if (generating) {
+            TextView progress = tmiBodyText(ui("research.generating_more"));
+            progress.setTextColor(Color.argb(165, 255, 255, 255));
+            tmiDialogBody.addView(progress, topMargin(matchWrap(), dp(16)));
+        }
+    }
+
+    private void renderResearchMedia(List<ResearchDocument.MediaItem> mediaItems) {
+        if (tmiDialogBody == null || mediaItems == null || mediaItems.isEmpty()) return;
+        for (ResearchDocument.MediaItem media : mediaItems) {
+            if (media == null || media.imageUrl.isEmpty()) continue;
+            LinearLayout card = tmiCard();
+            ImageView image = new ImageView(this);
+            image.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            image.setBackground(roundDrawable(Color.argb(26, 255, 255, 255), dp(12)));
+            clipRound(image, 12);
+            String destination = !media.url.isEmpty() ? media.url : media.sourceUrl;
+            if (!destination.isEmpty()) {
+                makeRemoteFocusable(image);
+                image.setOnClickListener(view -> openExternalUrl(destination));
+            }
+            card.addView(image, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(170)));
+            if (!media.title.isEmpty()) {
+                card.addView(tmiBodyText(media.title), topMargin(matchWrap(), dp(8)));
+            }
+            tmiDialogBody.addView(card, topMargin(matchWrap(), dp(10)));
+            loadResearchImage(image, media.imageUrl);
+        }
+    }
+
+    private void loadResearchImage(ImageView target, String rawUrl) {
+        if (target == null || rawUrl == null || rawUrl.trim().isEmpty() || researchMediaExecutor.isShutdown()) return;
+        researchMediaExecutor.execute(() -> {
+            HttpURLConnection connection = null;
+            try {
+                URL url = new URL(rawUrl.trim());
+                if (!"https".equalsIgnoreCase(url.getProtocol()) && !"http".equalsIgnoreCase(url.getProtocol())) return;
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setConnectTimeout(8_000);
+                connection.setReadTimeout(12_000);
+                connection.setInstanceFollowRedirects(true);
+                connection.setRequestProperty("Accept", "image/*");
+                if (connection.getResponseCode() < 200 || connection.getResponseCode() >= 300) return;
+                int contentLength = connection.getContentLength();
+                if (contentLength > 12 * 1024 * 1024) return;
+                byte[] bytes;
+                try (InputStream input = connection.getInputStream(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                    byte[] buffer = new byte[8192];
+                    int total = 0;
+                    int read;
+                    while ((read = input.read(buffer)) >= 0) {
+                        total += read;
+                        if (total > 12 * 1024 * 1024) return;
+                        output.write(buffer, 0, read);
+                    }
+                    bytes = output.toByteArray();
+                }
+                BitmapFactory.Options bounds = new BitmapFactory.Options();
+                bounds.inJustDecodeBounds = true;
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.length, bounds);
+                BitmapFactory.Options options = new BitmapFactory.Options();
+                options.inSampleSize = 1;
+                int maxDimension = Math.max(bounds.outWidth, bounds.outHeight);
+                while (maxDimension / options.inSampleSize > 1600) options.inSampleSize *= 2;
+                Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, options);
+                if (bitmap == null) return;
+                handler.post(() -> {
+                    if (!isFinishing() && target.isAttachedToWindow()) target.setImageBitmap(bitmap);
+                });
+            } catch (Exception ignored) {
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        });
+    }
+
+    private TextView researchFootnote(String url) {
+        TextView view = label(ui("research.source_note"), 10.5f * tmiTextScale,
+                Color.rgb(82, 220, 143), AppFonts.semiBold(this));
+        makeRemoteFocusable(view);
+        view.setOnClickListener(target -> openExternalUrl(url));
+        return view;
+    }
+
+    private void changeResearchTextScale(float delta) {
+        tmiTextScale = Math.max(0.8f, Math.min(1.4f, tmiTextScale + delta));
+        if (currentTmiInfo != null) renderTmiInfo(currentTmiInfo);
+    }
+
+    private void addTmiSourceGroup(String title, List<AiLyricsRepository.TmiSource> sources) {
+        if (tmiDialogBody == null || sources == null || sources.isEmpty()) {
+            return;
+        }
+        tmiDialogBody.addView(tmiSectionTitle(title), topMargin(matchWrap(), dp(16)));
+        for (int index = 0; index < sources.size(); index++) {
+            View row = tmiSourceRow(sources.get(index));
+            if (row != null) {
+                tmiDialogBody.addView(row, topMargin(matchWrap(), dp(index == 0 ? 8 : 6)));
+            }
+        }
+    }
+
+    private LinearLayout tmiCard() {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(12), dp(11), dp(12), dp(11));
+        card.setBackground(roundDrawable(Color.argb(28, 255, 255, 255), dp(14)));
+        return card;
+    }
+
+    private TextView tmiSectionTitle(String text) {
+        return label(text, 13f, Color.WHITE, AppFonts.bold(this));
+    }
+
+    private TextView tmiBodyText(String text) {
+        TextView view = label(text == null ? "" : text.trim(), 13f * tmiTextScale, Color.argb(218, 255, 255, 255), AppFonts.regular(this));
+        view.setSingleLine(false);
+        view.setMaxLines(Integer.MAX_VALUE);
+        view.setIncludeFontPadding(true);
+        view.setLineSpacing(dp(4), 1.04f);
+        view.setPadding(0, dp(1), 0, dp(2));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            view.setFallbackLineSpacing(true);
+        }
+        return view;
+    }
+
+    private View tmiSourceRow(AiLyricsRepository.TmiSource source) {
+        if (source == null || source.url.isEmpty()) {
+            return null;
+        }
+        TextView view = label(source.displayTitle(), 12f, Color.argb(222, 255, 255, 255), AppFonts.semiBold(this));
+        makeRemoteFocusable(view);
+        view.setSingleLine(true);
+        view.setEllipsize(TextUtils.TruncateAt.END);
+        view.setPadding(dp(11), 0, dp(11), 0);
+        view.setGravity(Gravity.CENTER_VERTICAL);
+        view.setBackground(roundDrawable(Color.argb(34, 255, 255, 255), dp(11)));
+        view.setOnClickListener(target -> openExternalUrl(source.url));
+        return view;
+    }
+
+    private void setTmiRegenerateEnabled(boolean enabled) {
+        if (tmiDialogRegenerateButton == null) {
+            return;
+        }
+        tmiDialogRegenerateButton.setEnabled(enabled);
+        tmiDialogRegenerateButton.setAlpha(enabled ? 1f : 0.45f);
+    }
+
+    private void maybeShowLyricsMetaTip() {
+        if (isLandscapeLayout()
+                || !lyricsPageVisible
+                || lyricsTitleView == null
+                || lyricsArtistView == null
+                || lyricsMetaTipAlreadyShown()
+                || lyricsLanguageSettingsVisible) {
+            return;
+        }
+        handler.postDelayed(this::showLyricsMetaTipIfNeeded, 220L);
+    }
+
+    private void showLyricsMetaTipIfNeeded() {
+        if (isLandscapeLayout()
+                || !lyricsPageVisible
+                || lyricsArtistView == null
+                || !lyricsArtistView.isShown()
+                || lyricsMetaTipAlreadyShown()
+                || lyricsLanguageSettingsVisible
+                || (lyricsMetaTipPopup != null && lyricsMetaTipPopup.isShowing())) {
+            return;
+        }
+
+        TextView tip = label(ui("lyrics.menu_tip"), 12f, Color.WHITE, AppFonts.semiBold(this));
+        tip.setLineSpacing(dp(2), 1f);
+        tip.setPadding(dp(13), dp(10), dp(13), dp(10));
+        tip.setBackground(roundDrawable(Color.argb(232, 18, 20, 30), dp(13)));
+        tip.setOnClickListener(view -> dismissLyricsMetaTip());
+
+        int screenWidth = getResources().getDisplayMetrics().widthPixels;
+        int popupWidth = Math.max(dp(210), Math.min(dp(278), screenWidth - dp(48)));
+        PopupWindow popup = new PopupWindow(
+                tip,
+                popupWidth,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                false
+        );
+        popup.setOutsideTouchable(false);
+        popup.setTouchable(true);
+        popup.setClippingEnabled(true);
+        popup.setBackgroundDrawable(roundDrawable(Color.TRANSPARENT, 0f));
+        popup.setOnDismissListener(() -> {
+            if (lyricsMetaTipPopup == popup) {
+                lyricsMetaTipPopup = null;
+            }
+        });
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            popup.setElevation(dp(10));
+        }
+
+        try {
+            lyricsMetaTipPopup = popup;
+            popup.showAsDropDown(lyricsArtistView, 0, dp(7), Gravity.START);
+            markLyricsMetaTipShown();
+            handler.postDelayed(() -> {
+                if (lyricsMetaTipPopup == popup && popup.isShowing()) {
+                    popup.dismiss();
+                }
+            }, 5_200L);
+        } catch (RuntimeException ignored) {
+            lyricsMetaTipPopup = null;
+        }
+    }
+
+    private boolean lyricsMetaTipAlreadyShown() {
+        return getSharedPreferences(UI_HINTS_PREFS, MODE_PRIVATE)
+                .getBoolean(KEY_LYRICS_META_MENU_TIP_SHOWN, false);
+    }
+
+    private void markLyricsMetaTipShown() {
+        SharedPreferences prefs = getSharedPreferences(UI_HINTS_PREFS, MODE_PRIVATE);
+        prefs.edit().putBoolean(KEY_LYRICS_META_MENU_TIP_SHOWN, true).apply();
+    }
+
+    private void dismissLyricsMetaTip() {
+        if (lyricsMetaTipPopup != null) {
+            lyricsMetaTipPopup.dismiss();
+            lyricsMetaTipPopup = null;
+        }
+    }
+
+    private boolean isSettingsPanelVisible() {
+        return settingsPanel != null && settingsPanel.getVisibility() == View.VISIBLE;
+    }
+
+    private void showSettingsPanel(boolean show) {
+        showSettingsPanel(show, true);
+    }
+
+    private void showSettingsPanel(boolean show, boolean startAtHome) {
+        if (settingsPanel == null) {
+            return;
+        }
+        if (show && !isInitialSetupComplete()) {
+            updateSpotifySetupGate(true);
+            Toast.makeText(this, ui("toast.setup_required"), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        lastBackPressElapsedMs = 0L;
+        settingsPanel.animate().cancel();
+        settingsPanelClosing = !show;
+        if (show) {
+            dismissLyricsMetaMenuPopup();
+            if (startAtHome) {
+                // Every visit starts on the menu list; scroll positions are kept only while settings stay open.
+                settingsScrollMemory.clear();
+                settingsRoute = SETTINGS_ROUTE_HOME;
+                if (settingsSearchInput != null) settingsSearchInput.setText("");
+            }
+            handler.removeCallbacks(landscapeControlsAutoHideRunnable);
+            setLandscapeControlsVisible(true, true);
+            populateAiSettingsUi();
+            showSettingsRoute(settingsRoute, !startAtHome);
+            if (SETTINGS_TAB_SYSTEM.equals(settingsRoute)) {
+                refreshCreatorPrivacy(false);
+            }
+            settingsPanel.setVisibility(View.VISIBLE);
+            settingsPanel.setAlpha(0f);
+            settingsPanel.bringToFront();
+            settingsPanel.animate().alpha(1f).setDuration(180L).start();
+            applySettingsStatusBarAppearance();
+            requestDefaultRemoteFocus(true);
+        } else {
+            hideSettingsKeyboard();
+            settingsPanel.clearFocus();
+            settingsScrollMemory.clear();
+            settingsPanel.animate()
+                    .alpha(0f)
+                    .setDuration(160L)
+                    .withEndAction(() -> {
+                        settingsPanelClosing = false;
+                        settingsPanel.setVisibility(View.GONE);
+                        settingsPanel.setAlpha(1f);
+                        applySettingsStatusBarAppearance();
+                        applyLandscapeControlsAutoHideSetting();
+                        requestDefaultRemoteFocus(true);
+                    })
+                    .start();
+        }
+    }
+
+    private boolean isSpotifyApiConfigured() {
+        if (IvLyricsBridge.isEmbedded(this)) return true;
+        return aiLyricsSettings != null && aiLyricsSettings.snapshot().hasSpotifyApiCredentials();
+    }
+
+    private void hideSettingsKeyboard() {
+        android.view.inputmethod.InputMethodManager keyboard =
+                (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        if (keyboard != null && settingsSearchInput != null) {
+            keyboard.hideSoftInputFromWindow(settingsSearchInput.getWindowToken(), 0);
+            settingsSearchInput.clearFocus();
+        }
+    }
+
+    protected boolean isInitialSetupComplete() {
+        return isSpotifyApiConfigured() && NowPlayingService.isNotificationAccessEnabled(this);
+    }
+
+    /** Debug-only offline UI fixtures override this; normal app/host playback is unchanged. */
+    protected boolean usesLivePlayback() { return true; }
+
+    private boolean isSpotifySetupPanelVisible() {
+        return spotifySetupPanel != null && spotifySetupPanel.getVisibility() == View.VISIBLE;
+    }
+
+    private void updateSpotifySetupGate(boolean animate) {
+        if (spotifySetupPanel == null) {
+            return;
+        }
+        boolean configured = isInitialSetupComplete();
+        spotifySetupPanel.animate().cancel();
+        if (configured) {
+            onboardingGreetingRotation.setActive(false);
+            spotifySetupRequired = false;
+            if (spotifySetupPanel.getVisibility() != View.VISIBLE) {
+                return;
+            }
+            if (animate) {
+                spotifySetupPanel.animate()
+                        .alpha(0f)
+                        .setDuration(180L)
+                        .withEndAction(() -> {
+                            spotifySetupPanel.setVisibility(View.GONE);
+                            spotifySetupPanel.setAlpha(1f);
+                            applySystemBarsForOrientation();
+                            requestDefaultRemoteFocus(true);
+                        })
+                        .start();
+            } else {
+                spotifySetupPanel.setVisibility(View.GONE);
+                spotifySetupPanel.setAlpha(1f);
+                applySystemBarsForOrientation();
+                requestDefaultRemoteFocus(true);
+            }
+            return;
+        }
+
+        if (settingsPanel != null) {
+            settingsPanel.animate().cancel();
+            settingsPanel.setVisibility(View.GONE);
+            settingsPanel.setAlpha(1f);
+        }
+        if (debugPanel != null) {
+            debugPanel.setVisibility(View.GONE);
+        }
+        if (lyricsPage != null) {
+            lyricsPage.animate().cancel();
+            stopLyricsPageSlide();
+            lyricsPage.setVisibility(View.GONE);
+            lyricsPage.setTranslationY(0f);
+            lyricsPage.setAlpha(1f);
+            lyricsPageVisible = false;
+            setLyricsPageCornerRadius(0);
+        }
+        if (mainPage != null) {
+            mainPage.animate().cancel();
+            clearMainPageRevealClip();
+        }
+        if (spotifySetupPanel.getVisibility() != View.VISIBLE) {
+            populateSpotifyCredentialInputs(aiLyricsSettings == null ? null : aiLyricsSettings.snapshot());
+            if (isSpotifyApiConfigured() && !NowPlayingService.isNotificationAccessEnabled(this)) {
+                onboardingStep = 1;
+            }
+            showOnboardingStep(onboardingStep);
+            spotifySetupPanel.setVisibility(View.VISIBLE);
+            spotifySetupPanel.setAlpha(animate ? 0f : 1f);
+        }
+        spotifySetupPanel.bringToFront();
+        applySettingsStatusBarAppearance();
+        if (animate) {
+            spotifySetupPanel.animate().alpha(1f).setDuration(180L).start();
+        }
+        requestDefaultRemoteFocus(true);
+    }
+
+    protected void requestMetadataTranslation(boolean clearCache) {
+        long generation = ++aiMetadataGeneration;
+        setMetadataTranslationLoading(false);
+        if (currentTrack == null || !currentTrack.hasUsableMetadata() || aiLyricsRepository == null || aiLyricsSettings == null) {
+            return;
+        }
+        if (currentTrack.isSpotifyDjSegment()) {
+            translatedTrackTitle = "";
+            translatedTrackArtist = "";
+            updateTrackMetadataTextViews(currentTrack);
+            return;
+        }
+        AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+        String source = effectiveSelectedSourceLang();
+        String target = snapshot.resolveTargetLanguage(source);
+        if (!snapshot.metadataTranslationEnabled
+                || AiLyricsSettings.isSameLanguage(source, target)
+                || !snapshot.hasAnyTranslationProvider()) {
+            translatedTrackTitle = "";
+            translatedTrackArtist = "";
+            updateTrackMetadataTextViews(currentTrack);
+            return;
+        }
+        String requestTrackKey = currentLyricsKey;
+        setMetadataTranslationLoading(true);
+        aiLyricsRepository.loadMetadataTranslation(
+                currentTrack,
+                snapshot,
+                source,
+                clearCache,
+                new MetadataGenerationCallback(generation, requestTrackKey)
+        );
+    }
+
+    private final class MetadataGenerationCallback implements AiLyricsRepository.Callback {
+        private final long generation;
+        private final String trackKey;
+        MetadataGenerationCallback(long generation, String trackKey) {
+            this.generation = generation;
+            this.trackKey = trackKey;
+        }
+        private boolean current(String key) {
+            return generation == aiMetadataGeneration && trackKey.equals(currentLyricsKey) && trackKey.equals(key);
+        }
+        @Override public void onAiMetadataTranslationLoaded(String key, AiLyricsRepository.MetadataTranslation value) {
+            if (current(key)) BaseLyricsActivity.this.onAiMetadataTranslationLoaded(key, value);
+        }
+        @Override public void onAiMetadataTranslationError(String key, String message) {
+            if (current(key)) BaseLyricsActivity.this.onAiMetadataTranslationError(key, message);
+        }
+        @Override public void onAiLyricsLoaded(String key, LyricsResult result) {}
+        @Override public void onAiLyricsPartialLoaded(String key, LyricsResult result, boolean p, boolean t, boolean f, boolean e) {}
+        @Override public void onAiLyricsError(String key, String message) {}
+        @Override public void onAiLyricsTaskError(String key, String message, boolean p, boolean t, boolean f) {}
+        @Override public void onAiLyricsLog(String key, String message) {}
+        @Override public void onAiTmiLoaded(String key, AiLyricsRepository.TmiInfo info) {}
+        @Override public void onAiTmiError(String key, String message) {}
+        @Override public void onAiCulturalAnnotationsLoaded(String key, String requestKey, List<CulturalAnnotation> annotations) {}
+        @Override public void onAiCulturalAnnotationsError(String key, String requestKey, String message) {}
+    }
+
+    private boolean maybeShowFirstLanguagePrompt() {
+        if (aiLyricsSettings == null
+                || currentBaseLyricsResult == null
+                || currentBaseLyricsResult.lines == null
+                || currentBaseLyricsResult.lines.isEmpty()) {
+            return false;
+        }
+        String source = effectiveSelectedSourceLang();
+        if (!aiLyricsSettings.shouldPromptForFirstLanguage(source)) {
+            return false;
+        }
+        return showFirstLanguagePrompt(source);
+    }
+
+    private boolean showFirstLanguagePrompt(String source) {
+        aiLyricsSettings.markFirstLanguagePrompted(source);
+        String trackKey = currentLyricsKey;
+        Locale displayLocale = Locale.forLanguageTag(
+                aiLyricsSettings.snapshot().uiLang.replace('_', '-')
+        );
+        String languageName = Locale.forLanguageTag(source.replace('_', '-'))
+                .getDisplayLanguage(displayLocale);
+        if (languageName == null || languageName.trim().isEmpty()) {
+            languageName = AiLyricsSettings.languageLabel(source);
+        }
+        final boolean[] continued = {false};
+        Runnable continueCurrentTrack = () -> {
+            if (continued[0]) {
+                return;
+            }
+            continued[0] = true;
+            if (trackKey.equals(currentLyricsKey)) {
+                updateLyricsLanguageSettingsUi();
+                requestAiLyrics(false);
+            }
+        };
+
+        SettingsKit kit = new SettingsKit(this, settingsPalette());
+        LinearLayout shell = kit.vertical();
+        shell.setLayoutDirection(TextUtils.getLayoutDirectionFromLocale(displayLocale));
+        shell.setPaddingRelative(dp(20), dp(20), dp(20), dp(16));
+        shell.setBackground(kit.rect(kit.p.surface, 12f, kit.p.line2, 1f));
+        LinearLayout header = kit.horizontal();
+        TextView title = kit.text(uiFormat("first_language.title_format", languageName), 18f, kit.p.text, kit.semi);
+        title.setLineSpacing(dp(2), 1f);
+        SettingsKit.heading(title);
+        header.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        ImageButton close = kit.iconButton("close", ui("button.close"), 20f);
+        makeRemoteFocusable(close);
+        header.addView(close, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        shell.addView(header, matchWrap());
+        TextView hint = kit.text(ui("first_language.hint"), 14f, kit.p.text2, kit.regular);
+        hint.setLineSpacing(dp(3), 1f);
+        shell.addView(hint, topMargin(matchWrap(), dp(6)));
+
+        LinearLayout choices = kit.dividedList();
+        shell.addView(choices, topMargin(matchWrap(), dp(12)));
+        Switch translationSwitch = kit.toggle(ui("first_language.translation"), null);
+        Switch pronunciationSwitch = kit.toggle(ui("first_language.pronunciation"), null);
+        AiLyricsSettings.LanguageRule currentRule = aiLyricsSettings.snapshot().ruleForSource(source);
+        translationSwitch.setChecked(currentRule.translationEnabled);
+        pronunciationSwitch.setChecked(currentRule.pronunciationEnabled);
+        for (Switch toggle : new Switch[]{translationSwitch, pronunciationSwitch}) {
+            toggle.setPaddingRelative(0, dp(12), 0, dp(12));
+            makeRemoteFocusable(toggle);
+            choices.addView(toggle, matchWrap());
+        }
+
+        TextView providerHint = kit.text("", 14f, kit.p.text2, kit.regular);
+        providerHint.setTag("first-language-provider-hint");
+        providerHint.setLineSpacing(dp(3), 1f);
+        providerHint.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        shell.addView(providerHint, topMargin(matchWrap(), dp(8)));
+        Button action = kit.button(ui("first_language.original"), SettingsKit.BUTTON_PRIMARY, null);
+        makeRemoteFocusable(action);
+        shell.addView(action, topMargin(matchWrap(), dp(16)));
+
+        Runnable updatePromptState = () -> {
+            action.setText(ui(pronunciationSwitch.isChecked() || translationSwitch.isChecked()
+                    ? "first_language.apply" : "first_language.original"));
+            AiLyricsSettings.Snapshot providers = aiLyricsSettings.snapshot();
+            String hintKey = pronunciationSwitch.isChecked() && !providers.hasReadyAiProvider()
+                    ? "first_language.pronunciation_ai_provider_hint"
+                    : translationSwitch.isChecked() && !providers.hasLyricsTranslationProvider()
+                    ? "first_language.translation_provider_hint" : null;
+            providerHint.setVisibility(hintKey == null ? View.GONE : View.VISIBLE);
+            providerHint.setText(hintKey == null ? "" : ui(hintKey));
+        };
+        pronunciationSwitch.setOnCheckedChangeListener((button, checked) -> updatePromptState.run());
+        translationSwitch.setOnCheckedChangeListener((button, checked) -> updatePromptState.run());
+        updatePromptState.run();
+
+        // The whole compact dialog can scroll, so its action stays reachable in landscape/large text.
+        ScrollView scroll = new ScrollView(this) {
+            @Override protected void onMeasure(int widthSpec, int heightSpec) {
+                int available = Math.max(dp(48), visibleSettingsWindowBounds().height() - dp(48));
+                if (View.MeasureSpec.getMode(heightSpec) != View.MeasureSpec.UNSPECIFIED) {
+                    available = Math.min(available, View.MeasureSpec.getSize(heightSpec));
+                }
+                super.onMeasure(widthSpec, View.MeasureSpec.makeMeasureSpec(available, View.MeasureSpec.AT_MOST));
+            }
+        };
+        scroll.setBackground(kit.rect(kit.p.surface, 12f));
+        scroll.setClipToOutline(true);
+        scroll.addView(shell, new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setView(scroll)
+                .create();
+        dialog.setCanceledOnTouchOutside(false);
+        dialog.setOnCancelListener(ignored -> continueCurrentTrack.run());
+        close.setOnClickListener(view -> {
+            continueCurrentTrack.run();
+            dialog.dismiss();
+        });
+        action.setOnClickListener(view -> {
+            if (!trackKey.equals(currentLyricsKey)) {
+                dialog.dismiss();
+                return;
+            }
+            boolean pronunciationEnabled = pronunciationSwitch.isChecked();
+            boolean translationEnabled = translationSwitch.isChecked();
+            aiLyricsSettings.setLanguageRule(
+                    source,
+                    translationEnabled,
+                    pronunciationEnabled,
+                    aiLyricsSettings.snapshot().defaultRule.targetLang
+            );
+            continueCurrentTrack.run();
+            dialog.dismiss();
+        });
+
+        firstLanguagePromptDialog = dialog;
+        dialog.setOnDismissListener(ignored -> firstLanguagePromptDialog = null);
+        dialog.show();
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            window.setDimAmount(0.56f);
+            resizeFirstLanguagePrompt();
+        }
+        return true;
+    }
+
+    private void resizeFirstLanguagePrompt() {
+        Window window = firstLanguagePromptDialog == null ? null : firstLanguagePromptDialog.getWindow();
+        if (window == null) return;
+        int width = Math.min(visibleSettingsWindowBounds().width() - dp(32), dp(340));
+        window.setLayout(Math.max(1, width), ViewGroup.LayoutParams.WRAP_CONTENT);
+    }
+
+    protected void requestAiLyrics(boolean clearCache) {
+        long generation = ++aiSupplementGeneration;
+        pronunciationLoadingProviderName = "";
+        translationLoadingProviderName = "";
+        clearPreviewRowsCache();
+        if (currentTrack == null || currentBaseLyricsResult == null || currentBaseLyricsResult.lines.isEmpty()) {
+            aiLyricsGenerating = false;
+            setLyricsSupplementLoading(false, false, false);
+            if (aiSettingsStatusView != null) {
+                aiSettingsStatusView.setText(ui("status.no_lyrics_to_apply"));
+            }
+            return;
+        }
+        requestCulturalAnnotations(clearCache);
+        AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+        String source = effectiveSelectedSourceLang();
+        AiLyricsSettings.LanguageRule rule = snapshot.ruleForSource(source);
+        String target = snapshot.resolveTargetLanguage(source);
+        boolean translationSkipped = snapshot.shouldSkipTranslation(source, target);
+        boolean wantsAiTask = rule.pronunciationEnabled || (rule.translationEnabled && !translationSkipped);
+        if (!snapshot.enabled()) {
+            aiLyricsGenerating = false;
+            currentLyricsResult = currentBaseLyricsResult;
+            setLyricsResultOnViews(currentLyricsResult);
+            setLyricsSupplementLoading(false, false, false);
+            updateLyricPreview(currentLyricsPlaybackPosition(currentTrack));
+            if (aiSettingsStatusView != null) {
+                aiSettingsStatusView.setText(ui("status.ai_disabled"));
+            }
+            requestJapaneseFurigana(clearCache);
+            return;
+        }
+        if (!wantsAiTask) {
+            aiLyricsGenerating = false;
+            currentLyricsResult = currentBaseLyricsResult;
+            setLyricsResultOnViews(currentLyricsResult);
+            setLyricsSupplementLoading(false, false, false);
+            updateLyricPreview(currentLyricsPlaybackPosition(currentTrack));
+            if (aiSettingsStatusView != null) {
+                aiSettingsStatusView.setText(ui("status.ai_applied"));
+            }
+            requestJapaneseFurigana(clearCache);
+            return;
+        }
+        boolean selectedAiReady = snapshot.hasReadyAiProvider();
+        boolean requestedPronunciation = rule.pronunciationEnabled;
+        boolean requestedTranslation = rule.translationEnabled && !translationSkipped;
+        boolean canRunTask = (requestedPronunciation && selectedAiReady)
+                || (requestedTranslation && snapshot.hasLyricsTranslationProvider());
+        if (!canRunTask && !snapshot.hasApiKey()) {
+            aiLyricsGenerating = false;
+            currentLyricsResult = currentBaseLyricsResult;
+            setLyricsResultOnViews(currentLyricsResult);
+            setLyricsSupplementLoading(false, false, false);
+            updateLyricPreview(currentLyricsPlaybackPosition(currentTrack));
+            if (aiSettingsStatusView != null) {
+                aiSettingsStatusView.setText(ui("status.ai_key_needed"));
+            }
+            requestJapaneseFurigana(clearCache);
+            return;
+        }
+        if (!canRunTask && !snapshot.hasModel()) {
+            aiLyricsGenerating = false;
+            currentLyricsResult = currentBaseLyricsResult;
+            setLyricsResultOnViews(currentLyricsResult);
+            setLyricsSupplementLoading(false, false, false);
+            updateLyricPreview(currentLyricsPlaybackPosition(currentTrack));
+            if (aiSettingsStatusView != null) {
+                aiSettingsStatusView.setText(ui("status.ai_model_needed"));
+            }
+            requestJapaneseFurigana(clearCache);
+            return;
+        }
+        if (clearCache) {
+            aiLyricsRepository.clearMemoryCache();
+            if (furiganaRepository != null) {
+                furiganaRepository.clearMemoryCache();
+            }
+        }
+        if (aiSettingsStatusView != null) {
+            aiSettingsStatusView.setText(aiProviderLoadingText(
+                    "status.ai_generating_provider_format",
+                    "status.ai_generating"
+            ));
+        }
+        aiLyricsGenerating = true;
+        currentLyricsResult = mergeCurrentFuriganaInto(currentBaseLyricsResult);
+        setLyricsResultOnViews(currentLyricsResult);
+        setLyricsSupplementLoading(
+                requestedPronunciation && selectedAiReady,
+                requestedTranslation,
+                shouldGenerateJapaneseFurigana(snapshot, source)
+        );
+        updateLyricPreview(currentLyricsPlaybackPosition(currentTrack));
+        requestJapaneseFurigana(clearCache);
+        String requestTrackKey = currentLyricsKey;
+        LyricsResult requestBaseResult = currentBaseLyricsResult;
+        aiLyricsRepository.loadSupplements(
+                currentTrack,
+                requestBaseResult,
+                snapshot,
+                source,
+                clearCache,
+                new SupplementGenerationCallback(generation, requestTrackKey, requestBaseResult)
+        );
+    }
+
+    private final class SupplementGenerationCallback implements AiLyricsRepository.Callback {
+        private final long generation;
+        private final String trackKey;
+        private final LyricsResult baseResult;
+
+        SupplementGenerationCallback(long generation, String trackKey, LyricsResult baseResult) {
+            this.generation = generation;
+            this.trackKey = trackKey;
+            this.baseResult = baseResult;
+        }
+
+        private boolean current(String callbackTrackKey) {
+            return generation == aiSupplementGeneration
+                    && trackKey.equals(currentLyricsKey)
+                    && trackKey.equals(callbackTrackKey)
+                    && (baseResult == currentBaseLyricsResult
+                    || (timingUpgradeSourceBase != null && baseResult == timingUpgradeSourceBase));
+        }
+
+        @Override public void onAiLyricsLoaded(String key, LyricsResult result) {
+            if (current(key)) BaseLyricsActivity.this.onAiLyricsLoaded(key, result);
+        }
+        @Override public void onAiLyricsPartialLoaded(String key, LyricsResult result, boolean pronunciationLoading, boolean translationLoading, boolean finished, boolean hadError) {
+            if (current(key)) BaseLyricsActivity.this.onAiLyricsPartialLoaded(key, result, pronunciationLoading, translationLoading, finished, hadError);
+        }
+        @Override public void onAiLyricsError(String key, String message) {
+            if (current(key)) BaseLyricsActivity.this.onAiLyricsError(key, message);
+        }
+        @Override public void onAiLyricsTaskError(String key, String message, boolean pronunciationLoading, boolean translationLoading, boolean finished) {
+            if (current(key)) BaseLyricsActivity.this.onAiLyricsTaskError(key, message, pronunciationLoading, translationLoading, finished);
+        }
+        @Override public void onAiLyricsLog(String key, String message) {
+            if (current(key)) BaseLyricsActivity.this.onAiLyricsLog(key, message);
+        }
+        @Override public void onAiLyricsProviderChanged(String key, boolean pronunciation, String label) {
+            if (current(key)) BaseLyricsActivity.this.onAiLyricsProviderChanged(key, pronunciation, label);
+        }
+        @Override public void onAiMetadataTranslationLoaded(String key, AiLyricsRepository.MetadataTranslation translation) {}
+        @Override public void onAiMetadataTranslationError(String key, String message) {}
+        @Override public void onAiTmiLoaded(String key, AiLyricsRepository.TmiInfo info) {}
+        @Override public void onAiTmiError(String key, String message) {}
+        @Override public void onAiCulturalAnnotationsLoaded(String key, String requestKey, List<CulturalAnnotation> annotations) {}
+        @Override public void onAiCulturalAnnotationsError(String key, String requestKey, String message) {}
+    }
+
+    protected void requestCulturalAnnotations(boolean clearCache) {
+        if (currentTrack == null
+                || currentBaseLyricsResult == null
+                || currentBaseLyricsResult.lines.isEmpty()
+                || aiLyricsSettings == null
+                || aiLyricsRepository == null) {
+            currentCulturalAnnotations = Collections.emptyList();
+            currentCulturalAnnotationRequestKey = "";
+            setCulturalAnnotationsLoading(false);
+            applyCulturalAnnotationsToViews();
+            return;
+        }
+        AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+        if (!snapshot.culturalAnnotationsEnabled) {
+            currentCulturalAnnotations = Collections.emptyList();
+            currentCulturalAnnotationRequestKey = "";
+            setCulturalAnnotationsLoading(false);
+            applyCulturalAnnotationsToViews();
+            return;
+        }
+        if (clearCache) {
+            currentCulturalAnnotations = Collections.emptyList();
+            applyCulturalAnnotationsToViews();
+        }
+        setCulturalAnnotationsLoading(true);
+        currentCulturalAnnotationRequestKey = aiLyricsRepository.loadCulturalAnnotations(
+                currentTrack,
+                currentBaseLyricsResult,
+                snapshot,
+                effectiveSelectedSourceLang(),
+                clearCache,
+                this
+        );
+    }
+
+    private void requestJapaneseFurigana(boolean clearCache) {
+        if (currentTrack == null
+                || currentBaseLyricsResult == null
+                || currentBaseLyricsResult.lines.isEmpty()
+                || furiganaRepository == null
+                || aiLyricsSettings == null) {
+            setLyricsSupplementLoading(
+                    lyricsSupplementPronunciationLoading,
+                    lyricsSupplementTranslationLoading,
+                    false
+            );
+            return;
+        }
+        AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+        String source = effectiveSelectedSourceLang();
+        if (!shouldGenerateJapaneseFurigana(snapshot, source)) {
+            setLyricsSupplementLoading(
+                    lyricsSupplementPronunciationLoading,
+                    lyricsSupplementTranslationLoading,
+                    false
+            );
+            return;
+        }
+        if (clearCache) {
+            currentFuriganaResult = null;
+            currentFuriganaKey = "";
+            furiganaRepository.clearMemoryCache();
+        }
+        setLyricsSupplementLoading(
+                lyricsSupplementPronunciationLoading,
+                lyricsSupplementTranslationLoading,
+                true
+        );
+        furiganaRepository.loadFurigana(currentTrack, currentBaseLyricsResult, clearCache, this);
+    }
+
+    private LyricsResult mergeCurrentFuriganaInto(LyricsResult target) {
+        if (target == null) {
+            return null;
+        }
+        if (currentFuriganaResult == null || !currentLyricsKey.equals(currentFuriganaKey)) {
+            return target;
+        }
+        return mergeFuriganaIntoResult(target, currentFuriganaResult);
+    }
+
+    private LyricsResult mergeAiSupplementsIntoResult(LyricsResult target, LyricsResult source) {
+        if (source == null || source.lines.isEmpty()) {
+            return target == null ? source : target;
+        }
+        if (target == null || target.lines.isEmpty()) {
+            return source;
+        }
+        List<LyricsLine> lines = new ArrayList<>();
+        int count = target.lines.size();
+        for (int index = 0; index < count; index++) {
+            LyricsLine targetLine = target.lines.get(index);
+            LyricsLine sourceLine = index < source.lines.size()
+                    ? source.lines.get(index)
+                    : null;
+            lines.add(mergeAiSupplementsIntoLine(targetLine, sourceLine));
+        }
+        return new LyricsResult(
+                lines,
+                target.providerLabel,
+                nonEmpty(source.detail, target.detail),
+                target.karaoke,
+                target.isrc,
+                target.spotifyTrackId,
+                target.contributors,
+                target.providerId,
+                target.selectionPolicyKey,
+                target.syncType,
+                target.syncPoints,
+                source.hasSupplement(true) ? source.pronunciationProviderLabel : target.pronunciationProviderLabel,
+                source.hasSupplement(false) ? source.translationProviderLabel : target.translationProviderLabel
+        );
+    }
+
+    private LyricsLine mergeAiSupplementsIntoLine(LyricsLine target, LyricsLine source) {
+        if (target == null) {
+            return source;
+        }
+        String pronunciation = nonEmpty(source == null ? "" : source.pronunciationText, target.pronunciationText);
+        String translation = nonEmpty(source == null ? "" : source.translationText, target.translationText);
+        if (target.vocalParts == null || target.vocalParts.isEmpty()) {
+            return target.withSupplements(pronunciation, translation, target.furiganaText);
+        }
+        List<LyricsLine.VocalPart> parts = new ArrayList<>();
+        for (int index = 0; index < target.vocalParts.size(); index++) {
+            LyricsLine.VocalPart targetPart = target.vocalParts.get(index);
+            LyricsLine.VocalPart sourcePart = source != null
+                    && source.vocalParts != null
+                    && index < source.vocalParts.size()
+                    ? source.vocalParts.get(index)
+                    : null;
+            parts.add(targetPart.withSupplements(
+                    nonEmpty(sourcePart == null ? "" : sourcePart.pronunciationText, targetPart.pronunciationText),
+                    nonEmpty(sourcePart == null ? "" : sourcePart.translationText, targetPart.translationText),
+                    targetPart.furiganaText
+            ));
+        }
+        return new LyricsLine(
+                target.startTimeMs,
+                target.endTimeMs,
+                target.text,
+                target.syllables,
+                target.speaker,
+                target.speakerColor,
+                target.speakerFallback,
+                target.kind,
+                parts,
+                pronunciation,
+                translation,
+                target.furiganaText
+        );
+    }
+
+    private LyricsResult mergeFuriganaIntoResult(LyricsResult target, LyricsResult furiganaSource) {
+        if (target == null || furiganaSource == null || target.lines.isEmpty()) {
+            return target;
+        }
+        List<LyricsLine> lines = new ArrayList<>();
+        int count = target.lines.size();
+        for (int index = 0; index < count; index++) {
+            LyricsLine targetLine = target.lines.get(index);
+            LyricsLine furiganaLine = index < furiganaSource.lines.size()
+                    ? furiganaSource.lines.get(index)
+                    : null;
+            lines.add(mergeFuriganaIntoLine(targetLine, furiganaLine));
+        }
+        return new LyricsResult(
+                lines,
+                target.providerLabel,
+                target.detail,
+                target.karaoke,
+                target.isrc,
+                target.spotifyTrackId,
+                target.contributors,
+                target.providerId,
+                target.selectionPolicyKey,
+                target.syncType,
+                target.syncPoints,
+                target.pronunciationProviderLabel,
+                target.translationProviderLabel
+        );
+    }
+
+    private LyricsLine mergeFuriganaIntoLine(LyricsLine target, LyricsLine furiganaSource) {
+        if (target == null) {
+            return null;
+        }
+        String lineFurigana = nonEmpty(
+                furiganaSource == null ? "" : furiganaSource.furiganaText,
+                target.furiganaText
+        );
+        if (target.vocalParts == null || target.vocalParts.isEmpty()) {
+            return target.withSupplements(target.pronunciationText, target.translationText, lineFurigana);
+        }
+        List<LyricsLine.VocalPart> parts = new ArrayList<>();
+        for (int index = 0; index < target.vocalParts.size(); index++) {
+            LyricsLine.VocalPart targetPart = target.vocalParts.get(index);
+            LyricsLine.VocalPart sourcePart = furiganaSource != null
+                    && furiganaSource.vocalParts != null
+                    && index < furiganaSource.vocalParts.size()
+                    ? furiganaSource.vocalParts.get(index)
+                    : null;
+            String partFurigana = nonEmpty(
+                    sourcePart == null ? "" : sourcePart.furiganaText,
+                    targetPart.furiganaText
+            );
+            if (partFurigana.isEmpty() && target.vocalParts.size() == 1) {
+                partFurigana = lineFurigana;
+            }
+            parts.add(targetPart.withSupplements(
+                    targetPart.pronunciationText,
+                    targetPart.translationText,
+                    partFurigana
+            ));
+        }
+        return new LyricsLine(
+                target.startTimeMs,
+                target.endTimeMs,
+                target.text,
+                target.syllables,
+                target.speaker,
+                target.speakerColor,
+                target.speakerFallback,
+                target.kind,
+                parts,
+                target.pronunciationText,
+                target.translationText,
+                lineFurigana
+        );
+    }
+
+    private String nonEmpty(String preferred, String fallback) {
+        String value = preferred == null ? "" : preferred.trim();
+        if (!value.isEmpty()) {
+            return value;
+        }
+        return fallback == null ? "" : fallback.trim();
+    }
+
+    private void setLyricsSupplementLoading(boolean pronunciation, boolean translation) {
+        setLyricsSupplementLoading(pronunciation, translation, false);
+    }
+
+    private void setLyricsSupplementLoading(boolean pronunciation, boolean translation, boolean furigana) {
+        if (lyricsSupplementPronunciationLoading != pronunciation
+                || lyricsSupplementTranslationLoading != translation
+                || lyricsSupplementFuriganaLoading != furigana) {
+            clearPreviewRowsCache();
+        }
+        if (!pronunciation) pronunciationLoadingProviderName = "";
+        if (!translation) translationLoadingProviderName = "";
+        lyricsSupplementPronunciationLoading = pronunciation;
+        lyricsSupplementTranslationLoading = translation;
+        lyricsSupplementFuriganaLoading = furigana;
+        if (lyricsView != null) {
+            lyricsView.setSupplementLoading(pronunciation, translation);
+        }
+        if (landscapeLyricsView != null) {
+            landscapeLyricsView.setSupplementLoading(pronunciation, translation);
+        }
+        if (pictureInPictureLyricsView != null) {
+            pictureInPictureLyricsView.setSupplementLoading(pronunciation, translation);
+        }
+        updateLyricsSupplementLoadingText();
+        updateLyricsSupplementLoadingIndicator(
+                pronunciation || translation || furigana || lyricsCulturalAnnotationsLoading || metadataTranslationLoading
+        );
+        updateVinylLoadingIndicator(true);
+    }
+
+    private void setCulturalAnnotationsLoading(boolean loading) {
+        lyricsCulturalAnnotationsLoading = loading;
+        updateLyricsSupplementLoadingText();
+        updateLyricsSupplementLoadingIndicator(
+                loading
+                        || lyricsSupplementPronunciationLoading
+                        || lyricsSupplementTranslationLoading
+                        || lyricsSupplementFuriganaLoading
+                        || metadataTranslationLoading
+        );
+        updateVinylLoadingIndicator(true);
+    }
+
+    private void setMetadataTranslationLoading(boolean loading) {
+        metadataTranslationLoading = loading;
+        updateLyricsSupplementLoadingText();
+        updateLyricsSupplementLoadingIndicator(
+                loading
+                        || lyricsSupplementPronunciationLoading
+                        || lyricsSupplementTranslationLoading
+                        || lyricsSupplementFuriganaLoading
+                        || lyricsCulturalAnnotationsLoading
+        );
+        updateVinylLoadingIndicator(true);
+    }
+
+    private String vinylLoadingText() {
+        if (lyricsCulturalAnnotationsLoading) {
+            return ui("loading.cultural_annotations");
+        }
+        if (metadataTranslationLoading) {
+            return ui("loading.translation");
+        }
+        if (lyricsSupplementTranslationLoading && lyricsSupplementPronunciationLoading) {
+            return aiProviderLoadingText(
+                    "status.ai_generating_provider_format",
+                    "status.ai_generating"
+            );
+        }
+        if (lyricsSupplementTranslationLoading) {
+            return aiProviderLoadingText(
+                    "loading.translation_provider_format",
+                    "loading.translation"
+            );
+        }
+        if (lyricsSupplementPronunciationLoading) {
+            return aiProviderLoadingText(
+                    "loading.pronunciation_provider_format",
+                    "loading.pronunciation"
+            );
+        }
+        if (lyricsSupplementFuriganaLoading) {
+            return ui("lyrics.furigana") + " · " + ui("loading.generating");
+        }
+        if (lyricsLookupInFlight || isLoadingLyricsPreview(currentLyricsResult)) {
+            return lyricsLoadingText();
+        }
+        return "";
+    }
+
+    private String lyricsLoadingText() {
+        String providerName = lyricsLoadingProviderName == null ? "" : lyricsLoadingProviderName.trim();
+        return providerName.isEmpty()
+                ? ui("status.lyrics_loading")
+                : uiFormat("status.lyrics_loading_provider_format", providerName);
+    }
+
+    private String aiProviderLoadingText(String formatKey, String fallbackKey) {
+        if (!"loading.translation".equals(fallbackKey)
+                && !"loading.pronunciation".equals(fallbackKey)
+                && !"status.ai_generating".equals(fallbackKey)) return ui(fallbackKey);
+        String providerName;
+        if ("loading.translation".equals(fallbackKey)) providerName = translationLoadingProviderName;
+        else if ("loading.pronunciation".equals(fallbackKey)) providerName = pronunciationLoadingProviderName;
+        else if (translationLoadingProviderName.isEmpty()) providerName = pronunciationLoadingProviderName;
+        else if (pronunciationLoadingProviderName.isEmpty()
+                || pronunciationLoadingProviderName.equals(translationLoadingProviderName)) {
+            providerName = translationLoadingProviderName;
+        } else providerName = translationLoadingProviderName + " / " + pronunciationLoadingProviderName;
+        return providerName.isEmpty() ? ui(fallbackKey) : uiFormat(formatKey, providerName);
+    }
+
+    private String supplementLoadingText() {
+        if (lyricsCulturalAnnotationsLoading) {
+            return ui("loading.cultural_annotations");
+        }
+        if (metadataTranslationLoading) {
+            return ui("loading.translation");
+        }
+        if (lyricsSupplementTranslationLoading && lyricsSupplementPronunciationLoading) {
+            return aiProviderLoadingText(
+                    "status.ai_generating_provider_format",
+                    "status.ai_generating"
+            );
+        }
+        if (lyricsSupplementTranslationLoading) {
+            return aiProviderLoadingText(
+                    "loading.translation_provider_format",
+                    "loading.translation"
+            );
+        }
+        if (lyricsSupplementPronunciationLoading) {
+            return aiProviderLoadingText(
+                    "loading.pronunciation_provider_format",
+                    "loading.pronunciation"
+            );
+        }
+        if (lyricsSupplementFuriganaLoading) {
+            return ui("lyrics.furigana") + " · " + ui("loading.generating");
+        }
+        if (lyricsWordSyncLoading) {
+            return ui("loading.word_sync");
+        }
+        if (pronunciationSyncLoading) {
+            return ui("loading.pronunciation_sync");
+        }
+        if (pronunciationSyncFailed) {
+            return ui("status.pronunciation_sync_failed");
+        }
+        if (lyricsWordSyncFailed) {
+            return ui("status.word_sync_failed");
+        }
+        return ui("loading.generating");
+    }
+
+    /** The indicator reports a word timing failure only when nothing else is loading. */
+    private boolean showingWordSyncFailure() {
+        return (lyricsWordSyncFailed || pronunciationSyncFailed)
+                && !lyricsWordSyncLoading
+                && !pronunciationSyncLoading
+                && !lyricsCulturalAnnotationsLoading
+                && !metadataTranslationLoading
+                && !lyricsSupplementTranslationLoading
+                && !lyricsSupplementPronunciationLoading
+                && !lyricsSupplementFuriganaLoading;
+    }
+
+    private void updateLyricsSupplementLoadingText() {
+        updateLyricsSupplementLoadingText(lyricsSupplementLoadingIndicator);
+        updateLyricsSupplementLoadingText(landscapeLyricsSupplementLoadingIndicator);
+    }
+
+    private void updateLyricsSupplementLoadingText(LinearLayout indicator) {
+        if (indicator == null || indicator.getChildCount() < 2) {
+            return;
+        }
+        boolean failure = showingWordSyncFailure();
+        indicator.getChildAt(0).setVisibility(failure ? View.GONE : View.VISIBLE);
+        indicator.setBackground(roundDrawable(failure ? Color.argb(214, 112, 26, 34) : Color.argb(38, 255, 255, 255), dp(14)));
+        boolean onlyWordSync = lyricsWordSyncLoading && supplementLoadingText().equals(ui("loading.word_sync"));
+        indicator.setContentDescription(onlyWordSync ? ui("loading.word_sync_desc") : null);
+        View child = indicator.getChildAt(1);
+        if (child instanceof TextView) {
+            ((TextView) child).setText(supplementLoadingText());
+            ((TextView) child).setTextColor(failure ? Color.rgb(255, 213, 215) : Color.argb(205, 255, 255, 255));
+        }
+    }
+
+    private void updateVinylLoadingIndicator(boolean animate) {
+        if (vinylPlayerModeView != null) {
+            vinylPlayerModeView.setLoadingText(vinylLoadingText(), animate);
+        }
+    }
+
+    private void updateLyricsSupplementLoadingIndicator(boolean visible) {
+        visible = visible || lyricsWordSyncLoading || lyricsWordSyncFailed
+                || pronunciationSyncLoading || pronunciationSyncFailed;
+        updateLyricsRegenerateActions();
+        setLoadingIndicatorVisible(lyricsSupplementLoadingIndicator, visible, true);
+        setLoadingIndicatorVisible(landscapeLyricsSupplementLoadingIndicator, visible, true);
+    }
+
+    private void setLoadingIndicatorVisible(View indicator, boolean visible, boolean animate) {
+        if (indicator == null) {
+            return;
+        }
+        indicator.animate().cancel();
+        if (visible) {
+            if (indicator.getVisibility() != View.VISIBLE) {
+                indicator.setAlpha(animate ? 0f : 1f);
+                indicator.setScaleX(animate ? 0.96f : 1f);
+                indicator.setScaleY(animate ? 0.96f : 1f);
+                indicator.setVisibility(View.VISIBLE);
+            }
+            if (animate) {
+                indicator.animate()
+                        .alpha(1f)
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(160L)
+                        .start();
+            }
+            return;
+        }
+        if (indicator.getVisibility() == View.VISIBLE) {
+            if (!animate) {
+                indicator.setVisibility(View.GONE);
+                indicator.setAlpha(1f);
+                indicator.setScaleX(1f);
+                indicator.setScaleY(1f);
+                return;
+            }
+            indicator.animate()
+                    .alpha(0f)
+                    .scaleX(0.96f)
+                    .scaleY(0.96f)
+                    .setDuration(140L)
+                    .withEndAction(() -> {
+                        indicator.setVisibility(View.GONE);
+                        indicator.setAlpha(1f);
+                        indicator.setScaleX(1f);
+                        indicator.setScaleY(1f);
+                    })
+                    .start();
+        }
+    }
+
+    private void setLyricsResultOnViews(LyricsResult result) {
+        updateLyricsRegenerateActions();
+        updatePlayerModeRow();
+        if (IvLyricsBridge.isEmbedded(this)) {
+            IvLyricsBridge.publishLyrics(currentTrack, result, effectiveSelectedSourceLang());
+        }
+        // Pronunciation-first swaps only what these views show.
+        LyricsResult display = pronunciationFirstDisplay(result);
+        pronunciationLeadMs = display != null && display != result ? PRONUNCIATION_FIRST_LEAD_MS : 0L;
+        // The pronunciation fill only adds timing to the pronunciation rows of these views.
+        PronunciationFirst.Fill fill = pronunciationFillFor(result);
+        updatePronunciationFirstButton(result);
+        schedulePronunciationTiming();
+        if (lyricsView != null) {
+            configureLyricsViewUiText(lyricsView);
+            lyricsView.setLyricsSegmentationLocale(effectiveSelectedSourceLang());
+            lyricsView.setLoadingState(lyricsLookupInFlight);
+            lyricsView.setResult(display);
+            lyricsView.setPronunciationFill(fill);
+            applyCulturalAnnotationsToView(lyricsView);
+        }
+        if (landscapeLyricsView != null) {
+            configureLyricsViewUiText(landscapeLyricsView);
+            landscapeLyricsView.setLyricsSegmentationLocale(effectiveSelectedSourceLang());
+            landscapeLyricsView.setLoadingState(lyricsLookupInFlight);
+            landscapeLyricsView.setResult(display);
+            landscapeLyricsView.setPronunciationFill(fill);
+            applyCulturalAnnotationsToView(landscapeLyricsView);
+        }
+        if (pictureInPictureLyricsView != null) {
+            configureLyricsViewUiText(pictureInPictureLyricsView);
+            pictureInPictureLyricsView.setLyricsSegmentationLocale(effectiveSelectedSourceLang());
+            pictureInPictureLyricsView.setLoadingState(lyricsLookupInFlight);
+            pictureInPictureLyricsView.setResult(display);
+            pictureInPictureLyricsView.setPronunciationFill(fill);
+        }
+        updateLyricsProviderAttribution(result);
+        updateLyricsContributorCredit(result);
+        requestCreatorSupportPresentations(result);
+        applyLandscapeNoLyricsLayout(true);
+    }
+
+    private void applyCulturalAnnotationsToViews() {
+        applyCulturalAnnotationsToView(lyricsView);
+        applyCulturalAnnotationsToView(landscapeLyricsView);
+        applyCulturalAnnotationsToVinylView();
+    }
+
+    private void applyCulturalAnnotationsToView(LyricsView view) {
+        if (view == null || aiLyricsSettings == null) {
+            return;
+        }
+        AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+        view.setCulturalAnnotations(
+                snapshot.culturalAnnotationsEnabled
+                        ? currentCulturalAnnotations
+                        : Collections.emptyList(),
+                snapshot.culturalAnnotationsFontFamily,
+                snapshot.culturalAnnotationsFontSize,
+                snapshot.culturalAnnotationsFontWeight,
+                snapshot.culturalAnnotationsOpacity
+        );
+    }
+
+    private void applyCulturalAnnotationsToVinylView() {
+        if (vinylPlayerModeView == null || aiLyricsSettings == null) {
+            return;
+        }
+        AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+        vinylPlayerModeView.setCulturalAnnotationStyle(
+                snapshot.culturalAnnotationsEnabled,
+                snapshot.culturalAnnotationsVinylFontFamily,
+                snapshot.culturalAnnotationsVinylFontSize,
+                snapshot.culturalAnnotationsVinylFontWeight,
+                snapshot.culturalAnnotationsVinylOpacity
+        );
+        long playerPosition = currentTrack == null ? 0L : currentPlaybackPosition(currentTrack);
+        long duration = currentTrack == null ? 0L : currentTrack.durationMs;
+        updateLyricPreview(lyricsPlaybackPosition(playerPosition, duration));
+    }
+
+    private ProviderAttributionView createLyricsProviderAttributionView(boolean includeContributor) {
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.HORIZONTAL);
+        container.setGravity(Gravity.CENTER);
+        container.setAlpha(0.45f);
+        container.setVisibility(View.GONE);
+        container.setClickable(false);
+        container.setFocusable(false);
+        container.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
+
+        TextView label = label(
+                ui("lyrics.provider_attribution_label"),
+                9f,
+                Color.argb(160, 255, 255, 255),
+                AppFonts.semiBold(this)
+        );
+        label.setSingleLine(true);
+        label.setAllCaps(true);
+        label.setLetterSpacing(0.04f);
+        label.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        container.addView(label, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        TextView value = label("", 11f, Color.argb(190, 255, 255, 255), AppFonts.regular(this));
+        value.setSingleLine(true);
+        value.setEllipsize(TextUtils.TruncateAt.END);
+        value.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        LinearLayout.LayoutParams valueParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        valueParams.leftMargin = dp(6);
+        container.addView(value, valueParams);
+
+        TextView separator = null;
+        TextView contributor = null;
+        if (includeContributor) {
+            separator = label("•", 9f, Color.argb(132, 255, 255, 255), AppFonts.regular(this));
+            separator.setSingleLine(true);
+            separator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            separator.setVisibility(View.GONE);
+            LinearLayout.LayoutParams separatorParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            separatorParams.leftMargin = dp(7);
+            separatorParams.rightMargin = dp(7);
+            container.addView(separator, separatorParams);
+
+            contributor = label("", 10f, Color.argb(174, 255, 255, 255), AppFonts.regular(this));
+            contributor.setSingleLine(true);
+            contributor.setEllipsize(TextUtils.TruncateAt.END);
+            contributor.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            contributor.setVisibility(View.GONE);
+            container.addView(contributor, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            ));
+        }
+        return new ProviderAttributionView(container, label, value, separator, contributor);
+    }
+
+    private void updateLyricsProviderAttribution(LyricsResult result) {
+        String provider = LyricsProviderAttribution.displayName(result);
+        updateLyricsProviderAttributionView(lyricsProviderAttributionView, provider, "");
+        updateLyricsProviderAttributionView(
+                landscapeLyricsProviderAttributionView,
+                provider,
+                provider.isEmpty() || result == null
+                        ? ""
+                        : contributorCreditText(result.contributors, 3, false)
+        );
+    }
+
+    private void updateLyricsProviderAttributionView(
+            ProviderAttributionView attribution,
+            CharSequence provider,
+            CharSequence contributorCredit
+    ) {
+        if (attribution == null) {
+            return;
+        }
+        CharSequence value = provider == null ? "" : provider;
+        String valueDescription = value.toString().trim();
+        CharSequence credit = contributorCredit == null ? "" : contributorCredit;
+        if (valueDescription.isEmpty()) {
+            credit = "";
+        }
+        String creditDescription = credit.toString().trim();
+        attribution.value.setText(value);
+        attribution.label.setVisibility(valueDescription.isEmpty() ? View.GONE : View.VISIBLE);
+        attribution.value.setVisibility(valueDescription.isEmpty() ? View.GONE : View.VISIBLE);
+        if (attribution.contributor != null) {
+            attribution.contributor.setText(credit);
+            attribution.contributor.setVisibility(creditDescription.isEmpty() ? View.GONE : View.VISIBLE);
+        }
+        if (attribution.separator != null) {
+            attribution.separator.setVisibility(
+                    !valueDescription.isEmpty() && !creditDescription.isEmpty() ? View.VISIBLE : View.GONE
+            );
+        }
+
+        String providerDescription = valueDescription.isEmpty()
+                ? ""
+                : ui("lyrics.provider_attribution_label") + " " + valueDescription;
+        String description = creditDescription.isEmpty()
+                ? providerDescription
+                : providerDescription + ", " + creditDescription;
+        attribution.container.setContentDescription(description.isEmpty() ? null : description);
+        attribution.container.setVisibility(description.isEmpty() ? View.GONE : View.VISIBLE);
+    }
+
+    private void updateLyricsContributorCredit(LyricsResult result) {
+        if (lyricsContributorView == null) {
+            return;
+        }
+        List<LyricsResult.SyncContributor> contributors = result == null
+                ? Collections.emptyList()
+                : result.contributors;
+        if (contributors.isEmpty()) {
+            lyricsContributorView.setVisibility(View.GONE);
+            lyricsContributorView.setText("");
+            lyricsContributorView.setOnClickListener(null);
+            lyricsContributorView.setClickable(false);
+            lyricsContributorView.setLinksClickable(false);
+            lyricsContributorView.setMovementMethod(null);
+            return;
+        }
+
+        int visibleContributorLimit = 3;
+        boolean hasLinkedContributor = hasLinkedContributor(contributors, visibleContributorLimit);
+        lyricsContributorView.setText(contributorCreditText(contributors, visibleContributorLimit, hasLinkedContributor));
+        lyricsContributorView.setVisibility(View.VISIBLE);
+        lyricsContributorView.setOnClickListener(null);
+        if (!hasLinkedContributor) {
+            lyricsContributorView.setMovementMethod(null);
+            lyricsContributorView.setClickable(false);
+            lyricsContributorView.setLinksClickable(false);
+            lyricsContributorView.setTextColor(Color.argb(92, 255, 255, 255));
+            return;
+        }
+        lyricsContributorView.setMovementMethod(LinkMovementMethod.getInstance());
+        lyricsContributorView.setHighlightColor(Color.TRANSPARENT);
+        lyricsContributorView.setLinksClickable(true);
+        lyricsContributorView.setTextColor(Color.argb(118, 255, 255, 255));
+        lyricsContributorView.setClickable(true);
+    }
+
+    private SpannableString contributorCreditText(
+            List<LyricsResult.SyncContributor> contributors,
+            int limit,
+            boolean allowProfileLinks
+    ) {
+        String names = contributorNames(contributors, limit);
+        SpannableString text = new SpannableString(uiFormat("lyrics.credit_sync_by_format", names));
+        if (contributors == null || contributors.isEmpty()) {
+            return text;
+        }
+        int namesStart = text.toString().indexOf(names);
+        if (namesStart < 0) {
+            return text;
+        }
+        int count = Math.min(Math.max(1, limit), contributors.size());
+        int searchFrom = namesStart;
+        for (int index = 0; index < count; index++) {
+            LyricsResult.SyncContributor contributor = contributors.get(index);
+            if (contributor == null || contributor.name.isEmpty()) {
+                continue;
+            }
+            String displayName = contributorDisplayName(contributor);
+            int start = text.toString().indexOf(displayName, searchFrom);
+            if (start < 0) {
+                continue;
+            }
+            int end = start + displayName.length();
+            CreatorSupportRepository.Presentation support =
+                    creatorSupportPresentations.get(contributor.userHash);
+            if (support != null && support.hasDecoration()) {
+                text.setSpan(
+                        new SupporterNameSpan(support),
+                        start,
+                        end,
+                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                );
+            }
+            if (allowProfileLinks
+                    && !contributor.anonymous
+                    && contributor.profileAvailable
+                    && !contributor.userHash.isEmpty()) {
+                text.setSpan(new ClickableSpan() {
+                    @Override
+                    public void onClick(View widget) {
+                        openSyncContributorProfile(contributor);
+                    }
+
+                    @Override
+                    public void updateDrawState(TextPaint ds) {
+                        super.updateDrawState(ds);
+                        if (support == null || !support.hasDecoration()) {
+                            ds.setColor(Color.argb(150, 255, 255, 255));
+                        }
+                        ds.setUnderlineText(false);
+                    }
+                }, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+            searchFrom = end;
+        }
+        return text;
+    }
+
+    private void requestCreatorSupportPresentations(LyricsResult result) {
+        if (creatorSupportRepository == null) {
+            return;
+        }
+        String requestKey = creatorSupportRequestKey(result);
+        if (requestKey.isEmpty()) {
+            creatorSupportPresentations.clear();
+            creatorSupportInFlightKey = "";
+            creatorSupportResolvedKey = "";
+            return;
+        }
+        if (requestKey.equals(creatorSupportInFlightKey) || requestKey.equals(creatorSupportResolvedKey)) {
+            return;
+        }
+
+        creatorSupportInFlightKey = requestKey;
+        long generation = ++creatorSupportGeneration;
+        creatorSupportRepository.load(result.contributors, presentations -> handler.post(() -> {
+            if (generation != creatorSupportGeneration
+                    || !requestKey.equals(creatorSupportRequestKey(currentLyricsResult))) {
+                return;
+            }
+            creatorSupportPresentations.clear();
+            creatorSupportPresentations.putAll(presentations);
+            creatorSupportInFlightKey = "";
+            creatorSupportResolvedKey = requestKey;
+            updateLyricsProviderAttribution(currentLyricsResult);
+            updateLyricsContributorCredit(currentLyricsResult);
+        }));
+    }
+
+    private String creatorSupportRequestKey(LyricsResult result) {
+        if (result == null || result.contributors.isEmpty()) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder(currentLyricsKey == null ? "" : currentLyricsKey);
+        int count = Math.min(3, result.contributors.size());
+        for (int index = 0; index < count; index++) {
+            LyricsResult.SyncContributor contributor = result.contributors.get(index);
+            if (contributor != null && !contributor.userHash.isEmpty()) {
+                builder.append('|').append(contributor.userHash);
+            }
+        }
+        return builder.indexOf("|") < 0 ? "" : builder.toString();
+    }
+
+    private String contributorNames(List<LyricsResult.SyncContributor> contributors, int limit) {
+        if (contributors == null || contributors.isEmpty()) {
+            return "";
+        }
+        int count = Math.min(Math.max(1, limit), contributors.size());
+        StringBuilder builder = new StringBuilder();
+        for (int index = 0; index < count; index++) {
+            LyricsResult.SyncContributor contributor = contributors.get(index);
+            if (contributor == null || contributor.name.isEmpty()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(", ");
+            }
+			builder.append(contributorDisplayName(contributor));
+        }
+        if (contributors.size() > count) {
+            builder.append(" +").append(contributors.size() - count);
+        }
+        return builder.toString();
+    }
+
+    private boolean hasLinkedContributor(List<LyricsResult.SyncContributor> contributors, int limit) {
+        if (contributors == null) {
+            return false;
+        }
+        int count = Math.min(Math.max(1, limit), contributors.size());
+        for (int index = 0; index < count; index++) {
+            LyricsResult.SyncContributor contributor = contributors.get(index);
+            if (contributor != null
+                    && !contributor.anonymous
+                    && contributor.profileAvailable
+                    && !contributor.userHash.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String contributorDisplayName(LyricsResult.SyncContributor contributor) {
+        if (contributor == null || contributor.anonymous || contributor.isPrivate) {
+            return ui("lyrics.credit_anonymous");
+        }
+        String name = contributor.name == null ? "" : contributor.name.trim();
+        return name.isEmpty() ? ui("lyrics.credit_anonymous") : name;
+    }
+
+    private void openSyncContributorProfile(LyricsResult.SyncContributor contributor) {
+        if (contributor == null
+                || contributor.anonymous
+                || contributor.isPrivate
+                || contributor.userHash.isEmpty()) {
+            return;
+        }
+        String fallbackUrl = syncContributorProfileUrl(contributor.userHash);
+        seekExecutor.execute(() -> {
+            String url = "";
+            try {
+                url = fetchSyncContributorProfileUrl(contributor.userHash, fallbackUrl);
+            } catch (Exception error) {
+                String message = "sync creator profile lookup failed: " + error.getMessage();
+                handler.post(() -> appendLog(message));
+            }
+            String finalUrl = url;
+            handler.post(() -> {
+                if (finalUrl != null && !finalUrl.trim().isEmpty()) {
+                    openContributorProfileUrl(finalUrl);
+                }
+            });
+        });
+    }
+
+    private void openContributorProfileUrl(String url) {
+        openInAppBrowser(url);
+    }
+
+    private String fetchSyncContributorProfileUrl(String userHash, String fallbackUrl) throws Exception {
+        URL endpoint = new URL(CREATOR_PROFILE_ENDPOINT + "?userHash=" + Uri.encode(userHash));
+        HttpURLConnection connection = (HttpURLConnection) endpoint.openConnection();
+        connection.setConnectTimeout(8_000);
+        connection.setReadTimeout(12_000);
+        connection.setRequestMethod("GET");
+        connection.setRequestProperty("Accept", "application/json");
+        connection.setRequestProperty("User-Agent", "ivLyrics-Android/0.1");
+        connection.setRequestProperty("Origin", SYNC_DATA_SPOTIFY_ORIGIN);
+        connection.setRequestProperty("Referer", SYNC_DATA_SPOTIFY_REFERER);
+        connection.setRequestProperty("Cache-Control", "no-cache, no-store, must-revalidate");
+        connection.setRequestProperty("Pragma", "no-cache");
+        try {
+            int status = connection.getResponseCode();
+            if (status == HttpURLConnection.HTTP_UNAUTHORIZED
+                    || status == HttpURLConnection.HTTP_FORBIDDEN
+                    || status == HttpURLConnection.HTTP_NOT_FOUND) {
+                return "";
+            }
+            if (status < 200 || status >= 300) {
+                throw new IOException("HTTP " + status);
+            }
+            JSONObject root = new JSONObject(readSyncContributorProfileBody(connection.getInputStream()));
+            JSONObject data = root.optJSONObject("data");
+            if (!root.optBoolean("success", false) || data == null) {
+                return "";
+            }
+            if (data.optBoolean("anonymous", false)
+                    || data.optBoolean("isPrivate", false)
+                    || (data.has("profilePublic") && !data.optBoolean("profilePublic", true))) {
+                return "";
+            }
+            String identifier = "";
+            JSONObject account = data.optJSONObject("account");
+            if (account != null) {
+                identifier = account.optString("username", "").trim();
+            }
+            if (identifier.isEmpty()) {
+                identifier = data.optString("nickname", "").trim();
+            }
+            if (identifier.isEmpty()) {
+                identifier = data.optString("userHash", "").trim();
+            }
+            if (identifier.isEmpty()) {
+                return fallbackUrl;
+            }
+            return syncContributorProfileUrl(identifier);
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    private String readSyncContributorProfileBody(InputStream stream) throws IOException {
+        if (stream == null) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            char[] buffer = new char[2048];
+            int read;
+            while ((read = reader.read(buffer)) >= 0) {
+                builder.append(buffer, 0, read);
+            }
+        }
+        return builder.toString();
+    }
+
+    private String syncContributorProfileUrl(String identifier) {
+        String safeIdentifier = identifier == null ? "" : identifier.replaceFirst("^@+", "").trim();
+        if (safeIdentifier.isEmpty()) {
+            return "https://lyrics.ivl.is";
+        }
+        return "https://lyrics.ivl.is/@" + Uri.encode(safeIdentifier);
+    }
+
+    private void configureLyricsViewUiText(LyricsView view) {
+        if (view == null) {
+            return;
+        }
+        view.setUiText(
+                ui("status.lyrics_loading"),
+                ui("lyrics.empty_none"),
+                ui("interlude.prelude"),
+                ui("interlude.break"),
+                ui("interlude.postlude")
+        );
+    }
+
+    private void setLyricsTrackDurationOnViews(long durationMs) {
+        long lyricsDurationMs = lyricsTrackDuration(durationMs);
+        if (lyricsView != null) {
+            lyricsView.setTrackDuration(lyricsDurationMs);
+        }
+        if (landscapeLyricsView != null) {
+            landscapeLyricsView.setTrackDuration(lyricsDurationMs);
+        }
+        if (pictureInPictureLyricsView != null) {
+            pictureInPictureLyricsView.setTrackDuration(lyricsDurationMs);
+        }
+    }
+
+    private void setLyricsPlaybackPositionOnViews(long positionMs) {
+        if (lyricsView != null) {
+            lyricsView.setPlaybackPosition(positionMs);
+        }
+        if (landscapeLyricsView != null) {
+            landscapeLyricsView.setPlaybackPosition(positionMs);
+        }
+        if (pictureInPictureLyricsView != null) {
+            pictureInPictureLyricsView.setPlaybackPosition(positionMs);
+        }
+    }
+
+    private void setLyricsPlaybackPositionOnActiveView(long positionMs) {
+        if (isPictureInPictureUiActive()) {
+            if (pictureInPictureLyricsView != null) {
+                pictureInPictureLyricsView.setPlaybackPosition(positionMs);
+            }
+            return;
+        }
+        if (isLandscapeLayout()) {
+            if (landscapeLyricsView != null) {
+                landscapeLyricsView.setPlaybackPosition(positionMs);
+            }
+            return;
+        }
+        if (lyricsPageVisible && lyricsView != null) {
+            lyricsView.setPlaybackPosition(positionMs);
+        }
+    }
+
+    /** The frame clock's position for the visible lyric renderer; see {@link LyricsView#setPlaybackFrame}. */
+    private void setLyricsFramePositionOnActiveView(double positionMs, long frameTimeNanos) {
+        if (isPictureInPictureUiActive()) {
+            if (pictureInPictureLyricsView != null) {
+                pictureInPictureLyricsView.setPlaybackFrame(positionMs, frameTimeNanos);
+            }
+            return;
+        }
+        if (isLandscapeLayout()) {
+            if (landscapeLyricsView != null) {
+                landscapeLyricsView.setPlaybackFrame(positionMs, frameTimeNanos);
+            }
+            return;
+        }
+        if (lyricsView != null && (lyricsPageVisible || isClosingLyricsPageShown())) {
+            lyricsView.setPlaybackFrame(positionMs, frameTimeNanos);
+        }
+    }
+
+    /**
+     * A closed lyrics page slides away for its close animation and is hidden only when that
+     * ends. Until then it still shows the lyrics, which follow the frame clock as they did
+     * while it was open.
+     */
+    private boolean isClosingLyricsPageShown() {
+        return lyricsPage != null && lyricsPage.getVisibility() == View.VISIBLE && lyricsView.isShown();
+    }
+
+    /**
+     * Previews receive new rows every 250 ms and extrapolate in between; anchor that
+     * extrapolation to each frame's exact clock while they are on screen.
+     */
+    private void setLyricPreviewFramePosition(double positionMs, long frameTimeNanos) {
+        if (lyricPreviewView != null && lyricPreviewView.isShown()) {
+            lyricPreviewView.setPlaybackFrame(positionMs, frameTimeNanos);
+        }
+        if (vinylPlayerModeView != null && vinylModeVisible && vinylPlayerModeView.lyricView().isShown()) {
+            vinylPlayerModeView.lyricView().setPlaybackFrame(positionMs, frameTimeNanos);
+        }
+    }
+
+    private void setAutoInstrumentalBreakOnViews(boolean enabled) {
+        if (lyricsView != null) {
+            lyricsView.setAutoInstrumentalBreakEnabled(enabled);
+        }
+        if (landscapeLyricsView != null) {
+            landscapeLyricsView.setAutoInstrumentalBreakEnabled(enabled);
+        }
+        if (pictureInPictureLyricsView != null) {
+            pictureInPictureLyricsView.setAutoInstrumentalBreakEnabled(enabled);
+        }
+    }
+
+    private void setInterludeLabelsOnViews(boolean enabled) {
+        if (lyricsView != null) {
+            lyricsView.setInterludeLabelsEnabled(enabled);
+        }
+        if (landscapeLyricsView != null) {
+            landscapeLyricsView.setInterludeLabelsEnabled(enabled);
+        }
+        if (pictureInPictureLyricsView != null) {
+            pictureInPictureLyricsView.setInterludeLabelsEnabled(enabled);
+        }
+    }
+
+    private void setSyncedLyricsKaraokeAnimationOnViews(boolean enabled) {
+        if (lyricsView != null) {
+            lyricsView.setSyncedLyricsKaraokeAnimationEnabled(enabled);
+        }
+        if (landscapeLyricsView != null) {
+            landscapeLyricsView.setSyncedLyricsKaraokeAnimationEnabled(enabled);
+        }
+        if (pictureInPictureLyricsView != null) {
+            pictureInPictureLyricsView.setSyncedLyricsKaraokeAnimationEnabled(enabled);
+        }
+    }
+
+    private void setKaraokeBounceEffectOnViews(boolean enabled) {
+        if (lyricsView != null) {
+            lyricsView.setKaraokeBounceEffectEnabled(enabled);
+        }
+        if (landscapeLyricsView != null) {
+            landscapeLyricsView.setKaraokeBounceEffectEnabled(enabled);
+        }
+        if (pictureInPictureLyricsView != null) {
+            pictureInPictureLyricsView.setKaraokeBounceEffectEnabled(enabled);
+        }
+        if (lyricPreviewView != null) {
+            lyricPreviewView.setKaraokeBounceEffectEnabled(enabled);
+        }
+        if (vinylPlayerModeView != null) {
+            vinylPlayerModeView.lyricView().setKaraokeBounceEffectEnabled(enabled);
+        }
+    }
+
+    private void setKaraokeExpressiveMotionOnViews(boolean enabled) {
+        if (lyricsView != null) {
+            lyricsView.setKaraokeExpressiveMotion(enabled);
+        }
+        if (landscapeLyricsView != null) {
+            landscapeLyricsView.setKaraokeExpressiveMotion(enabled);
+        }
+        if (pictureInPictureLyricsView != null) {
+            pictureInPictureLyricsView.setKaraokeExpressiveMotion(enabled);
+        }
+        if (lyricPreviewView != null) {
+            lyricPreviewView.setKaraokeExpressiveMotion(enabled);
+        }
+        if (vinylPlayerModeView != null) {
+            vinylPlayerModeView.lyricView().setKaraokeExpressiveMotion(enabled);
+        }
+    }
+
+    private void setKaraokeDisplayGranularityOnViews(String granularity) {
+        if (lyricsView != null) {
+            lyricsView.setKaraokeDisplayGranularity(granularity);
+        }
+        if (landscapeLyricsView != null) {
+            landscapeLyricsView.setKaraokeDisplayGranularity(granularity);
+        }
+        if (pictureInPictureLyricsView != null) {
+            pictureInPictureLyricsView.setKaraokeDisplayGranularity(granularity);
+        }
+        if (lyricPreviewView != null) {
+            lyricPreviewView.setKaraokeDisplayGranularity(granularity);
+        }
+        if (vinylPlayerModeView != null) {
+            vinylPlayerModeView.lyricView().setKaraokeDisplayGranularity(granularity);
+        }
+    }
+
+    private void setJapaneseFuriganaOnViews(boolean enabled) {
+        if (lyricsView != null) {
+            lyricsView.setJapaneseFuriganaEnabled(enabled);
+        }
+        if (landscapeLyricsView != null) {
+            landscapeLyricsView.setJapaneseFuriganaEnabled(enabled);
+        }
+        if (pictureInPictureLyricsView != null) {
+            pictureInPictureLyricsView.setJapaneseFuriganaEnabled(enabled);
+        }
+    }
+
+    private String textOf(EditText input) {
+        return input == null || input.getText() == null ? "" : input.getText().toString().trim();
+    }
+
+    private int parseInt(String value, int fallback) {
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (Exception ignored) {
+            return fallback;
+        }
+    }
+
+    private float parseFloat(String value, float fallback) {
+        try {
+            return Float.parseFloat(value.trim());
+        } catch (Exception ignored) {
+            return fallback;
+        }
+    }
+
+    private void updatePermissionState() {
+        if (IvLyricsBridge.isEmbedded(this)) return;
+        if (permissionButton == null) {
+            updateOnboardingPermissionState();
+            updateOverlayPermissionButton();
+            return;
+        }
+        boolean enabled = NowPlayingService.isNotificationAccessEnabled(this);
+        permissionButton.setVisibility(enabled ? View.GONE : View.VISIBLE);
+        updateOnboardingPermissionState();
+        updateOverlayPermissionButton();
+    }
+
+    private void updateOnboardingPermissionState() {
+        if (IvLyricsBridge.isEmbedded(this)) return;
+        boolean enabled = NowPlayingService.isNotificationAccessEnabled(this);
+        if (onboardingPermissionStatusView != null) {
+            onboardingPermissionStatusView.setText(enabled
+                    ? ui("onboarding.permission_status_enabled")
+                    : ui("onboarding.permission_status_required"));
+            onboardingPermissionStatusView.setTextColor(enabled
+                    ? onboardingKit.p.ok
+                    : onboardingKit.p.text);
+        }
+        if (onboardingStep == 1) updateOnboardingActionState();
+    }
+
+    private void openMediaPermissionSettings() {
+        if (IvLyricsBridge.isEmbedded(this)) return;
+        startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
+    }
+
+    private void updateOverlayPermissionButton() {
+        if (IvLyricsBridge.isEmbedded(this)) return;
+        if (spotifyDetectionPermissionButton != null) {
+            boolean enabled = isSpotifyDetectionAccessEnabled();
+            spotifyDetectionPermissionButton.setText(enabled
+                    ? ui("button.accessibility_permission_enabled")
+                    : ui("button.open_accessibility_permission"));
+            spotifyDetectionPermissionButton.setAlpha(enabled ? 0.72f : 1f);
+        }
+        if (overlayPermissionButton != null) {
+            boolean enabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this);
+            overlayPermissionButton.setText(enabled
+                    ? ui("button.overlay_permission_enabled")
+                    : ui("button.open_overlay_permission"));
+            overlayPermissionButton.setAlpha(enabled ? 0.72f : 1f);
+        }
+    }
+
+    private boolean isSpotifyDetectionAccessEnabled() {
+        AccessibilityManager manager = (AccessibilityManager) getSystemService(ACCESSIBILITY_SERVICE);
+        if (manager == null) {
+            return false;
+        }
+        ComponentName expected = new ComponentName(this, SpotifyForegroundAccessibilityService.class);
+        List<AccessibilityServiceInfo> services = manager.getEnabledAccessibilityServiceList(
+                AccessibilityServiceInfo.FEEDBACK_GENERIC
+        );
+        if (services == null) {
+            return false;
+        }
+        for (AccessibilityServiceInfo service : services) {
+            if (service == null || service.getId() == null) {
+                continue;
+            }
+            ComponentName componentName = ComponentName.unflattenFromString(service.getId());
+            if (expected.equals(componentName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void openOverlayPermissionSettings() {
+        if (IvLyricsBridge.isEmbedded(this)) return;
+        Intent intent = new Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:" + getPackageName())
+        );
+        if (!tryStartActivity(intent)) {
+            showSavedToast(ui("toast.overlay_permission_needed"));
+        }
+    }
+
+    private void openSpotifyDetectionPermissionSettings() {
+        if (IvLyricsBridge.isEmbedded(this)) return;
+        Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+        if (!tryStartActivity(intent)) {
+            showSavedToast(ui("toast.accessibility_permission_needed"));
+        }
+    }
+
+    private void updatePlaybackUi(long frameTimeNanos) {
+        playbackFrameTimeNanos = frameTimeNanos;
+        TrackSnapshot snapshot = currentTrack != null ? currentTrack : NowPlayingService.getLatestSnapshot();
+        if (snapshot == null || !snapshot.hasUsableMetadata()) {
+            return;
+        }
+        long position = currentPlaybackPosition(snapshot);
+        // Lyric renderers paint the playback clock at this frame's vsync, without rounding.
+        double lyricsFramePosition = lyricsPlaybackFramePosition(
+                currentPlaybackFramePosition(snapshot, frameTimeNanos), snapshot.durationMs);
+        if (vinylPlayerModeView != null) {
+            vinylPlayerModeView.setPlayback(position, snapshot.durationMs, snapshot.playing);
+        }
+        long lyricsPosition = lyricsPlaybackPosition(position, snapshot.durationMs);
+        setLyricsFramePositionOnActiveView(lyricsFramePosition, frameTimeNanos);
+        if (playerProgressView != null && playerProgressView.isShown()) {
+            playerProgressView.setProgress(position, snapshot.durationMs);
+        }
+
+        long now = SystemClock.uptimeMillis();
+        if (now - lastProgressUiUpdateMs >= 250L) {
+            lastProgressUiUpdateMs = now;
+            updateProgressLabels(position, snapshot.durationMs);
+            updateLyricPreview(lyricsPosition);
+            if (playPauseButton != null) playPauseButton.setPlaying(snapshot.playing);
+            updateYouTubeBackgroundPlaybackState();
+        }
+        setLyricPreviewFramePosition(lyricsFramePosition, frameTimeNanos);
+    }
+
+    private void updateProgressViews(long position, long duration) {
+        if (playerProgressView != null) {
+            playerProgressView.setProgress(position, duration);
+        }
+        updateProgressLabels(position, duration);
+    }
+
+    private void updateProgressLabels(long position, long duration) {
+        // Called every 250 ms; the labels change once a second, and an equal setText still
+        // lays the label out again and repaints it.
+        if (elapsedView != null) {
+            setTextIfChanged(elapsedView, formatTime(position));
+        }
+        if (remainingView != null) {
+            setTextIfChanged(remainingView, formatRemaining(position, duration));
+        }
+        if (debugProgressView != null) {
+            setTextIfChanged(debugProgressView, formatTime(position) + " / " + formatTime(duration));
+        }
+    }
+
+    private static void setTextIfChanged(TextView view, CharSequence text) {
+        if (!TextUtils.equals(view.getText(), text)) view.setText(text);
+    }
+
+    private void updateLyricPreview(long positionMs) {
+        if (lyricPreviewView == null && vinylPlayerModeView == null) {
+            return;
+        }
+        updateVinylLoadingIndicator(true);
+        int previewItems = aiLyricsSettings == null
+                ? AiLyricsSettings.PREVIEW_ITEM_ORIGINAL
+                : aiLyricsSettings.snapshot().previewItems;
+        if (previewItems == AiLyricsSettings.PREVIEW_ITEM_NONE) {
+            clearPreviewRowsCache();
+            if (lyricPreviewContainer != null) {
+                lyricPreviewContainer.setVisibility(View.GONE);
+            }
+            resetEmptyLyricsPreviewTimer();
+            clearLyricPreviewViews();
+            return;
+        }
+        if (lyricPreviewContainer != null) {
+            lyricPreviewContainer.setVisibility(View.VISIBLE);
+        }
+        if (currentLyricsResult == null || currentLyricsResult.lines.isEmpty()) {
+            clearPreviewRowsCache();
+            String detail = currentLyricsResult == null ? "" : currentLyricsResult.detail;
+            boolean loading = isLoadingLyricsPreview(currentLyricsResult);
+            if (!loading && aiLyricsSettings != null && !aiLyricsSettings.showLyricsNotFound()) {
+                clearLyricPreviewViews();
+                return;
+            }
+            if (currentLyricsResult != null && !loading && shouldHideEmptyLyricsPreview(detail)) {
+                clearLyricPreviewViews();
+                return;
+            }
+            if (loading || currentLyricsResult == null) {
+                resetEmptyLyricsPreviewTimer();
+            }
+            List<MainLyricPreviewView.PreviewLine> rows = new ArrayList<>();
+            rows.add(emptyPreviewLine(detail));
+            setLyricPreviewOnViews(rows, positionMs, 0L, 0L, loading);
+            return;
+        }
+        resetEmptyLyricsPreviewTimer();
+        PreviewEntry entry = previewEntryAt(positionMs);
+        if (entry == null) {
+            clearPreviewRowsCache();
+            List<MainLyricPreviewView.PreviewLine> rows = new ArrayList<>();
+            rows.add(new MainLyricPreviewView.PreviewLine(ui("status.lyrics_waiting"), true));
+            setLyricPreviewOnViews(rows, positionMs, 0L, 0L, false);
+            return;
+        }
+        if (entry.isInterlude()) {
+            clearPreviewRowsCache();
+            List<MainLyricPreviewView.PreviewLine> rows = new ArrayList<>();
+            rows.add(MainLyricPreviewView.PreviewLine.interlude(interludePreviewLabel(entry.interludeKind)));
+            setLyricPreviewOnViews(
+                    rows,
+                    positionMs,
+                    entry.startTimeMs,
+                    entry.endTimeMs,
+                    currentTrack != null && currentTrack.playing
+            );
+            return;
+        }
+        LyricsLine line = entry.line;
+        List<MainLyricPreviewView.PreviewLine> rows = previewLines(entry.lines, previewItems);
+        setLyricPreviewOnViews(
+                rows,
+                positionMs,
+                entry.startTimeMs,
+                entry.endTimeMs,
+                currentTrack != null && currentTrack.playing,
+                line
+        );
+    }
+
+    private void clearLyricPreviewViews() {
+        if (lyricPreviewView != null) {
+            lyricPreviewView.clear();
+        }
+        if (vinylPlayerModeView != null) {
+            vinylPlayerModeView.lyricView().clear();
+        }
+    }
+
+    private void setLyricPreviewOnViews(
+            List<MainLyricPreviewView.PreviewLine> rows,
+            long positionMs,
+            long lineStartMs,
+            long lineEndMs,
+            boolean playing
+    ) {
+        setLyricPreviewOnViews(rows, positionMs, lineStartMs, lineEndMs, playing, null);
+    }
+
+    private void setLyricPreviewOnViews(
+            List<MainLyricPreviewView.PreviewLine> rows,
+            long positionMs,
+            long lineStartMs,
+            long lineEndMs,
+            boolean playing,
+            LyricsLine sourceLine
+    ) {
+        if (lyricPreviewView != null) {
+            lyricPreviewView.setLyricsSegmentationLocale(effectiveSelectedSourceLang());
+            lyricPreviewView.setPreview(rows, positionMs, lineStartMs, lineEndMs, playing);
+        }
+        if (vinylPlayerModeView != null) {
+            vinylPlayerModeView.lyricView().setLyricsSegmentationLocale(effectiveSelectedSourceLang());
+            vinylPlayerModeView.lyricView().setPreview(
+                    vinylPreviewRows(rows, sourceLine),
+                    positionMs,
+                    lineStartMs,
+                    lineEndMs,
+                    playing
+            );
+        }
+        // A loading/effect row may arrive asynchronously while the paused host is asleep.
+        if (playbackNeedsFrames()) requestPlaybackFrame();
+    }
+
+    private List<MainLyricPreviewView.PreviewLine> vinylPreviewRows(
+            List<MainLyricPreviewView.PreviewLine> rows,
+            LyricsLine sourceLine
+    ) {
+        if (rows == null || rows.isEmpty() || sourceLine == null || aiLyricsSettings == null) {
+            return rows == null ? Collections.emptyList() : rows;
+        }
+        AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+        if (!snapshot.culturalAnnotationsEnabled || currentCulturalAnnotations.isEmpty()) {
+            return rows;
+        }
+        int lineIndex = currentLyricsResult == null ? -1 : currentLyricsResult.lines.indexOf(sourceLine);
+        if (lineIndex < 0) {
+            return rows;
+        }
+        PreviewText original = originalPreviewText(sourceLine);
+        List<CulturalAnnotation> annotations = CulturalAnnotation.forLine(
+                currentCulturalAnnotations,
+                lineIndex,
+                original.text
+        );
+        if (annotations.isEmpty()) {
+            return rows;
+        }
+
+        List<MainLyricPreviewView.PreviewLine> result = new ArrayList<>(rows);
+        for (int index = 0; index < result.size(); index++) {
+            MainLyricPreviewView.PreviewLine row = result.get(index);
+            if (!AiLyricsSettings.TYPO_MAIN_PREVIEW_ORIGINAL.equals(row.slotId)) {
+                continue;
+            }
+            result.set(index, MainLyricPreviewView.PreviewLine.annotatedCopy(
+                    row,
+                    CulturalAnnotation.annotateText(row.text, annotations),
+                    CulturalAnnotation.annotateSyllables(
+                            original.text,
+                            row.syllables,
+                            annotations
+                    )
+            ));
+            break;
+        }
+        for (int index = 0; index < annotations.size(); index++) {
+            result.add(MainLyricPreviewView.PreviewLine.cultural(
+                    (index + 1) + ". " + annotations.get(index).note
+            ));
+        }
+        return result;
+    }
+
+    private MainLyricPreviewView.PreviewLine emptyPreviewLine(String detail) {
+        if (lyricsLookupInFlight || isLoadingLyricsPreview(currentLyricsResult)) {
+            return MainLyricPreviewView.PreviewLine.loading(lyricsLoadingText());
+        }
+        String text = detail == null || detail.isEmpty() ? ui("status.lyrics_waiting") : detail;
+        return new MainLyricPreviewView.PreviewLine(text, true);
+    }
+
+    /** The result is the placeholder shown while lyrics load; its text may be in any UI language. */
+    private boolean isLoadingLyricsPreview(LyricsResult result) {
+        return result != null && result.loading && result.lines.isEmpty();
+    }
+
+    private boolean shouldHideEmptyLyricsPreview(String detail) {
+        String key = buildEmptyLyricsPreviewKey(detail);
+        long now = SystemClock.uptimeMillis();
+        if (!key.equals(emptyLyricsPreviewKey)) {
+            emptyLyricsPreviewKey = key;
+            emptyLyricsPreviewShownAtMs = now;
+            scheduleEmptyLyricsPreviewClear();
+            return false;
+        }
+        long elapsed = now - emptyLyricsPreviewShownAtMs;
+        if (elapsed < EMPTY_LYRICS_PREVIEW_VISIBLE_MS) {
+            scheduleEmptyLyricsPreviewClear();
+            return false;
+        }
+        return true;
+    }
+
+    private String buildEmptyLyricsPreviewKey(String detail) {
+        String trackKey = currentTrack == null ? "" : currentTrack.stableKey();
+        String message = detail == null ? "" : detail.trim();
+        return trackKey + "\n" + message;
+    }
+
+    private void scheduleEmptyLyricsPreviewClear() {
+        handler.removeCallbacks(emptyLyricsPreviewClearRunnable);
+        long elapsed = SystemClock.uptimeMillis() - emptyLyricsPreviewShownAtMs;
+        long delay = Math.max(0L, EMPTY_LYRICS_PREVIEW_VISIBLE_MS - elapsed);
+        handler.postDelayed(emptyLyricsPreviewClearRunnable, delay);
+    }
+
+    private void clearExpiredEmptyLyricsPreview() {
+        if ((lyricPreviewView == null && vinylPlayerModeView == null) || emptyLyricsPreviewKey.isEmpty()) {
+            return;
+        }
+        if (currentLyricsResult == null || !currentLyricsResult.lines.isEmpty()) {
+            resetEmptyLyricsPreviewTimer();
+            return;
+        }
+        String detail = currentLyricsResult.detail;
+        if (isLoadingLyricsPreview(currentLyricsResult) || !buildEmptyLyricsPreviewKey(detail).equals(emptyLyricsPreviewKey)) {
+            return;
+        }
+        if (SystemClock.uptimeMillis() - emptyLyricsPreviewShownAtMs >= EMPTY_LYRICS_PREVIEW_VISIBLE_MS) {
+            clearLyricPreviewViews();
+        }
+    }
+
+    private void resetEmptyLyricsPreviewTimer() {
+        if (emptyLyricsPreviewKey.isEmpty() && emptyLyricsPreviewShownAtMs == 0L) {
+            return;
+        }
+        emptyLyricsPreviewKey = "";
+        emptyLyricsPreviewShownAtMs = 0L;
+        handler.removeCallbacks(emptyLyricsPreviewClearRunnable);
+    }
+
+    private PreviewEntry previewEntryAt(long positionMs) {
+        List<LyricsLine> lines = currentLyricsResult.lines;
+        int lineCount = lines.size();
+        LyricsLine firstUntimedLine = null;
+        List<LyricsLine> matchingTimedLines = new ArrayList<>();
+        PreviewEntry matchingMarker = null;
+        LyricsLine fallbackLine = null;
+        for (int index = 0; index < lineCount; index++) {
+            LyricsLine line = lines.get(index);
+            if (line == null) {
+                continue;
+            }
+
+            boolean timed = line.isTimed();
+            if (!timed) {
+                if (firstUntimedLine == null
+                        && !isPreviewInterludeMarkerText(previewInterludeCandidateText(line))) {
+                    firstUntimedLine = line;
+                }
+                continue;
+            }
+
+            boolean interludeMarker = isPreviewInterludeMarkerText(previewInterludeCandidateText(line));
+            if (interludeMarker) {
+                PreviewEntry markerEntry = markerInterludeEntry(line, index, lineCount);
+                if (markerEntry != null && markerEntry.contains(positionMs)) {
+                    matchingMarker = markerEntry;
+                }
+                continue;
+            }
+
+            if (positionMs >= line.startTimeMs && positionMs < line.endTimeMs) {
+                matchingTimedLines.add(line);
+            }
+            if (positionMs >= line.startTimeMs) {
+                fallbackLine = line;
+            }
+        }
+
+        if (firstUntimedLine != null) {
+            return PreviewEntry.line(firstUntimedLine);
+        }
+
+        if (!matchingTimedLines.isEmpty()) {
+            return PreviewEntry.lines(matchingTimedLines);
+        }
+        // A marker in another stream must not hide vocals that are still singing.
+        if (matchingMarker != null) return matchingMarker;
+
+        PreviewEntry prelude = preludeEntry(positionMs);
+        if (prelude != null) {
+            return prelude;
+        }
+
+        PreviewEntry trailingInterlude = trailingInterludeEntry(positionMs);
+        if (trailingInterlude != null) {
+            return trailingInterlude;
+        }
+
+        return fallbackLine == null ? null : PreviewEntry.line(fallbackLine);
+    }
+
+    private PreviewEntry markerInterludeEntry(LyricsLine line, int lineIndex, int lineCount) {
+        long endTimeMs = Math.max(line.endTimeMs, nextPreviewRenderableLineStartAfter(lineIndex));
+        long durationMs = endTimeMs > line.startTimeMs ? endTimeMs - line.startTimeMs : 0L;
+        long minimumDurationMs = isPreviewMusicNoteInterludeMarkerText(previewInterludeCandidateText(line))
+                ? 0L
+                : PREVIEW_INTERLUDE_MIN_DURATION_MS;
+        if (durationMs <= minimumDurationMs) {
+            return null;
+        }
+        return PreviewEntry.interlude(line.startTimeMs, endTimeMs, previewInstrumentalKind(lineIndex, lineCount));
+    }
+
+    private PreviewEntry preludeEntry(long positionMs) {
+        int firstIndex = firstPreviewRenderableLineIndex();
+        if (firstIndex < 0) {
+            return null;
+        }
+        LyricsLine firstLine = currentLyricsResult.lines.get(firstIndex);
+        if (firstLine == null || !firstLine.isTimed() || positionMs >= firstLine.startTimeMs) {
+            return null;
+        }
+        long startTimeMs = 0L;
+        long endTimeMs = firstLine.startTimeMs;
+        if (endTimeMs - startTimeMs <= PREVIEW_INTERLUDE_MIN_DURATION_MS) {
+            return null;
+        }
+        return PreviewEntry.interlude(startTimeMs, endTimeMs, "prelude");
+    }
+
+    private PreviewEntry trailingInterludeEntry(long positionMs) {
+        if (!previewAutoInstrumentalBreakEnabled()) {
+            return null;
+        }
+        List<LyricsLine> lines = currentLyricsResult.lines;
+        int lineCount = lines.size();
+        long latestLyricEnd = -1L;
+        for (int index = 0; index < lineCount; index++) {
+            LyricsLine line = lines.get(index);
+            if (line == null || !line.isTimed() || isPreviewInterludeMarkerText(previewInterludeCandidateText(line))) {
+                continue;
+            }
+            latestLyricEnd = Math.max(latestLyricEnd, previewLastLyricEndTime(line));
+            long lyricEndTime = latestLyricEnd;
+            if (lyricEndTime < 0L) {
+                continue;
+            }
+            long startTimeMs = lyricEndTime + PREVIEW_TRAILING_INTERLUDE_DELAY_MS;
+            long nextLyricStartTime = nextPreviewRenderableLineStartAfter(index);
+            long endTimeMs = nextLyricStartTime > startTimeMs
+                    ? nextLyricStartTime
+                    : (index >= Math.max(0, lineCount - 1) ? previewTrackDurationMs() : 0L);
+            long durationMs = endTimeMs > startTimeMs ? endTimeMs - startTimeMs : 0L;
+            if (durationMs <= PREVIEW_INTERLUDE_MIN_DURATION_MS) {
+                continue;
+            }
+            if (positionMs >= startTimeMs && positionMs < endTimeMs) {
+                return PreviewEntry.interlude(startTimeMs, endTimeMs, nextLyricStartTime > 0L ? "break" : "postlude");
+            }
+        }
+        return null;
+    }
+
+    private int firstPreviewRenderableLineIndex() {
+        List<LyricsLine> lines = currentLyricsResult.lines;
+        for (int index = 0; index < lines.size(); index++) {
+            LyricsLine line = lines.get(index);
+            if (line == null || !line.isTimed()) {
+                continue;
+            }
+            if (!isPreviewInterludeMarkerText(previewInterludeCandidateText(line))) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    private long nextPreviewRenderableLineStartAfter(int lineIndex) {
+        List<LyricsLine> lines = currentLyricsResult.lines;
+        for (int index = Math.max(0, lineIndex + 1); index < lines.size(); index++) {
+            LyricsLine candidate = lines.get(index);
+            if (candidate == null || !candidate.isTimed()) {
+                continue;
+            }
+            if (isPreviewInterludeMarkerText(previewInterludeCandidateText(candidate))) {
+                continue;
+            }
+            return candidate.startTimeMs;
+        }
+        return 0L;
+    }
+
+    private long previewLastLyricEndTime(LyricsLine line) {
+        if (line == null) {
+            return -1L;
+        }
+        long lastEnd = previewMaxSyllableEnd(line.syllables, line.endTimeMs);
+        if (line.vocalParts != null) {
+            for (LyricsLine.VocalPart part : line.vocalParts) {
+                lastEnd = Math.max(lastEnd, previewMaxSyllableEnd(part.syllables, line.endTimeMs));
+            }
+        }
+        if (lastEnd >= 0L) {
+            return lastEnd;
+        }
+        return line.endTimeMs > line.startTimeMs ? line.endTimeMs : -1L;
+    }
+
+    private long previewMaxSyllableEnd(List<LyricsLine.Syllable> syllables, long fallbackLineEndMs) {
+        if (syllables == null || syllables.isEmpty()) {
+            return -1L;
+        }
+        long lastEnd = -1L;
+        for (LyricsLine.Syllable syllable : syllables) {
+            if (syllable == null) {
+                continue;
+            }
+            long endTime = syllable.endTimeMs > syllable.startTimeMs ? syllable.endTimeMs : fallbackLineEndMs;
+            if (endTime >= syllable.startTimeMs) {
+                lastEnd = Math.max(lastEnd, endTime);
+            }
+        }
+        return lastEnd;
+    }
+
+    private String previewInstrumentalKind(int lineIndex, int lineCount) {
+        if (lineIndex == 0) {
+            return "prelude";
+        }
+        if (lineIndex == Math.max(0, lineCount - 1)) {
+            return "postlude";
+        }
+        return "break";
+    }
+
+    private String interludePreviewLabel(String kind) {
+        if (!interludeLabelsEnabled()) {
+            return "";
+        }
+        if ("prelude".equals(kind)) {
+            return ui("interlude.prelude");
+        }
+        if ("postlude".equals(kind)) {
+            return ui("interlude.postlude");
+        }
+        return ui("interlude.break");
+    }
+
+    private boolean interludeLabelsEnabled() {
+        return aiLyricsSettings == null || aiLyricsSettings.snapshot().interludeLabelsEnabled;
+    }
+
+    private String previewInterludeCandidateText(LyricsLine line) {
+        if (line == null) {
+            return "";
+        }
+        String text = line.text == null ? "" : line.text;
+        if (!text.trim().isEmpty()) {
+            return text;
+        }
+        StringBuilder builder = new StringBuilder();
+        if (line.vocalParts != null) {
+            for (LyricsLine.VocalPart part : line.vocalParts) {
+                if (part != null && part.text != null) {
+                    builder.append(part.text);
+                }
+            }
+        }
+        return builder.toString();
+    }
+
+    private boolean isPreviewInterludeMarkerText(String text) {
+        if (text == null || text.isEmpty()) {
+            return true;
+        }
+
+        int start = 0;
+        int end = text.length();
+        while (start < end) {
+            if (text.charAt(start) <= ' ') {
+                start++;
+            } else if (isPreviewHtmlSpaceEntity(text, start, end)) {
+                start += 6;
+            } else {
+                break;
+            }
+        }
+        while (end > start) {
+            if (text.charAt(end - 1) <= ' ') {
+                end--;
+            } else if (isPreviewHtmlSpaceEntityEndingAt(text, start, end)) {
+                end -= 6;
+            } else {
+                break;
+            }
+        }
+
+        for (int offset = start; offset < end; ) {
+            if (isPreviewHtmlSpaceEntity(text, offset, end)) {
+                offset += 6;
+                continue;
+            }
+            int codePoint = text.codePointAt(offset);
+            if (!isPreviewInterludeMarkerCodePoint(codePoint)) {
+                return false;
+            }
+            offset += Character.charCount(codePoint);
+        }
+        return true;
+    }
+
+    private boolean isPreviewMusicNoteInterludeMarkerText(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+
+        boolean containsMusicNote = false;
+        for (int offset = 0; offset < text.length(); ) {
+            if (isPreviewHtmlSpaceEntity(text, offset, text.length())) {
+                offset += 6;
+                continue;
+            }
+            int codePoint = text.codePointAt(offset);
+            if (!isPreviewInterludeMarkerCodePoint(codePoint)) {
+                return false;
+            }
+            containsMusicNote |= isPreviewMusicNoteCodePoint(codePoint);
+            offset += Character.charCount(codePoint);
+        }
+        return containsMusicNote;
+    }
+
+    private boolean isPreviewMusicNoteCodePoint(int codePoint) {
+        return codePoint >= 0x2669 && codePoint <= 0x266C;
+    }
+
+    private boolean isPreviewHtmlSpaceEntity(String text, int offset, int end) {
+        return end - offset >= 6
+                && (text.startsWith("&nbsp;", offset) || text.startsWith("&NBSP;", offset));
+    }
+
+    private boolean isPreviewHtmlSpaceEntityEndingAt(String text, int start, int end) {
+        return end - start >= 6 && isPreviewHtmlSpaceEntity(text, end - 6, end);
+    }
+
+    private boolean isPreviewInterludeMarkerCodePoint(int codePoint) {
+        return Character.isWhitespace(codePoint)
+                || codePoint == 0x00A0
+                || (codePoint >= 0x200B && codePoint <= 0x200D)
+                || codePoint == 0xFEFF
+                || (codePoint >= 0x2669 && codePoint <= 0x266C);
+    }
+
+    private boolean previewAutoInstrumentalBreakEnabled() {
+        return aiLyricsSettings == null || aiLyricsSettings.snapshot().autoInstrumentalBreakEnabled;
+    }
+
+    private long previewTrackDurationMs() {
+        return currentTrack == null ? 0L : currentTrack.durationMs;
+    }
+
+    private List<MainLyricPreviewView.PreviewLine> previewLines(List<LyricsLine> activeLines, int previewItems) {
+        AiLyricsSettings.Snapshot settings = aiLyricsSettings == null ? null : aiLyricsSettings.snapshot();
+        String sourceLang = effectiveSelectedSourceLang();
+        if (cachedPreviewRowsLines.equals(activeLines)
+                && cachedPreviewRowsSettings == settings
+                && cachedPreviewRowsItems == previewItems
+                && cachedPreviewRowsGenerating == aiLyricsGenerating
+                && cachedPreviewRowsSourceLang.equals(sourceLang)) {
+            return cachedPreviewRows;
+        }
+
+        List<MainLyricPreviewView.PreviewLine> rows = new ArrayList<>();
+        for (LyricsLine line : activeLines) rows.addAll(buildPreviewLines(line, previewItems));
+        cachedPreviewRowsLines = new ArrayList<>(activeLines);
+        cachedPreviewRowsSettings = settings;
+        cachedPreviewRowsSourceLang = sourceLang;
+        cachedPreviewRowsItems = previewItems;
+        cachedPreviewRowsGenerating = aiLyricsGenerating;
+        cachedPreviewRows = rows;
+        return rows;
+    }
+
+    private List<MainLyricPreviewView.PreviewLine> buildPreviewLines(LyricsLine line, int previewItems) {
+        List<MainLyricPreviewView.PreviewLine> rows = new ArrayList<>();
+        PreviewText original = originalPreviewText(line);
+        if (AiLyricsSettings.previewItemEnabled(previewItems, AiLyricsSettings.PREVIEW_ITEM_ORIGINAL)) {
+            addPreviewRow(rows, original.text, original.rubyText, original.syllables, original.kind, AiLyricsSettings.TYPO_MAIN_PREVIEW_ORIGINAL);
+        }
+        if (AiLyricsSettings.previewItemEnabled(previewItems, AiLyricsSettings.PREVIEW_ITEM_PRONUNCIATION)) {
+            addSupplementPreviewRow(
+                    rows,
+                    line.pronunciationText,
+                    aiProviderLoadingText(
+                            "loading.pronunciation_provider_format",
+                            "loading.pronunciation"
+                    ),
+                    original.text,
+                    original.rubyText,
+                    original.syllables,
+                    original.kind,
+                    isPreviewSupplementGenerating(AiLyricsSettings.PREVIEW_ITEM_PRONUNCIATION),
+                    AiLyricsSettings.TYPO_MAIN_PREVIEW_PRONUNCIATION
+            );
+        }
+        if (AiLyricsSettings.previewItemEnabled(previewItems, AiLyricsSettings.PREVIEW_ITEM_TRANSLATION)) {
+            addSupplementPreviewRow(
+                    rows,
+                    line.translationText,
+                    aiProviderLoadingText(
+                            "loading.translation_provider_format",
+                            "loading.translation"
+                    ),
+                    original.text,
+                    original.rubyText,
+                    original.syllables,
+                    original.kind,
+                    isPreviewSupplementGenerating(AiLyricsSettings.PREVIEW_ITEM_TRANSLATION),
+                    AiLyricsSettings.TYPO_MAIN_PREVIEW_TRANSLATION
+            );
+        }
+        if (rows.isEmpty()) {
+            addPreviewRow(rows, original.text, original.rubyText, original.syllables, original.kind, AiLyricsSettings.TYPO_MAIN_PREVIEW_ORIGINAL);
+        }
+        for (int index = 0; index < rows.size(); index++) {
+            rows.set(index, rows.get(index).withPlaybackWindow(line.startTimeMs, line.endTimeMs));
+        }
+        return rows;
+    }
+
+    private void clearPreviewRowsCache() {
+        cachedPreviewRowsLines = Collections.emptyList();
+        cachedPreviewRowsSettings = null;
+        cachedPreviewRowsSourceLang = "";
+        cachedPreviewRowsItems = -1;
+        cachedPreviewRowsGenerating = false;
+        cachedPreviewRows = Collections.emptyList();
+    }
+
+    private void addSupplementPreviewRow(
+            List<MainLyricPreviewView.PreviewLine> rows,
+            String text,
+            String generatingText,
+            String fallback,
+            String fallbackRubyText,
+            List<LyricsLine.Syllable> fallbackSyllables,
+            String fallbackKind,
+            boolean generating,
+            String slotId
+    ) {
+        String value = text == null ? "" : text.trim();
+        String rubyText = "";
+        List<LyricsLine.Syllable> syllables = Collections.emptyList();
+        String kind = "vocal";
+        if (value.isEmpty()) {
+            if (generating) {
+                value = generatingText;
+            } else {
+                value = fallback;
+                rubyText = fallbackRubyText == null ? "" : fallbackRubyText.trim();
+                syllables = fallbackSyllables == null ? Collections.emptyList() : fallbackSyllables;
+                kind = fallbackKind;
+            }
+        }
+        if (samePreviewTextAlreadyShown(rows, value)) {
+            return;
+        }
+        addPreviewRow(rows, value, rubyText, syllables, kind, slotId);
+    }
+
+    private void addPreviewRow(List<MainLyricPreviewView.PreviewLine> rows, String text) {
+        addPreviewRow(rows, text, Collections.emptyList(), "vocal");
+    }
+
+    private void addPreviewRow(
+            List<MainLyricPreviewView.PreviewLine> rows,
+            String text,
+            List<LyricsLine.Syllable> syllables
+    ) {
+        addPreviewRow(rows, text, syllables, "vocal");
+    }
+
+    private void addPreviewRow(
+            List<MainLyricPreviewView.PreviewLine> rows,
+            String text,
+            List<LyricsLine.Syllable> syllables,
+            String kind
+    ) {
+        addPreviewRow(rows, text, syllables, kind, rows.isEmpty()
+                ? AiLyricsSettings.TYPO_MAIN_PREVIEW_ORIGINAL
+                : AiLyricsSettings.TYPO_MAIN_PREVIEW_PRONUNCIATION);
+    }
+
+    private void addPreviewRow(
+            List<MainLyricPreviewView.PreviewLine> rows,
+            String text,
+            List<LyricsLine.Syllable> syllables,
+            String kind,
+            String slotId
+    ) {
+        addPreviewRow(rows, text, "", syllables, kind, slotId);
+    }
+
+    private void addPreviewRow(
+            List<MainLyricPreviewView.PreviewLine> rows,
+            String text,
+            String rubyText,
+            List<LyricsLine.Syllable> syllables,
+            String kind,
+            String slotId
+    ) {
+        String value = text == null ? "" : text.trim();
+        if (value.isEmpty()) {
+            return;
+        }
+        rows.add(new MainLyricPreviewView.PreviewLine(value, rubyText, rows.isEmpty(), syllables, kind, slotId));
+    }
+
+    private boolean samePreviewTextAlreadyShown(List<MainLyricPreviewView.PreviewLine> rows, String text) {
+        String value = text == null ? "" : text.trim();
+        for (MainLyricPreviewView.PreviewLine row : rows) {
+            if (row.text.equals(value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isPreviewSupplementGenerating(int item) {
+        if (!aiLyricsGenerating || aiLyricsSettings == null) {
+            return false;
+        }
+        AiLyricsSettings.Snapshot snapshot = aiLyricsSettings.snapshot();
+        String source = effectiveSelectedSourceLang();
+        AiLyricsSettings.LanguageRule rule = snapshot.ruleForSource(source);
+        if (item == AiLyricsSettings.PREVIEW_ITEM_TRANSLATION) {
+            String target = snapshot.resolveTargetLanguage(source);
+            return lyricsSupplementTranslationLoading && rule.translationEnabled
+                    && !snapshot.shouldSkipTranslation(source, target);
+        }
+        if (item == AiLyricsSettings.PREVIEW_ITEM_PRONUNCIATION) {
+            return lyricsSupplementPronunciationLoading && rule.pronunciationEnabled;
+        }
+        return false;
+    }
+
+    private boolean shouldGenerateJapaneseFurigana(AiLyricsSettings.Snapshot snapshot, String sourceLang) {
+        return snapshot != null
+                && snapshot.japaneseFuriganaEnabled
+                && "ja".equalsIgnoreCase(AiLyricsSettings.normalizeLanguageCode(sourceLang))
+                && lyricsContainKanji(currentBaseLyricsResult);
+    }
+
+    private boolean lyricsContainKanji(LyricsResult result) {
+        if (result == null || result.lines == null) {
+            return false;
+        }
+        for (LyricsLine line : result.lines) {
+            if (line == null) {
+                continue;
+            }
+            if (containsKanji(line.text)) {
+                return true;
+            }
+            if (line.vocalParts != null) {
+                for (LyricsLine.VocalPart part : line.vocalParts) {
+                    if (part != null && containsKanji(part.text)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean containsKanji(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+        for (int offset = 0; offset < text.length(); ) {
+            int codePoint = text.codePointAt(offset);
+            if ((codePoint >= 0x3400 && codePoint <= 0x4DBF)
+                    || (codePoint >= 0x4E00 && codePoint <= 0x9FFF)
+                    || (codePoint >= 0xF900 && codePoint <= 0xFAFF)) {
+                return true;
+            }
+            offset += Character.charCount(codePoint);
+        }
+        return false;
+    }
+
+    private PreviewText originalPreviewText(LyricsLine line) {
+        if (!hasMultiplePreviewVocalParts(line) && line.text != null && !line.text.trim().isEmpty()) {
+            String text = line.text.trim();
+            return new PreviewText(text, previewLineRubyText(line), karaokeSyllablesForText(text, line.syllables), line.kind);
+        }
+        StringBuilder builder = new StringBuilder();
+        StringBuilder rubyBuilder = new StringBuilder();
+        List<LyricsLine.Syllable> syllables = new ArrayList<>();
+        boolean syllablesUsable = true;
+        for (LyricsLine.VocalPart part : line.vocalParts) {
+            if (part.text == null || part.text.trim().isEmpty()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(' ');
+                rubyBuilder.append(' ');
+                syllables.add(spaceSyllable(syllables, part));
+            }
+            String partText = part.text.trim();
+            builder.append(partText);
+            rubyBuilder.append(previewPartRubyText(part, partText));
+            List<LyricsLine.Syllable> partSyllables = karaokeSyllablesForText(partText, part.syllables);
+            if (partSyllables.isEmpty()) {
+                syllablesUsable = false;
+            }
+            syllables.addAll(partSyllables);
+        }
+        if (builder.length() == 0) {
+            return new PreviewText("♪", "", Collections.emptyList(), line.kind);
+        }
+        return new PreviewText(
+                builder.toString(),
+                rubyBuilder.toString(),
+                syllablesUsable ? syllables : Collections.emptyList(),
+                line.kind
+        );
+    }
+
+    private String previewLineRubyText(LyricsLine line) {
+        if (!previewJapaneseFuriganaEnabled() || line == null) {
+            return "";
+        }
+        return line.furiganaText == null ? "" : line.furiganaText.trim();
+    }
+
+    private String previewPartRubyText(LyricsLine.VocalPart part, String fallbackText) {
+        if (!previewJapaneseFuriganaEnabled() || part == null) {
+            return fallbackText == null ? "" : fallbackText;
+        }
+        String rubyText = part.furiganaText == null ? "" : part.furiganaText.trim();
+        return rubyText.isEmpty() ? (fallbackText == null ? "" : fallbackText) : rubyText;
+    }
+
+    private boolean previewJapaneseFuriganaEnabled() {
+        return aiLyricsSettings != null && aiLyricsSettings.snapshot().japaneseFuriganaEnabled;
+    }
+
+    private boolean hasMultiplePreviewVocalParts(LyricsLine line) {
+        if (line == null || line.vocalParts == null) {
+            return false;
+        }
+        int count = 0;
+        for (LyricsLine.VocalPart part : line.vocalParts) {
+            if (part != null && part.text != null && !part.text.trim().isEmpty()) {
+                count++;
+                if (count > 1) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private List<LyricsLine.Syllable> karaokeSyllablesForText(String text, List<LyricsLine.Syllable> syllables) {
+        if (text == null || syllables == null || syllables.isEmpty()) {
+            return Collections.emptyList();
+        }
+        String value = text.trim();
+        if (value.isEmpty()) {
+            return Collections.emptyList();
+        }
+        StringBuilder builder = new StringBuilder();
+        List<LyricsLine.Syllable> usable = new ArrayList<>();
+        for (LyricsLine.Syllable syllable : syllables) {
+            if (syllable == null || syllable.text == null || syllable.text.isEmpty()) {
+                continue;
+            }
+            builder.append(syllable.text);
+            usable.add(syllable);
+        }
+        return builder.toString().trim().equals(value) ? trimPreviewSyllables(usable) : Collections.emptyList();
+    }
+
+    private List<LyricsLine.Syllable> trimPreviewSyllables(List<LyricsLine.Syllable> syllables) {
+        if (syllables == null || syllables.isEmpty()) {
+            return Collections.emptyList();
+        }
+        int start = 0;
+        int end = syllables.size() - 1;
+        while (start <= end && isWhitespaceSyllable(syllables.get(start))) {
+            start++;
+        }
+        while (end >= start && isWhitespaceSyllable(syllables.get(end))) {
+            end--;
+        }
+        if (start > end) {
+            return Collections.emptyList();
+        }
+        return new ArrayList<>(syllables.subList(start, end + 1));
+    }
+
+    private boolean isWhitespaceSyllable(LyricsLine.Syllable syllable) {
+        if (syllable == null || syllable.text == null || syllable.text.isEmpty()) {
+            return true;
+        }
+        String value = syllable.text;
+        for (int offset = 0; offset < value.length(); ) {
+            int codePoint = value.codePointAt(offset);
+            if (!Character.isWhitespace(codePoint)) {
+                return false;
+            }
+            offset += Character.charCount(codePoint);
+        }
+        return true;
+    }
+
+    private LyricsLine.Syllable spaceSyllable(List<LyricsLine.Syllable> previous, LyricsLine.VocalPart nextPart) {
+        long start = previous == null || previous.isEmpty()
+                ? (nextPart == null ? 0L : nextPart.startTimeMs)
+                : previous.get(previous.size() - 1).endTimeMs;
+        long end = nextPart == null ? start : Math.max(start, nextPart.startTimeMs);
+        return new LyricsLine.Syllable(" ", start, end);
+    }
+
+    private void showLyricsPage(boolean show) {
+        if (IvLyricsBridge.isEmbedded(this)) {
+            if (!show) {
+                finish();
+            } else if (lyricsPage != null) {
+                lyricsPage.animate().cancel();
+                lyricsPage.setVisibility(View.VISIBLE);
+                lyricsPage.setTranslationY(0f);
+                lyricsPageVisible = true;
+                if (mainPage != null) mainPage.setVisibility(View.INVISIBLE);
+            }
+            return;
+        }
+        if (isLandscapeLayout()) {
+            if (lyricsPage != null) {
+                lyricsPage.setVisibility(View.GONE);
+                lyricsPage.setTranslationY(0f);
+            }
+            if (mainPage != null) {
+                clearMainPageRevealClip();
+            }
+            stopLyricsPageSlide();
+            lyricsPageVisible = false;
+            return;
+        }
+        if (lyricsPage == null || mainPage == null || show == lyricsPageVisible) {
+            return;
+        }
+        lastBackPressElapsedMs = 0L;
+        lyricsPageVisible = show;
+        int height = getResources().getDisplayMetrics().heightPixels;
+        lyricsPage.animate().cancel();
+        mainPage.animate().cancel();
+        int slide = beginLyricsPageSlide();
+
+        if (show) {
+            resetLyricsPageDragTopPadding(false);
+            lyricsPage.setVisibility(View.VISIBLE);
+            lyricsPage.bringToFront();
+            setLyricsPageCornerRadius(28);
+            if (debugPanel != null && debugPanel.getVisibility() == View.VISIBLE) {
+                debugPanel.bringToFront();
+            }
+            lyricsPage.setTranslationY(height);
+            lyricsPage.setAlpha(1f);
+            applyMainPageRevealClip(height);
+            lyricsPage.animate()
+                    .translationY(0f)
+                    .setUpdateListener(animation -> applyMainPageRevealClip(lyricsPage.getTranslationY()))
+                    .setDuration(330L)
+                    .withEndAction(() -> {
+                        endLyricsPageSlide(slide);
+                        applyMainPageRevealClip(0f);
+                        setLyricsPageCornerRadius(0);
+                        resetLyricsPageDragTopPadding(false);
+                        coverMainPage();
+                        maybeShowLyricsMetaTip();
+                        requestDefaultRemoteFocus(true);
+                    })
+                    .start();
+        } else {
+            dismissLyricsMetaTip();
+            setLyricsPageCornerRadius(28);
+            lyricsPage.setAlpha(1f);
+            applyMainPageRevealClip(lyricsPage.getTranslationY());
+            lyricsPage.animate()
+                    .translationY(height)
+                    .setUpdateListener(animation -> applyMainPageRevealClip(lyricsPage.getTranslationY()))
+                    .setDuration(280L)
+                    .withEndAction(() -> {
+                        endLyricsPageSlide(slide);
+                        lyricsPage.setVisibility(View.GONE);
+                        lyricsPage.setTranslationY(0f);
+                        clearMainPageRevealClip();
+                        setLyricsPageCornerRadius(0);
+                        resetLyricsPageDragTopPadding(false);
+                        requestDefaultRemoteFocus(true);
+                    })
+                    .start();
+        }
+    }
+
+    private boolean isInAppBrowserVisible() {
+        return inAppBrowserPage != null
+                && inAppBrowserVisible
+                && inAppBrowserPage.getVisibility() == View.VISIBLE;
+    }
+
+    private void destroyInAppBrowserWebView() {
+        stopInAppBrowserSkeletonAnimation();
+        if (inAppBrowserWebView == null) {
+            return;
+        }
+        inAppBrowserWebView.stopLoading();
+        inAppBrowserWebView.destroy();
+        inAppBrowserWebView = null;
+    }
+
+    private void openInAppBrowser(String url) {
+        String safeUrl = url == null ? "" : url.trim();
+        if (safeUrl.isEmpty() || inAppBrowserPage == null || inAppBrowserWebView == null) {
+            return;
+        }
+        if (!InAppBrowserUrlPolicy.isAllowedInitialUrl(safeUrl, creatorPrivacyLoginInProgress)) {
+            appendLog("blocked untrusted in-app browser URL");
+            if (InAppBrowserUrlPolicy.isExternalHttpUrl(safeUrl)) {
+                openExternalBrowserUrl(safeUrl);
+            }
+            return;
+        }
+        inAppBrowserInitialUrl = safeUrl;
+        applyInAppBrowserChromeTheme();
+        showInAppBrowserLoading(true);
+        inAppBrowserWebView.stopLoading();
+        inAppBrowserWebView.clearHistory();
+        inAppBrowserWebView.loadUrl(safeUrl);
+        showInAppBrowser(true);
+    }
+
+    private void showInAppBrowser(boolean show) {
+        if (!show && creatorPrivacyLoginInProgress) {
+            creatorPrivacyLoginInProgress = false;
+            if (creatorPrivacyRepository != null) {
+                creatorPrivacyRepository.cancelDiscordLogin();
+            }
+            updateCreatorPrivacyControls();
+            inAppBrowserCloseEndedLogin = true;
+        }
+        if (inAppBrowserPage == null || show == inAppBrowserVisible) {
+            return;
+        }
+        lastBackPressElapsedMs = 0L;
+        inAppBrowserVisible = show;
+        int height = getResources().getDisplayMetrics().heightPixels;
+        inAppBrowserPage.animate().cancel();
+        int slide = beginInAppBrowserSlide();
+        if (show) {
+            inAppBrowserCloseEndedLogin = false;
+            updateInAppBrowserSheetLayout();
+            inAppBrowserPage.setVisibility(View.VISIBLE);
+            inAppBrowserPage.bringToFront();
+            inAppBrowserPage.setTranslationY(height);
+            inAppBrowserPage.animate()
+                    .translationY(0f)
+                    .setDuration(320L)
+                    .withEndAction(() -> endInAppBrowserSlide(slide))
+                    .start();
+            return;
+        }
+        inAppBrowserPage.animate()
+                .translationY(height)
+                .setDuration(260L)
+                .withEndAction(() -> {
+                    endInAppBrowserSlide(slide);
+                    inAppBrowserPage.setVisibility(View.GONE);
+                    inAppBrowserPage.setTranslationY(0f);
+                })
+                .start();
+    }
+
+    private void updateInAppBrowserSheetLayout() {
+        if (inAppBrowserSheet == null) {
+            return;
+        }
+        ViewGroup.LayoutParams rawParams = inAppBrowserSheet.getLayoutParams();
+        if (!(rawParams instanceof FrameLayout.LayoutParams)) {
+            return;
+        }
+        FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) rawParams;
+        int topMargin = inAppBrowserSheetTopMarginPx();
+        if (params.topMargin == topMargin) {
+            return;
+        }
+        params.topMargin = topMargin;
+        inAppBrowserSheet.setLayoutParams(params);
+    }
+
+    private void applyInAppBrowserChromeTheme() {
+        int background = inAppBrowserBackgroundColor();
+        if (inAppBrowserSheet != null) {
+            inAppBrowserSheet.setBackground(topRoundDrawable(background, dp(24)));
+        }
+        if (inAppBrowserWebView != null) {
+            inAppBrowserWebView.setBackgroundColor(background);
+        }
+        if (inAppBrowserHandleView != null) {
+            inAppBrowserHandleView.setBackground(roundDrawable(inAppBrowserHandleColor(), dp(1.5f)));
+        }
+        rebuildInAppBrowserLoadingView();
+    }
+
+    private void rebuildInAppBrowserLoadingView() {
+        if (inAppBrowserSheet == null) {
+            return;
+        }
+        boolean wasVisible = inAppBrowserLoadingView != null && inAppBrowserLoadingView.getVisibility() == View.VISIBLE;
+        if (inAppBrowserLoadingView != null) {
+            inAppBrowserSheet.removeView(inAppBrowserLoadingView);
+        }
+        inAppBrowserLoadingView = buildInAppBrowserLoadingView();
+        inAppBrowserLoadingView.setVisibility(wasVisible ? View.VISIBLE : View.GONE);
+        inAppBrowserSheet.addView(inAppBrowserLoadingView, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        if (inAppBrowserHandleTouchTarget != null) {
+            inAppBrowserHandleTouchTarget.bringToFront();
+        }
+        if (wasVisible) {
+            startInAppBrowserSkeletonAnimation();
+        }
+    }
+
+    private int inAppBrowserBackgroundColor() {
+        return isDeviceNightMode() ? Color.rgb(14, 17, 22) : Color.rgb(251, 251, 252);
+    }
+
+    private int inAppBrowserSurfaceColor() {
+        return isDeviceNightMode() ? Color.rgb(25, 28, 34) : Color.WHITE;
+    }
+
+    private int inAppBrowserSkeletonColor() {
+        return isDeviceNightMode() ? Color.rgb(45, 49, 58) : Color.rgb(236, 238, 241);
+    }
+
+    private int inAppBrowserSkeletonStrongColor() {
+        return isDeviceNightMode() ? Color.rgb(58, 63, 72) : Color.rgb(224, 227, 232);
+    }
+
+    private int inAppBrowserHandleColor() {
+        return isDeviceNightMode() ? Color.argb(86, 255, 255, 255) : Color.argb(78, 14, 17, 22);
+    }
+
+    private boolean isDeviceNightMode() {
+        int mask = getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+        return mask == Configuration.UI_MODE_NIGHT_YES;
+    }
+
+    private int inAppBrowserSheetTopMarginPx() {
+        int topInset = inAppBrowserTopInsetPx;
+        int margin = topInset + dp(2);
+        return Math.max(dp(isLandscapeLayout() ? 8 : 18), margin);
+    }
+
+    @SuppressWarnings("deprecation")
+    private int statusBarInsetPx() {
+        Window window = getWindow();
+        View decor = window == null ? null : window.getDecorView();
+        WindowInsets insets = decor == null ? null : decor.getRootWindowInsets();
+        if (insets == null) {
+            return 0;
+        }
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                ? insets.getInsets(WindowInsets.Type.statusBars() | WindowInsets.Type.displayCutout()).top
+                : insets.getSystemWindowInsetTop();
+    }
+
+    private void injectInAppBrowserProfileCss(WebView view, String url) {
+        if (view == null || !isLyricsProfileUrl(url)) {
+            return;
+        }
+        String theme = isDeviceNightMode() ? "dark" : "light";
+        String css = ".login-btn,"
+                + ".credit[href*=\"github.com/ivLis-Studio/ivLyrics\"],"
+                + ".theme-toggle,"
+                + ".topbar .handle,"
+                + ".topbar .handle .dot{display:none!important;}"
+                + "html,body,.page,.shell,.profile,.tracks,.track,*{"
+                + "-webkit-user-select:none!important;"
+                + "user-select:none!important;"
+                + "-webkit-touch-callout:none!important;}"
+                + "img,a{"
+                + "-webkit-user-drag:none!important;"
+                + "user-drag:none!important;}"
+                + ".page{padding-bottom:28px!important;}";
+        String js = "(function(){"
+                + "var theme=" + JSONObject.quote(theme) + ";"
+                + "try{localStorage.setItem('ivlyrics_profile_theme',theme);}catch(error){}"
+                + "document.documentElement.dataset.theme=theme;"
+                + "document.documentElement.style.colorScheme=theme;"
+                + "var id='ivlyrics-android-profile-style';"
+                + "var old=document.getElementById(id);"
+                + "if(old){old.remove();}"
+                + "var style=document.createElement('style');"
+                + "style.id=id;"
+                + "style.textContent=" + JSONObject.quote(css) + ";"
+                + "(document.head||document.documentElement).appendChild(style);"
+                + "var block=function(event){event.preventDefault();return false;};"
+                + "document.addEventListener('contextmenu',block,true);"
+                + "document.addEventListener('selectstart',block,true);"
+                + "document.addEventListener('dragstart',block,true);"
+                + "document.oncontextmenu=function(){return false;};"
+                + "})();";
+        view.evaluateJavascript(js, null);
+    }
+
+    private boolean isLyricsProfileUrl(String url) {
+        try {
+            Uri uri = Uri.parse(url == null ? "" : url.trim());
+            String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
+            String path = uri.getPath() == null ? "" : uri.getPath();
+            return "lyrics.ivl.is".equals(host) && path.startsWith("/@");
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private FrameLayout buildInAppBrowserLoadingView() {
+        inAppBrowserSkeletonPulseViews.clear();
+        FrameLayout overlay = new FrameLayout(this);
+        overlay.setClickable(true);
+        overlay.setBackgroundColor(inAppBrowserBackgroundColor());
+
+        LinearLayout shell = new LinearLayout(this);
+        shell.setOrientation(LinearLayout.VERTICAL);
+        shell.setPadding(dp(16), dp(28), dp(16), dp(18));
+        overlay.addView(shell, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        LinearLayout topbar = new LinearLayout(this);
+        topbar.setOrientation(LinearLayout.HORIZONTAL);
+        topbar.setGravity(Gravity.CENTER_VERTICAL);
+        shell.addView(topbar, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(44)
+        ));
+        topbar.addView(skeletonBlock(inAppBrowserSkeletonStrongColor(), 118, 16, 8));
+        View spacer = new View(this);
+        topbar.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1f));
+        topbar.addView(skeletonBlock(inAppBrowserSkeletonColor(), 40, 34, 17));
+        topbar.addView(skeletonBlock(inAppBrowserSkeletonColor(), 76, 34, 17), leftMargin(wrapFixed(dp(76), dp(34)), dp(8)));
+
+        LinearLayout profile = new LinearLayout(this);
+        profile.setOrientation(LinearLayout.VERTICAL);
+        profile.setPadding(dp(20), dp(20), dp(20), dp(18));
+        profile.setBackground(roundDrawable(inAppBrowserSurfaceColor(), dp(22)));
+        LinearLayout.LayoutParams profileParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        profileParams.topMargin = dp(10);
+        shell.addView(profile, profileParams);
+
+        LinearLayout profileTop = new LinearLayout(this);
+        profileTop.setGravity(Gravity.CENTER_VERTICAL);
+        profileTop.setOrientation(LinearLayout.HORIZONTAL);
+        profile.addView(profileTop, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(82)
+        ));
+        profileTop.addView(skeletonBlock(inAppBrowserSkeletonStrongColor(), 78, 78, 39));
+        LinearLayout profileText = new LinearLayout(this);
+        profileText.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams profileTextParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        profileTextParams.leftMargin = dp(16);
+        profileTop.addView(profileText, profileTextParams);
+        profileText.addView(skeletonBlock(inAppBrowserSkeletonStrongColor(), 142, 24, 10));
+        profileText.addView(skeletonBlock(inAppBrowserSkeletonColor(), 190, 14, 7), topMargin(wrapFixed(dp(190), dp(14)), dp(10)));
+        profileText.addView(skeletonBlock(inAppBrowserSkeletonColor(), 98, 14, 7), topMargin(wrapFixed(dp(98), dp(14)), dp(8)));
+
+        LinearLayout stats = new LinearLayout(this);
+        stats.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams statsParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(54)
+        );
+        statsParams.topMargin = dp(18);
+        profile.addView(stats, statsParams);
+        stats.addView(skeletonBlock(inAppBrowserSkeletonColor(), 0, 54, 14), new LinearLayout.LayoutParams(0, dp(54), 1f));
+        stats.addView(skeletonBlock(inAppBrowserSkeletonColor(), 0, 54, 14), leftMargin(new LinearLayout.LayoutParams(0, dp(54), 1f), dp(10)));
+
+        LinearLayout tabs = new LinearLayout(this);
+        tabs.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams tabsParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(40)
+        );
+        tabsParams.topMargin = dp(16);
+        shell.addView(tabs, tabsParams);
+        tabs.addView(skeletonBlock(inAppBrowserSkeletonStrongColor(), 92, 34, 17));
+        tabs.addView(skeletonBlock(inAppBrowserSkeletonColor(), 82, 34, 17), leftMargin(wrapFixed(dp(82), dp(34)), dp(8)));
+
+        for (int index = 0; index < 5; index++) {
+            shell.addView(buildInAppBrowserSkeletonTrack(index), topMargin(matchWrap(), dp(index == 0 ? 10 : 9)));
+        }
+        return overlay;
+    }
+
+    private LinearLayout buildInAppBrowserSkeletonTrack(int index) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(14), dp(12), dp(12), dp(12));
+        row.setBackground(roundDrawable(inAppBrowserSurfaceColor(), dp(18)));
+        row.addView(skeletonBlock(inAppBrowserSkeletonColor(), 44, 44, 14));
+
+        LinearLayout text = new LinearLayout(this);
+        text.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        textParams.leftMargin = dp(12);
+        row.addView(text, textParams);
+        text.addView(skeletonBlock(inAppBrowserSkeletonStrongColor(), index % 2 == 0 ? 184 : 138, 17, 8));
+        text.addView(skeletonBlock(inAppBrowserSkeletonColor(), index % 3 == 0 ? 126 : 162, 13, 7), topMargin(wrapFixed(dp(index % 3 == 0 ? 126 : 162), dp(13)), dp(9)));
+        row.addView(skeletonBlock(inAppBrowserSkeletonColor(), 34, 34, 17));
+        return row;
+    }
+
+    private View skeletonBlock(int color, int widthDp, int heightDp, int radiusDp) {
+        View view = new View(this);
+        view.setBackground(roundDrawable(color, dp(radiusDp)));
+        view.setAlpha(0.78f);
+        inAppBrowserSkeletonPulseViews.add(view);
+        if (widthDp > 0 && heightDp > 0) {
+            view.setLayoutParams(new LinearLayout.LayoutParams(dp(widthDp), dp(heightDp)));
+        }
+        return view;
+    }
+
+    private LinearLayout.LayoutParams wrapFixed(int widthPx, int heightPx) {
+        return new LinearLayout.LayoutParams(widthPx, heightPx);
+    }
+
+    private void showInAppBrowserLoading(boolean show) {
+        if (inAppBrowserLoadingView == null) {
+            return;
+        }
+        inAppBrowserLoadingView.animate().cancel();
+        if (show) {
+            inAppBrowserLoadingView.setAlpha(1f);
+            inAppBrowserLoadingView.setVisibility(View.VISIBLE);
+            inAppBrowserLoadingView.bringToFront();
+            if (inAppBrowserHandleTouchTarget != null) {
+                inAppBrowserHandleTouchTarget.bringToFront();
+            }
+            startInAppBrowserSkeletonAnimation();
+            return;
+        }
+        inAppBrowserLoadingView.animate()
+                .alpha(0f)
+                .setDuration(160L)
+                .withEndAction(() -> {
+                    inAppBrowserLoadingView.setVisibility(View.GONE);
+                    inAppBrowserLoadingView.setAlpha(1f);
+                    stopInAppBrowserSkeletonAnimation();
+                })
+                .start();
+    }
+
+    private void startInAppBrowserSkeletonAnimation() {
+        if (inAppBrowserSkeletonAnimator != null && inAppBrowserSkeletonAnimator.isStarted()) {
+            return;
+        }
+        inAppBrowserSkeletonAnimator = ValueAnimator.ofFloat(0.58f, 1f);
+        inAppBrowserSkeletonAnimator.setDuration(860L);
+        inAppBrowserSkeletonAnimator.setRepeatCount(ValueAnimator.INFINITE);
+        inAppBrowserSkeletonAnimator.setRepeatMode(ValueAnimator.REVERSE);
+        inAppBrowserSkeletonAnimator.addUpdateListener(animation -> {
+            float alpha = (float) animation.getAnimatedValue();
+            for (int index = 0; index < inAppBrowserSkeletonPulseViews.size(); index++) {
+                inAppBrowserSkeletonPulseViews.get(index).setAlpha(alpha);
+            }
+        });
+        inAppBrowserSkeletonAnimator.start();
+    }
+
+    private void stopInAppBrowserSkeletonAnimation() {
+        if (inAppBrowserSkeletonAnimator == null) {
+            return;
+        }
+        inAppBrowserSkeletonAnimator.cancel();
+        inAppBrowserSkeletonAnimator = null;
+    }
+
+    private void attachInAppBrowserSwipe(View view) {
+        view.setClickable(true);
+        view.setOnTouchListener((target, event) -> {
+            if (pageVelocityTracker != null) {
+                pageVelocityTracker.addMovement(event);
+            }
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    recyclePageVelocityTracker();
+                    pageVelocityTracker = VelocityTracker.obtain();
+                    pageVelocityTracker.addMovement(event);
+                    pageDragStartY = event.getRawY();
+                    pageDragStartTranslationY = inAppBrowserPage == null ? 0f : inAppBrowserPage.getTranslationY();
+                    pageDragging = false;
+                    beginInAppBrowserTouch();
+                    return true;
+                case MotionEvent.ACTION_MOVE: {
+                    float dy = event.getRawY() - pageDragStartY;
+                    if (Math.abs(dy) > dp(10)) {
+                        pageDragging = true;
+                    }
+                    if (inAppBrowserSlideTouch) {
+                        carrySlidingInAppBrowser(event.getRawY(), Math.abs(dy) > dp(10));
+                    } else if (inAppBrowserVisible) {
+                        applyInAppBrowserDragTranslation(Math.max(0f, pageDragStartTranslationY + dy));
+                    }
+                    return true;
+                }
+                case MotionEvent.ACTION_UP: {
+                    float releaseVelocityY = pageVelocityY();
+                    if (inAppBrowserSlideTouch) {
+                        endSlidingInAppBrowserTouch(releaseVelocityY);
+                    } else if (pageDragging && inAppBrowserVisible) {
+                        settleInAppBrowserDrag(releaseVelocityY);
+                    } else {
+                        target.performClick();
+                    }
+                    settleInAppBrowserLeftMidway(releaseVelocityY);
+                    recyclePageVelocityTracker();
+                    return true;
+                }
+                case MotionEvent.ACTION_CANCEL:
+                    pageDragging = false;
+                    if (inAppBrowserSlideTouch) {
+                        endSlidingInAppBrowserTouch(0f);
+                    } else if (inAppBrowserVisible) {
+                        settleInAppBrowserDrag(0f);
+                    }
+                    settleInAppBrowserLeftMidway(0f);
+                    recyclePageVelocityTracker();
+                    return true;
+                default:
+                    return true;
+            }
+        });
+    }
+
+    private void attachInAppBrowserContentSwipe(AccessibleWebView view) {
+        view.setOnTouchListener((target, event) -> {
+            if (pageVelocityTracker != null) {
+                pageVelocityTracker.addMovement(event);
+            }
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    recyclePageVelocityTracker();
+                    pageVelocityTracker = VelocityTracker.obtain();
+                    pageVelocityTracker.addMovement(event);
+                    pageDragStartX = event.getRawX();
+                    pageDragStartY = event.getRawY();
+                    pageDragStartTranslationY = inAppBrowserPage == null ? 0f : inAppBrowserPage.getTranslationY();
+                    pageDragging = false;
+                    beginInAppBrowserTouch();
+                    // A touch on a sliding sheet belongs to the slide: the page gets no tap or scroll.
+                    return inAppBrowserSlideTouch;
+                case MotionEvent.ACTION_MOVE: {
+                    float dx = event.getRawX() - pageDragStartX;
+                    float dy = event.getRawY() - pageDragStartY;
+                    if (inAppBrowserSlideTouch) {
+                        carrySlidingInAppBrowser(event.getRawY(),
+                                Math.abs(dy) > dp(14) && Math.abs(dy) > Math.abs(dx) * 1.2f);
+                        return true;
+                    }
+                    if (!pageDragging) {
+                        boolean downwardIntent = dy > dp(14) && dy > Math.abs(dx) * 1.2f;
+                        if (!inAppBrowserVisible || !downwardIntent || target.canScrollVertically(-1)) {
+                            return false;
+                        }
+                        pageDragging = true;
+                        if (target.getParent() != null) {
+                            target.getParent().requestDisallowInterceptTouchEvent(true);
+                        }
+                    }
+                    applyInAppBrowserDragTranslation(Math.max(0f, pageDragStartTranslationY + dy));
+                    return true;
+                }
+                case MotionEvent.ACTION_UP: {
+                    if (target.getParent() != null) {
+                        target.getParent().requestDisallowInterceptTouchEvent(false);
+                    }
+                    if (inAppBrowserSlideTouch) {
+                        float releaseVelocityY = pageVelocityY();
+                        endSlidingInAppBrowserTouch(releaseVelocityY);
+                        settleInAppBrowserLeftMidway(releaseVelocityY);
+                        recyclePageVelocityTracker();
+                        return true;
+                    }
+                    if (!pageDragging) {
+                        target.performClick();
+                        recyclePageVelocityTracker();
+                        return false;
+                    }
+                    settleInAppBrowserDrag(pageVelocityY());
+                    recyclePageVelocityTracker();
+                    return true;
+                }
+                case MotionEvent.ACTION_CANCEL:
+                    if (target.getParent() != null) {
+                        target.getParent().requestDisallowInterceptTouchEvent(false);
+                    }
+                    if (inAppBrowserSlideTouch) {
+                        endSlidingInAppBrowserTouch(0f);
+                        settleInAppBrowserLeftMidway(0f);
+                        pageDragging = false;
+                        recyclePageVelocityTracker();
+                        return true;
+                    }
+                    if (pageDragging && inAppBrowserVisible) {
+                        settleInAppBrowserDrag(0f);
+                    }
+                    pageDragging = false;
+                    recyclePageVelocityTracker();
+                    return false;
+                default:
+                    return inAppBrowserSlideTouch;
+            }
+        });
+    }
+
+    private void applyInAppBrowserDragTranslation(float translationY) {
+        if (inAppBrowserPage == null) {
+            return;
+        }
+        int height = getResources().getDisplayMetrics().heightPixels;
+        inAppBrowserPage.setTranslationY(Math.max(0f, Math.min(height, translationY)));
+    }
+
+    private void settleInAppBrowserDrag(float velocityY) {
+        if (inAppBrowserPage == null) {
+            return;
+        }
+        int height = getResources().getDisplayMetrics().heightPixels;
+        float translationY = Math.max(0f, inAppBrowserPage.getTranslationY());
+        boolean shouldClose = translationY > height * 0.24f || (velocityY > dp(1100) && translationY > dp(36));
+        if (shouldClose) {
+            showInAppBrowser(false);
+            return;
+        }
+        // Only a settle that moves the sheet is a slide; from rest nothing moves.
+        int slide = translationY > 0.5f ? beginInAppBrowserSlide() : -1;
+        if (slide < 0) {
+            stopInAppBrowserSlide();
+        }
+        inAppBrowserPage.animate()
+                .translationY(0f)
+                .setDuration(210L)
+                .withEndAction(() -> endInAppBrowserSlide(slide))
+                .start();
+    }
+
+    /**
+     * As {@link #beginPageTouch} for the in-app browser sheet's handle and page: a touch-down
+     * stops the sheet's motion, except while it slides open, closed or back on its own, which
+     * stopping left it wherever it was.
+     */
+    private void beginInAppBrowserTouch() {
+        inAppBrowserSlideCarried = false;
+        inAppBrowserSlideTouch = isInAppBrowserSliding();
+        if (inAppBrowserSlideTouch) {
+            return;
+        }
+        if (inAppBrowserPage != null) {
+            inAppBrowserPage.animate().cancel();
+        }
+        stopInAppBrowserSlide();
+    }
+
+    /**
+     * As {@link #carrySlidingLyricsPage}: once that touch is a drag while the slide still runs,
+     * the sheet stops where the slide has brought it and follows the finger from there. A close
+     * that ended a Discord login is left to finish, since that login could not resume.
+     */
+    private void carrySlidingInAppBrowser(float rawY, boolean dragging) {
+        if (!inAppBrowserSlideCarried) {
+            if (!dragging || !isInAppBrowserSliding() || (!inAppBrowserVisible && inAppBrowserCloseEndedLogin)) {
+                return;
+            }
+            inAppBrowserPage.animate().cancel();
+            stopInAppBrowserSlide();
+            inAppBrowserVisible = true;
+            inAppBrowserSlideCarried = true;
+            pageDragStartY = rawY;
+            pageDragStartTranslationY = inAppBrowserPage.getTranslationY();
+        }
+        if (inAppBrowserVisible) {
+            applyInAppBrowserDragTranslation(pageDragStartTranslationY + (rawY - pageDragStartY));
+        }
+    }
+
+    /** That touch ends: a sheet it carries settles by the usual rule; otherwise its slide went on. */
+    private void endSlidingInAppBrowserTouch(float velocityY) {
+        boolean carried = inAppBrowserSlideCarried;
+        inAppBrowserSlideTouch = false;
+        inAppBrowserSlideCarried = false;
+        if (carried && inAppBrowserVisible) {
+            settleInAppBrowserDrag(velocityY);
+        }
+    }
+
+    /**
+     * No touch on the sheet ends with it between its rest states. If neither its own slide nor
+     * a settle moves it on (a handle tap drags it by the finger's few pixels of travel), it
+     * settles from where it is.
+     */
+    private void settleInAppBrowserLeftMidway(float velocityY) {
+        if (inAppBrowserPage == null || inAppBrowserSliding || inAppBrowserPage.getVisibility() != View.VISIBLE) {
+            return;
+        }
+        if (!inAppBrowserVisible) {
+            // A close that something stopped: it continues from where it is.
+            inAppBrowserVisible = true;
+            showInAppBrowser(false);
+        } else if (inAppBrowserPage.getTranslationY() > 0.5f) {
+            settleInAppBrowserDrag(velocityY);
+        }
+    }
+
+    /** The sheet is moving on its own (open, close or settle), not following a finger. */
+    private boolean isInAppBrowserSliding() {
+        return inAppBrowserSliding && inAppBrowserPage != null && inAppBrowserPage.getVisibility() == View.VISIBLE;
+    }
+
+    private int beginInAppBrowserSlide() {
+        inAppBrowserSliding = true;
+        return ++inAppBrowserSlide;
+    }
+
+    private void endInAppBrowserSlide(int slide) {
+        if (slide == inAppBrowserSlide) {
+            inAppBrowserSliding = false;
+        }
+    }
+
+    /** The slide was canceled, or the sheet was rebuilt at rest. */
+    private void stopInAppBrowserSlide() {
+        inAppBrowserSlide++;
+        inAppBrowserSliding = false;
+    }
+
+    private boolean shouldOpenBrowserNavigationExternally(String url) {
+        String safeUrl = url == null ? "" : url.trim();
+        if (safeUrl.isEmpty() || "about:blank".equalsIgnoreCase(safeUrl)) {
+            return false;
+        }
+        if (!InAppBrowserUrlPolicy.isExternalHttpUrl(safeUrl)) {
+            appendLog("blocked non-HTTP in-app browser navigation");
+            return true;
+        }
+        if (normalizeBrowserUrl(safeUrl).equals(normalizeBrowserUrl(inAppBrowserInitialUrl))) {
+            return false;
+        }
+        if (isSameLyricsProfileNavigation(safeUrl, inAppBrowserInitialUrl)) {
+            return false;
+        }
+        openExternalBrowserUrl(safeUrl);
+        return true;
+    }
+
+    private boolean consumeCreatorPrivacyLoginRedirect(String url) {
+        if (!creatorPrivacyLoginInProgress) {
+            return false;
+        }
+        try {
+            Uri uri = Uri.parse(url == null ? "" : url.trim());
+            String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+            String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
+            if (!"spotify".equals(scheme) || !"ivlyrics".equals(host)) {
+                return false;
+            }
+            String action = uri.getQueryParameter("action");
+            String loginToken = uri.getQueryParameter("loginToken");
+            if (!"discord-auth".equals(action) || loginToken == null || loginToken.trim().isEmpty()) {
+                return false;
+            }
+            finishCreatorPrivacyLogin(loginToken);
+            return true;
+        } catch (Exception error) {
+            appendLog("creator privacy login redirect failed: " + error.getMessage());
+            return false;
+        }
+    }
+
+    private boolean isCreatorPrivacyLoginWebUrl(String url) {
+        return InAppBrowserUrlPolicy.isAllowedCreatorLoginUrl(url);
+    }
+
+    private boolean isSameLyricsProfileNavigation(String nextUrl, String initialUrl) {
+        String nextPath = lyricsProfilePath(nextUrl);
+        String initialPath = lyricsProfilePath(initialUrl);
+        return !nextPath.isEmpty() && nextPath.equals(initialPath);
+    }
+
+    private String lyricsProfilePath(String url) {
+        try {
+            Uri uri = Uri.parse(url == null ? "" : url.trim());
+            String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+            String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
+            if (!("http".equals(scheme) || "https".equals(scheme)) || !"lyrics.ivl.is".equals(host)) {
+                return "";
+            }
+            String path = uri.getPath() == null ? "" : uri.getPath();
+            while (path.endsWith("/") && path.length() > 1) {
+                path = path.substring(0, path.length() - 1);
+            }
+            if (!path.startsWith("/@") || path.indexOf('/', 2) >= 0) {
+                return "";
+            }
+            return path;
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private String normalizeBrowserUrl(String url) {
+        try {
+            Uri uri = Uri.parse(url == null ? "" : url.trim());
+            String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+            String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
+            String path = uri.getPath() == null ? "" : uri.getPath();
+            while (path.endsWith("/") && path.length() > 1) {
+                path = path.substring(0, path.length() - 1);
+            }
+            String query = uri.getQuery() == null ? "" : "?" + uri.getQuery();
+            return scheme + "://" + host + path + query;
+        } catch (Exception ignored) {
+            return url == null ? "" : url.trim();
+        }
+    }
+
+    private void openExternalBrowserUrl(String url) {
+        if (!InAppBrowserUrlPolicy.isExternalHttpUrl(url)) {
+            appendLog("blocked non-HTTP external browser URL");
+            return;
+        }
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } catch (Exception error) {
+            appendLog("external browser open failed: " + error.getMessage());
+        }
+    }
+
+    private void attachPageSwipe(View view, boolean opensLyrics, boolean tapOpens) {
+        if (opensLyrics && isLandscapeLayout()) {
+            return;
+        }
+        view.setOnTouchListener((target, event) -> {
+            if (pageVelocityTracker != null) {
+                pageVelocityTracker.addMovement(event);
+            }
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    recyclePageVelocityTracker();
+                    pageVelocityTracker = VelocityTracker.obtain();
+                    pageVelocityTracker.addMovement(event);
+                    pageDragStartY = event.getRawY();
+                    hostLyricsDragging = false;
+                    pageDragStartTranslationY = lyricsActivityHost != null
+                            ? rootView.getTranslationY()
+                            : (lyricsPage == null ? 0f : lyricsPage.getTranslationY());
+                    pageDragging = false;
+                    beginPageTouch();
+                    if (!opensLyrics) {
+                        pressHostDragHandle();
+                    }
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    float dy = event.getRawY() - pageDragStartY;
+                    if (Math.abs(dy) > dp(12)) {
+                        pageDragging = true;
+                    }
+                    if (pageSlideTouch) {
+                        carrySlidingLyricsPage(event.getRawY());
+                    } else if (!opensLyrics && lyricsPageVisible) {
+                        float translation = Math.max(0f, pageDragStartTranslationY + dy);
+                        applyLyricsDragTranslation(translation);
+                    }
+                    return true;
+                case MotionEvent.ACTION_UP: {
+                    float releaseVelocityY = pageVelocityY();
+                    float releaseDy = event.getRawY() - pageDragStartY;
+                    if (pageSlideTouch) {
+                        endSlidingPageTouch(releaseVelocityY);
+                    } else if (opensLyrics) {
+                        if (releaseDy < -dp(56) || (tapOpens && !pageDragging)) {
+                            showLyricsPage(true);
+                            target.performClick();
+                        }
+                    } else if (lyricsPageVisible) {
+                        settleLyricsDrag(releaseVelocityY);
+                    }
+                    settleLyricsPageLeftMidway(releaseVelocityY);
+                    recyclePageVelocityTracker();
+                    releaseHostDragHandle();
+                    return true;
+                }
+                case MotionEvent.ACTION_CANCEL:
+                    pageDragging = false;
+                    if (pageSlideTouch) {
+                        endSlidingPageTouch(0f);
+                    } else if (!opensLyrics && lyricsPageVisible) {
+                        settleLyricsDrag(0f);
+                    }
+                    settleLyricsPageLeftMidway(0f);
+                    recyclePageVelocityTracker();
+                    releaseHostDragHandle();
+                    return true;
+                default:
+                    return true;
+            }
+        });
+    }
+
+    private void attachLyricsMetaSwipe(View view) {
+        makeRemoteFocusable(view);
+        view.setClickable(true);
+        view.setOnClickListener(target -> handleLyricsMetaTap());
+        view.setOnLongClickListener(target -> {
+            handleLyricsMetaLongPress(target);
+            return true;
+        });
+        view.setOnTouchListener((target, event) -> {
+            if (pageVelocityTracker != null) {
+                pageVelocityTracker.addMovement(event);
+            }
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    recyclePageVelocityTracker();
+                    pageVelocityTracker = VelocityTracker.obtain();
+                    pageVelocityTracker.addMovement(event);
+                    pageDragStartY = event.getRawY();
+                    hostLyricsDragging = false;
+                    pageDragStartTranslationY = lyricsActivityHost != null
+                            ? rootView.getTranslationY()
+                            : (lyricsPage == null ? 0f : lyricsPage.getTranslationY());
+                    pageDragging = false;
+                    beginPageTouch();
+                    if (pageSlideTouch) {
+                        // The title slides away beneath the finger: no long press, no click.
+                        cancelLyricsMetaLongPress();
+                        lyricsMetaLongPressTriggered = false;
+                    } else {
+                        scheduleLyricsMetaLongPress(target);
+                    }
+                    if (target.getParent() != null) {
+                        target.getParent().requestDisallowInterceptTouchEvent(true);
+                    }
+                    pressHostDragHandle();
+                    return true;
+                case MotionEvent.ACTION_MOVE: {
+                    if (lyricsMetaLongPressTriggered) {
+                        return true;
+                    }
+                    float dy = event.getRawY() - pageDragStartY;
+                    if (Math.abs(dy) > dp(12)) {
+                        pageDragging = true;
+                        cancelLyricsMetaLongPress();
+                    }
+                    if (pageSlideTouch) {
+                        carrySlidingLyricsPage(event.getRawY());
+                    } else if (lyricsPageVisible) {
+                        applyLyricsDragTranslation(Math.max(0f, pageDragStartTranslationY + dy));
+                    }
+                    return true;
+                }
+                case MotionEvent.ACTION_UP: {
+                    float releaseVelocityY = pageVelocityY();
+                    cancelLyricsMetaLongPress();
+                    if (target.getParent() != null) {
+                        target.getParent().requestDisallowInterceptTouchEvent(false);
+                    }
+                    if (pageSlideTouch) {
+                        endSlidingPageTouch(releaseVelocityY);
+                    } else if (lyricsMetaLongPressTriggered) {
+                        lyricsMetaLongPressTriggered = false;
+                    } else if (pageDragging && lyricsPageVisible) {
+                        settleLyricsDrag(releaseVelocityY);
+                    } else {
+                        target.performClick();
+                    }
+                    settleLyricsPageLeftMidway(releaseVelocityY);
+                    recyclePageVelocityTracker();
+                    releaseHostDragHandle();
+                    return true;
+                }
+                case MotionEvent.ACTION_CANCEL:
+                    cancelLyricsMetaLongPress();
+                    lyricsMetaLongPressTriggered = false;
+                    if (target.getParent() != null) {
+                        target.getParent().requestDisallowInterceptTouchEvent(false);
+                    }
+                    pageDragging = false;
+                    if (pageSlideTouch) {
+                        endSlidingPageTouch(0f);
+                    } else if (lyricsPageVisible) {
+                        settleLyricsDrag(0f);
+                    }
+                    settleLyricsPageLeftMidway(0f);
+                    recyclePageVelocityTracker();
+                    releaseHostDragHandle();
+                    return true;
+                default:
+                    return true;
+            }
+        });
+    }
+
+    /** A drag of the hosted page may follow this touch; the host can prepare what it reveals. */
+    private void pressHostDragHandle() {
+        // Each touch-down starts a new gesture, even if an earlier one never reported its end.
+        if (lyricsActivityHost == null || !lyricsPageVisible) {
+            return;
+        }
+        hostDragHandlePressed = true;
+        lyricsActivityHost.dragHandlePressed();
+    }
+
+    private void releaseHostDragHandle() {
+        if (!hostDragHandlePressed) {
+            return;
+        }
+        hostDragHandlePressed = false;
+        if (lyricsActivityHost != null) {
+            lyricsActivityHost.dragHandleReleased();
+        }
+    }
+
+    /**
+     * A touch-down on the page or one of its drag handles stops the page's motion, as it always
+     * has, except while the standalone page slides open, closed or back on its own: stopping
+     * that slide left the page wherever it was. Such a touch leaves the slide running; see
+     * {@link #carrySlidingLyricsPage}.
+     */
+    private void beginPageTouch() {
+        pageSlideCarried = false;
+        pageSlideTouch = isLyricsPageSliding();
+        if (pageSlideTouch) {
+            return;
+        }
+        if (lyricsPage != null) {
+            lyricsPage.animate().cancel();
+        }
+        stopLyricsPageSlide();
+        if (mainPage != null) {
+            mainPage.animate().cancel();
+        }
+    }
+
+    /**
+     * Once a touch that began on the sliding page moves like a drag while the slide still runs,
+     * the page stops where the slide has brought it and follows the finger from there: the
+     * finger's travel before that point does not move it, and its top padding stays as it slid,
+     * so nothing jumps. A touch that has not moved that far leaves the slide alone.
+     */
+    private void carrySlidingLyricsPage(float rawY) {
+        if (!pageSlideCarried) {
+            if (Math.abs(rawY - pageDragStartY) <= dp(12) || !isLyricsPageSliding()) {
+                return;
+            }
+            lyricsPage.animate().cancel();
+            stopLyricsPageSlide();
+            lyricsPageVisible = true;
+            pageSlideCarried = true;
+            pageDragStartY = rawY;
+            pageDragStartTranslationY = lyricsPage.getTranslationY();
+        }
+        if (lyricsPageVisible) {
+            applyLyricsDragTranslation(pageDragStartTranslationY + (rawY - pageDragStartY));
+        }
+    }
+
+    /** That touch ends: a page it carries settles by the usual rule; otherwise its slide went on. */
+    private void endSlidingPageTouch(float velocityY) {
+        boolean carried = pageSlideCarried;
+        pageSlideTouch = false;
+        pageSlideCarried = false;
+        if (carried && lyricsPageVisible) {
+            settleLyricsDrag(velocityY);
+        }
+    }
+
+    /**
+     * No page touch ends with the standalone page between its rest states. If neither its own
+     * slide nor a settle moves it on (a title tap or long press drags it by the finger's few
+     * pixels of travel), it settles from where it is.
+     */
+    private void settleLyricsPageLeftMidway(float velocityY) {
+        if (lyricsActivityHost != null || IvLyricsBridge.isEmbedded(this) || isLandscapeLayout()
+                || lyricsPage == null || mainPage == null || lyricsPageSliding
+                || lyricsPage.getVisibility() != View.VISIBLE) {
+            return;
+        }
+        if (!lyricsPageVisible) {
+            // A close that something stopped: it continues from where it is.
+            lyricsPageVisible = true;
+            showLyricsPage(false);
+        } else if (lyricsPage.getTranslationY() > 0.5f) {
+            settleLyricsDrag(velocityY);
+        }
+    }
+
+    /** The standalone page is moving on its own (open, close or settle), not following a finger. */
+    private boolean isLyricsPageSliding() {
+        return lyricsPageSliding && lyricsActivityHost == null && lyricsPage != null
+                && lyricsPage.getVisibility() == View.VISIBLE;
+    }
+
+    private int beginLyricsPageSlide() {
+        lyricsPageSliding = true;
+        return ++lyricsPageSlide;
+    }
+
+    private void endLyricsPageSlide(int slide) {
+        if (slide == lyricsPageSlide) {
+            lyricsPageSliding = false;
+        }
+    }
+
+    /** The slide was canceled, or the page was hidden or rebuilt at rest. */
+    private void stopLyricsPageSlide() {
+        lyricsPageSlide++;
+        lyricsPageSliding = false;
+    }
+
+    private static final class AccessibleWebView extends WebView {
+        AccessibleWebView(Context context) {
+            super(context);
+        }
+
+        @Override
+        public boolean performClick() {
+            super.performClick();
+            return true;
+        }
+    }
+
+    private void updateArtworkTapHint(View view) {
+        if (view == null) return;
+        boolean opensLp = aiLyricsSettings == null || aiLyricsSettings.albumArtOpenLp();
+        view.setContentDescription(opensLp
+                ? ui("vinyl.open_hint") + ". " + ui("vinyl.tmi_hint")
+                : ui("vinyl.tmi_hint"));
+    }
+
+    private void attachArtworkSwipe(View view) {
+        makeRemoteFocusable(view);
+        view.setClickable(true);
+        view.setLongClickable(true);
+        updateArtworkTapHint(view);
+        view.setOnClickListener(target -> {
+            if (aiLyricsSettings == null || aiLyricsSettings.albumArtOpenLp()) showVinylMode(true);
+        });
+        view.setOnTouchListener((target, event) -> {
+            if (artworkVelocityTracker != null) {
+                artworkVelocityTracker.addMovement(event);
+            }
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    recycleArtworkVelocityTracker();
+                    artworkVelocityTracker = VelocityTracker.obtain();
+                    artworkVelocityTracker.addMovement(event);
+                    artworkSwipeStartX = event.getRawX();
+                    artworkSwipeStartY = event.getRawY();
+                    artworkSwipeDragging = false;
+                    scheduleArtworkLongPress(target);
+                    target.animate().cancel();
+                    return true;
+                case MotionEvent.ACTION_MOVE: {
+                    float dx = event.getRawX() - artworkSwipeStartX;
+                    float dy = event.getRawY() - artworkSwipeStartY;
+                    if (Math.hypot(dx, dy) > dp(12)) {
+                        cancelArtworkLongPress();
+                    }
+                    if (!artworkSwipeDragging && Math.abs(dx) > dp(16) && Math.abs(dx) > Math.abs(dy) * 1.15f) {
+                        artworkSwipeDragging = true;
+                        cancelArtworkLongPress();
+                        if (target.getParent() != null) {
+                            target.getParent().requestDisallowInterceptTouchEvent(true);
+                        }
+                    }
+                    if (artworkSwipeDragging) {
+                        float maxOffset = Math.max(dp(26), target.getWidth() * 0.12f);
+                        float offset = Math.max(-maxOffset, Math.min(maxOffset, dx * 0.16f));
+                        target.setTranslationX(offset);
+                        target.setRotation(offset / Math.max(1f, maxOffset) * 1.6f);
+                    }
+                    return true;
+                }
+                case MotionEvent.ACTION_UP: {
+                    cancelArtworkLongPress();
+                    if (artworkLongPressTriggered) {
+                        artworkLongPressTriggered = false;
+                        settleArtworkSwipe(target);
+                        recycleArtworkVelocityTracker();
+                        return true;
+                    }
+                    float dx = event.getRawX() - artworkSwipeStartX;
+                    float dy = event.getRawY() - artworkSwipeStartY;
+                    float velocityX = artworkVelocityX();
+                    boolean shouldSwitch = artworkSwipeDragging
+                            && (Math.abs(dx) > target.getWidth() * 0.18f || Math.abs(velocityX) > dp(900));
+                    if (shouldSwitch) {
+                        runTransportCommand(dx < 0f
+                                ? () -> NowPlayingService.skipToNext()
+                                : () -> NowPlayingService.skipToPrevious());
+                    } else if (!artworkSwipeDragging && Math.hypot(dx, dy) <= dp(12)) {
+                        target.performClick();
+                    }
+                    settleArtworkSwipe(target);
+                    recycleArtworkVelocityTracker();
+                    return true;
+                }
+                case MotionEvent.ACTION_CANCEL:
+                    cancelArtworkLongPress();
+                    artworkLongPressTriggered = false;
+                    settleArtworkSwipe(target);
+                    recycleArtworkVelocityTracker();
+                    return true;
+                default:
+                    return true;
+            }
+        });
+    }
+
+    private void scheduleArtworkLongPress(View target) {
+        cancelArtworkLongPress();
+        artworkLongPressTriggered = false;
+        artworkLongPressRunnable = () -> {
+            artworkLongPressRunnable = null;
+            artworkLongPressTriggered = true;
+            if (target != null) {
+                target.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+            }
+            showTmiForCurrentTrack(false);
+        };
+        handler.postDelayed(artworkLongPressRunnable, ViewConfiguration.getLongPressTimeout());
+    }
+
+    private void cancelArtworkLongPress() {
+        if (artworkLongPressRunnable != null) {
+            handler.removeCallbacks(artworkLongPressRunnable);
+            artworkLongPressRunnable = null;
+        }
+    }
+
+    private void settleArtworkSwipe(View target) {
+        artworkSwipeDragging = false;
+        if (target.getParent() != null) {
+            target.getParent().requestDisallowInterceptTouchEvent(false);
+        }
+        target.animate()
+                .translationX(0f)
+                .rotation(0f)
+                .setDuration(150L)
+                .start();
+    }
+
+    private float artworkVelocityX() {
+        if (artworkVelocityTracker == null) {
+            return 0f;
+        }
+        artworkVelocityTracker.computeCurrentVelocity(1000);
+        return artworkVelocityTracker.getXVelocity();
+    }
+
+    private void recycleArtworkVelocityTracker() {
+        if (artworkVelocityTracker != null) {
+            artworkVelocityTracker.recycle();
+            artworkVelocityTracker = null;
+        }
+    }
+
+    private void applyLyricsDragTranslation(float translationY) {
+        if (lyricsActivityHost != null) {
+            // A closing sheet ignores drags, so the page's top padding must not follow them either.
+            if (!pageDragging || lyricsActivityHost.isClosing()) return;
+            if (!hostLyricsDragging) {
+                float dragDistance = translationY - pageDragStartTranslationY;
+                lyricsActivityHost.interruptDrag();
+                pageDragStartTranslationY = rootView.getTranslationY();
+                translationY = Math.max(0f, pageDragStartTranslationY + dragDistance);
+                hostLyricsDragging = true;
+            }
+            lyricsActivityHost.dragTo(translationY);
+            applyLyricsPageDragTopPadding(translationY);
+            return;
+        }
+        if (lyricsPage == null || mainPage == null) {
+            return;
+        }
+        int height = getResources().getDisplayMetrics().heightPixels;
+        float boundedTranslation = Math.max(0f, Math.min(height, translationY));
+        lyricsPage.setAlpha(1f);
+        lyricsPage.setTranslationY(boundedTranslation);
+        setLyricsPageCornerRadius(boundedTranslation > 1f ? 28 : 0);
+        if (!pageSlideCarried) {
+            // A page carried out of its slide keeps the top padding it slid with.
+            applyLyricsPageDragTopPadding(boundedTranslation);
+        }
+        applyMainPageRevealClip(boundedTranslation);
+    }
+
+    private void applyLyricsPageDragTopPadding(float translationY) {
+        if (lyricsPageContent == null) {
+            return;
+        }
+        if (lyricsPageContentPaddingAnimator != null) {
+            lyricsPageContentPaddingAnimator.cancel();
+            lyricsPageContentPaddingAnimator = null;
+        }
+        float progress = Math.max(0f, Math.min(1f,
+                translationY / Math.max(1f, dp(LYRICS_PAGE_TOP_PADDING_SHRINK_DISTANCE_DP))));
+        int expanded = dp(LYRICS_PAGE_TOP_PADDING_EXPANDED_DP);
+        int compact = dp(LYRICS_PAGE_TOP_PADDING_COMPACT_DP);
+        int topPadding = Math.round(expanded + ((compact - expanded) * progress));
+        setLyricsPageContentTopPadding(topPadding);
+    }
+
+    private void resetLyricsPageDragTopPadding(boolean animate) {
+        int expanded = dp(LYRICS_PAGE_TOP_PADDING_EXPANDED_DP);
+        if (!animate || lyricsPageContent == null) {
+            if (lyricsPageContentPaddingAnimator != null) {
+                lyricsPageContentPaddingAnimator.cancel();
+                lyricsPageContentPaddingAnimator = null;
+            }
+            setLyricsPageContentTopPadding(expanded);
+            return;
+        }
+        int start = lyricsPageContentTopPaddingPx >= 0
+                ? lyricsPageContentTopPaddingPx
+                : lyricsPageContent.getPaddingTop();
+        if (start == expanded) {
+            return;
+        }
+        if (lyricsPageContentPaddingAnimator != null) {
+            lyricsPageContentPaddingAnimator.cancel();
+        }
+        lyricsPageContentPaddingAnimator = ValueAnimator.ofInt(start, expanded);
+        lyricsPageContentPaddingAnimator.setDuration(210L);
+        lyricsPageContentPaddingAnimator.addUpdateListener(animator ->
+                setLyricsPageContentTopPadding((Integer) animator.getAnimatedValue()));
+        lyricsPageContentPaddingAnimator.start();
+    }
+
+    private void setLyricsPageContentTopPadding(int topPadding) {
+        if (lyricsPageContent == null || lyricsPageContentTopPaddingPx == topPadding) {
+            return;
+        }
+        lyricsPageContentTopPaddingPx = topPadding;
+        lyricsPageContent.setPadding(
+                lyricsPageContent.getPaddingLeft(),
+                topPadding,
+                lyricsPageContent.getPaddingRight(),
+                lyricsPageContent.getPaddingBottom()
+        );
+    }
+
+    private void settleLyricsDrag(float velocityY) {
+        if (lyricsActivityHost != null) {
+            if (!hostLyricsDragging) return;
+            hostLyricsDragging = false;
+            lyricsActivityHost.settle(velocityY, this::finishHostedLyricsImmediately);
+            resetLyricsPageDragTopPadding(true);
+            return;
+        }
+        if (lyricsPage == null || mainPage == null) {
+            return;
+        }
+        int height = getResources().getDisplayMetrics().heightPixels;
+        float translationY = Math.max(0f, lyricsPage.getTranslationY());
+        boolean shouldClose = translationY > height * 0.30f || (velocityY > dp(1200) && translationY > dp(42));
+        if (shouldClose) {
+            showLyricsPage(false);
+            return;
+        }
+        // Only a settle that moves the page is a slide; from rest nothing moves.
+        int slide = translationY > 0.5f ? beginLyricsPageSlide() : -1;
+        if (slide < 0) {
+            stopLyricsPageSlide();
+        }
+        lyricsPage.animate()
+                .translationY(0f)
+                .setUpdateListener(animation -> applyMainPageRevealClip(lyricsPage.getTranslationY()))
+                .setDuration(210L)
+                .withEndAction(() -> {
+                    endLyricsPageSlide(slide);
+                    applyMainPageRevealClip(0f);
+                    setLyricsPageCornerRadius(0);
+                    coverMainPage();
+                })
+                .start();
+        resetLyricsPageDragTopPadding(true);
+    }
+
+    private void applyMainPageRevealClip(float translationY) {
+        if (mainPage == null) {
+            return;
+        }
+        int width = mainPage.getWidth() > 0
+                ? mainPage.getWidth()
+                : getResources().getDisplayMetrics().widthPixels;
+        int height = getResources().getDisplayMetrics().heightPixels;
+        int revealHeight = Math.max(0, Math.min(height, Math.round(translationY)));
+        if (revealHeight > 0) {
+            uncoverMainPage();
+        }
+        mainPage.setAlpha(1f);
+        if (revealHeight >= height - 1) {
+            mainPage.setClipBounds(null);
+            return;
+        }
+        mainPageRevealClip.set(0, 0, width, revealHeight);
+        mainPage.setClipBounds(mainPageRevealClip);
+    }
+
+    private void clearMainPageRevealClip() {
+        if (mainPage == null) {
+            return;
+        }
+        uncoverMainPage();
+        mainPage.setAlpha(1f);
+        mainPage.setClipBounds(null);
+    }
+
+    /**
+     * The lyrics page came to rest fully open, and the player page's reveal clip is empty, so
+     * none of it can show. It stops drawing (embedded mode hides it the same way), and its
+     * progress bar and lyric preview skip their per-frame updates while hidden.
+     */
+    private void coverMainPage() {
+        if (mainPage == null || coveredMainPage == mainPage || IvLyricsBridge.isEmbedded(this)
+                || !lyricsPageVisible || lyricsPage == null || lyricsPage.getVisibility() != View.VISIBLE
+                || Math.abs(lyricsPage.getTranslationY()) > 0.5f || mainPage.getVisibility() != View.VISIBLE) {
+            return;
+        }
+        Rect clip = mainPage.getClipBounds();
+        if (clip == null || !clip.isEmpty()) {
+            return;
+        }
+        coveredMainPage = mainPage;
+        mainPage.setVisibility(View.INVISIBLE);
+        logMainPageCover(true);
+    }
+
+    /** Before any frame that reveals part of the player page: it repaints the current state. */
+    private void uncoverMainPage() {
+        View covered = coveredMainPage;
+        if (covered == null) {
+            return;
+        }
+        coveredMainPage = null;
+        if (covered != mainPage) {
+            return;
+        }
+        if (mainPage.getVisibility() == View.INVISIBLE && !vinylModeVisible && !motionModeVisible) {
+            mainPage.setVisibility(View.VISIBLE);
+        }
+        refreshMainPagePlayback();
+        logMainPageCover(false);
+    }
+
+    /** The per-frame part of updatePlaybackUi for the player page, at the latest frame clock. */
+    private void refreshMainPagePlayback() {
+        requestPlaybackFrame();
+        TrackSnapshot snapshot = currentTrack != null ? currentTrack : NowPlayingService.getLatestSnapshot();
+        if (snapshot == null || !snapshot.hasUsableMetadata()) {
+            return;
+        }
+        if (playerProgressView != null && playerProgressView.isShown()) {
+            playerProgressView.setProgress(currentPlaybackPosition(snapshot), snapshot.durationMs);
+        }
+        long frameTimeNanos = System.nanoTime();
+        if (frameTimeNanos > 0L) {
+            setLyricPreviewFramePosition(lyricsPlaybackFramePosition(
+                    currentPlaybackFramePosition(snapshot, frameTimeNanos), snapshot.durationMs), frameTimeNanos);
+        }
+    }
+
+    private void logMainPageCover(boolean covered) {
+        if (!LyricsFrameProbe.enabled(this)) {
+            return;
+        }
+        StringBuilder line = new StringBuilder(40).append(covered ? "MAINCOVER" : "MAINUNCOVER").append(" draw=");
+        LyricsFrameProbe.appendFixed(line, System.nanoTime() / 1_000_000d, 3);
+        LyricsFrameProbe.log(line);
+    }
+
+    private float pageVelocityY() {
+        if (pageVelocityTracker == null) {
+            return 0f;
+        }
+        pageVelocityTracker.computeCurrentVelocity(1000);
+        return pageVelocityTracker.getYVelocity();
+    }
+
+    private void recyclePageVelocityTracker() {
+        if (pageVelocityTracker != null) {
+            pageVelocityTracker.recycle();
+            pageVelocityTracker = null;
+        }
+    }
+
+    private void seekToPosition(long positionMs) {
+        TrackSnapshot snapshot = currentTrack != null ? currentTrack : NowPlayingService.getLatestSnapshot();
+        long duration = snapshot == null ? 0L : snapshot.durationMs;
+        long target = playerPositionForLyricsTime(positionMs, duration);
+        seekPlayerToPositionInternal(target, duration);
+    }
+
+    private void seekPlayerToPosition(long positionMs) {
+        TrackSnapshot snapshot = currentTrack != null ? currentTrack : NowPlayingService.getLatestSnapshot();
+        long duration = snapshot == null ? 0L : snapshot.durationMs;
+        long target = duration > 0L
+                ? Math.max(0L, Math.min(duration, positionMs))
+                : Math.max(0L, positionMs);
+        seekPlayerToPositionInternal(target, duration);
+    }
+
+    private void seekPlayerToPositionInternal(long target, long duration) {
+        TrackSnapshot snapshot = currentTrack != null ? currentTrack : NowPlayingService.getLatestSnapshot();
+        NowPlayingService.registerExplicitSeek(snapshot, target);
+        long now = SystemClock.uptimeMillis();
+        pendingSeekPositionMs = target;
+        pendingSeekUptimeMs = now;
+        requestPlaybackFrame();
+        long lyricsPosition = lyricsPlaybackPosition(target, duration);
+        setLyricsPlaybackPositionOnViews(lyricsPosition);
+        updateLyricPreview(lyricsPosition);
+        updateProgressViews(target, duration);
+        updateYouTubeBackgroundPlaybackState();
+        if (now - lastSeekCommandUptimeMs < 220L && Math.abs(target - lastSeekCommandPositionMs) < 700L) {
+            return;
+        }
+        lastSeekCommandUptimeMs = now;
+        lastSeekCommandPositionMs = target;
+        String trackKey = snapshot == null ? "" : snapshot.stableKey();
+        runTransportCommand(() -> NowPlayingService.seekTo(trackKey, target));
+    }
+
+    @Override
+    public void onExplicitSeek(String trackKey, long positionMs, long elapsedRealtimeMs) {
+        spotifyDjLyricsTimeline.registerExplicitSeek(trackKey, positionMs, elapsedRealtimeMs);
+    }
+
+    private void runTransportCommand(Runnable command) {
+        if (command == null || seekExecutor.isShutdown()) {
+            return;
+        }
+        seekExecutor.execute(() -> {
+            try {
+                command.run();
+                handler.post(this::requestNowPlayingRefreshBurst);
+            } catch (RuntimeException ignored) {
+                // Media session commands can fail if the player disappears during the request.
+            }
+        });
+    }
+
+    private void requestNowPlayingRefreshBurst() {
+        NowPlayingService.requestRefresh(this);
+        handler.postDelayed(() -> NowPlayingService.requestRefresh(this), 90L);
+        handler.postDelayed(() -> NowPlayingService.requestRefresh(this), 260L);
+        handler.postDelayed(() -> NowPlayingService.requestRefresh(this), 620L);
+    }
+
+    private long currentPlaybackPosition(TrackSnapshot snapshot) {
+        long position = snapshot.positionNow();
+        if (pendingSeekPositionMs >= 0L) {
+            long now = SystemClock.uptimeMillis();
+            long elapsed = Math.max(0L, now - pendingSeekUptimeMs);
+            long optimisticPosition = pendingSeekPositionMs + (snapshot.playing ? elapsed : 0L);
+            if (snapshot.durationMs > 0L) {
+                optimisticPosition = Math.min(snapshot.durationMs, optimisticPosition);
+            }
+            boolean acknowledged = Math.abs(position - pendingSeekPositionMs) <= PENDING_SEEK_ACK_TOLERANCE_MS
+                    || Math.abs(position - optimisticPosition) <= PENDING_SEEK_ACK_TOLERANCE_MS;
+            if (acknowledged) {
+                pendingSeekPositionMs = -1L;
+            } else if (elapsed <= PENDING_SEEK_HOLD_MS) {
+                position = optimisticPosition;
+            } else {
+                pendingSeekPositionMs = -1L;
+            }
+        }
+        return snapshot.durationMs > 0L
+                ? Math.max(0L, Math.min(snapshot.durationMs, position))
+                : Math.max(0L, position);
+    }
+
+    private long currentLyricsPlaybackPosition(TrackSnapshot snapshot) {
+        if (snapshot == null) {
+            return 0L;
+        }
+        return lyricsPlaybackPosition(currentPlaybackPosition(snapshot), snapshot.durationMs);
+    }
+
+    /**
+     * {@link #currentPlaybackPosition} at a frame's vsync time, without rounding. Call it
+     * after currentPlaybackPosition(), which resolves a pending seek for this frame.
+     */
+    private double currentPlaybackFramePosition(TrackSnapshot snapshot, long frameTimeNanos) {
+        double position;
+        if (pendingSeekPositionMs >= 0L) {
+            double elapsed = Math.max(0d, frameTimeNanos / 1_000_000d - pendingSeekUptimeMs);
+            position = pendingSeekPositionMs + (snapshot.playing ? elapsed : 0d);
+        } else {
+            position = snapshot.positionAtFrame(frameTimeNanos);
+        }
+        return snapshot.durationMs > 0L
+                ? Math.max(0d, Math.min(snapshot.durationMs, position))
+                : Math.max(0d, position);
+    }
+
+    private void updateArtwork(Bitmap artwork, String artworkKey) {
+        currentArtworkBitmap = artwork;
+        if (vinylPlayerModeView != null && currentTrack != null) {
+            vinylPlayerModeView.setArtwork(currentTrack.stableKey(), artwork);
+        }
+        if (backgroundView != null) {
+            backgroundView.setArtwork(artwork, artworkKey);
+        }
+        if (pictureInPictureBackgroundView != null) {
+            pictureInPictureBackgroundView.setArtwork(artwork, artworkKey);
+        }
+        if (artwork != null) {
+            if (artworkView != null) {
+                artworkView.setBackground(albumFallbackDrawable());
+                artworkView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                artworkView.setImageBitmap(artwork);
+            }
+            if (lyricsArtworkView != null) {
+                lyricsArtworkView.setBackground(albumFallbackDrawable());
+                lyricsArtworkView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                lyricsArtworkView.setImageBitmap(artwork);
+            }
+            if (pictureInPictureArtworkView != null) {
+                pictureInPictureArtworkView.setBackground(albumFallbackDrawable());
+                pictureInPictureArtworkView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                pictureInPictureArtworkView.setImageBitmap(artwork);
+            }
+        } else {
+            if (artworkView != null) {
+                artworkView.setImageDrawable(null);
+                artworkView.setBackground(albumFallbackDrawable());
+            }
+            if (lyricsArtworkView != null) {
+                lyricsArtworkView.setImageDrawable(null);
+                lyricsArtworkView.setBackground(albumFallbackDrawable());
+            }
+            if (pictureInPictureArtworkView != null) {
+                pictureInPictureArtworkView.setImageDrawable(null);
+                pictureInPictureArtworkView.setBackground(albumFallbackDrawable());
+            }
+        }
+    }
+
+    private void toggleDebugPanel() {
+        if (debugPanel == null) {
+            return;
+        }
+        boolean show = debugPanel.getVisibility() != View.VISIBLE;
+        debugPanel.setVisibility(show ? View.VISIBLE : View.GONE);
+        if (show) {
+            debugPanel.bringToFront();
+        }
+    }
+
+    private void resetLogs(String firstLine) {
+        logLines.clear();
+        appendLog(firstLine);
+    }
+
+    private void appendLog(String message) {
+        if (logView == null) {
+            return;
+        }
+        String safeMessage = message == null ? "" : message.trim();
+        if (safeMessage.isEmpty()) {
+            return;
+        }
+        logLines.add(formatLogLine(safeMessage));
+        while (logLines.size() > MAX_LOG_LINES) {
+            logLines.remove(0);
+        }
+
+        StringBuilder builder = new StringBuilder();
+        for (int index = 0; index < logLines.size(); index++) {
+            if (index > 0) {
+                builder.append('\n');
+            }
+            builder.append(logLines.get(index));
+        }
+        logView.setText(builder.toString());
+        if (logScrollView != null) {
+            logScrollView.post(() -> logScrollView.fullScroll(View.FOCUS_DOWN));
+        }
+    }
+
+    private String formatLogLine(String message) {
+        return formatTime(System.currentTimeMillis() % 3_600_000L) + "  " + message;
+    }
+
+    private String ui(String key) {
+        return AppI18n.t(aiLyricsSettings == null ? "ko" : aiLyricsSettings.snapshot().uiLang, key);
+    }
+
+    private String uiFormat(String key, Object... args) {
+        return String.format(Locale.ROOT, ui(key), args);
+    }
+
+    /** Text in the app's UI language for controls a host module adds, such as Spotify's sing-along button. */
+    protected final String localizedText(String key) {
+        return ui(key);
+    }
+
+    private TextView label(String value, float sizeSp, int color, Typeface typeface) {
+        TextView view = new TextView(this);
+        view.setText(value);
+        view.setTextColor(color);
+        view.setTextSize(sizeSp);
+        view.setTypeface(typeface);
+        view.setIncludeFontPadding(false);
+        return view;
+    }
+
+    private TextView slidingLabel(String value, float sizeSp, int color, Typeface typeface) {
+        SlidingTextView view = new SlidingTextView(this);
+        view.setEdgeFadeEnabled(false);
+        view.setText(value);
+        view.setTextColor(color);
+        view.setTextSize(sizeSp);
+        view.setTypeface(typeface);
+        view.setIncludeFontPadding(false);
+        return view;
+    }
+
+    private <T extends View> T makeRemoteFocusable(T view) {
+        if (view == null) {
+            return null;
+        }
+        view.setFocusable(true);
+        view.setFocusableInTouchMode(false);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            view.setDefaultFocusHighlightEnabled(true);
+        }
+        return view;
+    }
+
+    private LinearLayout createLyricsSupplementLoadingIndicator() {
+        LinearLayout indicator = new LinearLayout(this);
+        indicator.setOrientation(LinearLayout.HORIZONTAL);
+        indicator.setGravity(Gravity.CENTER);
+        indicator.setPadding(dp(8), 0, dp(9), 0);
+        indicator.setBackground(roundDrawable(Color.argb(38, 255, 255, 255), dp(14)));
+        indicator.setVisibility(View.GONE);
+
+        ProgressBar loadingSpinner = new ProgressBar(this, null, android.R.attr.progressBarStyleSmall);
+        loadingSpinner.setIndeterminate(true);
+        if (loadingSpinner.getIndeterminateDrawable() != null) {
+            loadingSpinner.getIndeterminateDrawable().setTint(Color.argb(210, 255, 255, 255));
+        }
+        indicator.addView(loadingSpinner, new LinearLayout.LayoutParams(dp(14), dp(14)));
+
+        TextView loadingText = label(supplementLoadingText(), 11f, Color.argb(205, 255, 255, 255), AppFonts.semiBold(this));
+        LinearLayout.LayoutParams loadingTextParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        loadingTextParams.leftMargin = dp(5);
+        indicator.addView(loadingText, loadingTextParams);
+        return indicator;
+    }
+
+    private ImageButton iconButton(int drawableRes, int sizeDp, int iconSizeDp, int iconColor, int backgroundColor, String description) {
+        ImageButton view = new ImageButton(this);
+        makeRemoteFocusable(view);
+        view.setImageResource(drawableRes);
+        view.setColorFilter(iconColor);
+        view.setScaleType(ImageView.ScaleType.CENTER);
+        view.setContentDescription(description);
+        view.setBackground(backgroundColor == Color.TRANSPARENT
+                ? roundDrawable(Color.argb(1, 255, 255, 255), dp(sizeDp / 2f))
+                : roundDrawable(backgroundColor, dp(sizeDp / 2f)));
+        int padding = Math.max(0, Math.round((dp(sizeDp) - dp(iconSizeDp)) * 0.5f));
+        view.setPadding(padding, padding, padding, padding);
+        view.setMinimumWidth(dp(sizeDp));
+        view.setMinimumHeight(dp(sizeDp));
+        return view;
+    }
+
+    private TextView pillButton(String label) {
+        TextView view = label(label, 13f, Color.WHITE, AppFonts.semiBold(this));
+        makeRemoteFocusable(view);
+        view.setGravity(Gravity.CENTER);
+        view.setBackground(roundDrawable(Color.argb(46, 255, 255, 255), dp(22)));
+        return view;
+    }
+
+    private TextView debugButton(String label) {
+        TextView view = SettingsAppearance.button(this, label, 13.5f);
+        view.setTag(SettingsAppearance.SECONDARY_ACTION);
+        makeRemoteFocusable(view);
+        SettingsAppearance.styleControls(view);
+        return view;
+    }
+
+    private void clipRound(ImageView view, int radiusDp) {
+        clipRoundView(view, radiusDp);
+    }
+
+    private void clipRoundView(View target, int radiusDp) {
+        target.setOutlineProvider(new ViewOutlineProvider() {
+            @Override
+            public void getOutline(View view, Outline outline) {
+                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), dp(radiusDp));
+            }
+        });
+        target.setClipToOutline(true);
+    }
+
+    private void clipTopRoundView(View target, int radiusDp) {
+        target.setOutlineProvider(new ViewOutlineProvider() {
+            @Override
+            public void getOutline(View view, Outline outline) {
+                int radius = dp(radiusDp);
+                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight() + radius, radius);
+            }
+        });
+        target.setClipToOutline(true);
+    }
+
+    private void setLyricsPageCornerRadius(int radiusDp) {
+        if (lyricsPage == null || lyricsPageCornerRadiusDp == radiusDp) {
+            return;
+        }
+        lyricsPageCornerRadiusDp = radiusDp;
+        if (radiusDp <= 0) {
+            lyricsPage.setClipToOutline(false);
+            lyricsPage.setOutlineProvider(null);
+            return;
+        }
+        clipRoundView(lyricsPage, radiusDp);
+    }
+
+    private GradientDrawable albumFallbackDrawable() {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(Color.rgb(34, 35, 40));
+        drawable.setCornerRadius(dp(14));
+        return drawable;
+    }
+
+    private GradientDrawable roundDrawable(int color, float radius) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(color);
+        drawable.setCornerRadius(radius);
+        return drawable;
+    }
+
+    private GradientDrawable topRoundDrawable(int color, float radius) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(color);
+        drawable.setCornerRadii(new float[]{
+                radius, radius,
+                radius, radius,
+                0f, 0f,
+                0f, 0f
+        });
+        return drawable;
+    }
+
+    private LinearLayout.LayoutParams matchWrap() {
+        return new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+    }
+
+    private LinearLayout.LayoutParams topMargin(LinearLayout.LayoutParams params, int topMargin) {
+        params.topMargin = topMargin;
+        return params;
+    }
+
+    private LinearLayout.LayoutParams leftMargin(LinearLayout.LayoutParams params, int leftMargin) {
+        params.leftMargin = leftMargin;
+        return params;
+    }
+
+    private LinearLayout.LayoutParams fixedControlParams(int sizeDp, int sideMarginDp) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp));
+        params.leftMargin = dp(sideMarginDp);
+        params.rightMargin = dp(sideMarginDp);
+        params.gravity = Gravity.CENTER_VERTICAL;
+        return params;
+    }
+
+    private View flexSpacer(float weight) {
+        View view = new View(this);
+        view.setMinimumHeight(0);
+        return view;
+    }
+
+    private LinearLayout.LayoutParams weightedButtonParams(float weight, int sideMargin) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, weight);
+        params.leftMargin = sideMargin;
+        params.rightMargin = sideMargin;
+        return params;
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    private float dp(float value) {
+        return value * getResources().getDisplayMetrics().density;
+    }
+
+    private String packageSuffix(String packageName) {
+        return packageName == null || packageName.isEmpty() ? "" : " / package=" + packageName;
+    }
+
+    private String artworkDebug(TrackSnapshot snapshot) {
+        if (snapshot == null) {
+            return "none";
+        }
+        if (snapshot.artwork != null) {
+            return "bitmap "
+                    + snapshot.artwork.getWidth()
+                    + "x"
+                    + snapshot.artwork.getHeight()
+                    + (snapshot.artworkUri.isEmpty() ? "" : " / uri=" + snapshot.artworkUri);
+        }
+        return snapshot.artworkUri.isEmpty() ? "none" : "uri pending " + snapshot.artworkUri;
+    }
+
+    private String formatTime(long ms) {
+        long totalSeconds = Math.max(0L, ms / 1000L);
+        long minutes = totalSeconds / 60L;
+        long seconds = totalSeconds % 60L;
+        return minutes + ":" + (seconds < 10L ? "0" : "") + seconds;
+    }
+
+    private String formatRemaining(long position, long duration) {
+        if (duration <= 0L) {
+            return "-0:00";
+        }
+        return "-" + formatTime(Math.max(0L, duration - position));
+    }
+
+    private interface OffsetAdjuster {
+        void adjust(int deltaMs);
+    }
+
+    private interface ChoiceHandler {
+        void onChoice(String code);
+    }
+
+    private static final class SupporterNameSpan extends ReplacementSpan {
+        private final CreatorSupportRepository.Presentation presentation;
+
+        SupporterNameSpan(CreatorSupportRepository.Presentation presentation) {
+            this.presentation = presentation;
+        }
+
+        @Override
+        public int getSize(
+                Paint paint,
+                CharSequence text,
+                int start,
+                int end,
+                Paint.FontMetricsInt fontMetrics
+        ) {
+            if (fontMetrics != null) {
+                paint.getFontMetricsInt(fontMetrics);
+            }
+            return Math.round(paint.measureText(text, start, end));
+        }
+
+        @Override
+        public void draw(
+                Canvas canvas,
+                CharSequence text,
+                int start,
+                int end,
+                float x,
+                int top,
+                int y,
+                int bottom,
+                Paint paint
+        ) {
+            Paint styledPaint = new Paint(paint);
+            float width = Math.max(1f, styledPaint.measureText(text, start, end));
+            if (presentation.usesGradient()) {
+                double radians = Math.toRadians(presentation.gradientAngle);
+                float directionX = (float) Math.sin(radians);
+                float directionY = (float) -Math.cos(radians);
+                float centerX = x + width / 2f;
+                float centerY = (top + bottom) / 2f;
+                float projection = Math.abs(directionX) * width / 2f
+                        + Math.abs(directionY) * Math.max(1f, bottom - top) / 2f;
+                styledPaint.setShader(new LinearGradient(
+                        centerX - directionX * projection,
+                        centerY - directionY * projection,
+                        centerX + directionX * projection,
+                        centerY + directionY * projection,
+                        Color.parseColor(presentation.gradientStartColor),
+                        Color.parseColor(presentation.gradientEndColor),
+                        Shader.TileMode.CLAMP
+                ));
+            } else {
+                styledPaint.setShader(null);
+                styledPaint.setColor(Color.parseColor(presentation.solidColor));
+            }
+            canvas.drawText(text, start, end, x, y, styledPaint);
+        }
+    }
+
+    private static final class ProviderAttributionView {
+        final LinearLayout container;
+        final TextView label;
+        final TextView value;
+        final TextView separator;
+        final TextView contributor;
+
+        ProviderAttributionView(
+                LinearLayout container,
+                TextView label,
+                TextView value,
+                TextView separator,
+                TextView contributor
+        ) {
+            this.container = container;
+            this.label = label;
+            this.value = value;
+            this.separator = separator;
+            this.contributor = contributor;
+        }
+    }
+
+    private static final class LanguageChoice {
+        final String code;
+        final String label;
+
+        LanguageChoice(String code, String label) {
+            this.code = code;
+            this.label = label;
+        }
+    }
+
+    private static final class PreviewChoice {
+        final String label;
+        final int item;
+
+        PreviewChoice(String label, int item) {
+            this.label = label;
+            this.item = item;
+        }
+    }
+
+    private abstract static class SimpleSeekBarChangeListener implements SeekBar.OnSeekBarChangeListener {
+        @Override
+        public void onStartTrackingTouch(SeekBar seekBar) {
+        }
+
+        @Override
+        public void onStopTrackingTouch(SeekBar seekBar) {
+        }
+    }
+
+    private static final class PreviewText {
+        final String text;
+        final String rubyText;
+        final List<LyricsLine.Syllable> syllables;
+        final String kind;
+
+        PreviewText(String text, String rubyText, List<LyricsLine.Syllable> syllables, String kind) {
+            this.text = text == null ? "" : text;
+            this.rubyText = rubyText == null ? "" : rubyText;
+            this.syllables = syllables == null ? Collections.emptyList() : new ArrayList<>(syllables);
+            this.kind = kind == null || kind.trim().isEmpty() ? "vocal" : kind.trim();
+        }
+    }
+
+    private static final class PreviewEntry {
+        final LyricsLine line;
+        final List<LyricsLine> lines;
+        final long startTimeMs;
+        final long endTimeMs;
+        final String interludeKind;
+
+        private PreviewEntry(List<LyricsLine> lines, long startTimeMs, long endTimeMs, String interludeKind) {
+            this.lines = Collections.unmodifiableList(new ArrayList<>(lines));
+            this.line = lines.isEmpty() ? null : lines.get(0);
+            this.startTimeMs = Math.max(0L, startTimeMs);
+            this.endTimeMs = Math.max(this.startTimeMs, endTimeMs);
+            this.interludeKind = interludeKind == null ? "" : interludeKind;
+        }
+
+        static PreviewEntry line(LyricsLine line) {
+            return lines(line == null ? Collections.emptyList() : Collections.singletonList(line));
+        }
+
+        static PreviewEntry lines(List<LyricsLine> lines) {
+            long start = Long.MAX_VALUE;
+            long end = 0L;
+            for (LyricsLine line : lines) {
+                start = Math.min(start, line.startTimeMs);
+                end = Math.max(end, line.endTimeMs);
+            }
+            return new PreviewEntry(lines, start == Long.MAX_VALUE ? 0L : start, end, "");
+        }
+
+        static PreviewEntry interlude(long startTimeMs, long endTimeMs, String kind) {
+            return new PreviewEntry(Collections.emptyList(), startTimeMs, endTimeMs, kind);
+        }
+
+        boolean isInterlude() {
+            return line == null && !interludeKind.isEmpty();
+        }
+
+        boolean contains(long positionMs) {
+            return positionMs >= startTimeMs && positionMs < endTimeMs;
+        }
+    }
+}

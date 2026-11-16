@@ -1,0 +1,11797 @@
+package kr.ivlis.ivlyricsandroid;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+final class AppI18n {
+    static final List<AiLyricsSettings.Language> UI_LANGUAGES = Collections.unmodifiableList(Arrays.asList(
+            new AiLyricsSettings.Language("ko", "Korean", "한국어", ""),
+            new AiLyricsSettings.Language("en", "English", "English", ""),
+            new AiLyricsSettings.Language("zh-CN", "Simplified Chinese", "简体中文", ""),
+            new AiLyricsSettings.Language("zh-TW", "Traditional Chinese", "繁體中文", ""),
+            new AiLyricsSettings.Language("ja", "Japanese", "日本語", ""),
+            new AiLyricsSettings.Language("hi", "Hindi", "हिन्दी", ""),
+            new AiLyricsSettings.Language("es", "Spanish", "Español", ""),
+            new AiLyricsSettings.Language("fr", "French", "Français", ""),
+            new AiLyricsSettings.Language("ar", "Arabic", "العربية", ""),
+            new AiLyricsSettings.Language("fa", "Persian", "فارسی", ""),
+            new AiLyricsSettings.Language("de", "German", "Deutsch", ""),
+            new AiLyricsSettings.Language("ru", "Russian", "Русский", ""),
+            new AiLyricsSettings.Language("sv", "Swedish", "Svenska", ""),
+            new AiLyricsSettings.Language("pt", "Portuguese", "Português", ""),
+            new AiLyricsSettings.Language("bn", "Bengali", "বাংলা", ""),
+            new AiLyricsSettings.Language("cs", "Czech", "Čeština", ""),
+            new AiLyricsSettings.Language("it", "Italian", "Italiano", ""),
+            new AiLyricsSettings.Language("th", "Thai", "ภาษาไทย", ""),
+            new AiLyricsSettings.Language("vi", "Vietnamese", "Tiếng Việt", ""),
+            new AiLyricsSettings.Language("id", "Indonesian", "Bahasa Indonesia", ""),
+            new AiLyricsSettings.Language("ms", "Malay", "Bahasa Melayu", ""),
+            new AiLyricsSettings.Language("tr", "Turkish", "Türkçe", "")
+    ));
+
+    static final String[] LRCLIB_SETTING_KEYS = {"setting.lrclib_endpoint", "setting.lrclib_endpoint_desc", "setting.lrclib_endpoint_error"};
+    private static final Map<String, Map<String, String>> STRINGS = buildStrings();
+
+    private AppI18n() {
+    }
+
+    static boolean supports(String lang) {
+        return supportsRaw(AiLyricsSettings.normalizeLanguageCode(lang));
+    }
+
+    static String normalize(String lang) {
+        String normalized = AiLyricsSettings.normalizeLanguageCode(lang);
+        return supportsRaw(normalized) ? normalized : "en";
+    }
+
+    static String label(String lang) {
+        String normalized = normalize(lang);
+        for (AiLyricsSettings.Language language : UI_LANGUAGES) {
+            if (language.code.equalsIgnoreCase(normalized)) {
+                return language.nativeName + " · " + language.name;
+            }
+        }
+        return "English · English";
+    }
+
+    static String t(String lang, String key) {
+        String normalized = AiLyricsSettings.normalizeLanguageCode(lang);
+        Map<String, String> table = STRINGS.get(normalized);
+        String value = table == null ? null : table.get(key);
+        if (value != null) {
+            return value;
+        }
+        Map<String, String> fallback = STRINGS.get("en");
+        value = fallback == null ? null : fallback.get(key);
+        return value == null ? key : value;
+    }
+
+    private static boolean supportsRaw(String normalized) {
+        if (normalized == null || normalized.trim().isEmpty()) {
+            return false;
+        }
+        for (AiLyricsSettings.Language language : UI_LANGUAGES) {
+            if (language.code.equalsIgnoreCase(normalized)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static Map<String, Map<String, String>> buildStrings() {
+        Map<String, Map<String, String>> languages = new LinkedHashMap<>();
+        languages.put("ko", koStrings());
+        languages.put("en", enStrings());
+        languages.put("zh-CN", zhCnStrings());
+        languages.put("zh-TW", zhTwStrings());
+        languages.put("ja", jaStrings());
+        languages.put("hi", hiStrings());
+        languages.put("es", esStrings());
+        languages.put("fr", frStrings());
+        languages.put("ar", arStrings());
+        languages.put("fa", faStrings());
+        languages.put("de", deStrings());
+        languages.put("ru", ruStrings());
+        languages.put("sv", svStrings());
+        languages.put("pt", ptStrings());
+        languages.put("bn", bnStrings());
+        languages.put("it", itStrings());
+        languages.put("th", thStrings());
+        languages.put("vi", viStrings());
+        languages.put("id", idStrings());
+        languages.put("ms", msStrings());
+        languages.put("tr", trStrings());
+        languages.put("cs", csStrings());
+        addManualLrclibSearchStrings(languages);
+        addSpotifyShortcutStrings(languages);
+        addDisplayPowerStrings(languages);
+        addPlayerCardBackgroundStrings(languages);
+        addLandscapeNoLyricsStrings(languages);
+        addUpdateStrings(languages);
+        addUnifiedOutputLanguageStrings(languages);
+        addPronunciationNotationStrings(languages);
+        addFuriganaStrings(languages);
+        addTypographyStrings(languages);
+        addSpeakerColorStrings(languages);
+        addCreatorSpeakerColorStrings(languages);
+        addVideoBackgroundStrings(languages);
+        addTrackBackgroundStrings(languages);
+        addLyricsAlignmentStrings(languages);
+        addPictureInPictureStrings(languages);
+        addVideoSyncOffsetStrings(languages);
+        addBluetoothSyncOffsetStrings(languages);
+        addPollinationsAuthStrings(languages);
+        addTmiStrings(languages);
+        addKaraokeLineModeStrings(languages);
+        addGlobalSyncOffsetStrings(languages);
+        addVinylStrings(languages);
+        addCreatorPrivacyStrings(languages);
+        addCloudSyncStrings(languages);
+        addLyricsProviderSettingsStrings(languages);
+        addPaxsenixProviderStrings(languages);
+        addSettingsNavigationStrings(languages);
+        addProviderLoadingStrings(languages);
+        addCulturalAnnotationStrings(languages);
+        addKeylessTranslationProviderStrings(languages);
+        addAiProviderOrderStrings(languages);
+        addFirstLanguagePromptStrings(languages);
+        ResearchI18n.apply(languages);
+        addSettingsTranslationOverrides(languages);
+        addLyricsToolsTranslationOverrides(languages);
+        addTranslationQualityOverrides(languages);
+        addSpotifyOpenFailureTranslations(languages);
+        addLocalAiStrings(languages);
+        addAppearanceStrings(languages);
+        addVinylControlStrings(languages);
+        addAlbumArtLpStrings(languages);
+        addMotionLyricsStrings(languages);
+        addLyricsRegenerateStrings(languages);
+        addSingAlongStrings(languages);
+        addErrorMessageStrings(languages);
+        addAccessibilityLabelStrings(languages);
+        addSettingsRedesignStrings(languages);
+        FirstUseI18n.apply(languages);
+        addLrclibPlaybackSettingsStrings(languages);
+        assertComplete(languages);
+        return Collections.unmodifiableMap(languages);
+    }
+
+    /** The Spotify module's sing-along control, in the app's UI language like the rest of its lyrics page. */
+    private static void addSingAlongStrings(Map<String, Map<String, String>> languages) {
+        String[] keys = {
+                "sing_along.state_off",
+                "sing_along.state_low",
+                "sing_along.state_high",
+                "sing_along.stopping",
+                "sing_along.cancel",
+                "sing_along.no_track",
+                "sing_along.remote",
+                "sing_along.offline",
+                "sing_along.quality",
+                "sing_along.version",
+                "sing_along.unsupported_track",
+                "sing_along.unsupported_account",
+                "sing_along.mask_error",
+                "sing_along.timeout",
+                "sing_along.reset_failed",
+                "sing_along.error",
+                "sing_along.waiting"
+        };
+        String[][] rows = {
+                {"en", "Sing along off. Tap for low vocals", "Sing along with low vocals. Tap for high vocals", "Sing along with high vocals. Tap to turn off", "Turning sing along off", "Cancel sing-along preparation", "Play a song in Spotify first.", "Play on this device to sing along.", "Turn off Spotify offline mode to sing along.", "Choose a playback quality higher than Low in Spotify.", "Sing along is unavailable with this Spotify version.", "Spotify does not currently offer sing along for this song.", "Spotify has not enabled sing along for this account.", "Spotify could not prepare vocal reduction for this song.", "Sing along took too long to prepare. Please try again.", "Could not turn off sing along. Tap again to retry.", "Could not start sing along. Please try again.", "Checking Spotify sing-along availability."},
+                {"ko", "노래방 꺼짐. 눌러서 보컬 작게", "노래방 보컬 작게. 눌러서 보컬 크게", "노래방 보컬 크게. 눌러서 끄기", "노래방 끄는 중", "따라 부르기 준비 취소", "Spotify에서 노래를 먼저 재생해주세요.", "이 기기에서 재생하면 따라 부르기를 사용할 수 있습니다.", "Spotify의 오프라인 모드를 꺼주세요.", "Spotify의 재생 음질을 낮음보다 높게 설정해주세요.", "이 Spotify 버전에서는 따라 부르기를 사용할 수 없습니다.", "Spotify에서 이 곡의 따라 부르기를 제공하지 않습니다.", "이 계정에는 Spotify 따라 부르기가 활성화되어 있지 않습니다.", "이 곡의 보컬 감소를 준비하지 못했습니다.", "따라 부르기 준비가 지연되었습니다. 다시 시도해주세요.", "따라 부르기를 끄지 못했습니다. 다시 눌러 해제해주세요.", "따라 부르기를 시작하지 못했습니다. 다시 시도해주세요.", "Spotify 따라 부르기 지원 여부를 확인하고 있습니다."},
+                {"zh-CN", "跟唱已关闭。点按切换为人声小", "跟唱：人声小。点按切换为人声大", "跟唱：人声大。点按关闭", "正在关闭跟唱", "取消跟唱准备", "请先在 Spotify 中播放歌曲。", "在此设备上播放即可跟唱。", "请关闭 Spotify 的离线模式以使用跟唱。", "请在 Spotify 中选择高于“低”的音质。", "此版本的 Spotify 无法使用跟唱。", "Spotify 目前不提供这首歌曲的跟唱。", "Spotify 尚未为此账号启用跟唱。", "Spotify 无法为这首歌曲准备人声消减。", "跟唱准备时间过长，请重试。", "无法关闭跟唱，请再次点按重试。", "无法开始跟唱，请重试。", "正在检查 Spotify 是否支持跟唱。"},
+                {"zh-TW", "跟唱已關閉。點按切換為人聲小", "跟唱：人聲小。點按切換為人聲大", "跟唱：人聲大。點按即可關閉", "正在關閉跟唱", "取消跟唱準備", "請先在 Spotify 播放歌曲。", "在這部裝置上播放即可跟唱。", "請關閉 Spotify 的離線模式以使用跟唱。", "請在 Spotify 中選擇高於「低」的音質。", "這個版本的 Spotify 無法使用跟唱。", "Spotify 目前未提供這首歌曲的跟唱。", "Spotify 尚未為這個帳戶啟用跟唱。", "Spotify 無法為這首歌曲準備人聲消減。", "跟唱準備時間過長，請再試一次。", "無法關閉跟唱，請再次點按重試。", "無法開始跟唱，請再試一次。", "正在確認 Spotify 是否支援跟唱。"},
+                {"ja", "カラオケ：オフ。タップでボーカル小", "カラオケ：ボーカル小。タップでボーカル大", "カラオケ：ボーカル大。タップでオフ", "カラオケをオフにしています", "カラオケの準備をキャンセル", "先にSpotifyで曲を再生してください。", "このデバイスで再生するとカラオケを使えます。", "カラオケを使うには、Spotifyのオフラインモードをオフにしてください。", "Spotifyの音質を「低」より高く設定してください。", "このバージョンのSpotifyではカラオケを使えません。", "Spotifyは現在、この曲のカラオケを提供していません。", "このアカウントではSpotifyのカラオケが有効になっていません。", "Spotifyがこの曲のボーカル抑制を準備できませんでした。", "カラオケの準備に時間がかかりすぎました。もう一度お試しください。", "カラオケをオフにできませんでした。もう一度タップしてください。", "カラオケを開始できませんでした。もう一度お試しください。", "Spotifyでカラオケを使えるか確認しています。"},
+                {"hi", "कराओके बंद है। वोकल कम करने के लिए टैप करें", "कराओके: वोकल कम। वोकल ज़्यादा करने के लिए टैप करें", "कराओके: वोकल ज़्यादा। बंद करने के लिए टैप करें", "कराओके बंद किया जा रहा है", "कराओके की तैयारी रद्द करें", "पहले Spotify में कोई गाना चलाएँ।", "कराओके के लिए इसी डिवाइस पर गाना चलाएँ।", "कराओके के लिए Spotify का ऑफ़लाइन मोड बंद करें।", "Spotify में \"कम\" से बेहतर प्लेबैक क्वालिटी चुनें।", "Spotify के इस वर्शन में कराओके उपलब्ध नहीं है।", "Spotify अभी इस गाने के लिए कराओके नहीं देता।", "Spotify ने इस खाते के लिए कराओके चालू नहीं किया है।", "Spotify इस गाने में वोकल कम करने की तैयारी नहीं कर सका।", "कराओके की तैयारी में बहुत समय लगा। कृपया फिर से कोशिश करें।", "कराओके बंद नहीं हो सका। फिर से कोशिश करने के लिए दोबारा टैप करें।", "कराओके शुरू नहीं हो सका। कृपया फिर से कोशिश करें।", "Spotify में कराओके उपलब्ध है या नहीं, यह जाँचा जा रहा है।"},
+                {"es", "Karaoke desactivado. Toca para voces bajas", "Karaoke con voces bajas. Toca para voces altas", "Karaoke con voces altas. Toca para desactivarlo", "Desactivando el karaoke", "Cancelar la preparación del karaoke", "Primero reproduce una canción en Spotify.", "Reproduce en este dispositivo para usar el karaoke.", "Desactiva el modo sin conexión de Spotify para usar el karaoke.", "Elige en Spotify una calidad de reproducción superior a «Baja».", "El karaoke no está disponible en esta versión de Spotify.", "Spotify no ofrece karaoke para esta canción por ahora.", "Spotify no ha activado el karaoke en esta cuenta.", "Spotify no pudo preparar la reducción de voz de esta canción.", "La preparación del karaoke tardó demasiado. Inténtalo de nuevo.", "No se pudo desactivar el karaoke. Toca de nuevo para reintentarlo.", "No se pudo iniciar el karaoke. Inténtalo de nuevo.", "Comprobando si el karaoke de Spotify está disponible."},
+                {"fr", "Karaoké désactivé. Touchez pour des voix faibles", "Karaoké avec voix faibles. Touchez pour des voix fortes", "Karaoké avec voix fortes. Touchez pour désactiver", "Désactivation du karaoké", "Annuler la préparation du karaoké", "Lancez d’abord un titre dans Spotify.", "Lancez la lecture sur cet appareil pour utiliser le karaoké.", "Désactivez le mode hors connexion de Spotify pour utiliser le karaoké.", "Choisissez dans Spotify une qualité de lecture supérieure à « Faible ».", "Le karaoké n’est pas disponible avec cette version de Spotify.", "Spotify ne propose pas le karaoké pour ce titre pour le moment.", "Spotify n’a pas activé le karaoké pour ce compte.", "Spotify n’a pas pu préparer la réduction de la voix pour ce titre.", "La préparation du karaoké a pris trop de temps. Veuillez réessayer.", "Impossible de désactiver le karaoké. Touchez à nouveau pour réessayer.", "Impossible de lancer le karaoké. Veuillez réessayer.", "Vérification de la disponibilité du karaoké Spotify."},
+                {"ar", "الكاريوكي متوقف. اضغط لخفض صوت الغناء", "الكاريوكي بصوت غناء منخفض. اضغط لرفع صوت الغناء", "الكاريوكي بصوت غناء مرتفع. اضغط للإيقاف", "جارٍ إيقاف الكاريوكي", "إلغاء تجهيز الكاريوكي", "شغّل أغنية في Spotify أولًا.", "شغّل الأغنية على هذا الجهاز لاستخدام الكاريوكي.", "أوقف وضع عدم الاتصال في Spotify لاستخدام الكاريوكي.", "اختر في Spotify جودة تشغيل أعلى من «منخفضة».", "الكاريوكي غير متاح في هذا الإصدار من Spotify.", "لا يوفّر Spotify الكاريوكي لهذه الأغنية حاليًا.", "لم يفعّل Spotify الكاريوكي لهذا الحساب.", "تعذّر على Spotify تجهيز خفض صوت الغناء لهذه الأغنية.", "استغرق تجهيز الكاريوكي وقتًا طويلًا. يُرجى المحاولة مرة أخرى.", "تعذّر إيقاف الكاريوكي. اضغط مرة أخرى لإعادة المحاولة.", "تعذّر بدء الكاريوكي. يُرجى المحاولة مرة أخرى.", "جارٍ التحقق من توفر الكاريوكي في Spotify."},
+                {"fa", "هم‌خوانی خاموش است. برای کم کردن صدای خواننده ضربه بزنید", "هم‌خوانی با صدای خوانندهٔ کم. برای زیاد کردن صدای خواننده ضربه بزنید", "هم‌خوانی با صدای خوانندهٔ زیاد. برای خاموش کردن ضربه بزنید", "در حال خاموش کردن هم‌خوانی", "لغو آماده‌سازی هم‌خوانی", "ابتدا آهنگی را در Spotify پخش کنید.", "برای هم‌خوانی، آهنگ را روی همین دستگاه پخش کنید.", "برای هم‌خوانی، حالت آفلاین Spotify را خاموش کنید.", "در Spotify کیفیت پخش را بالاتر از «پایین» انتخاب کنید.", "هم‌خوانی در این نسخهٔ Spotify در دسترس نیست.", "Spotify در حال حاضر هم‌خوانی را برای این آهنگ ارائه نمی‌دهد.", "Spotify هم‌خوانی را برای این حساب فعال نکرده است.", "Spotify نتوانست کاهش صدای خواننده را برای این آهنگ آماده کند.", "آماده‌سازی هم‌خوانی بیش از حد طول کشید. لطفاً دوباره تلاش کنید.", "هم‌خوانی خاموش نشد. برای تلاش دوباره، دوباره ضربه بزنید.", "هم‌خوانی شروع نشد. لطفاً دوباره تلاش کنید.", "در حال بررسی در دسترس بودن هم‌خوانی Spotify."},
+                {"de", "Mitsingen aus. Tippen für leisen Gesang", "Mitsingen mit leisem Gesang. Tippen für lauten Gesang", "Mitsingen mit lautem Gesang. Tippen zum Ausschalten", "Mitsingen wird ausgeschaltet", "Vorbereitung des Mitsingens abbrechen", "Spielen Sie zuerst einen Song in Spotify ab.", "Starten Sie die Wiedergabe auf diesem Gerät, um mitzusingen.", "Schalten Sie den Offlinemodus von Spotify aus, um mitzusingen.", "Wählen Sie in Spotify eine höhere Wiedergabequalität als „Niedrig“.", "Mitsingen ist mit dieser Spotify-Version nicht verfügbar.", "Spotify bietet Mitsingen für diesen Song derzeit nicht an.", "Spotify hat Mitsingen für dieses Konto nicht aktiviert.", "Spotify konnte die Gesangsabsenkung für diesen Song nicht vorbereiten.", "Die Vorbereitung des Mitsingens hat zu lange gedauert. Bitte versuchen Sie es erneut.", "Mitsingen konnte nicht ausgeschaltet werden. Tippen Sie erneut, um es noch einmal zu versuchen.", "Mitsingen konnte nicht gestartet werden. Bitte versuchen Sie es erneut.", "Verfügbarkeit von Mitsingen in Spotify wird geprüft."},
+                {"ru", "Караоке выключено. Нажмите, чтобы приглушить вокал", "Караоке с тихим вокалом. Нажмите, чтобы сделать вокал громче", "Караоке с громким вокалом. Нажмите, чтобы выключить", "Караоке выключается", "Отменить подготовку караоке", "Сначала включите песню в Spotify.", "Чтобы петь караоке, включите воспроизведение на этом устройстве.", "Чтобы петь караоке, выключите офлайн-режим Spotify.", "Выберите в Spotify качество воспроизведения выше уровня «Низкое».", "Караоке недоступно в этой версии Spotify.", "Сейчас Spotify не предлагает караоке для этой песни.", "Spotify не включил караоке для этого аккаунта.", "Spotify не удалось подготовить приглушение вокала для этой песни.", "Подготовка караоке заняла слишком много времени. Попробуйте ещё раз.", "Не удалось выключить караоке. Нажмите ещё раз, чтобы повторить.", "Не удалось запустить караоке. Попробуйте ещё раз.", "Проверяем, доступно ли караоке в Spotify."},
+                {"sv", "Sjung med: av. Tryck för låg sång", "Sjung med: låg sång. Tryck för hög sång", "Sjung med: hög sång. Tryck för att stänga av", "Stänger av Sjung med", "Avbryt förberedelsen av Sjung med", "Spela först en låt i Spotify.", "Spela på den här enheten för att sjunga med.", "Stäng av offlineläget i Spotify för att sjunga med.", "Välj en högre uppspelningskvalitet än ”Låg” i Spotify.", "Sjung med är inte tillgängligt i den här versionen av Spotify.", "Spotify erbjuder för närvarande inte Sjung med för den här låten.", "Spotify har inte aktiverat Sjung med för det här kontot.", "Spotify kunde inte förbereda sänkt sång för den här låten.", "Förberedelsen av Sjung med tog för lång tid. Försök igen.", "Det gick inte att stänga av Sjung med. Tryck igen för att försöka på nytt.", "Det gick inte att starta Sjung med. Försök igen.", "Kontrollerar om Sjung med är tillgängligt i Spotify."},
+                {"pt", "Karaokê desativado. Toque para vocais baixos", "Karaokê com vocais baixos. Toque para vocais altos", "Karaokê com vocais altos. Toque para desativar", "Desativando o karaokê", "Cancelar a preparação do karaokê", "Primeiro, reproduza uma música no Spotify.", "Reproduza neste dispositivo para usar o karaokê.", "Desative o modo offline do Spotify para usar o karaokê.", "Escolha no Spotify uma qualidade de reprodução acima de “Baixa”.", "O karaokê não está disponível nesta versão do Spotify.", "No momento, o Spotify não oferece karaokê para esta música.", "O Spotify não ativou o karaokê para esta conta.", "O Spotify não conseguiu preparar a redução de voz desta música.", "A preparação do karaokê demorou demais. Tente novamente.", "Não foi possível desativar o karaokê. Toque de novo para tentar novamente.", "Não foi possível iniciar o karaokê. Tente novamente.", "Verificando se o karaokê do Spotify está disponível."},
+                {"bn", "কারাওকে বন্ধ। ভোকাল কমাতে ট্যাপ করুন", "কারাওকে: ভোকাল কম। ভোকাল বাড়াতে ট্যাপ করুন", "কারাওকে: ভোকাল বেশি। বন্ধ করতে ট্যাপ করুন", "কারাওকে বন্ধ করা হচ্ছে", "কারাওকের প্রস্তুতি বাতিল করুন", "প্রথমে Spotify-তে একটি গান চালান।", "কারাওকে ব্যবহার করতে এই ডিভাইসেই গান চালান।", "কারাওকে ব্যবহার করতে Spotify-এর অফলাইন মোড বন্ধ করুন।", "Spotify-তে \"কম\"-এর চেয়ে ভালো প্লেব্যাক মান বেছে নিন।", "Spotify-এর এই সংস্করণে কারাওকে উপলব্ধ নয়।", "Spotify এখন এই গানের জন্য কারাওকে দিচ্ছে না।", "Spotify এই অ্যাকাউন্টের জন্য কারাওকে চালু করেনি।", "Spotify এই গানের ভোকাল কমানোর প্রস্তুতি নিতে পারেনি।", "কারাওকে প্রস্তুত হতে অনেক সময় লেগেছে। আবার চেষ্টা করুন।", "কারাওকে বন্ধ করা যায়নি। আবার চেষ্টা করতে আবার ট্যাপ করুন।", "কারাওকে শুরু করা যায়নি। আবার চেষ্টা করুন।", "Spotify-তে কারাওকে উপলব্ধ কি না যাচাই করা হচ্ছে।"},
+                {"cs", "Karaoke vypnuto. Klepnutím ztlumíte zpěv", "Karaoke s tichým zpěvem. Klepnutím zpěv zesílíte", "Karaoke s hlasitým zpěvem. Klepnutím vypnete", "Vypínání karaoke", "Zrušit přípravu karaoke", "Nejprve přehrajte skladbu ve Spotify.", "Pro karaoke přehrávejte na tomto zařízení.", "Pro karaoke vypněte offline režim Spotify.", "Ve Spotify zvolte vyšší kvalitu přehrávání než „Nízká“.", "Karaoke není v této verzi Spotify k dispozici.", "Spotify pro tuto skladbu karaoke zatím nenabízí.", "Spotify pro tento účet karaoke nepovolilo.", "Spotify nedokázalo připravit ztlumení zpěvu pro tuto skladbu.", "Příprava karaoke trvala příliš dlouho. Zkuste to znovu.", "Karaoke se nepodařilo vypnout. Klepnutím to zkuste znovu.", "Karaoke se nepodařilo spustit. Zkuste to znovu.", "Ověřování dostupnosti karaoke ve Spotify."},
+                {"it", "Karaoke disattivato. Tocca per voci basse", "Karaoke con voci basse. Tocca per voci alte", "Karaoke con voci alte. Tocca per disattivare", "Disattivazione del karaoke", "Annulla la preparazione del karaoke", "Prima riproduci un brano su Spotify.", "Riproduci su questo dispositivo per usare il karaoke.", "Disattiva la modalità offline di Spotify per usare il karaoke.", "Scegli in Spotify una qualità di riproduzione superiore a «Bassa».", "Il karaoke non è disponibile con questa versione di Spotify.", "Al momento Spotify non offre il karaoke per questo brano.", "Spotify non ha attivato il karaoke per questo account.", "Spotify non è riuscito a preparare la riduzione della voce per questo brano.", "La preparazione del karaoke ha richiesto troppo tempo. Riprova.", "Impossibile disattivare il karaoke. Tocca di nuovo per riprovare.", "Impossibile avviare il karaoke. Riprova.", "Verifica della disponibilità del karaoke di Spotify in corso."},
+                {"th", "โหมดร้องตามปิดอยู่ แตะเพื่อลดเสียงร้อง", "ร้องตามแบบเสียงร้องเบา แตะเพื่อเพิ่มเสียงร้อง", "ร้องตามแบบเสียงร้องดัง แตะเพื่อปิด", "กำลังปิดโหมดร้องตาม", "ยกเลิกการเตรียมโหมดร้องตาม", "โปรดเล่นเพลงใน Spotify ก่อน", "เล่นเพลงบนอุปกรณ์นี้เพื่อใช้โหมดร้องตาม", "ปิดโหมดออฟไลน์ของ Spotify เพื่อใช้โหมดร้องตาม", "โปรดเลือกคุณภาพการเล่นใน Spotify ให้สูงกว่า \"ต่ำ\"", "Spotify เวอร์ชันนี้ใช้โหมดร้องตามไม่ได้", "ขณะนี้ Spotify ยังไม่มีโหมดร้องตามสำหรับเพลงนี้", "Spotify ยังไม่ได้เปิดใช้โหมดร้องตามสำหรับบัญชีนี้", "Spotify เตรียมการลดเสียงร้องของเพลงนี้ไม่สำเร็จ", "การเตรียมโหมดร้องตามใช้เวลานานเกินไป โปรดลองอีกครั้ง", "ปิดโหมดร้องตามไม่สำเร็จ แตะอีกครั้งเพื่อลองใหม่", "เริ่มโหมดร้องตามไม่สำเร็จ โปรดลองอีกครั้ง", "กำลังตรวจสอบว่า Spotify รองรับโหมดร้องตามหรือไม่"},
+                {"vi", "Hát theo đang tắt. Nhấn để giảm giọng hát", "Hát theo với giọng hát nhỏ. Nhấn để tăng giọng hát", "Hát theo với giọng hát lớn. Nhấn để tắt", "Đang tắt hát theo", "Hủy chuẩn bị hát theo", "Hãy phát một bài hát trên Spotify trước.", "Hãy phát trên thiết bị này để hát theo.", "Hãy tắt chế độ ngoại tuyến của Spotify để hát theo.", "Hãy chọn chất lượng phát trong Spotify cao hơn mức “Thấp”.", "Không thể hát theo với phiên bản Spotify này.", "Hiện Spotify chưa hỗ trợ hát theo cho bài hát này.", "Spotify chưa bật tính năng hát theo cho tài khoản này.", "Spotify không thể chuẩn bị giảm giọng hát cho bài hát này.", "Chuẩn bị hát theo mất quá nhiều thời gian. Vui lòng thử lại.", "Không thể tắt hát theo. Nhấn lại để thử lại.", "Không thể bắt đầu hát theo. Vui lòng thử lại.", "Đang kiểm tra Spotify có hỗ trợ hát theo hay không."},
+                {"id", "Karaoke nonaktif. Ketuk untuk vokal pelan", "Karaoke dengan vokal pelan. Ketuk untuk vokal keras", "Karaoke dengan vokal keras. Ketuk untuk menonaktifkan", "Menonaktifkan karaoke", "Batalkan persiapan karaoke", "Putar lagu di Spotify terlebih dahulu.", "Putar di perangkat ini untuk menggunakan karaoke.", "Nonaktifkan mode offline Spotify untuk menggunakan karaoke.", "Pilih kualitas pemutaran di Spotify yang lebih tinggi dari “Rendah”.", "Karaoke tidak tersedia di versi Spotify ini.", "Saat ini Spotify belum menyediakan karaoke untuk lagu ini.", "Spotify belum mengaktifkan karaoke untuk akun ini.", "Spotify tidak dapat menyiapkan pengurangan vokal untuk lagu ini.", "Persiapan karaoke terlalu lama. Silakan coba lagi.", "Karaoke tidak dapat dinonaktifkan. Ketuk lagi untuk mencoba ulang.", "Karaoke tidak dapat dimulai. Silakan coba lagi.", "Memeriksa ketersediaan karaoke Spotify."},
+                {"ms", "Karaoke dimatikan. Ketik untuk vokal perlahan", "Karaoke dengan vokal perlahan. Ketik untuk vokal kuat", "Karaoke dengan vokal kuat. Ketik untuk mematikan", "Mematikan karaoke", "Batalkan penyediaan karaoke", "Mainkan lagu dalam Spotify terlebih dahulu.", "Mainkan pada peranti ini untuk menggunakan karaoke.", "Matikan mod luar talian Spotify untuk menggunakan karaoke.", "Pilih kualiti main balik dalam Spotify yang lebih tinggi daripada “Rendah”.", "Karaoke tidak tersedia dalam versi Spotify ini.", "Spotify belum menawarkan karaoke untuk lagu ini buat masa ini.", "Spotify belum mendayakan karaoke untuk akaun ini.", "Spotify tidak dapat menyediakan pengurangan vokal untuk lagu ini.", "Penyediaan karaoke mengambil masa terlalu lama. Sila cuba lagi.", "Karaoke tidak dapat dimatikan. Ketik sekali lagi untuk mencuba semula.", "Karaoke tidak dapat dimulakan. Sila cuba lagi.", "Menyemak ketersediaan karaoke Spotify."},
+                {"tr", "Karaoke kapalı. Düşük vokal için dokunun", "Karaoke: düşük vokal. Yüksek vokal için dokunun", "Karaoke: yüksek vokal. Kapatmak için dokunun", "Karaoke kapatılıyor", "Karaoke hazırlığını iptal et", "Önce Spotify’da bir şarkı çalın.", "Karaoke için şarkıyı bu cihazda çalın.", "Karaoke için Spotify’ın çevrimdışı modunu kapatın.", "Spotify’da “Düşük” seviyesinden yüksek bir çalma kalitesi seçin.", "Bu Spotify sürümünde karaoke kullanılamıyor.", "Spotify şu anda bu şarkı için karaoke sunmuyor.", "Spotify bu hesap için karaokeyi etkinleştirmedi.", "Spotify bu şarkı için vokal azaltmayı hazırlayamadı.", "Karaoke hazırlığı çok uzun sürdü. Lütfen tekrar deneyin.", "Karaoke kapatılamadı. Yeniden denemek için tekrar dokunun.", "Karaoke başlatılamadı. Lütfen tekrar deneyin.", "Spotify karaoke kullanılabilirliği kontrol ediliyor."}
+        };
+        addRows(languages, keys, rows);
+    }
+
+    /** Provider failures shown to the user; the technical detail stays in the log. */
+    private static void addErrorMessageStrings(Map<String, Map<String, String>> languages) {
+        String[] keys = {
+                "error.api_key_required",
+                "error.ai_request_failed",
+                "error.keyless_none_enabled",
+                "error.provider_unexpected_response_format",
+                "error.provider_unavailable_format",
+                "error.provider_http_format"
+        };
+        String[][] rows = {
+                {"en", "An API key is required.", "The AI provider request failed.", "No translation-only provider is enabled.", "%s returned an unexpected response.", "%s is temporarily unavailable. Try again later.", "%s request failed (HTTP %d)."},
+                {"ko", "API 키가 필요합니다.", "AI 제공자 요청에 실패했습니다.", "활성화된 번역 전용 제공자가 없습니다.", "%s 응답 형식이 올바르지 않습니다.", "%s에 일시적으로 연결할 수 없습니다. 잠시 후 다시 시도하세요.", "%s 요청에 실패했습니다(HTTP %d)."},
+                {"zh-CN", "需要 API 密钥。", "AI 提供商请求失败。", "未启用仅用于翻译的提供商。", "%s 返回了无法识别的响应。", "%s 暂时不可用，请稍后重试。", "%s 请求失败（HTTP %d）。"},
+                {"zh-TW", "需要 API 金鑰。", "AI 供應商請求失敗。", "未啟用僅用於翻譯的供應商。", "%s 傳回了無法辨識的回應。", "%s 暫時無法使用，請稍後再試。", "%s 請求失敗（HTTP %d）。"},
+                {"ja", "APIキーが必要です。", "AI プロバイダーへのリクエストに失敗しました。", "有効な翻訳専用プロバイダーがありません。", "%s から予期しない応答が返されました。", "%s は一時的に利用できません。しばらくしてからもう一度お試しください。", "%s へのリクエストに失敗しました（HTTP %d）。"},
+                {"hi", "API कुंजी आवश्यक है।", "AI प्रदाता से अनुरोध विफल रहा।", "केवल अनुवाद वाला कोई प्रदाता चालू नहीं है।", "%s से अनपेक्षित जवाब मिला।", "%s अभी उपलब्ध नहीं है। कुछ देर बाद फिर से कोशिश करें।", "%s अनुरोध विफल रहा (HTTP %d)।"},
+                {"es", "Se necesita una clave API.", "Falló la solicitud al proveedor de IA.", "No hay ningún proveedor solo para traducción activado.", "%s devolvió una respuesta inesperada.", "%s no está disponible por ahora. Inténtalo más tarde.", "La solicitud a %s falló (HTTP %d)."},
+                {"fr", "Une clé API est requise.", "La requête au fournisseur IA a échoué.", "Aucun fournisseur dédié à la traduction n’est activé.", "%s a renvoyé une réponse inattendue.", "%s est temporairement indisponible. Réessayez plus tard.", "La requête vers %s a échoué (HTTP %d)."},
+                {"ar", "يلزم مفتاح API.", "فشل الطلب إلى موفر الذكاء الاصطناعي.", "لا يوجد موفّر مخصّص للترجمة مفعّل.", "أعاد %s استجابة غير متوقعة.", "تعذّر الوصول إلى %s مؤقتًا. حاول مرة أخرى لاحقًا.", "فشل الطلب إلى %s (HTTP %d)."},
+                {"fa", "کلید API لازم است.", "درخواست به ارائه‌دهنده هوش مصنوعی ناموفق بود.", "هیچ ارائه‌دهنده مخصوص ترجمه‌ای فعال نیست.", "%s پاسخ غیرمنتظره‌ای برگرداند.", "در حال حاضر دسترسی به %s ممکن نیست. بعداً دوباره تلاش کنید.", "درخواست به %s ناموفق بود (HTTP %d)."},
+                {"de", "Ein API-Schlüssel ist erforderlich.", "Die Anfrage an den KI-Anbieter ist fehlgeschlagen.", "Kein reiner Übersetzungsanbieter ist aktiviert.", "%s hat eine unerwartete Antwort geliefert.", "%s ist vorübergehend nicht verfügbar. Versuchen Sie es später erneut.", "Die Anfrage an %s ist fehlgeschlagen (HTTP %d)."},
+                {"ru", "Нужен API-ключ.", "Не удалось выполнить запрос к поставщику ИИ.", "Не включён ни один провайдер только для перевода.", "%s вернул неожиданный ответ.", "%s временно недоступен. Повторите попытку позже.", "Запрос к %s не выполнен (HTTP %d)."},
+                {"sv", "En API-nyckel krävs.", "Begäran till AI-leverantören misslyckades.", "Ingen leverantör endast för översättning är aktiverad.", "%s returnerade ett oväntat svar.", "%s är tillfälligt otillgängligt. Försök igen senare.", "Begäran till %s misslyckades (HTTP %d)."},
+                {"pt", "É necessária uma chave API.", "A solicitação ao provedor de IA falhou.", "Nenhum provedor exclusivo para tradução está ativado.", "%s retornou uma resposta inesperada.", "%s está temporariamente indisponível. Tente novamente mais tarde.", "A solicitação ao %s falhou (HTTP %d)."},
+                {"bn", "API কী প্রয়োজন।", "AI প্রদানকারীর কাছে অনুরোধ ব্যর্থ হয়েছে।", "শুধু অনুবাদের জন্য কোনো প্রদানকারী চালু নেই।", "%s থেকে অপ্রত্যাশিত উত্তর এসেছে।", "%s এখন সাময়িকভাবে উপলব্ধ নয়। পরে আবার চেষ্টা করুন।", "%s-এ অনুরোধ ব্যর্থ হয়েছে (HTTP %d)।"},
+                {"cs", "Je vyžadován klíč API.", "Požadavek na poskytovatele AI se nezdařil.", "Není zapnutý žádný poskytovatel pouze pro překlad.", "%s vrátil neočekávanou odpověď.", "%s je dočasně nedostupný. Zkuste to později.", "Požadavek na %s se nezdařil (HTTP %d)."},
+                {"it", "Serve una chiave API.", "La richiesta al provider IA non è riuscita.", "Nessun provider dedicato alla traduzione è attivo.", "%s ha restituito una risposta inattesa.", "%s non è temporaneamente disponibile. Riprova più tardi.", "La richiesta a %s non è riuscita (HTTP %d)."},
+                {"th", "ต้องใช้คีย์ API", "คำขอไปยังผู้ให้บริการ AI ล้มเหลว", "ยังไม่ได้เปิดใช้ผู้ให้บริการที่ใช้แปลเท่านั้น", "%s ส่งการตอบกลับที่ไม่คาดคิดกลับมา", "%s ใช้งานไม่ได้ชั่วคราว โปรดลองอีกครั้งในภายหลัง", "คำขอไปยัง %s ล้มเหลว (HTTP %d)"},
+                {"vi", "Cần có khóa API.", "Yêu cầu tới nhà cung cấp AI không thành công.", "Chưa bật nhà cung cấp chỉ dành cho dịch thuật nào.", "%s trả về phản hồi không mong muốn.", "%s tạm thời không khả dụng. Vui lòng thử lại sau.", "Yêu cầu tới %s không thành công (HTTP %d)."},
+                {"id", "Kunci API diperlukan.", "Permintaan ke penyedia AI gagal.", "Tidak ada penyedia khusus terjemahan yang diaktifkan.", "%s mengembalikan respons yang tidak terduga.", "%s untuk sementara tidak tersedia. Coba lagi nanti.", "Permintaan ke %s gagal (HTTP %d)."},
+                {"ms", "Kunci API diperlukan.", "Permintaan kepada penyedia AI gagal.", "Tiada penyedia khusus untuk terjemahan yang diaktifkan.", "%s memulangkan respons yang tidak dijangka.", "%s tidak tersedia buat sementara waktu. Cuba lagi kemudian.", "Permintaan kepada %s gagal (HTTP %d)."},
+                {"tr", "API anahtarı gerekiyor.", "AI sağlayıcısına yapılan istek başarısız oldu.", "Etkin bir yalnızca çeviri sağlayıcısı yok.", "%s beklenmeyen bir yanıt döndürdü.", "%s geçici olarak kullanılamıyor. Daha sonra tekrar deneyin.", "%s isteği başarısız oldu (HTTP %d)."}
+        };
+        addRows(languages, keys, rows);
+    }
+
+    /** Spoken labels and the names of Bluetooth audio devices that report no product name. */
+    private static void addAccessibilityLabelStrings(Map<String, Map<String, String>> languages) {
+        String[] keys = {
+                "accessibility.open_lyrics",
+                "accessibility.open_ivlyrics_lyrics",
+                "bluetooth_sync.device_ble_headset",
+                "bluetooth_sync.device_ble_speaker",
+                "bluetooth_sync.device_hearing_aid"
+        };
+        String[][] rows = {
+                {"en", "Open lyrics", "Open ivLyrics lyrics", "BLE headset", "BLE speaker", "Hearing aid"},
+                {"ko", "전체 가사 열기", "ivLyrics 가사 열기", "BLE 헤드셋", "BLE 스피커", "보청기"},
+                {"zh-CN", "打开歌词", "打开 ivLyrics 歌词", "BLE 耳机", "BLE 扬声器", "助听器"},
+                {"zh-TW", "開啟歌詞", "開啟 ivLyrics 歌詞", "BLE 耳機", "BLE 喇叭", "助聽器"},
+                {"ja", "歌詞を開く", "ivLyricsの歌詞を開く", "BLEヘッドセット", "BLEスピーカー", "補聴器"},
+                {"hi", "लिरिक्स खोलें", "ivLyrics में लिरिक्स खोलें", "BLE हेडसेट", "BLE स्पीकर", "श्रवण यंत्र"},
+                {"es", "Abrir letra", "Abrir la letra en ivLyrics", "Auriculares BLE", "Altavoz BLE", "Audífono"},
+                {"fr", "Ouvrir les paroles", "Ouvrir les paroles dans ivLyrics", "Casque BLE", "Enceinte BLE", "Appareil auditif"},
+                {"ar", "فتح كلمات الأغنية", "فتح كلمات الأغنية في ivLyrics", "سماعة رأس BLE", "مكبّر صوت BLE", "سماعة طبية"},
+                {"fa", "باز کردن متن ترانه", "باز کردن متن ترانه در ivLyrics", "هدست BLE", "بلندگوی BLE", "سمعک"},
+                {"de", "Songtext öffnen", "Songtext in ivLyrics öffnen", "BLE-Headset", "BLE-Lautsprecher", "Hörgerät"},
+                {"ru", "Открыть текст песни", "Открыть текст песни в ivLyrics", "Гарнитура BLE", "Колонка BLE", "Слуховой аппарат"},
+                {"sv", "Öppna låttext", "Öppna låttexten i ivLyrics", "BLE-headset", "BLE-högtalare", "Hörapparat"},
+                {"pt", "Abrir letra", "Abrir a letra no ivLyrics", "Fone de ouvido BLE", "Alto-falante BLE", "Aparelho auditivo"},
+                {"bn", "গানের কথা খুলুন", "ivLyrics-এ গানের কথা খুলুন", "BLE হেডসেট", "BLE স্পিকার", "শ্রবণযন্ত্র"},
+                {"cs", "Otevřít text písně", "Otevřít text písně v ivLyrics", "Náhlavní souprava BLE", "Reproduktor BLE", "Naslouchátko"},
+                {"it", "Apri il testo", "Apri il testo in ivLyrics", "Cuffie BLE", "Altoparlante BLE", "Apparecchio acustico"},
+                {"th", "เปิดเนื้อเพลง", "เปิดเนื้อเพลงใน ivLyrics", "ชุดหูฟัง BLE", "ลำโพง BLE", "เครื่องช่วยฟัง"},
+                {"vi", "Mở lời bài hát", "Mở lời bài hát trong ivLyrics", "Tai nghe BLE", "Loa BLE", "Máy trợ thính"},
+                {"id", "Buka lirik", "Buka lirik di ivLyrics", "Headset BLE", "Speaker BLE", "Alat bantu dengar"},
+                {"ms", "Buka lirik", "Buka lirik dalam ivLyrics", "Set kepala BLE", "Pembesar suara BLE", "Alat bantu pendengaran"},
+                {"tr", "Şarkı sözlerini aç", "Şarkı sözlerini ivLyrics’te aç", "BLE kulaklık", "BLE hoparlör", "İşitme cihazı"}
+        };
+        addRows(languages, keys, rows);
+    }
+
+    /** Strings of the redesigned settings screen (home menu list, search, sections, live preview). */
+    private static void addSettingsRedesignStrings(Map<String, Map<String, String>> languages) {
+        String[] navigation = {
+                "settings.back", "settings.theme_light", "settings.theme_dark", "settings.preview",
+                "settings.clear_search", "settings.group_sources", "settings.group_manage",
+                "settings.no_results_hint", "settings.result_count_format", "settings.shown_when_format"
+        };
+        String[][] navigationRows = {
+                {"ko", "뒤로", "라이트 모드로 전환", "다크 모드로 전환", "실시간 미리보기", "지우기", "소스", "관리",
+                        "다른 검색어를 입력해 보세요", "%d개의 결과", "%s 설정에 따라 표시됩니다"},
+                {"en", "Back", "Switch to light mode", "Switch to dark mode", "Live Preview", "Clear", "Sources", "Management",
+                        "Try different keywords", "Results: %d", "Shown depending on the %s setting"},
+                {"zh-CN", "返回", "切换到浅色模式", "切换到深色模式", "实时预览", "清除", "来源", "管理",
+                        "请尝试输入其他关键词", "%d 个结果", "根据“%s”设置显示"},
+                {"zh-TW", "返回", "切換到淺色模式", "切換到深色模式", "即時預覽", "清除", "來源", "管理",
+                        "請嘗試輸入其他關鍵字", "%d 個結果", "依「%s」設定顯示"},
+                {"ja", "戻る", "ライトモードに切り替え", "ダークモードに切り替え", "リアルタイムプレビュー", "クリア", "ソース", "管理",
+                        "別のキーワードで検索してみてください", "%d件の結果", "「%s」の設定に応じて表示されます"},
+                {"hi", "वापस", "लाइट मोड में बदलें", "डार्क मोड में बदलें", "लाइव पूर्वावलोकन", "साफ़ करें", "स्रोत", "प्रबंधन",
+                        "कुछ अलग खोजने का प्रयास करें", "%d परिणाम", "%s सेटिंग के अनुसार दिखाया जाता है"},
+                {"es", "Volver", "Cambiar a modo claro", "Cambiar a modo oscuro", "Vista previa en vivo", "Borrar", "Fuentes", "Gestión",
+                        "Intenta con otra palabra clave", "Resultados: %d", "Se muestra según el ajuste %s"},
+                {"fr", "Retour", "Passer en mode clair", "Passer en mode sombre", "Aperçu en direct", "Effacer", "Sources", "Gestion",
+                        "Essayez un autre terme de recherche", "Résultats : %d", "Affiché selon le réglage %s"},
+                {"ar", "رجوع", "التبديل إلى الوضع الفاتح", "التبديل إلى الوضع الداكن", "معاينة حية", "مسح", "المصادر", "الإدارة",
+                        "حاول البحث بكلمات أخرى", "النتائج: %d", "يظهر حسب إعداد %s"},
+                {"fa", "بازگشت", "تغییر به حالت روشن", "تغییر به حالت تیره", "پیش‌نمایش زنده", "پاک کردن", "منابع", "مدیریت",
+                        "عبارت دیگری را امتحان کنید", "%d نتیجه", "بسته به تنظیم %s نمایش داده می‌شود"},
+                {"de", "Zurück", "In den hellen Modus wechseln", "In den dunklen Modus wechseln", "Live-Vorschau", "Löschen", "Quellen",
+                        "Verwaltung", "Versuche einen anderen Suchbegriff", "Ergebnisse: %d",
+                        "Wird abhängig von der Einstellung %s angezeigt"},
+                {"ru", "Назад", "Переключить на светлую тему", "Переключить на тёмную тему", "Предпросмотр", "Очистить", "Источники",
+                        "Управление", "Попробуйте изменить поисковый запрос", "Найдено: %d",
+                        "Показывается в зависимости от настройки «%s»"},
+                {"sv", "Tillbaka", "Växla till ljust läge", "Växla till mörkt läge", "Liveförhandsvisning", "Rensa", "Källor", "Hantering",
+                        "Prova andra sökord", "%d resultat", "Visas beroende på inställningen %s"},
+                {"pt", "Voltar", "Alternar para o modo claro", "Alternar para o modo escuro", "Pré-visualização em tempo real", "Limpar",
+                        "Fontes", "Gerenciamento", "Tente digitar outra palavra-chave", "Resultados: %d",
+                        "Exibido de acordo com a configuração %s"},
+                {"bn", "ফিরে যান", "লাইট মোডে পরিবর্তন করুন", "ডার্ক মোডে পরিবর্তন করুন", "লাইভ প্রিভিউ", "মুছুন", "উৎস", "ব্যবস্থাপনা",
+                        "অন্য কোনো কীওয়ার্ড দিয়ে চেষ্টা করুন", "%dটি ফলাফল", "%s সেটিং অনুযায়ী দেখানো হয়"},
+                {"it", "Indietro", "Passa alla modalità chiara", "Passa alla modalità scura", "Anteprima in tempo reale", "Cancella",
+                        "Fonti", "Gestione", "Prova con una parola chiave diversa", "Risultati: %d",
+                        "Mostrato in base all’impostazione %s"},
+                {"th", "ย้อนกลับ", "สลับเป็นโหมดสว่าง", "สลับเป็นโหมดมืด", "ตัวอย่างแบบเรียลไทม์", "ล้าง", "แหล่งที่มา", "การจัดการ",
+                        "ลองใช้คำค้นหาอื่น", "%d ผลลัพธ์", "แสดงตามการตั้งค่า %s"},
+                {"vi", "Quay lại", "Chuyển sang chế độ sáng", "Chuyển sang chế độ tối", "Xem trước trực tiếp", "Xóa", "Nguồn", "Quản lý",
+                        "Hãy thử nhập từ khóa khác", "%d kết quả", "Hiển thị tùy theo cài đặt %s"},
+                {"id", "Kembali", "Beralih ke mode terang", "Beralih ke mode gelap", "Pratinjau langsung", "Hapus", "Sumber", "Pengelolaan",
+                        "Coba kata kunci lain", "%d hasil", "Ditampilkan sesuai pengaturan %s"},
+                {"ms", "Kembali", "Tukar ke mod cerah", "Tukar ke mod gelap", "Pratonton langsung", "Padam", "Sumber", "Pengurusan",
+                        "Cuba kata kunci lain", "%d keputusan", "Dipaparkan mengikut tetapan %s"},
+                {"tr", "Geri", "Açık temaya geç", "Koyu temaya geç", "Canlı önizleme", "Temizle", "Kaynaklar", "Yönetim",
+                        "Farklı anahtar kelimeler deneyin", "%d sonuç", "%s ayarına göre gösterilir"},
+                {"cs", "Zpět", "Přepnout na světlý režim", "Přepnout na tmavý režim", "Živý náhled", "Vymazat", "Zdroje", "Správa",
+                        "Zkuste jiná klíčová slova", "Nalezeno: %d", "Zobrazuje se podle nastavení %s"}
+        };
+        addRows(languages, navigation, navigationRows);
+
+        String[] sections = {
+                "settings.section.lyrics_display", "settings.section.lookup", "settings.section.lookup_desc",
+                "settings.section.connections", "settings.section.connections_desc", "settings.section.layout",
+                "settings.section.lyrics_screen", "settings.section.interlude", "settings.section.karaoke",
+                "settings.section.landscape"
+        };
+        String[][] sectionRows = {
+                {"ko", "가사 표시", "조회 순서", "가사를 찾을 때 어떤 기준을 먼저 볼지 정합니다.", "연결",
+                        "API 키와 모델처럼 제공자마다 필요한 연결 정보를 관리합니다.", "레이아웃", "가사 화면", "간주 표시",
+                        "노래방 모드", "가로 화면"},
+                {"en", "Lyrics Display", "Lookup Order", "Choose what to check first when looking for lyrics.", "Connections",
+                        "Manage the connection details each provider needs, such as API keys and models.", "Layout",
+                        "Lyrics Screen", "Interlude Markers", "Karaoke Mode", "Landscape"},
+                {"zh-CN", "歌词显示", "查找顺序", "设置查找歌词时优先依据的条件。", "连接", "管理每个提供者所需的连接信息，例如 API 密钥和模型。",
+                        "布局", "歌词界面", "间奏标记", "卡拉 OK 模式", "横屏"},
+                {"zh-TW", "歌詞顯示", "查找順序", "設定尋找歌詞時優先依據的條件。", "連線", "管理每個提供者所需的連線資訊，例如 API 金鑰與模型。",
+                        "版面", "歌詞畫面", "間奏標記", "卡拉 OK 模式", "橫向畫面"},
+                {"ja", "歌詞の表示", "検索順序", "歌詞を探すときに、どの条件を優先するかを決めます。", "接続",
+                        "APIキーやモデルなど、プロバイダーごとに必要な接続情報を管理します。", "レイアウト", "歌詞画面", "間奏表示",
+                        "カラオケモード", "横画面"},
+                {"hi", "लिरिक्स प्रदर्शन", "खोज का क्रम", "चुनें कि बोल खोजते समय पहले क्या देखा जाए।", "कनेक्शन",
+                        "हर प्रदाता के लिए ज़रूरी कनेक्शन जानकारी, जैसे API कुंजी और मॉडल, प्रबंधित करें।", "लेआउट", "लिरिक्स स्क्रीन",
+                        "इंटरल्यूड संकेत", "कराओके मोड", "लैंडस्केप"},
+                {"es", "Visualización de la letra", "Orden de búsqueda", "Elige qué comprobar primero al buscar la letra.", "Conexiones",
+                        "Gestiona los datos de conexión que necesita cada proveedor, como claves de API y modelos.", "Diseño",
+                        "Pantalla de letras", "Marcadores de interludio", "Modo karaoke", "Pantalla horizontal"},
+                {"fr", "Affichage des paroles", "Ordre de recherche",
+                        "Choisissez ce qui est vérifié en premier lors de la recherche des paroles.", "Connexions",
+                        "Gérez les informations de connexion de chaque fournisseur, comme les clés API et les modèles.", "Disposition",
+                        "Écran des paroles", "Repères d’interlude", "Mode karaoké", "Mode paysage"},
+                {"ar", "عرض الكلمات", "ترتيب البحث", "اختر ما يُفحص أولًا عند البحث عن كلمات الأغنية.", "الاتصالات",
+                        "أدِر بيانات الاتصال التي يحتاجها كل موفّر، مثل مفاتيح API والنماذج.", "التخطيط", "شاشة الكلمات",
+                        "علامات الفواصل", "وضع الكاريوكي", "الوضع الأفقي"},
+                {"fa", "نمایش متن ترانه", "ترتیب جست‌وجو", "مشخص کنید هنگام جست‌وجوی متن ترانه، اول چه چیزی بررسی شود.", "اتصال‌ها",
+                        "اطلاعات اتصالی را که هر ارائه‌دهنده لازم دارد، مانند کلید API و مدل، مدیریت کنید.", "طرح‌بندی", "نمای متن ترانه",
+                        "نشانگر میان‌آهنگ", "حالت کارائوکه", "حالت افقی"},
+                {"de", "Liedtext-Anzeige", "Suchreihenfolge", "Lege fest, was bei der Liedtextsuche zuerst geprüft wird.", "Verbindungen",
+                        "Verwalte die Verbindungsdaten, die jeder Anbieter braucht, etwa API-Schlüssel und Modelle.", "Layout",
+                        "Liedtext-Bildschirm", "Zwischenspiel-Markierung", "Karaoke-Modus", "Querformat"},
+                {"ru", "Отображение текста", "Порядок поиска", "Выберите, что проверять в первую очередь при поиске текста.", "Подключения",
+                        "Управляйте данными подключения для каждого провайдера, например API-ключами и моделями.", "Макет",
+                        "Экран текста", "Метки интерлюдий", "Режим караоке", "Альбомная ориентация"},
+                {"sv", "Textvisning", "Sökordning", "Välj vad som ska kontrolleras först när låttexten söks.", "Anslutningar",
+                        "Hantera anslutningsuppgifterna som varje leverantör behöver, till exempel API-nycklar och modeller.", "Layout",
+                        "Textskärm", "Mellanspelsmarkeringar", "Karaokeläge", "Liggande läge"},
+                {"pt", "Exibição da letra", "Ordem de busca", "Escolha o que verificar primeiro ao procurar a letra.", "Conexões",
+                        "Gerencie os dados de conexão de cada provedor, como chaves de API e modelos.", "Layout", "Tela de letras",
+                        "Marcadores de interlúdio", "Modo karaokê", "Tela horizontal"},
+                {"bn", "লিরিক্স প্রদর্শন", "খোঁজার ক্রম", "লিরিক খোঁজার সময় আগে কী দেখা হবে তা বেছে নিন।", "সংযোগ",
+                        "প্রতিটি প্রদানকারীর দরকারি সংযোগ তথ্য, যেমন API কী ও মডেল, পরিচালনা করুন।", "লেআউট", "লিরিক্স স্ক্রিন",
+                        "ইন্টারলিউড চিহ্ন", "কারাওকে মোড", "আড়াআড়ি স্ক্রিন"},
+                {"it", "Visualizzazione del testo", "Ordine di ricerca", "Scegli cosa controllare per primo quando si cerca il testo.",
+                        "Connessioni", "Gestisci i dati di connessione richiesti da ogni fornitore, come chiavi API e modelli.", "Layout",
+                        "Schermata del testo", "Indicatori di interludio", "Modalità karaoke", "Schermo orizzontale"},
+                {"th", "การแสดงเนื้อเพลง", "ลำดับการค้นหา", "เลือกว่าจะตรวจสอบอะไรก่อนเมื่อค้นหาเนื้อเพลง", "การเชื่อมต่อ",
+                        "จัดการข้อมูลการเชื่อมต่อที่ผู้ให้บริการแต่ละรายต้องใช้ เช่น คีย์ API และโมเดล", "เค้าโครง", "หน้าจอเนื้อเพลง",
+                        "ตัวบ่งชี้อินเทอร์ลูด", "โหมดคาราโอเกะ", "หน้าจอแนวนอน"},
+                {"vi", "Hiển thị lời bài hát", "Thứ tự tìm kiếm", "Chọn điều cần kiểm tra trước khi tìm lời bài hát.", "Kết nối",
+                        "Quản lý thông tin kết nối mà mỗi nhà cung cấp cần, như khóa API và mô hình.", "Bố cục",
+                        "Màn hình lời bài hát", "Dấu đoạn dạo", "Chế độ karaoke", "Màn hình ngang"},
+                {"id", "Tampilan lirik", "Urutan pencarian", "Pilih apa yang diperiksa lebih dulu saat mencari lirik.", "Koneksi",
+                        "Kelola detail koneksi yang dibutuhkan tiap penyedia, seperti kunci API dan model.", "Tata letak", "Layar lirik",
+                        "Penanda selingan", "Mode karaoke", "Layar lanskap"},
+                {"ms", "Paparan lirik", "Susunan carian", "Pilih perkara yang disemak dahulu semasa mencari lirik.", "Sambungan",
+                        "Urus butiran sambungan yang diperlukan setiap penyedia, seperti kunci API dan model.", "Susun atur",
+                        "Skrin lirik", "Penanda selingan", "Mod karaoke", "Skrin landskap"},
+                {"tr", "Söz görünümü", "Arama sırası", "Şarkı sözü ararken önce neye bakılacağını seçin.", "Bağlantılar",
+                        "Her sağlayıcının ihtiyaç duyduğu API anahtarı ve model gibi bağlantı bilgilerini yönetin.", "Düzen",
+                        "Söz ekranı", "Ara işaretleri", "Karaoke modu", "Yatay ekran"},
+                {"cs", "Zobrazení textu", "Pořadí vyhledávání", "Zvolte, co se má při hledání textu ověřit nejdřív.", "Připojení",
+                        "Spravujte údaje pro připojení každého poskytovatele, například klíče API a modely.", "Rozložení",
+                        "Obrazovka s textem", "Značky mezihry", "Režim karaoke", "Na šířku"}
+        };
+        addRows(languages, sections, sectionRows);
+
+        String[] controls = {
+                "settings.typography_main", "settings.typography_lyrics", "settings.annotation_standard", "settings.owner_none",
+                "settings.show_secret", "settings.hide_secret", "settings.confirm_irreversible"
+        };
+        String[][] controlRows = {
+                {"ko", "메인 화면", "가사 페이지", "일반", "없음", "보기", "숨기기", "이 작업은 되돌릴 수 없습니다."},
+                {"en", "Main player", "Lyrics page", "Standard", "None", "Show", "Hide", "This can't be undone."},
+                {"zh-CN", "主屏幕", "歌词页面", "标准", "无", "显示", "隐藏", "此操作无法撤销。"},
+                {"zh-TW", "主畫面", "歌詞頁面", "標準", "無", "顯示", "隱藏", "此操作無法復原。"},
+                {"ja", "メイン画面", "歌詞ページ", "標準", "なし", "表示", "非表示", "この操作は元に戻せません。"},
+                {"hi", "मुख्य प्लेयर", "गीत पृष्ठ", "मानक", "कोई नहीं", "दिखाएँ", "छिपाएँ", "इस कार्रवाई को पूर्ववत नहीं किया जा सकता।"},
+                {"es", "Reproductor principal", "Página de letras", "Estándar", "Ninguno", "Mostrar", "Ocultar",
+                        "Esta acción no se puede deshacer."},
+                {"fr", "Lecteur principal", "Page de paroles", "Standard", "Aucun", "Afficher", "Masquer", "Cette action est irréversible."},
+                {"ar", "المشغل الرئيسي", "صفحة الكلمات", "قياسي", "لا يوجد", "إظهار", "إخفاء", "لا يمكن التراجع عن هذا الإجراء."},
+                {"fa", "پخش‌کننده اصلی", "صفحه متن آهنگ", "استاندارد", "هیچ", "نمایش", "پنهان کردن", "این کار قابل بازگشت نیست."},
+                {"de", "Hauptplayer", "Liedtextseite", "Standard", "Keiner", "Anzeigen", "Ausblenden",
+                        "Das kann nicht rückgängig gemacht werden."},
+                {"ru", "Главный плеер", "Страница текста", "Обычный", "Нет", "Показать", "Скрыть", "Это действие нельзя отменить."},
+                {"sv", "Huvudspelare", "Textsida", "Standard", "Ingen", "Visa", "Dölj", "Det här går inte att ångra."},
+                {"pt", "Player principal", "Página de letras", "Padrão", "Nenhum", "Mostrar", "Ocultar", "Esta ação não pode ser desfeita."},
+                {"bn", "মেইন প্লেয়ার", "লিরিক্স পেজ", "স্ট্যান্ডার্ড", "নেই", "দেখান", "লুকান", "এই কাজটি আর ফেরানো যাবে না।"},
+                {"it", "Player principale", "Pagina testi", "Standard", "Nessuno", "Mostra", "Nascondi",
+                        "Questa azione non può essere annullata."},
+                {"th", "หน้าหลัก", "หน้าเนื้อเพลง", "มาตรฐาน", "ไม่มี", "แสดง", "ซ่อน", "การดำเนินการนี้ไม่สามารถย้อนกลับได้"},
+                {"vi", "Màn hình chính", "Trang lời bài hát", "Tiêu chuẩn", "Không có", "Hiện", "Ẩn", "Không thể hoàn tác thao tác này."},
+                {"id", "Pemutar utama", "Halaman lirik", "Standar", "Tidak ada", "Tampilkan", "Sembunyikan",
+                        "Tindakan ini tidak dapat dibatalkan."},
+                {"ms", "Pemain utama", "Halaman lirik", "Standard", "Tiada", "Tunjukkan", "Sembunyikan",
+                        "Tindakan ini tidak boleh dibuat asal."},
+                {"tr", "Ana oynatıcı", "Söz sayfası", "Standart", "Hiçbiri", "Göster", "Gizle", "Bu işlem geri alınamaz."},
+                {"cs", "Hlavní přehrávač", "Stránka s texty", "Standardní", "Žádný", "Zobrazit", "Skrýt", "Tuto akci nelze vrátit zpět."}
+        };
+        addRows(languages, controls, controlRows);
+
+        // The preview's sample song is Japanese; these are its translation lines and a sample cultural note.
+        String[] preview = {"settings.preview_translation_1", "settings.preview_translation_2", "settings.preview_annotation"};
+        String[][] previewRows = {
+                {"ko", "너의 목소리가 들려", "내일도 분명 맑을 테니까",
+                        "‘夜空(밤하늘)’은 일본 가사에서 닿을 수 없는 그리움이나 동경을 나타낼 때 자주 쓰이는 표현입니다."},
+                {"en", "I can hear your voice", "Because tomorrow will surely be clear too",
+                        "In Japanese lyrics, ‘夜空’ (night sky) often expresses a longing that can never be reached."},
+                {"zh-CN", "我听见你的声音", "因为明天一定也会放晴", "在日语歌词中，“夜空”常用来表达遥不可及的思念或憧憬。"},
+                {"zh-TW", "我聽見你的聲音", "因為明天一定也會放晴", "在日文歌詞中，「夜空」常用來表達遙不可及的思念或憧憬。"},
+                {"ja", "あなたの声が聞こえる", "明日もきっと晴れるはずだから",
+                        "「夜空」は日本の歌詞で、届かない想いや憧れを表すときによく使われる表現です。"},
+                {"hi", "मुझे तुम्हारी आवाज़ सुनाई देती है", "क्योंकि कल भी ज़रूर धूप खिलेगी",
+                        "जापानी गीतों में ‘夜空’ (रात का आसमान) अक्सर ऐसी चाहत या लालसा दिखाता है जो पहुँच से बाहर हो।"},
+                {"es", "Puedo oír tu voz", "Porque mañana seguro también saldrá el sol",
+                        "En las letras japonesas, ‘夜空’ (cielo nocturno) suele expresar una añoranza o un anhelo inalcanzable."},
+                {"fr", "J’entends ta voix", "Car demain aussi, le ciel sera sûrement dégagé",
+                        "Dans les paroles japonaises, « 夜空 » (ciel nocturne) exprime souvent une nostalgie ou un désir inaccessible."},
+                {"ar", "أسمع صوتك", "لأن الغد سيكون صافيًا بالتأكيد أيضًا",
+                        "في الأغاني اليابانية، كثيرًا ما تعبّر كلمة ‘夜空’ (سماء الليل) عن حنين أو شوق بعيد المنال."},
+                {"fa", "صدایت را می‌شنوم", "چون فردا هم حتماً هوا صاف است",
+                        "در ترانه‌های ژاپنی، ‘夜空’ (آسمان شب) اغلب دلتنگی یا آرزویی دست‌نیافتنی را بیان می‌کند."},
+                {"de", "Ich höre deine Stimme", "Denn auch morgen wird es sicher klar sein",
+                        "In japanischen Liedtexten steht ‘夜空’ (Nachthimmel) oft für eine unerreichbare Sehnsucht."},
+                {"ru", "Я слышу твой голос", "Ведь и завтра наверняка будет ясно",
+                        "В японских песнях «夜空» (ночное небо) часто выражает недостижимую тоску или мечту."},
+                {"sv", "Jag hör din röst", "För i morgon blir det säkert klart igen",
+                        "I japanska låttexter uttrycker ‘夜空’ (natthimmel) ofta en längtan som aldrig går att nå."},
+                {"pt", "Eu ouço a sua voz", "Porque amanhã com certeza também vai fazer sol",
+                        "Nas letras japonesas, ‘夜空’ (céu noturno) costuma expressar uma saudade ou um anseio inalcançável."},
+                {"bn", "তোমার কণ্ঠ শুনতে পাই", "কারণ কালও নিশ্চয়ই আকাশ পরিষ্কার থাকবে",
+                        "জাপানি গানে ‘夜空’ (রাতের আকাশ) প্রায়ই নাগালের বাইরে থাকা আকুলতা বা আকাঙ্ক্ষা বোঝায়।"},
+                {"it", "Sento la tua voce", "Perché anche domani sarà sicuramente sereno",
+                        "Nei testi giapponesi, ‘夜空’ (cielo notturno) esprime spesso una nostalgia o un desiderio irraggiungibile."},
+                {"th", "ฉันได้ยินเสียงของเธอ", "เพราะพรุ่งนี้ฟ้าก็คงแจ่มใสแน่นอน",
+                        "ในเนื้อเพลงญี่ปุ่น ‘夜空’ (ท้องฟ้ายามค่ำคืน) มักใช้สื่อถึงความคิดถึงหรือความใฝ่ฝันที่เอื้อมไม่ถึง"},
+                {"vi", "Tôi nghe thấy giọng của bạn", "Vì ngày mai chắc chắn trời cũng sẽ quang đãng",
+                        "Trong lời bài hát tiếng Nhật, ‘夜空’ (bầu trời đêm) thường diễn tả nỗi nhớ hay khát khao không thể chạm tới."},
+                {"id", "Aku mendengar suaramu", "Karena besok pasti cerah juga",
+                        "Dalam lirik Jepang, ‘夜空’ (langit malam) sering menggambarkan kerinduan atau dambaan yang tak tergapai."},
+                {"ms", "Aku dengar suaramu", "Kerana esok pasti cerah juga",
+                        "Dalam lirik Jepun, ‘夜空’ (langit malam) sering menggambarkan kerinduan atau impian yang tidak tercapai."},
+                {"tr", "Sesini duyabiliyorum", "Çünkü yarın da mutlaka hava açık olacak",
+                        "Japonca şarkı sözlerinde ‘夜空’ (gece gökyüzü) çoğu zaman ulaşılamayan bir özlemi anlatır."},
+                {"cs", "Slyším tvůj hlas", "Protože i zítra bude určitě jasno",
+                        "V japonských textech ‘夜空’ (noční obloha) často vyjadřuje nedosažitelnou touhu nebo stesk."}
+        };
+        addRows(languages, preview, previewRows);
+
+        // Existing labels the new home list and provider cards show prominently; a few were mistranslated.
+        applyTranslationOverrides(languages, "de", new String[]{"tab.display", "Anzeige"});
+        applyTranslationOverrides(languages, "zh-TW", new String[]{"tab.display", "顯示"});
+        applyTranslationOverrides(languages, "sv", new String[]{"tab.display", "Visning", "button.close", "Stäng"});
+        applyTranslationOverrides(languages, "pt", new String[]{"tab.display", "Exibição", "label.on", "Ligado"});
+        applyTranslationOverrides(languages, "tr", new String[]{"tab.display", "Ekran"});
+        applyTranslationOverrides(languages, "id", new String[]{"tab.display", "Layar"});
+        applyTranslationOverrides(languages, "th", new String[]{"tab.display", "การแสดงผล"});
+        applyTranslationOverrides(languages, "fr", new String[]{"label.on", "Activé"});
+        applyTranslationOverrides(languages, "it", new String[]{"label.on", "Acceso"});
+        applyTranslationOverrides(languages, "bn", new String[]{"label.on", "চালু", "label.off", "বন্ধ"});
+        applyTranslationOverrides(languages, "ms", new String[]{"settings.title", "Tetapan", "button.close", "Tutup"});
+        applyTranslationOverrides(languages, "ar", new String[]{"button.close", "إغلاق"});
+    }
+
+    /** Adds keys translated row by row, {language, value...}; every UI language needs its own row. */
+    private static void addRows(Map<String, Map<String, String>> languages, String[] keys, String[][] rows) {
+        for (String[] row : rows) {
+            if (row.length != keys.length + 1) {
+                throw new IllegalStateException("Invalid translation row: " + row[0] + " " + keys[0]);
+            }
+            Map<String, String> copy = new LinkedHashMap<>(languages.get(row[0]));
+            for (int index = 0; index < keys.length; index++) {
+                copy.put(keys[index], row[index + 1]);
+            }
+            languages.put(row[0], Collections.unmodifiableMap(copy));
+        }
+    }
+
+    private static void addLyricsRegenerateStrings(Map<String, Map<String, String>> languages) {
+        String[][] rows = {
+                {"ko", "번역·발음 재생성"},
+                {"en", "Regenerate translation & pronunciation"},
+                {"zh-CN", "重新生成翻译和发音"},
+                {"zh-TW", "重新產生翻譯與發音"},
+                {"ja", "翻訳・発音を再生成"},
+                {"hi", "अनुवाद और उच्चारण दोबारा बनाएँ"},
+                {"es", "Regenerar traducción y pronunciación"},
+                {"fr", "Régénérer la traduction et la prononciation"},
+                {"ar", "إعادة إنشاء الترجمة والنطق"},
+                {"fa", "تولید دوبارهٔ ترجمه و تلفظ"},
+                {"de", "Übersetzung und Aussprache neu erstellen"},
+                {"ru", "Создать перевод и произношение заново"},
+                {"sv", "Skapa översättning och uttal på nytt"},
+                {"pt", "Regenerar tradução e pronúncia"},
+                {"bn", "অনুবাদ ও উচ্চারণ আবার তৈরি করুন"},
+                {"cs", "Znovu vytvořit překlad a výslovnost"},
+                {"it", "Rigenera traduzione e pronuncia"},
+                {"th", "สร้างคำแปลและคำอ่านใหม่"},
+                {"vi", "Tạo lại bản dịch và cách phát âm"},
+                {"id", "Buat ulang terjemahan dan pelafalan"},
+                {"ms", "Jana semula terjemahan dan sebutan"},
+                {"tr", "Çeviri ve telaffuzu yeniden oluştur"}
+        };
+        for (String[] row : rows) {
+            Map<String, String> copy = new LinkedHashMap<>(languages.get(row[0]));
+            copy.put("lyrics.regenerate_supplements", row[1]);
+            languages.put(row[0], Collections.unmodifiableMap(copy));
+        }
+    }
+
+    private static void addVinylControlStrings(Map<String, Map<String, String>> languages) {
+        String[] keys = {"vinyl.track_changes", "vinyl.track_changes_desc", "vinyl.rotation_speed", "vinyl.rotation_speed_desc", "vinyl.simple_title", "vinyl.simple_title_desc"};
+        String[][] rows = {
+                {"en", "Animate track changes", "Animate the sleeve and record when changing tracks. Record spinning stays independent.", "Record rotation speed", "100% keeps the original speed: one revolution every 40 seconds.", "Simplify LP titles", "Remove version and featured-artist qualifiers from the record label."},
+                {"ko", "곡 변경 애니메이션", "곡이 바뀔 때 앨범과 레코드를 움직입니다. 레코드 회전과는 별개입니다.", "레코드 회전 속도", "100%는 기존 속도입니다. 40초에 한 바퀴 회전합니다.", "LP 제목 간소화", "레코드 라벨에서 버전이나 피처링 정보를 뺍니다."},
+                {"zh-CN", "切歌动画", "切换歌曲时移动封套和唱片，与唱片旋转无关。", "唱片旋转速度", "100% 保持原来的速度：每 40 秒转一圈。", "简化 LP 标题", "从唱片标签中移除版本和客串歌手信息。"},
+                {"zh-TW", "切歌動畫", "切換歌曲時移動封套和唱片，與唱片旋轉無關。", "唱片旋轉速度", "100% 保持原來的速度：每 40 秒轉一圈。", "簡化 LP 標題", "從唱片標籤中移除版本和客串歌手資訊。"},
+                {"ja", "曲変更のアニメーション", "曲の変更時にジャケットとレコードを動かします。回転とは別の設定です。", "レコードの回転速度", "100% は従来の速度です。40秒で1周します。", "LPのタイトルを簡略化", "レコードのラベルからバージョンや参加アーティストの情報を省きます。"},
+                {"hi", "गाना बदलने का ऐनिमेशन", "गाना बदलते समय कवर और रिकॉर्ड को हिलाएँ। रिकॉर्ड का घूमना अलग रहता है।", "रिकॉर्ड घूमने की गति", "100% पर पुरानी गति रहती है: हर 40 सेकंड में एक चक्कर।", "LP के शीर्षक छोटे करें", "रिकॉर्ड लेबल से संस्करण और अतिथि कलाकार की जानकारी हटाएँ।"},
+                {"es", "Animar cambios de canción", "Anima la funda y el disco al cambiar de canción. El giro del disco es independiente.", "Velocidad de giro del disco", "100% mantiene la velocidad original: una vuelta cada 40 segundos.", "Simplificar títulos del LP", "Quita la versión y los artistas invitados de la etiqueta del disco."},
+                {"fr", "Animer les changements de titre", "Anime la pochette et le disque au changement de titre. La rotation reste indépendante.", "Vitesse de rotation du disque", "100% conserve la vitesse d’origine : un tour toutes les 40 secondes.", "Simplifier les titres du LP", "Retire les mentions de version et d’artistes invités de l’étiquette."},
+                {"ar", "تحريك تغيير الأغنية", "تحريك الغلاف والأسطوانة عند تغيير الأغنية. دوران الأسطوانة مستقل.", "سرعة دوران الأسطوانة", "100% تحافظ على السرعة الأصلية: دورة كل 40 ثانية.", "تبسيط عناوين LP", "إزالة معلومات النسخة والفنانين الضيوف من ملصق الأسطوانة."},
+                {"fa", "پویانمایی تغییر آهنگ", "هنگام تغییر آهنگ، جلد و صفحه حرکت کنند. چرخش صفحه مستقل است.", "سرعت چرخش صفحه", "100% سرعت اصلی را نگه می‌دارد: یک دور در هر 40 ثانیه.", "ساده‌سازی عنوان‌های LP", "اطلاعات نسخه و هنرمندان مهمان را از برچسب صفحه حذف می‌کند."},
+                {"de", "Titelwechsel animieren", "Hülle und Platte beim Titelwechsel bewegen. Die Drehung bleibt unabhängig.", "Drehgeschwindigkeit der Platte", "100% behält das ursprüngliche Tempo: eine Umdrehung in 40 Sekunden.", "LP-Titel vereinfachen", "Versionsangaben und Gastkünstler vom Plattenlabel entfernen."},
+                {"ru", "Анимация смены трека", "Движение конверта и пластинки при смене трека. Вращение настраивается отдельно.", "Скорость вращения пластинки", "100% сохраняет прежнюю скорость: один оборот за 40 секунд.", "Упрощать названия на LP", "Убирать сведения о версии и приглашённых артистах с этикетки."},
+                {"sv", "Animera låtbyten", "Animera omslaget och skivan vid låtbyte. Skivans rotation är oberoende.", "Skivans rotationshastighet", "100% behåller ursprunglig hastighet: ett varv på 40 sekunder.", "Förenkla LP-titlar", "Ta bort versionsuppgifter och gästartister från skivans etikett."},
+                {"pt", "Animar mudanças de faixa", "Anima a capa e o disco ao mudar de faixa. A rotação é independente.", "Velocidade de rotação do disco", "100% mantém a velocidade original: uma volta a cada 40 segundos.", "Simplificar títulos do LP", "Remove informações de versão e artistas convidados do rótulo do disco."},
+                {"bn", "গান বদলের অ্যানিমেশন", "গান বদলালে কভার ও রেকর্ড নড়বে। রেকর্ডের ঘূর্ণন আলাদা থাকে।", "রেকর্ড ঘোরার গতি", "100% আগের গতি রাখে: প্রতি 40 সেকেন্ডে একবার ঘোরে।", "LP-এর শিরোনাম সহজ করুন", "রেকর্ডের লেবেল থেকে সংস্করণ ও অতিথি শিল্পীর তথ্য সরান।"},
+                {"cs", "Animovat změny skladeb", "Pohyb obalu a desky při změně skladby. Otáčení desky zůstává nezávislé.", "Rychlost otáčení desky", "100% zachovává původní rychlost: jedna otáčka za 40 sekund.", "Zjednodušit názvy na LP", "Odstranit z etikety údaje o verzi a hostujících interpretech."},
+                {"it", "Animare i cambi di brano", "Anima la copertina e il disco al cambio di brano. La rotazione resta indipendente.", "Velocità di rotazione del disco", "100% mantiene la velocità originale: un giro ogni 40 secondi.", "Semplifica i titoli del LP", "Rimuove versione e artisti ospiti dall’etichetta del disco."},
+                {"th", "ภาพเคลื่อนไหวเมื่อเปลี่ยนเพลง", "ขยับปกและแผ่นเมื่อเปลี่ยนเพลง การหมุนแผ่นตั้งค่าแยกกัน", "ความเร็วการหมุนแผ่น", "100% ใช้ความเร็วเดิม คือหนึ่งรอบทุก 40 วินาที", "ย่อชื่อเพลงใน LP", "ตัดข้อมูลเวอร์ชันและศิลปินรับเชิญออกจากฉลากแผ่น"},
+                {"vi", "Chuyển động khi đổi bài", "Di chuyển bìa và đĩa khi đổi bài. Việc quay đĩa được điều khiển riêng.", "Tốc độ quay đĩa", "100% giữ tốc độ ban đầu: một vòng mỗi 40 giây.", "Rút gọn tên bài trên LP", "Bỏ thông tin phiên bản và nghệ sĩ khách mời khỏi nhãn đĩa."},
+                {"id", "Animasi pergantian lagu", "Gerakkan sampul dan piringan saat mengganti lagu. Putaran piringan tetap terpisah.", "Kecepatan putaran piringan", "100% mempertahankan kecepatan awal: satu putaran setiap 40 detik.", "Sederhanakan judul LP", "Hapus keterangan versi dan artis tamu dari label piringan."},
+                {"ms", "Animasi pertukaran lagu", "Gerakkan kulit dan rekod semasa bertukar lagu. Putaran rekod kekal berasingan.", "Kelajuan putaran rekod", "100% mengekalkan kelajuan asal: satu putaran setiap 40 saat.", "Ringkaskan tajuk LP", "Buang maklumat versi dan artis jemputan daripada label rekod."},
+                {"tr", "Parça geçişlerini canlandır", "Parça değişince kılıfı ve plağı hareket ettir. Plak dönüşü bağımsız kalır.", "Plak dönüş hızı", "100% özgün hızı korur: her 40 saniyede bir tur.", "LP başlıklarını sadeleştir", "Plak etiketinden sürüm ve konuk sanatçı bilgilerini kaldır."}
+        };
+        for (String[] row : rows) {
+            Map<String, String> copy = new LinkedHashMap<>(languages.get(row[0]));
+            for (int index = 0; index < keys.length; index++) copy.put(keys[index], row[index + 1]);
+            languages.put(row[0], Collections.unmodifiableMap(copy));
+        }
+    }
+
+    private static void addAlbumArtLpStrings(Map<String, Map<String, String>> languages) {
+        String[][] rows = {
+                {"en", "Open LP mode by tapping album artwork", "Tap the album cover to open LP mode. Turn off to prevent accidental entry."},
+                {"ko", "앨범 아트를 탭하여 LP 모드 열기", "앨범 커버를 탭하면 LP 모드를 엽니다. 실수로 진입하지 않으려면 끄세요."},
+                {"zh-CN", "点击专辑封面打开 LP 模式", "点击专辑封面即可打开 LP 模式。关闭此选项可避免误触进入。"},
+                {"zh-TW", "點選專輯封面開啟 LP 模式", "點選專輯封面即可開啟 LP 模式。關閉此選項可避免誤觸進入。"},
+                {"ja", "アルバムアートをタップしてLPモードを開く", "アルバムカバーをタップするとLPモードを開きます。誤って開かないようにするにはオフにしてください。"},
+                {"hi", "एल्बम कवर पर टैप करके LP मोड खोलें", "LP मोड खोलने के लिए एल्बम कवर पर टैप करें। गलती से खुलने से बचने के लिए इसे बंद करें।"},
+                {"es", "Abrir el modo LP al tocar la portada", "Toca la portada del álbum para abrir el modo LP. Desactívalo para evitar abrirlo por accidente."},
+                {"fr", "Ouvrir le mode LP en touchant la pochette", "Touchez la pochette de l’album pour ouvrir le mode LP. Désactivez cette option pour éviter de l’ouvrir par erreur."},
+                {"ar", "فتح وضع LP بالنقر على غلاف الألبوم", "انقر على غلاف الألبوم لفتح وضع LP. عطّل هذا الخيار لتجنب فتحه بالخطأ."},
+                {"fa", "باز کردن حالت LP با لمس جلد آلبوم", "برای باز کردن حالت LP، جلد آلبوم را لمس کنید. برای جلوگیری از ورود تصادفی، این گزینه را خاموش کنید."},
+                {"de", "LP-Modus durch Tippen auf das Albumcover öffnen", "Tippe auf das Albumcover, um den LP-Modus zu öffnen. Deaktiviere dies, um ein versehentliches Öffnen zu verhindern."},
+                {"ru", "Открывать режим LP нажатием на обложку", "Нажмите на обложку альбома, чтобы открыть режим LP. Отключите, чтобы не открывать его случайно."},
+                {"sv", "Öppna LP-läget genom att trycka på skivomslaget", "Tryck på skivomslaget för att öppna LP-läget. Stäng av för att undvika att öppna det av misstag."},
+                {"pt", "Abrir o modo LP ao tocar na capa do álbum", "Toque na capa do álbum para abrir o modo LP. Desative para evitar abri-lo por engano."},
+                {"bn", "অ্যালবামের কভারে ট্যাপ করে LP মোড খুলুন", "LP মোড খুলতে অ্যালবামের কভারে ট্যাপ করুন। ভুল করে খুলে যাওয়া এড়াতে এটি বন্ধ করুন।"},
+                {"cs", "Otevřít režim LP klepnutím na obal alba", "Klepnutím na obal alba otevřete režim LP. Vypněte tuto možnost, abyste jej neotevřeli omylem."},
+                {"it", "Apri la modalità LP toccando la copertina", "Tocca la copertina dell’album per aprire la modalità LP. Disattiva per evitare di aprirla per errore."},
+                {"th", "เปิดโหมด LP เมื่อแตะปกอัลบั้ม", "แตะปกอัลบั้มเพื่อเปิดโหมด LP ปิดตัวเลือกนี้เพื่อป้องกันการเปิดโดยไม่ตั้งใจ"},
+                {"vi", "Mở chế độ LP khi chạm vào bìa album", "Chạm vào bìa album để mở chế độ LP. Tắt để tránh vô tình mở chế độ này."},
+                {"id", "Buka mode LP dengan mengetuk sampul album", "Ketuk sampul album untuk membuka mode LP. Nonaktifkan agar tidak terbuka tanpa sengaja."},
+                {"ms", "Buka mod LP dengan mengetik kulit album", "Ketik kulit album untuk membuka mod LP. Matikan untuk mengelakkannya dibuka secara tidak sengaja."},
+                {"tr", "Albüm kapağına dokunarak LP modunu aç", "LP modunu açmak için albüm kapağına dokun. Yanlışlıkla açılmasını önlemek için bu seçeneği kapat."}
+        };
+        for (String[] row : rows) {
+            applyTranslationOverrides(languages, row[0], new String[]{
+                    "setting.album_art_open_lp", row[1], "setting.album_art_open_lp_desc", row[2]
+            });
+        }
+    }
+
+    /** Motion lyrics (MotionLyricsModeView): the menu entry and what the page shows while it loads a direction. */
+    private static void addMotionLyricsStrings(Map<String, Map<String, String>> languages) {
+        String[] keys = {"motion.mode", "motion.unavailable", "motion.directing", "motion.direct_failed"};
+        String[][] rows = {
+                {"ko", "모션 가사", "모션 가사는 단어·글자 싱크가 있는 곡에서 재생돼요.", "AI가 모션 연출을 만드는 중…", "AI 연출을 만들지 못해 기본 연출로 보여드려요."},
+                {"en", "Motion lyrics", "Motion lyrics play on songs with word or character timing.", "AI is directing the motion…", "AI direction failed. Using the built-in direction."},
+                {"zh-CN", "动效歌词", "动效歌词仅适用于带有逐词或逐字同步的歌曲。", "AI 正在编排动态演出…", "AI 演出生成失败，已改用内置演出。"},
+                {"zh-TW", "動態歌詞", "動態歌詞僅適用於有逐詞或逐字同步的歌曲。", "AI 正在編排動態演出…", "AI 演出生成失敗，已改用內建演出。"},
+                {"ja", "モーション歌詞", "モーション歌詞は単語・文字単位の同期がある曲で再生されます。", "AIがモーション演出を作成中…", "AI演出を作成できなかったため、標準の演出で表示します。"},
+                {"hi", "मोशन बोल", "मोशन बोल केवल शब्द या अक्षर टाइमिंग वाले गानों में चलते हैं।", "AI मोशन निर्देशन बना रहा है…", "AI निर्देशन विफल रहा। अंतर्निहित निर्देशन का उपयोग किया जा रहा है।"},
+                {"es", "Letras en movimiento", "Las letras en movimiento funcionan con canciones sincronizadas por palabra o carácter.", "La IA está dirigiendo la animación…", "La dirección con IA falló. Se usa la dirección integrada."},
+                {"fr", "Paroles en mouvement", "Les paroles en mouvement fonctionnent avec les chansons synchronisées au mot ou au caractère.", "L’IA réalise l’animation…", "La réalisation par IA a échoué. La réalisation intégrée est utilisée."},
+                {"ar", "كلمات الحركة", "تعمل كلمات الحركة مع الأغاني المزامنة على مستوى الكلمة أو الحرف.", "يقوم الذكاء الاصطناعي بإخراج الحركة…", "تعذّر إخراج الحركة بالذكاء الاصطناعي، لذا يُستخدم الإخراج المدمج."},
+                {"fa", "متن متحرک", "متن متحرک برای آهنگ‌هایی با همگام‌سازی واژه‌ای یا حرفی پخش می‌شود.", "هوش مصنوعی در حال کارگردانی حرکت است…", "کارگردانی هوش مصنوعی ناموفق بود؛ از کارگردانی داخلی استفاده می‌شود."},
+                {"de", "Bewegte Songtexte", "Bewegte Songtexte funktionieren bei Songs mit Wort- oder Zeichen-Timing.", "Die KI inszeniert die Animation …", "KI-Regie fehlgeschlagen. Die integrierte Regie wird verwendet."},
+                {"ru", "Анимированный текст", "Анимированный текст работает с песнями с синхронизацией по словам или символам.", "ИИ ставит анимацию…", "ИИ не смог поставить анимацию. Используется встроенная постановка."},
+                {"sv", "Rörliga låttexter", "Rörliga låttexter fungerar med låtar som har ord- eller teckensynk.", "AI regisserar animationen …", "AI-regin misslyckades. Den inbyggda regin används."},
+                {"pt", "Letras em movimento", "As letras em movimento funcionam com músicas sincronizadas por palavra ou caractere.", "A IA está dirigindo a animação…", "A direção por IA falhou. Usando a direção integrada."},
+                {"bn", "মোশন লিরিক", "মোশন লিরিক শুধু শব্দ বা অক্ষর টাইমিং থাকা গানে চলে।", "এআই মোশন নির্দেশনা তৈরি করছে…", "এআই নির্দেশনা ব্যর্থ হয়েছে। অন্তর্নির্মিত নির্দেশনা ব্যবহার করা হচ্ছে।"},
+                {"cs", "Pohyblivé texty", "Pohyblivé texty fungují u skladeb se synchronizací po slovech nebo znacích.", "AI připravuje režii animace…", "Režie AI selhala. Používá se vestavěná režie."},
+                {"it", "Testi in movimento", "I testi in movimento funzionano con brani sincronizzati per parola o carattere.", "L’IA sta curando la regia dell’animazione…", "La regia IA non è riuscita. Viene usata la regia integrata."},
+                {"th", "เนื้อเพลงแบบโมชัน", "เนื้อเพลงแบบโมชันใช้ได้กับเพลงที่มีการซิงก์ระดับคำหรือตัวอักษร", "AI กำลังกำกับโมชัน…", "AI กำกับไม่สำเร็จ จึงใช้การกำกับในตัวแทน"},
+                {"vi", "Lời chuyển động", "Lời chuyển động hoạt động với bài hát có đồng bộ theo từ hoặc ký tự.", "AI đang dàn dựng chuyển động…", "AI dàn dựng thất bại. Đang dùng phần dàn dựng tích hợp."},
+                {"id", "Lirik gerak", "Lirik gerak berfungsi untuk lagu dengan sinkronisasi per kata atau karakter.", "AI sedang mengarahkan animasi…", "Arahan AI gagal. Menggunakan arahan bawaan."},
+                {"ms", "Lirik gerakan", "Lirik gerakan berfungsi untuk lagu dengan penyegerakan perkataan atau aksara.", "AI sedang mengarahkan animasi…", "Arahan AI gagal. Menggunakan arahan terbina dalam."},
+                {"tr", "Hareketli sözler", "Hareketli sözler, kelime veya karakter senkronu olan şarkılarda çalışır.", "Yapay zekâ hareketi yönetiyor…", "Yapay zekâ yönetimi başarısız oldu. Yerleşik yönetim kullanılıyor."}
+        };
+        addRows(languages, keys, rows);
+    }
+
+    private static void addAppearanceStrings(Map<String, Map<String, String>> languages) {
+        String[] keys = {"appearance.fallback", "appearance.title_tap", "appearance.title_player", "appearance.title_disabled", "appearance.title_album", "appearance.title_context", "appearance.video_aspect", "appearance.video_fit", "appearance.video_fill", "appearance.video_stretch", "appearance.video_edges", "appearance.landscape_original", "appearance.landscape_artwork", "appearance.empty_notice", "appearance.context_unavailable"};
+        String[][] rows = {
+                {"en", "Background when video is unavailable", "Title tap action", "Return to Spotify (default)", "Disabled", "Open album", "Open current playback context", "Video aspect", "Fit", "Fill (crop)", "Stretch", "Extend landscape video to screen edges", "Show original lyrics in landscape", "Show album cover in landscape", "Show “Lyrics not found” notice", "The current playback context is unavailable."},
+                {"ko", "동영상이 없을 때 배경", "제목을 눌렀을 때", "Spotify로 돌아가기 (기본)", "사용 안 함", "앨범 열기", "현재 재생 목록 또는 앨범 열기", "동영상 화면 맞춤", "전체 표시", "화면 채우기 (잘라내기)", "늘이기", "가로 화면 동영상을 화면 끝까지 표시", "가로 화면에서 원문 가사 표시", "가로 화면에서 앨범 표지 표시", "‘가사를 찾을 수 없음’ 안내 표시", "현재 재생 중인 목록 또는 앨범을 열 수 없습니다."},
+                {"zh-CN", "视频不可用时的背景", "点击标题时的操作", "返回 Spotify（默认）", "禁用", "打开专辑", "打开当前播放来源", "视频画面适配", "完整显示", "填满（裁剪）", "拉伸", "横屏视频延伸至屏幕边缘", "横屏显示原文歌词", "横屏显示专辑封面", "显示“未找到歌词”提示", "当前播放来源不可用。"},
+                {"zh-TW", "影片無法播放時的背景", "點擊標題時的動作", "返回 Spotify（預設）", "停用", "開啟專輯", "開啟目前播放來源", "影片畫面適配", "完整顯示", "填滿（裁切）", "拉伸", "橫向影片延伸至螢幕邊緣", "橫向顯示原文歌詞", "橫向顯示專輯封面", "顯示「找不到歌詞」提示", "目前播放來源無法開啟。"},
+                {"ja", "動画を再生できないときの背景", "タイトルをタップしたとき", "Spotifyに戻る（既定）", "無効", "アルバムを開く", "現在の再生元を開く", "動画の表示方法", "全体を表示", "画面を埋める（切り取り）", "引き伸ばす", "横画面の動画を画面の端まで表示", "横画面で原文の歌詞を表示", "横画面でアルバムカバーを表示", "「歌詞が見つかりません」を表示", "現在の再生元を開けません。"},
+                {"hi", "वीडियो उपलब्ध न होने पर पृष्ठभूमि", "शीर्षक टैप करने पर", "Spotify पर लौटें (डिफ़ॉल्ट)", "बंद", "एल्बम खोलें", "मौजूदा प्लेलिस्ट या एल्बम खोलें", "वीडियो का आकार", "पूरा दिखाएँ", "स्क्रीन भरें (काटें)", "खींचें", "लैंडस्केप वीडियो स्क्रीन के किनारों तक दिखाएँ", "लैंडस्केप में मूल लिरिक्स दिखाएँ", "लैंडस्केप में एल्बम कवर दिखाएँ", "“लिरिक्स नहीं मिले” संदेश दिखाएँ", "मौजूदा प्लेलिस्ट या एल्बम उपलब्ध नहीं है।"},
+                {"es", "Fondo cuando el vídeo no está disponible", "Acción al tocar el título", "Volver a Spotify (predeterminado)", "Desactivada", "Abrir álbum", "Abrir la fuente de reproducción actual", "Formato del vídeo", "Ajustar", "Rellenar (recortar)", "Estirar", "Extender el vídeo horizontal hasta los bordes", "Mostrar letra original en horizontal", "Mostrar portada en horizontal", "Mostrar el aviso «No se encontró la letra»", "La fuente de reproducción actual no está disponible."},
+                {"fr", "Fond lorsque la vidéo est indisponible", "Action au toucher du titre", "Revenir à Spotify (par défaut)", "Désactivée", "Ouvrir l’album", "Ouvrir la source de lecture actuelle", "Format de la vidéo", "Ajuster", "Remplir (recadrer)", "Étirer", "Étendre la vidéo en paysage jusqu’aux bords", "Afficher les paroles originales en paysage", "Afficher la pochette en paysage", "Afficher « Paroles introuvables »", "La source de lecture actuelle est indisponible."},
+                {"ar", "الخلفية عند تعذر تشغيل الفيديو", "الإجراء عند لمس العنوان", "العودة إلى Spotify (افتراضي)", "معطل", "فتح الألبوم", "فتح مصدر التشغيل الحالي", "طريقة عرض الفيديو", "احتواء", "ملء (اقتصاص)", "تمديد", "مد الفيديو الأفقي إلى حواف الشاشة", "عرض الكلمات الأصلية أفقيًا", "عرض غلاف الألبوم أفقيًا", "عرض إشعار «لم يتم العثور على الكلمات»", "مصدر التشغيل الحالي غير متاح."},
+                {"fa", "پس‌زمینه هنگام در دسترس نبودن ویدیو", "عملکرد لمس عنوان", "بازگشت به Spotify (پیش‌فرض)", "غیرفعال", "باز کردن آلبوم", "باز کردن منبع پخش فعلی", "نحوهٔ نمایش ویدیو", "نمایش کامل", "پر کردن (برش)", "کشیدن", "گسترش ویدیوی افقی تا لبه‌های صفحه", "نمایش متن اصلی در حالت افقی", "نمایش جلد آلبوم در حالت افقی", "نمایش پیام «متن ترانه یافت نشد»", "منبع پخش فعلی در دسترس نیست."},
+                {"de", "Hintergrund bei nicht verfügbarem Video", "Aktion beim Tippen auf den Titel", "Zu Spotify zurück (Standard)", "Deaktiviert", "Album öffnen", "Aktuelle Wiedergabequelle öffnen", "Videoformat", "Einpassen", "Ausfüllen (zuschneiden)", "Strecken", "Video im Querformat bis zum Bildschirmrand", "Originaltext im Querformat anzeigen", "Albumcover im Querformat anzeigen", "Hinweis „Kein Songtext gefunden“ anzeigen", "Die aktuelle Wiedergabequelle ist nicht verfügbar."},
+                {"ru", "Фон, если видео недоступно", "Действие при нажатии на название", "Вернуться в Spotify (по умолчанию)", "Отключено", "Открыть альбом", "Открыть текущий источник воспроизведения", "Формат видео", "Вписать", "Заполнить (обрезать)", "Растянуть", "Видео до краёв экрана в альбомной ориентации", "Показывать исходный текст в альбомной ориентации", "Показывать обложку в альбомной ориентации", "Показывать уведомление «Текст не найден»", "Текущий источник воспроизведения недоступен."},
+                {"sv", "Bakgrund när video inte är tillgänglig", "Åtgärd när du trycker på titeln", "Tillbaka till Spotify (standard)", "Avstängd", "Öppna album", "Öppna aktuell uppspelningskälla", "Videoformat", "Anpassa", "Fyll (beskär)", "Sträck ut", "Visa liggande video ända till skärmkanterna", "Visa originaltext i liggande läge", "Visa skivomslag i liggande läge", "Visa meddelandet ”Låttexten hittades inte”", "Den aktuella uppspelningskällan är inte tillgänglig."},
+                {"pt", "Fundo quando o vídeo não está disponível", "Ação ao tocar no título", "Voltar ao Spotify (padrão)", "Desativada", "Abrir álbum", "Abrir a origem da reprodução atual", "Formato do vídeo", "Ajustar", "Preencher (cortar)", "Esticar", "Estender o vídeo horizontal até as bordas", "Mostrar letra original na horizontal", "Mostrar capa do álbum na horizontal", "Mostrar aviso “Letra não encontrada”", "A origem da reprodução atual não está disponível."},
+                {"bn", "ভিডিও না থাকলে পটভূমি", "শিরোনামে ট্যাপ করলে", "Spotify-তে ফিরুন (ডিফল্ট)", "বন্ধ", "অ্যালবাম খুলুন", "বর্তমান প্লেলিস্ট বা অ্যালবাম খুলুন", "ভিডিওর আকার", "পুরোটা দেখান", "স্ক্রিন ভরুন (কাটুন)", "টেনে বড় করুন", "আড়াআড়ি ভিডিও স্ক্রিনের প্রান্ত পর্যন্ত দেখান", "আড়াআড়ি অবস্থায় মূল লিরিক্স দেখান", "আড়াআড়ি অবস্থায় অ্যালবামের কভার দেখান", "“লিরিক্স পাওয়া যায়নি” বার্তা দেখান", "বর্তমান প্লেলিস্ট বা অ্যালবাম পাওয়া যাচ্ছে না।"},
+                {"cs", "Pozadí, když video není dostupné", "Akce při klepnutí na název", "Zpět do Spotify (výchozí)", "Vypnuto", "Otevřít album", "Otevřít aktuální zdroj přehrávání", "Formát videa", "Přizpůsobit", "Vyplnit (oříznout)", "Roztáhnout", "Video na šířku až k okrajům obrazovky", "Zobrazit původní text na šířku", "Zobrazit obal alba na šířku", "Zobrazit oznámení „Text nenalezen“", "Aktuální zdroj přehrávání není dostupný."},
+                {"it", "Sfondo quando il video non è disponibile", "Azione al tocco del titolo", "Torna a Spotify (predefinito)", "Disattivata", "Apri album", "Apri la fonte di riproduzione attuale", "Formato video", "Adatta", "Riempi (ritaglia)", "Allunga", "Estendi il video orizzontale fino ai bordi", "Mostra testo originale in orizzontale", "Mostra copertina in orizzontale", "Mostra l’avviso “Testo non trovato”", "La fonte di riproduzione attuale non è disponibile."},
+                {"th", "พื้นหลังเมื่อวิดีโอไม่พร้อมใช้งาน", "การทำงานเมื่อแตะชื่อเพลง", "กลับไปที่ Spotify (ค่าเริ่มต้น)", "ปิด", "เปิดอัลบั้ม", "เปิดแหล่งที่กำลังเล่น", "รูปแบบวิดีโอ", "แสดงทั้งหมด", "เต็มจอ (ครอบตัด)", "ยืด", "ขยายวิดีโอแนวนอนถึงขอบหน้าจอ", "แสดงเนื้อเพลงต้นฉบับในแนวนอน", "แสดงปกอัลบั้มในแนวนอน", "แสดงข้อความ “ไม่พบเนื้อเพลง”", "แหล่งที่กำลังเล่นไม่พร้อมใช้งาน"},
+                {"vi", "Nền khi video không khả dụng", "Thao tác khi chạm vào tên bài", "Quay lại Spotify (mặc định)", "Tắt", "Mở album", "Mở nguồn phát hiện tại", "Cách hiển thị video", "Vừa khung", "Lấp đầy (cắt)", "Kéo giãn", "Mở rộng video ngang đến mép màn hình", "Hiện lời gốc ở chế độ ngang", "Hiện bìa album ở chế độ ngang", "Hiện thông báo “Không tìm thấy lời”", "Nguồn phát hiện tại không khả dụng."},
+                {"id", "Latar saat video tidak tersedia", "Tindakan saat judul diketuk", "Kembali ke Spotify (bawaan)", "Nonaktif", "Buka album", "Buka sumber pemutaran saat ini", "Format video", "Sesuaikan", "Penuhi (potong)", "Rentangkan", "Perluas video lanskap hingga tepi layar", "Tampilkan lirik asli dalam lanskap", "Tampilkan sampul album dalam lanskap", "Tampilkan pemberitahuan “Lirik tidak ditemukan”", "Sumber pemutaran saat ini tidak tersedia."},
+                {"ms", "Latar apabila video tidak tersedia", "Tindakan apabila tajuk diketuk", "Kembali ke Spotify (lalai)", "Dimatikan", "Buka album", "Buka sumber main balik semasa", "Format video", "Muatkan", "Penuhkan (pangkas)", "Regangkan", "Panjangkan video landskap ke tepi skrin", "Tunjukkan lirik asal dalam landskap", "Tunjukkan kulit album dalam landskap", "Tunjukkan notis “Lirik tidak ditemui”", "Sumber main balik semasa tidak tersedia."},
+                {"tr", "Video kullanılamadığında arka plan", "Başlığa dokunma eylemi", "Spotify’a dön (varsayılan)", "Devre dışı", "Albümü aç", "Geçerli çalma kaynağını aç", "Video biçimi", "Sığdır", "Doldur (kırp)", "Uzat", "Yatay videoyu ekran kenarlarına uzat", "Yatay modda özgün sözleri göster", "Yatay modda albüm kapağını göster", "“Şarkı sözü bulunamadı” bildirimini göster", "Geçerli çalma kaynağı kullanılamıyor."}
+        };
+        for (String[] row : rows) {
+            Map<String, String> copy = new LinkedHashMap<>(languages.get(row[0]));
+            for (int index = 0; index < keys.length; index++) copy.put(keys[index], row[index + 1]);
+            languages.put(row[0], Collections.unmodifiableMap(copy));
+        }
+    }
+
+    private static void addLocalAiStrings(Map<String, Map<String, String>> languages) {
+        for (AiLyricsSettings.Language language : UI_LANGUAGES) {
+            Map<String, String> table = languages.get(language.code);
+            if (table == null) {
+                continue;
+            }
+            Map<String, String> copy = new LinkedHashMap<>(table);
+            LocalAiI18n.apply(language.code, copy);
+            LocalLyricsI18n.apply(language.code, copy);
+            languages.put(language.code, Collections.unmodifiableMap(copy));
+        }
+    }
+
+    private static void addPronunciationNotationStrings(Map<String, Map<String, String>> languages) {
+        String[][] translations = {
+                {"ko", "발음 표기 방식", "생성된 발음의 표기 방식을 선택합니다. 현재 가사에 적용하려면 발음을 재생성하세요.", "현재 번역 언어(기본)", "라틴 문자(로마자)", "국제 음성 기호(IPA)"},
+                {"en", "Pronunciation notation", "Choose how generated pronunciation is written. Regenerate pronunciation to update the current lyrics.", "Current translation language (Default)", "Latin (Romanization)", "International Phonetic Alphabet (IPA)"},
+                {"zh-CN", "发音标注方式", "选择生成发音所使用的标注方式。重新生成发音后会应用到当前歌词。", "当前翻译语言（默认）", "拉丁字母（罗马化）", "国际音标（IPA）"},
+                {"zh-TW", "發音標記方式", "選擇產生發音時使用的標記方式。重新產生發音後會套用至目前歌詞。", "目前翻譯語言（預設）", "拉丁字母（羅馬化）", "國際音標（IPA）"},
+                {"ja", "発音の表記方式", "生成する発音の表記方式を選択します。現在の歌詞に反映するには発音を再生成してください。", "現在の翻訳言語（デフォルト）", "ラテン文字（ローマ字）", "国際音声記号（IPA）"},
+                {"hi", "उच्चारण लिपि", "जनरेट किए गए उच्चारण की लिपि चुनें। मौजूदा गीत को अपडेट करने के लिए उच्चारण दोबारा जनरेट करें।", "मौजूदा अनुवाद भाषा (डिफ़ॉल्ट)", "लैटिन लिपि (रोमनकरण)", "अंतर्राष्ट्रीय ध्वन्यात्मक वर्णमाला (IPA)"},
+                {"es", "Notación de pronunciación", "Elige cómo se escribe la pronunciación generada. Regenera la pronunciación para actualizar la letra actual.", "Idioma de traducción actual (predeterminado)", "Alfabeto latino (romanización)", "Alfabeto fonético internacional (AFI/IPA)"},
+                {"fr", "Notation de la prononciation", "Choisissez la notation utilisée pour la prononciation générée. Régénérez la prononciation pour mettre à jour les paroles actuelles.", "Langue de traduction actuelle (par défaut)", "Alphabet latin (romanisation)", "Alphabet phonétique international (API/IPA)"},
+                {"ar", "طريقة كتابة النطق", "اختر طريقة كتابة النطق المُنشأ. أعد إنشاء النطق لتحديث كلمات الأغنية الحالية.", "لغة الترجمة الحالية (افتراضي)", "الأحرف اللاتينية (الكتابة الرومانية)", "الأبجدية الصوتية الدولية (IPA)"},
+                {"fa", "شیوهٔ نمایش تلفظ", "نحوهٔ نوشتن تلفظ تولیدشده را انتخاب کنید. برای به‌روزرسانی ترانهٔ فعلی، تلفظ را دوباره تولید کنید.", "زبان فعلی ترجمه (پیش‌فرض)", "خط لاتین (آوانویسی لاتین)", "الفبای آوانگاری بین‌المللی (IPA)"},
+                {"de", "Darstellung der Aussprache", "Wähle, wie die erzeugte Aussprache geschrieben wird. Erzeuge die Aussprache neu, um den aktuellen Songtext zu aktualisieren.", "Aktuelle Übersetzungssprache (Standard)", "Lateinische Schrift (Romanisierung)", "Internationales Phonetisches Alphabet (IPA)"},
+                {"ru", "Запись произношения", "Выберите способ записи созданного произношения. Пересоздайте произношение, чтобы обновить текущий текст.", "Текущий язык перевода (по умолчанию)", "Латиница (романизация)", "Международный фонетический алфавит (IPA)"},
+                {"sv", "Uttalsnotation", "Välj hur det genererade uttalet ska skrivas. Generera uttalet igen för att uppdatera den aktuella texten.", "Aktuellt översättningsspråk (standard)", "Latinska bokstäver (romanisering)", "Internationella fonetiska alfabetet (IPA)"},
+                {"pt", "Notação da pronúncia", "Escolha como a pronúncia gerada será escrita. Gere novamente a pronúncia para atualizar a letra atual.", "Idioma de tradução atual (padrão)", "Alfabeto latino (romanização)", "Alfabeto Fonético Internacional (AFI/IPA)"},
+                {"bn", "উচ্চারণের লিখনপদ্ধতি", "তৈরি করা উচ্চারণ কীভাবে লেখা হবে তা বেছে নিন। বর্তমান গানে প্রয়োগ করতে উচ্চারণ পুনরায় তৈরি করুন।", "বর্তমান অনুবাদের ভাষা (ডিফল্ট)", "ল্যাটিন অক্ষর (রোমানাইজেশন)", "আন্তর্জাতিক ধ্বনিমূলক বর্ণমালা (IPA)"},
+                {"cs", "Zápis výslovnosti", "Zvolte způsob zápisu generované výslovnosti. Pro aktualizaci aktuálního textu výslovnost znovu vygenerujte.", "Aktuální jazyk překladu (výchozí)", "Latinka (romanizace)", "Mezinárodní fonetická abeceda (IPA)"},
+                {"it", "Notazione della pronuncia", "Scegli come scrivere la pronuncia generata. Rigenera la pronuncia per aggiornare il testo corrente.", "Lingua di traduzione attuale (predefinita)", "Alfabeto latino (romanizzazione)", "Alfabeto fonetico internazionale (IPA)"},
+                {"th", "รูปแบบการเขียนคำอ่าน", "เลือกวิธีเขียนคำอ่านที่สร้างขึ้น สร้างคำอ่านใหม่เพื่ออัปเดตเนื้อเพลงปัจจุบัน", "ภาษาคำแปลปัจจุบัน (ค่าเริ่มต้น)", "อักษรละติน (การถอดเป็นอักษรโรมัน)", "สัทอักษรสากล (IPA)"},
+                {"vi", "Ký hiệu phát âm", "Chọn cách viết phần phát âm được tạo. Tạo lại phát âm để cập nhật lời hiện tại.", "Ngôn ngữ dịch hiện tại (mặc định)", "Chữ Latinh (La-tinh hóa)", "Bảng mẫu tự ngữ âm quốc tế (IPA)"},
+                {"id", "Notasi pelafalan", "Pilih cara penulisan pelafalan yang dihasilkan. Buat ulang pelafalan untuk memperbarui lirik saat ini.", "Bahasa terjemahan saat ini (bawaan)", "Aksara Latin (romanisasi)", "Alfabet Fonetik Internasional (IPA)"},
+                {"ms", "Notasi sebutan", "Pilih cara sebutan yang dijana ditulis. Jana semula sebutan untuk mengemas kini lirik semasa.", "Bahasa terjemahan semasa (lalai)", "Tulisan Latin (perumian)", "Abjad Fonetik Antarabangsa (IPA)"},
+                {"tr", "Telaffuz gösterimi", "Oluşturulan telaffuzun nasıl yazılacağını seçin. Geçerli sözleri güncellemek için telaffuzu yeniden oluşturun.", "Geçerli çeviri dili (varsayılan)", "Latin alfabesi (romanizasyon)", "Uluslararası Fonetik Alfabe (IPA)"}
+        };
+        for (String[] translation : translations) {
+            applyTranslationOverrides(languages, translation[0], new String[]{
+                    "setting.pronunciation_notation", translation[1],
+                    "setting.pronunciation_notation_desc", translation[2],
+                    "pronunciation.notation.translation", translation[3],
+                    "pronunciation.notation.latin", translation[4],
+                    "pronunciation.notation.ipa", translation[5]
+            });
+        }
+    }
+
+    private static void addSpotifyOpenFailureTranslations(
+            Map<String, Map<String, String>> languages
+    ) {
+        String[][] translations = {
+                {"zh-CN", "无法打开 Spotify"},
+                {"zh-TW", "無法開啟 Spotify"},
+                {"ja", "Spotifyを開けません"},
+                {"hi", "Spotify नहीं खोला जा सका"},
+                {"es", "No se pudo abrir Spotify"},
+                {"fr", "Impossible d’ouvrir Spotify"},
+                {"ar", "تعذر فتح Spotify"},
+                {"fa", "Spotify باز نشد"},
+                {"de", "Spotify konnte nicht geöffnet werden"},
+                {"ru", "Не удалось открыть Spotify"},
+                {"sv", "Det gick inte att öppna Spotify"},
+                {"pt", "Não foi possível abrir o Spotify"},
+                {"bn", "Spotify খোলা যায়নি"},
+                {"it", "Impossibile aprire Spotify"},
+                {"th", "ไม่สามารถเปิด Spotify ได้"},
+                {"vi", "Không thể mở Spotify"},
+                {"id", "Spotify tidak dapat dibuka"},
+                {"ms", "Spotify tidak dapat dibuka"},
+                {"cs", "Spotify nelze otevřít"}
+        };
+        for (String[] translation : translations) {
+            applyTranslationOverrides(
+                    languages,
+                    translation[0],
+                    new String[]{"toast.spotify_open_failed", translation[1]}
+            );
+        }
+    }
+
+    private static void addTranslationQualityOverrides(Map<String, Map<String, String>> languages) {
+        applyTranslationOverrides(languages, "zh-TW", new String[]{
+                "button.save_start", "儲存並開始",
+                "status.spotify_required_subtitle", "請先儲存 Client ID 和 Client Secret",
+                "button.save_regenerate", "儲存並重新產生",
+                "lyrics.rule.save_target", "儲存目標",
+                "lyrics.button.translation_on", "翻譯已開啟",
+                "lyrics.button.pronunciation_on", "發音已開啟",
+        });
+        applyTranslationOverrides(languages, "hi", new String[]{
+                "button.save_start", "सहेजें और शुरू करें",
+                "status.spotify_required_subtitle", "पहले Client ID और Client Secret सहेजें",
+                "section.language_desc", "ऐप की भाषा और उच्चारण/अनुवाद की आउटपुट भाषा प्रबंधित करें।",
+                "setting.pronunciation_language", "उच्चारण/अनुवाद की भाषा",
+                "setting.pronunciation_language_desc", "उच्चारण और अनुवाद के लिए एक ही भाषा इस्तेमाल होती है। इसे ऐप की भाषा के समान रखें या कोई भाषा चुनकर तय करें।",
+                "setting.metadata_translation_desc", "गीत का शीर्षक और कलाकार का नाम भी चुनी हुई आउटपुट भाषा में दिखाया जाता है।",
+                "button.save_regenerate", "सहेजें और फिर से बनाएँ",
+                "lyrics.rule.save_target", "सहेजने का लक्ष्य",
+                "toast.pronunciation_language_saved", "उच्चारण/अनुवाद की भाषा सहेज दी गई",
+                "label.same_as_ui_language", "ऐप की भाषा के समान",
+        });
+        applyTranslationOverrides(languages, "es", new String[]{
+                "button.save_start", "Guardar y empezar",
+                "status.spotify_required_subtitle", "Guarda primero el Client ID y el Client Secret",
+                "button.save_regenerate", "Guardar y volver a generar",
+                "lyrics.rule.save_target", "Destino de guardado",
+                "lyrics.button.translation_on", "Traducción activada",
+                "lyrics.button.pronunciation_on", "Pronunciación activada",
+        });
+        applyTranslationOverrides(languages, "fr", new String[]{
+                "button.save_start", "Enregistrer et démarrer",
+                "status.spotify_required_subtitle", "Enregistrez d’abord le Client ID et le Client Secret",
+                "section.language_desc", "Gérez la langue d’affichage de l’application et la langue de sortie de la prononciation/traduction.",
+                "setting.pronunciation_language_desc", "Langue commune à la prononciation et à la traduction. Utilisez la langue de l’interface ou choisissez une langue précise.",
+                "setting.metadata_translation_desc", "Le titre et l’artiste sont également affichés dans la langue de sortie choisie.",
+                "button.save_regenerate", "Enregistrer et régénérer",
+                "lyrics.rule.save_target", "Cible d’enregistrement",
+                "lyrics.button.translation_on", "Traduction activée",
+                "lyrics.button.pronunciation_on", "Prononciation activée",
+                "toast.pronunciation_language_saved", "Langue de prononciation/traduction enregistrée",
+                "lyrics.lrclib_search.empty_title", "Saisissez le titre à rechercher.",
+                "setting.keep_screen_on", "Garder l’écran allumé",
+                "setting.keep_screen_on_desc", "Empêche l’écran du téléphone de s’éteindre pendant l’utilisation de l’application.",
+                "toast.keep_screen_on_on", "Écran maintenu allumé",
+                "toast.keep_screen_on_off", "Extinction automatique autorisée",
+                "label.same_as_ui_language", "Identique à la langue de l’interface",
+                "toast.typography_saved", "Typographie enregistrée",
+                "typography.slot.main_title_desc", "Ajustez la taille et la graisse de cet élément.",
+                "typography.slot.main_artist_desc", "Ajustez la taille et la graisse de cet élément.",
+                "typography.slot.main_preview_original_desc", "Ajustez la taille et la graisse de cet élément.",
+                "typography.slot.main_preview_pronunciation_desc", "Ajustez la taille et la graisse de cet élément.",
+                "typography.slot.main_preview_translation_desc", "Ajustez la taille et la graisse de cet élément.",
+                "typography.slot.lyrics_header_title_desc", "Ajustez la taille et la graisse de cet élément.",
+                "typography.slot.lyrics_header_artist_desc", "Ajustez la taille et la graisse de cet élément.",
+                "typography.slot.lyrics_original_desc", "Ajustez la taille et la graisse de cet élément.",
+                "typography.slot.lyrics_pronunciation_desc", "Ajustez la taille et la graisse de cet élément.",
+                "typography.slot.lyrics_translation_desc", "Ajustez la taille et la graisse de cet élément.",
+                "section.speaker_colors_desc", "Réglez les couleurs normale, duo, homme et femme à l’aide d’un sélecteur de couleur.",
+                "toast.speaker_colors_saved", "Couleurs vocales enregistrées",
+                "toast.speaker_colors_reset", "Couleurs vocales réinitialisées",
+        });
+        applyTranslationOverrides(languages, "ar", new String[]{
+                "button.save_start", "حفظ وبدء الاستخدام",
+                "status.spotify_required_subtitle", "احفظ Client ID وClient Secret أولًا",
+                "button.save_regenerate", "حفظ وإعادة إنشاء",
+                "lyrics.rule.save_target", "وجهة الحفظ",
+                "lyrics.button.translation_on", "الترجمة مفعّلة",
+                "lyrics.button.pronunciation_on", "النطق مفعّل",
+        });
+        applyTranslationOverrides(languages, "fa", new String[]{
+                "button.save_start", "ذخیره و شروع",
+                "status.spotify_required_subtitle", "ابتدا Client ID وClient Secret را ذخیره کنید",
+                "button.save_regenerate", "ذخیره و تولید دوباره",
+                "lyrics.rule.save_target", "مقصد ذخیره",
+                "lyrics.button.translation_on", "ترجمه روشن",
+                "lyrics.button.pronunciation_on", "تلفظ روشن",
+        });
+        applyTranslationOverrides(languages, "de", new String[]{
+                "button.save_start", "Speichern und starten",
+                "status.spotify_required_subtitle", "Speichere zuerst Client ID und Client Secret",
+                "section.language_desc", "App-Sprache und Ausgabesprache für Aussprache/Übersetzung verwalten.",
+                "setting.pronunciation_language", "Aussprache-/Übersetzungssprache",
+                "setting.pronunciation_language_desc", "Gemeinsame Sprache für Aussprache und Übersetzung. Verwende die Sprache der Benutzeroberfläche oder wähle eine feste Sprache.",
+                "setting.metadata_translation_desc", "Titel und Künstler werden ebenfalls in der gewählten Ausgabesprache angezeigt.",
+                "button.save_regenerate", "Speichern und neu erstellen",
+                "lyrics.menu_tip", "Einmal tippen öffnet Spotify, langes Drücken öffnet Übersetzung und Aussprache.",
+                "lyrics.rule.save_target", "Speicherziel",
+                "lyrics.button.translation_on", "Übersetzung ein",
+                "lyrics.button.pronunciation_on", "Aussprache ein",
+                "field.solid_color_desc", "Wählen Sie die Farbe für den einfarbigen Hintergrundmodus.",
+                "toast.pronunciation_language_saved", "Aussprache-/Übersetzungssprache gespeichert",
+                "lyrics.lrclib_search.artist_hint", "Künstler",
+                "lyrics.lrclib_search.field_artist", "Künstler",
+                "lyrics.lrclib_search.selecting", "Ausgewählte LRCLIB-Lyrics werden geladen...",
+                "repo.detail.manual_lrclib", "Manuell ausgewählte LRCLIB-Lyrics.",
+                "onboarding.preview.line4", "Titel oder Künstler antippen, um zu Spotify zurückzukehren.",
+                "setting.keep_screen_on_desc", "Verhindert, dass sich der Bildschirm während der App-Nutzung automatisch ausschaltet.",
+                "label.same_as_ui_language", "Wie die Sprache der Benutzeroberfläche",
+                "section.typography_desc", "Textgröße und Schriftstärke für Hauptplayer und Liedtextseite einzeln anpassen.",
+                "typography.size", "Größe",
+                "typography.weight", "Stärke",
+                "typography.slot.main_title_desc", "Größe und Stärke dieses Elements anpassen.",
+                "typography.slot.main_artist_desc", "Größe und Stärke dieses Elements anpassen.",
+                "typography.slot.main_preview_original_desc", "Größe und Stärke dieses Elements anpassen.",
+                "typography.slot.main_preview_pronunciation_desc", "Größe und Stärke dieses Elements anpassen.",
+                "typography.slot.main_preview_translation", "Übersetzung unten im Hauptbildschirm",
+                "typography.slot.main_preview_translation_desc", "Größe und Stärke dieses Elements anpassen.",
+                "typography.slot.lyrics_header_title_desc", "Größe und Stärke dieses Elements anpassen.",
+                "typography.slot.lyrics_header_artist", "Künstler der Lyrics-Seite",
+                "typography.slot.lyrics_header_artist_desc", "Größe und Stärke dieses Elements anpassen.",
+                "typography.slot.lyrics_original_desc", "Größe und Stärke dieses Elements anpassen.",
+                "typography.slot.lyrics_pronunciation_desc", "Größe und Stärke dieses Elements anpassen.",
+                "typography.slot.lyrics_translation", "Übersetzung der Lyrics-Seite",
+                "typography.slot.lyrics_translation_desc", "Größe und Stärke dieses Elements anpassen.",
+                "section.speaker_colors_desc", "Passe die Farben für Standard, Duett, männlich und weiblich mit einem Farbwähler an.",
+                "speaker_color.hex_hint", "Ausgewählte Farbe",
+                "toast.speaker_colors_reset", "Gesangsfarben zurückgesetzt",
+                "toast.invalid_color_format", "Das Farbformat von %s ist ungültig.",
+                "setting.video_scale_desc", "Vergrößert das Hintergrundvideo, wenn die Quelle schwarze Balken hat oder den Bildschirm stärker füllen soll.",
+        });
+        applyTranslationOverrides(languages, "ru", new String[]{
+                "button.save_start", "Сохранить и начать",
+                "status.spotify_required_subtitle", "Сначала сохраните Client ID и Client Secret",
+                "button.save_regenerate", "Сохранить и создать заново",
+                "lyrics.rule.save_target", "Место сохранения",
+                "lyrics.button.translation_on", "Перевод включён",
+                "lyrics.button.pronunciation_on", "Произношение включено",
+        });
+        applyTranslationOverrides(languages, "sv", new String[]{
+                "button.save_start", "Spara och starta",
+                "status.spotify_required_subtitle", "Spara Client ID och Client Secret först",
+                "button.save_regenerate", "Spara och skapa igen",
+                "lyrics.rule.save_target", "Sparmål",
+                "lyrics.button.translation_on", "Översättning på",
+        });
+        applyTranslationOverrides(languages, "pt", new String[]{
+                "button.save_start", "Salvar e iniciar",
+                "status.spotify_required_subtitle", "Salve primeiro o Client ID e o Client Secret",
+                "section.language_desc", "Gerencie o idioma do app e o idioma de saída da pronúncia/tradução.",
+                "setting.pronunciation_language", "Idioma da pronúncia/tradução",
+                "setting.pronunciation_language_desc", "Idioma compartilhado pela pronúncia e pela tradução. Use o idioma da interface ou escolha um idioma específico.",
+                "setting.metadata_translation_desc", "O título e o artista também são exibidos no idioma de saída escolhido.",
+                "button.save_regenerate", "Salvar e gerar novamente",
+                "lyrics.menu_tip", "Toque uma vez para abrir o Spotify; mantenha pressionado para abrir tradução e pronúncia.",
+                "lyrics.rule.save_target", "Destino de salvamento",
+                "lyrics.button.translation_on", "Tradução ativada",
+                "lyrics.button.pronunciation_on", "Pronúncia ativada",
+                "toast.pronunciation_language_saved", "Idioma da pronúncia/tradução salvo",
+                "lyrics.lrclib_search.title_hint", "Título",
+                "lyrics.lrclib_search.field_title", "Título",
+                "lyrics.lrclib_search.empty_title", "Digite o título da música.",
+                "onboarding.preview.line4", "Toque no título ou artista para voltar ao Spotify.",
+                "toast.keep_screen_on_off", "Desligamento automático permitido",
+                "section.typography_desc", "Personalize o tamanho e o peso do texto no player principal e na página de letras.",
+                "typography.slot.main_title", "Título principal",
+                "typography.slot.main_preview_pronunciation", "Pronúncia na parte inferior da tela principal",
+                "typography.slot.main_preview_translation", "Tradução na parte inferior da tela principal",
+                "typography.slot.lyrics_header_title", "Título da página de letras",
+                "typography.slot.lyrics_header_artist", "Artista da página de letras",
+                "typography.slot.lyrics_original", "Original da página de letras",
+                "typography.slot.lyrics_pronunciation", "Pronúncia da página de letras",
+                "typography.slot.lyrics_translation", "Tradução da página de letras",
+                "section.speaker_colors_desc", "Ajuste as cores normal, dueto, masculina e feminina com um seletor de cor.",
+                "toast.invalid_color_format", "O formato de cor de %s é inválido.",
+        });
+        applyTranslationOverrides(languages, "bn", new String[]{
+                "button.save_start", "সংরক্ষণ করে শুরু করুন",
+                "status.spotify_required_subtitle", "প্রথমে Client ID ও Client Secret সংরক্ষণ করুন",
+                "section.language_desc", "অ্যাপের ভাষা এবং উচ্চারণ/অনুবাদের আউটপুট ভাষা পরিচালনা করুন।",
+                "setting.pronunciation_language", "উচ্চারণ/অনুবাদের ভাষা",
+                "setting.pronunciation_language_desc", "উচ্চারণ ও অনুবাদের জন্য একই ভাষা ব্যবহার করা হয়। অ্যাপের ভাষার সঙ্গে মিলিয়ে রাখুন অথবা নির্দিষ্ট একটি ভাষা বেছে নিন।",
+                "setting.metadata_translation_desc", "গানের শিরোনাম ও শিল্পীর নামও নির্বাচিত আউটপুট ভাষায় দেখানো হয়।",
+                "button.save_regenerate", "সংরক্ষণ করে আবার তৈরি করুন",
+                "lyrics.rule.save_target", "সংরক্ষণের লক্ষ্য",
+                "lyrics.button.translation_on", "অনুবাদ চালু",
+                "lyrics.button.pronunciation_on", "উচ্চারণ চালু",
+                "toast.pronunciation_language_saved", "উচ্চারণ/অনুবাদের ভাষা সংরক্ষণ করা হয়েছে",
+                "label.same_as_ui_language", "অ্যাপের ভাষার মতোই",
+        });
+        applyTranslationOverrides(languages, "it", new String[]{
+                "button.save_start", "Salva e inizia",
+                "status.spotify_required_subtitle", "Salva prima il Client ID e il Client Secret",
+                "button.save_regenerate", "Salva e rigenera",
+                "lyrics.rule.save_target", "Destinazione di salvataggio",
+                "lyrics.button.translation_on", "Traduzione attiva",
+                "lyrics.button.pronunciation_on", "Pronuncia attiva",
+        });
+        applyTranslationOverrides(languages, "th", new String[]{
+                "button.save_start", "บันทึกและเริ่ม",
+                "status.spotify_required_subtitle", "บันทึก Client ID และ Client Secret ก่อน",
+                "button.save_regenerate", "บันทึกและสร้างใหม่",
+                "lyrics.rule.save_target", "เป้าหมายการบันทึก",
+                "lyrics.button.translation_on", "เปิดการแปล",
+                "lyrics.button.pronunciation_on", "เปิดการออกเสียง",
+        });
+        applyTranslationOverrides(languages, "vi", new String[]{
+                "button.save_start", "Lưu và bắt đầu",
+                "status.spotify_required_subtitle", "Trước tiên, hãy lưu Client ID và Client Secret",
+                "section.language_desc", "Quản lý ngôn ngữ hiển thị của ứng dụng và ngôn ngữ đầu ra cho phát âm/bản dịch.",
+                "setting.pronunciation_language", "Ngôn ngữ phát âm/bản dịch",
+                "setting.pronunciation_language_desc", "Ngôn ngữ dùng chung cho phát âm và bản dịch. Dùng ngôn ngữ giao diện hoặc chọn một ngôn ngữ cố định.",
+                "setting.metadata_translation_desc", "Tiêu đề bài hát và nghệ sĩ cũng được hiển thị bằng ngôn ngữ đầu ra đã chọn.",
+                "button.save_regenerate", "Lưu và tạo lại",
+                "lyrics.rule.save_target", "Đích lưu",
+                "lyrics.button.translation_on", "Bật bản dịch",
+                "lyrics.button.pronunciation_on", "Bật phát âm",
+                "field.solid_color_desc", "Chọn màu dùng cho chế độ nền đơn sắc.",
+                "toast.pronunciation_language_saved", "Đã lưu ngôn ngữ phát âm/bản dịch",
+                "label.same_as_ui_language", "Giống ngôn ngữ giao diện",
+                "section.typography_desc", "Tùy chỉnh riêng cỡ chữ và độ đậm cho màn hình chính và trang lời bài hát.",
+                "typography.slot.main_title_desc", "Điều chỉnh cỡ chữ và độ đậm của mục này.",
+                "typography.slot.main_artist_desc", "Điều chỉnh cỡ chữ và độ đậm của mục này.",
+                "typography.slot.main_preview_original", "Lời gốc ở cuối màn hình chính",
+                "typography.slot.main_preview_original_desc", "Điều chỉnh cỡ chữ và độ đậm của mục này.",
+                "typography.slot.main_preview_pronunciation", "Phát âm ở cuối màn hình chính",
+                "typography.slot.main_preview_pronunciation_desc", "Điều chỉnh cỡ chữ và độ đậm của mục này.",
+                "typography.slot.main_preview_translation", "Bản dịch ở cuối màn hình chính",
+                "typography.slot.main_preview_translation_desc", "Điều chỉnh cỡ chữ và độ đậm của mục này.",
+                "typography.slot.lyrics_header_title", "Tiêu đề trang lời bài hát",
+                "typography.slot.lyrics_header_title_desc", "Điều chỉnh cỡ chữ và độ đậm của mục này.",
+                "typography.slot.lyrics_header_artist", "Nghệ sĩ trên trang lời bài hát",
+                "typography.slot.lyrics_header_artist_desc", "Điều chỉnh cỡ chữ và độ đậm của mục này.",
+                "typography.slot.lyrics_original", "Lời gốc trên trang lời bài hát",
+                "typography.slot.lyrics_original_desc", "Điều chỉnh cỡ chữ và độ đậm của mục này.",
+                "typography.slot.lyrics_pronunciation", "Phát âm trên trang lời bài hát",
+                "typography.slot.lyrics_pronunciation_desc", "Điều chỉnh cỡ chữ và độ đậm của mục này.",
+                "typography.slot.lyrics_translation", "Bản dịch trên trang lời bài hát",
+                "typography.slot.lyrics_translation_desc", "Điều chỉnh cỡ chữ và độ đậm của mục này.",
+                "section.speaker_colors_desc", "Điều chỉnh màu giọng thường, song ca, nam và nữ bằng bộ chọn màu.",
+                "toast.speaker_colors_saved", "Đã lưu màu giọng hát",
+                "toast.speaker_colors_reset", "Đã đặt lại màu giọng hát",
+                "toast.invalid_color_format", "Định dạng màu của %s không hợp lệ.",
+        });
+        applyTranslationOverrides(languages, "id", new String[]{
+                "button.save_start", "Simpan dan mulai",
+                "status.spotify_required_subtitle", "Simpan Client ID dan Client Secret terlebih dahulu",
+                "button.save_regenerate", "Simpan dan buat ulang",
+                "lyrics.rule.save_target", "Tujuan penyimpanan",
+                "lyrics.button.translation_on", "Terjemahan aktif",
+                "lyrics.button.pronunciation_on", "Pelafalan aktif",
+        });
+        applyTranslationOverrides(languages, "ms", new String[]{
+                "button.save_start", "Simpan dan mula",
+                "status.spotify_required_subtitle", "Simpan Client ID dan Client Secret dahulu",
+                "button.save_regenerate", "Simpan dan jana semula",
+                "lyrics.rule.save_target", "Destinasi simpanan",
+                "lyrics.button.translation_on", "Terjemahan dihidupkan",
+                "lyrics.button.pronunciation_on", "Sebutan dihidupkan",
+        });
+    }
+
+    private static void applyTranslationOverrides(
+            Map<String, Map<String, String>> languages,
+            String languageCode,
+            String[] entries
+    ) {
+        Map<String, String> table = languages.get(languageCode);
+        if (table == null) {
+            return;
+        }
+        Map<String, String> copy = new LinkedHashMap<>(table);
+        for (int index = 0; index + 1 < entries.length; index += 2) {
+            copy.put(entries[index], entries[index + 1]);
+        }
+        languages.put(languageCode, Collections.unmodifiableMap(copy));
+    }
+
+    /** One helper's strings for a UI language, as alternating keys and values. */
+    private interface LanguageStrings {
+        String[] forLanguage(String languageCode);
+    }
+
+    /**
+     * Applies helpers that list some languages and return their English default for the rest. For a
+     * language a helper does not list, that English default only fills keys that are missing or still
+     * English; it never replaces a translation an earlier table already provides. This keeps Czech,
+     * whose own table translates most helper keys, and any language added later translated.
+     */
+    private static void addLanguageStrings(Map<String, Map<String, String>> languages, LanguageStrings... helpers) {
+        Map<String, String> englishBefore = languages.get("en");
+        String[][] english = new String[helpers.length][];
+        for (int helper = 0; helper < helpers.length; helper++) {
+            english[helper] = helpers[helper].forLanguage("en");
+        }
+        for (AiLyricsSettings.Language language : UI_LANGUAGES) {
+            Map<String, String> table = languages.get(language.code);
+            if (table == null) {
+                continue;
+            }
+            Map<String, String> copy = new LinkedHashMap<>(table);
+            for (int helper = 0; helper < helpers.length; helper++) {
+                String[] values = helpers[helper].forLanguage(language.code);
+                boolean englishFallback = !"en".equals(language.code) && Arrays.equals(values, english[helper]);
+                for (int index = 0; index + 1 < values.length; index += 2) {
+                    String key = values[index];
+                    if (englishFallback && isTranslated(copy.get(key), englishBefore, key, values[index + 1])) {
+                        continue;
+                    }
+                    copy.put(key, values[index + 1]);
+                }
+            }
+            languages.put(language.code, Collections.unmodifiableMap(copy));
+        }
+    }
+
+    /** Whether a table already shows its own text for a key rather than an English copy. */
+    private static boolean isTranslated(String current, Map<String, String> englishBefore, String key, String english) {
+        return current != null
+                && !current.trim().isEmpty()
+                && !current.equals(english)
+                && (englishBefore == null || !current.equals(englishBefore.get(key)));
+    }
+
+    /** Pairs a helper that returns only values with the keys those values translate. */
+    private static LanguageStrings keyed(String name, String[] keys, LanguageStrings values) {
+        return languageCode -> {
+            String[] row = values.forLanguage(languageCode);
+            if (row.length != keys.length) {
+                throw new IllegalStateException("Invalid " + name + " translations: " + languageCode);
+            }
+            String[] pairs = new String[keys.length * 2];
+            for (int index = 0; index < keys.length; index++) {
+                pairs[index * 2] = keys[index];
+                pairs[index * 2 + 1] = row[index];
+            }
+            return pairs;
+        };
+    }
+
+    private static void addFirstLanguagePromptStrings(Map<String, Map<String, String>> languages) {
+        String[] keys = {
+                "first_language.title_format",
+                "first_language.message",
+                "first_language.hint",
+                "first_language.original",
+                "first_language.pronunciation",
+                "first_language.translation",
+                "first_language.both",
+                "first_language.not_now",
+                "first_language.apply",
+                "first_language.ai_provider_hint"
+        };
+        for (AiLyricsSettings.Language language : UI_LANGUAGES) {
+            Map<String, String> table = languages.get(language.code);
+            if (table == null) {
+                continue;
+            }
+            Map<String, String> copy = new LinkedHashMap<>(table);
+            String[] values = addedTranslationStrings(language.code);
+            for (int i = 0; i < keys.length - 1; i++) {
+                copy.put(keys[i], values[i]);
+            }
+            copy.put(keys[keys.length - 1], firstLanguageAIProviderHint(language.code));
+            copy.put(
+                    "first_language.pronunciation_ai_provider_hint",
+                    firstLanguagePronunciationAIProviderHint(language.code)
+            );
+            languages.put(language.code, Collections.unmodifiableMap(copy));
+        }
+    }
+
+    private static String firstLanguagePronunciationAIProviderHint(String languageCode) {
+        switch (languageCode) {
+            case "ko": return "발음은 AI 제공자 설정에서 AI 제공자를 추가해야 실제로 생성됩니다.";
+            case "zh-CN": return "只有在 AI 提供商设置中添加 AI 提供商后，才能实际生成发音。";
+            case "zh-TW": return "只有在 AI 供應商設定中加入 AI 供應商後，才能實際產生發音。";
+            case "ja": return "発音を実際に生成するには、AIプロバイダー設定でAIプロバイダーを追加する必要があります。";
+            case "hi": return "उच्चारण वास्तव में तभी बनाया जाएगा जब आप AI प्रदाता सेटिंग में कोई AI प्रदाता जोड़ेंगे।";
+            case "es": return "La pronunciación solo se generará después de añadir un proveedor de IA en los ajustes de proveedores.";
+            case "fr": return "La prononciation ne sera générée qu’après l’ajout d’un fournisseur d’IA dans les réglages correspondants.";
+            case "ar": return "لن يتم إنشاء النطق فعليًا إلا بعد إضافة موفّر ذكاء اصطناعي من إعدادات الموفّرين.";
+            case "fa": return "تلفظ فقط پس از افزودن یک ارائه‌دهنده هوش مصنوعی در تنظیمات ارائه‌دهندگان واقعاً تولید می‌شود.";
+            case "de": return "Die Aussprache wird erst erzeugt, wenn du in den KI-Anbietereinstellungen einen KI-Anbieter hinzufügst.";
+            case "ru": return "Произношение будет создано только после добавления ИИ-провайдера в настройках провайдеров.";
+            case "sv": return "Uttal genereras först när du har lagt till en AI-leverantör i inställningarna.";
+            case "pt": return "A pronúncia só será gerada depois de adicionar um provedor de IA nas configurações.";
+            case "bn": return "AI প্রদানকারী সেটিংসে একটি AI প্রদানকারী যোগ করার পরেই উচ্চারণ আসলে তৈরি হবে।";
+            case "cs": return "Výslovnost se skutečně vygeneruje až po přidání poskytovatele AI v jeho nastavení.";
+            case "it": return "La pronuncia verrà generata solo dopo aver aggiunto un provider IA nelle impostazioni.";
+            case "th": return "ระบบจะสร้างคำอ่านจริงก็ต่อเมื่อคุณเพิ่มผู้ให้บริการ AI ในการตั้งค่าผู้ให้บริการ AI";
+            case "vi": return "Phần phát âm chỉ được tạo sau khi bạn thêm nhà cung cấp AI trong phần cài đặt nhà cung cấp AI.";
+            case "id": return "Pelafalan baru akan dibuat setelah Anda menambahkan penyedia AI di pengaturan penyedia AI.";
+            case "ms": return "Sebutan hanya akan dijana selepas anda menambah penyedia AI dalam tetapan penyedia AI.";
+            case "tr": return "Telaffuz ancak AI sağlayıcı ayarlarından bir AI sağlayıcısı ekledikten sonra oluşturulur.";
+            case "en":
+            default: return "Pronunciation is generated only after you add an AI provider in AI provider settings.";
+        }
+    }
+
+    private static String firstLanguageAIProviderHint(String languageCode) {
+        switch (languageCode) {
+            case "ko": return "현재 Bing과 Google 번역만 활성화되어 있어요. 더 자연스럽고 풍부한 번역을 원한다면 AI 제공자 설정에서 AI 제공자를 추가해 주세요.";
+            case "zh-CN": return "目前仅启用了 Bing 和 Google 翻译。如需更自然、更丰富的翻译，请在 AI 提供商设置中添加一个 AI 提供商。";
+            case "zh-TW": return "目前僅啟用了 Bing 和 Google 翻譯。如需更自然、更豐富的翻譯，請在 AI 供應商設定中加入 AI 供應商。";
+            case "ja": return "現在は Bing と Google 翻訳のみが有効です。より自然で豊かな翻訳を楽しむには、AIプロバイダー設定でAIプロバイダーを追加してください。";
+            case "hi": return "अभी केवल Bing और Google अनुवाद सक्रिय हैं। अधिक स्वाभाविक और बेहतर अनुवाद के लिए AI प्रदाता सेटिंग में कोई AI प्रदाता जोड़ें।";
+            case "es": return "Solo están activos Bing y Google Translate. Añade un proveedor de IA en sus ajustes para obtener traducciones más naturales y completas.";
+            case "fr": return "Seuls Bing et Google Traduction sont actifs. Ajoutez un fournisseur d’IA dans ses réglages pour obtenir des traductions plus naturelles et plus riches.";
+            case "ar": return "المفعّل حاليًا هو Bing وGoogle Translate فقط. أضف موفّر ذكاء اصطناعي من إعدادات الموفّرين للحصول على ترجمة أكثر سلاسة وثراءً.";
+            case "fa": return "در حال حاضر فقط ترجمه Bing وGoogle فعال است. برای ترجمه‌ای طبیعی‌تر و غنی‌تر، در تنظیمات ارائه‌دهنده هوش مصنوعی یک ارائه‌دهنده اضافه کنید.";
+            case "de": return "Derzeit sind nur Bing und Google Übersetzer aktiv. Füge in den KI-Anbietereinstellungen einen KI-Anbieter hinzu, um natürlichere und umfassendere Übersetzungen zu erhalten.";
+            case "ru": return "Сейчас активны только Bing и Google Переводчик. Добавьте ИИ-провайдера в его настройках, чтобы получать более естественные и содержательные переводы.";
+            case "sv": return "Just nu är endast Bing och Google Översätt aktiva. Lägg till en AI-leverantör i inställningarna för mer naturliga och innehållsrika översättningar.";
+            case "pt": return "Apenas o Bing e o Google Tradutor estão ativos. Adicione um provedor de IA nas configurações para obter traduções mais naturais e completas.";
+            case "bn": return "বর্তমানে শুধু Bing ও Google অনুবাদ সক্রিয় আছে। আরও স্বাভাবিক ও সমৃদ্ধ অনুবাদের জন্য AI প্রদানকারী সেটিংসে একটি AI প্রদানকারী যোগ করুন।";
+            case "cs": return "Aktivní jsou pouze překladače Bing a Google. Pro přirozenější a bohatší překlady přidejte v nastavení poskytovatele AI.";
+            case "it": return "Al momento sono attivi solo Bing e Google Traduttore. Aggiungi un provider IA nelle impostazioni per ottenere traduzioni più naturali e complete.";
+            case "th": return "ขณะนี้เปิดใช้เฉพาะ Bing และ Google แปลภาษา เพิ่มผู้ให้บริการ AI ในการตั้งค่าเพื่อรับคำแปลที่เป็นธรรมชาติและครบถ้วนยิ่งขึ้น";
+            case "vi": return "Hiện chỉ có Bing và Google Dịch được bật. Hãy thêm một nhà cung cấp AI trong phần cài đặt để có bản dịch tự nhiên và phong phú hơn.";
+            case "id": return "Saat ini hanya Bing dan Google Terjemahan yang aktif. Tambahkan penyedia AI di pengaturannya untuk terjemahan yang lebih alami dan kaya.";
+            case "ms": return "Buat masa ini hanya Bing dan Google Terjemah diaktifkan. Tambahkan penyedia AI dalam tetapan untuk terjemahan yang lebih semula jadi dan lengkap.";
+            case "tr": return "Şu anda yalnızca Bing ve Google Çeviri etkin. Daha doğal ve zengin çeviriler için AI sağlayıcı ayarlarından bir AI sağlayıcısı ekleyin.";
+            case "en":
+            default: return "Only Bing and Google Translate are active. Add an AI provider in AI provider settings for more natural, richer translations.";
+        }
+    }
+
+    private static void addKeylessTranslationProviderStrings(Map<String, Map<String, String>> languages) {
+        String[] keys = {
+                "setting.bing_translate_provider_desc",
+                "setting.google_translate_provider_desc",
+                "toast.translation_provider_saved",
+                "error.translation_providers_failed"
+        };
+        for (AiLyricsSettings.Language language : UI_LANGUAGES) {
+            Map<String, String> table = languages.get(language.code);
+            if (table == null) {
+                continue;
+            }
+            Map<String, String> copy = new LinkedHashMap<>(table);
+            String[] values = addedTranslationStrings(language.code);
+            for (int i = 0; i < keys.length; i++) {
+                copy.put(keys[i], values[i + 9]);
+            }
+            languages.put(language.code, Collections.unmodifiableMap(copy));
+        }
+    }
+
+    private static void addAiProviderOrderStrings(Map<String, Map<String, String>> languages) {
+        String[] keys = {
+                "setting.ai_provider_order_desc",
+                "setting.ai_provider_drag_format",
+                "setting.ai_provider_toggle_format",
+                "setting.ai_provider_selected",
+                "accessibility.move_up",
+                "accessibility.move_down"
+        };
+        for (AiLyricsSettings.Language language : UI_LANGUAGES) {
+            Map<String, String> table = languages.get(language.code);
+            if (table == null) {
+                continue;
+            }
+            String[] values = aiProviderOrderStrings(language.code);
+            Map<String, String> copy = new LinkedHashMap<>(table);
+            for (int index = 0; index < keys.length; index++) {
+                copy.put(keys[index], values[index]);
+            }
+            String translationOnlyDescription = translationOnlyProviderDescription(language.code);
+            copy.put("setting.bing_translate_provider_desc", translationOnlyDescription);
+            copy.put("setting.google_translate_provider_desc", translationOnlyDescription);
+            languages.put(language.code, Collections.unmodifiableMap(copy));
+        }
+    }
+
+    private static String translationOnlyProviderDescription(String languageCode) {
+        switch (languageCode) {
+            case "ko": return "번역 전용 제공자입니다. 통합 목록에서 지정한 순서에 따라 사용됩니다.";
+            case "zh-CN": return "仅用于翻译的提供商，按统一列表中的位置使用。";
+            case "zh-TW": return "僅用於翻譯的供應商，依統一清單中的位置使用。";
+            case "ja": return "翻訳専用プロバイダーで、統合リスト内の位置に従って使用されます。";
+            case "hi": return "केवल अनुवाद का प्रदाता, जिसे एकीकृत सूची में उसके स्थान के अनुसार उपयोग किया जाता है।";
+            case "es": return "Proveedor solo para traducción, usado según su posición en la lista unificada.";
+            case "fr": return "Fournisseur dédié à la traduction, utilisé selon sa position dans la liste unifiée.";
+            case "ar": return "موفّر مخصّص للترجمة، يُستخدم وفق موضعه في القائمة الموحّدة.";
+            case "fa": return "ارائه‌دهنده مخصوص ترجمه که بر اساس جایگاهش در فهرست یکپارچه استفاده می‌شود.";
+            case "de": return "Reiner Übersetzungsanbieter, der gemäß seiner Position in der gemeinsamen Liste verwendet wird.";
+            case "ru": return "Провайдер только для перевода, используемый по его позиции в общем списке.";
+            case "sv": return "Leverantör endast för översättning som används enligt sin plats i den gemensamma listan.";
+            case "pt": return "Provedor exclusivo para tradução, usado conforme sua posição na lista unificada.";
+            case "bn": return "শুধু অনুবাদের জন্য প্রদানকারী, একীভূত তালিকায় এর অবস্থান অনুযায়ী ব্যবহৃত হয়।";
+            case "cs": return "Poskytovatel pouze pro překlad, použitý podle své pozice ve společném seznamu.";
+            case "it": return "Provider dedicato alla traduzione, usato in base alla sua posizione nell'elenco unificato.";
+            case "th": return "ผู้ให้บริการแปลเท่านั้น ใช้ตามตำแหน่งในรายการรวม";
+            case "vi": return "Nhà cung cấp chỉ dành cho dịch thuật, được dùng theo vị trí trong danh sách hợp nhất.";
+            case "id": return "Penyedia khusus terjemahan yang digunakan sesuai posisinya dalam daftar terpadu.";
+            case "ms": return "Penyedia khusus untuk terjemahan yang digunakan mengikut kedudukannya dalam senarai bersepadu.";
+            case "tr": return "Birleşik listedeki konumuna göre kullanılan yalnızca çeviri sağlayıcısıdır.";
+            case "en":
+            default: return "Translation-only provider used according to its position in the unified list.";
+        }
+    }
+
+    private static String[] aiProviderOrderStrings(String languageCode) {
+        switch (languageCode) {
+            case "ko": return new String[]{"사용할 제공자를 각각 켜고 끌 수 있습니다. 위에서부터 차례로 시도하며, 손잡이를 드래그해 순서를 바꿀 수 있습니다.", "%s 순서 변경", "%s 사용 여부", "세부 설정 편집 중", "위로 이동", "아래로 이동"};
+            case "zh-CN": return new String[]{"可分别启用或停用每个提供商。系统会从上到下依次尝试；拖动手柄可调整顺序。", "调整 %s 的顺序", "启用或停用 %s", "正在编辑详细设置", "上移", "下移"};
+            case "zh-TW": return new String[]{"可分別啟用或停用每個供應商。系統會由上而下依序嘗試；拖曳把手可調整順序。", "調整 %s 的順序", "啟用或停用 %s", "正在編輯詳細設定", "上移", "下移"};
+            case "ja": return new String[]{"各プロバイダーを個別にオン／オフできます。上から順に試行し、ハンドルをドラッグして順序を変更できます。", "%s の順序を変更", "%s のオン／オフ", "詳細設定を編集中", "上へ移動", "下へ移動"};
+            case "hi": return new String[]{"हर प्रदाता को अलग से चालू या बंद करें। ऊपर से क्रम में प्रयास किया जाता है; क्रम बदलने के लिए हैंडल खींचें।", "%s का क्रम बदलें", "%s चालू या बंद करें", "विस्तृत सेटिंग संपादित हो रही है", "ऊपर ले जाएँ", "नीचे ले जाएँ"};
+            case "es": return new String[]{"Activa o desactiva cada proveedor por separado. Se prueban de arriba abajo; arrastra el control para cambiar el orden.", "Reordenar %s", "Activar o desactivar %s", "Editando ajustes detallados", "Mover arriba", "Mover abajo"};
+            case "fr": return new String[]{"Activez ou désactivez chaque fournisseur séparément. Ils sont essayés de haut en bas ; faites glisser la poignée pour les réordonner.", "Réorganiser %s", "Activer ou désactiver %s", "Modification des réglages détaillés", "Monter", "Descendre"};
+            case "ar": return new String[]{"يمكن تشغيل كل مزوّد أو إيقافه بشكل مستقل. تتم المحاولة من الأعلى إلى الأسفل؛ اسحب المقبض لتغيير الترتيب.", "تغيير ترتيب %s", "تشغيل أو إيقاف %s", "جارٍ تعديل الإعدادات التفصيلية", "نقل لأعلى", "نقل لأسفل"};
+            case "fa": return new String[]{"هر ارائه‌دهنده را جداگانه روشن یا خاموش کنید. از بالا به پایین امتحان می‌شوند؛ برای تغییر ترتیب دستگیره را بکشید.", "تغییر ترتیب %s", "روشن یا خاموش کردن %s", "در حال ویرایش تنظیمات جزئی", "انتقال به بالا", "انتقال به پایین"};
+            case "de": return new String[]{"Jeden Anbieter einzeln ein- oder ausschalten. Die Reihenfolge wird von oben nach unten versucht; zum Ändern den Griff ziehen.", "%s neu anordnen", "%s ein- oder ausschalten", "Detaileinstellungen werden bearbeitet", "Nach oben", "Nach unten"};
+            case "ru": return new String[]{"Каждого провайдера можно включать отдельно. Они используются сверху вниз; перетащите маркер, чтобы изменить порядок.", "Изменить порядок %s", "Включить или выключить %s", "Редактируются подробные настройки", "Переместить вверх", "Переместить вниз"};
+            case "sv": return new String[]{"Slå på eller av varje leverantör separat. De provas uppifrån och ned; dra handtaget för att ändra ordningen.", "Ändra ordning för %s", "Slå på eller av %s", "Redigerar detaljinställningar", "Flytta upp", "Flytta ned"};
+            case "pt": return new String[]{"Ative ou desative cada provedor separadamente. Eles são testados de cima para baixo; arraste a alça para reordenar.", "Reordenar %s", "Ativar ou desativar %s", "Editando configurações detalhadas", "Mover para cima", "Mover para baixo"};
+            case "bn": return new String[]{"প্রতিটি প্রদানকারী আলাদাভাবে চালু বা বন্ধ করুন। উপর থেকে নিচে চেষ্টা করা হয়; ক্রম বদলাতে হ্যান্ডেল টানুন।", "%s-এর ক্রম বদলান", "%s চালু বা বন্ধ করুন", "বিস্তারিত সেটিং সম্পাদনা হচ্ছে", "উপরে সরান", "নিচে সরান"};
+            case "cs": return new String[]{"Každého poskytovatele lze zapnout zvlášť. Zkoušejí se shora dolů; pořadí změníte přetažením úchytu.", "Změnit pořadí %s", "Zapnout nebo vypnout %s", "Úprava podrobného nastavení", "Posunout nahoru", "Posunout dolů"};
+            case "it": return new String[]{"Attiva o disattiva ogni provider separatamente. Vengono provati dall’alto verso il basso; trascina la maniglia per riordinarli.", "Riordina %s", "Attiva o disattiva %s", "Modifica delle impostazioni dettagliate", "Sposta su", "Sposta giù"};
+            case "th": return new String[]{"เปิดหรือปิดผู้ให้บริการแต่ละรายแยกกัน ระบบจะลองจากบนลงล่าง ลากที่จับเพื่อเปลี่ยนลำดับ", "เปลี่ยนลำดับ %s", "เปิดหรือปิด %s", "กำลังแก้ไขการตั้งค่าโดยละเอียด", "เลื่อนขึ้น", "เลื่อนลง"};
+            case "vi": return new String[]{"Bật hoặc tắt riêng từng nhà cung cấp. Hệ thống thử từ trên xuống; kéo tay nắm để đổi thứ tự.", "Sắp xếp lại %s", "Bật hoặc tắt %s", "Đang sửa cài đặt chi tiết", "Di chuyển lên", "Di chuyển xuống"};
+            case "id": return new String[]{"Aktifkan atau nonaktifkan tiap penyedia secara terpisah. Dicoba dari atas ke bawah; seret pegangan untuk mengubah urutan.", "Ubah urutan %s", "Aktifkan atau nonaktifkan %s", "Mengedit pengaturan terperinci", "Pindah ke atas", "Pindah ke bawah"};
+            case "ms": return new String[]{"Hidupkan atau matikan setiap penyedia secara berasingan. Ia dicuba dari atas ke bawah; seret pemegang untuk menukar susunan.", "Susun semula %s", "Hidupkan atau matikan %s", "Mengedit tetapan terperinci", "Alih ke atas", "Alih ke bawah"};
+            case "tr": return new String[]{"Her sağlayıcıyı ayrı ayrı açıp kapatın. Yukarıdan aşağıya denenir; sıralamayı değiştirmek için tutamacı sürükleyin.", "%s sırasını değiştir", "%s öğesini aç veya kapat", "Ayrıntılı ayarlar düzenleniyor", "Yukarı taşı", "Aşağı taşı"};
+            case "en":
+            default: return new String[]{"Turn each provider on or off independently. Providers are tried from top to bottom; drag the handle to reorder them.", "Reorder %s", "Turn %s on or off", "Editing detailed settings", "Move up", "Move down"};
+        }
+    }
+
+    private static String[] addedTranslationStrings(String languageCode) {
+        switch (languageCode) {
+            case "ko": return new String[] {
+                    "%s 곡을 처음 재생하시네요", "이 노래는 어떻게 번역할까요?",
+                    "다음에 설정하시려면, 플레이어의 곡 제목을 꾹 눌러주세요.",
+                    "원문만", "발음", "번역", "발음 + 번역", "설정하지 않기", "이 설정으로 적용",
+                    "번역 전용 공급자입니다. 실패하면 Google Translate와 선택한 AI 공급자 순으로 넘어갑니다.",
+                    "번역 전용 공급자입니다. Bing Translate가 실패하거나 꺼져 있을 때 사용합니다.",
+                    "번역 공급자 설정 저장됨",
+                    "활성화된 번역 제공자로 번역하지 못했습니다"
+            };
+            case "zh-CN": return new String[] {
+                    "第一次播放%s歌曲", "要如何翻译这首歌？",
+                    "以后如需设置，请长按播放器中的歌曲标题。",
+                    "仅原文", "发音", "翻译", "发音 + 翻译", "不进行设置", "应用这些设置",
+                    "仅用于翻译的提供商。失败时将依次尝试 Google Translate 和所选 AI 提供商。",
+                    "仅用于翻译的提供商，在 Bing Translate 被禁用或不可用时使用。",
+                    "翻译提供商设置已保存",
+                    "无法使用已启用的翻译提供商完成翻译。"
+            };
+            case "zh-TW": return new String[] {
+                    "第一次播放%s歌曲", "要如何翻譯這首歌？",
+                    "日後若要設定，請長按播放器中的歌曲標題。",
+                    "僅原文", "發音", "翻譯", "發音 + 翻譯", "不要設定", "套用這些設定",
+                    "僅用於翻譯的供應商。失敗時會依序改用 Google Translate 和所選的 AI 供應商。",
+                    "僅用於翻譯的供應商，會在 Bing Translate 已停用或無法使用時使用。",
+                    "翻譯供應商設定已儲存",
+                    "無法使用已啟用的翻譯供應商完成翻譯。"
+            };
+            case "ja": return new String[] {
+                    "%sの曲を初めて再生しています", "この曲をどのように翻訳しますか？",
+                    "後で設定するには、プレーヤーの曲名を長押ししてください。",
+                    "原文のみ", "発音", "翻訳", "発音 + 翻訳", "設定しない", "この設定を適用",
+                    "翻訳専用プロバイダーです。失敗した場合は Google 翻訳、選択した AI プロバイダーの順に切り替えます。",
+                    "翻訳専用プロバイダーです。Bing Translate が無効または利用できない場合に使用します。",
+                    "翻訳プロバイダーの設定を保存しました",
+                    "有効な翻訳プロバイダーで翻訳できませんでした。"
+            };
+            case "hi": return new String[] {
+                    "आप पहली बार %s गीत चला रहे हैं", "इस गीत का अनुवाद कैसे किया जाए?",
+                    "बाद में सेट करने के लिए, प्लेयर में गीत के शीर्षक को दबाकर रखें।",
+                    "केवल मूल", "उच्चारण", "अनुवाद", "उच्चारण + अनुवाद", "सेट न करें", "ये सेटिंग लागू करें",
+                    "सिर्फ़ अनुवाद के लिए प्रदाता। विफल होने पर Google Translate और फिर चुने गए AI प्रदाता का उपयोग करता है।",
+                    "सिर्फ़ अनुवाद के लिए प्रदाता, जिसका उपयोग Bing Translate के बंद या अनुपलब्ध होने पर किया जाता है।",
+                    "अनुवाद प्रदाता सेटिंग सहेजी गई",
+                    "चालू किए गए अनुवाद प्रदाताओं से अनुवाद नहीं हो सका।"
+            };
+            case "es": return new String[] {
+                    "Es la primera vez que reproduces una canción en %s", "¿Cómo quieres traducir esta canción?",
+                    "Para configurarlo más tarde, mantén pulsado el título de la canción en el reproductor.",
+                    "Solo original", "Pronunciación", "Traducción", "Pronunciación + traducción", "No configurar", "Aplicar estos ajustes",
+                    "Proveedor solo para traducción. Si falla, recurre a Google Translate y luego al proveedor de IA seleccionado.",
+                    "Proveedor solo para traducción que se usa cuando Bing Translate está desactivado o no está disponible.",
+                    "Configuración del proveedor de traducción guardada",
+                    "No se pudo traducir con los proveedores de traducción activados."
+            };
+            case "fr": return new String[] {
+                    "Première lecture d’une chanson en %s", "Comment souhaitez-vous traduire cette chanson ?",
+                    "Pour le configurer plus tard, maintenez le titre de la chanson appuyé dans le lecteur.",
+                    "Original uniquement", "Prononciation", "Traduction", "Prononciation + traduction", "Ne pas configurer", "Appliquer ces réglages",
+                    "Fournisseur dédié à la traduction. En cas d’échec, utilise Google Translate, puis le fournisseur d’IA sélectionné.",
+                    "Fournisseur dédié à la traduction, utilisé lorsque Bing Translate est désactivé ou indisponible.",
+                    "Réglage du fournisseur de traduction enregistré",
+                    "La traduction a échoué avec les fournisseurs de traduction activés."
+            };
+            case "ar": return new String[] {
+                    "هذه أول مرة تشغّل فيها أغنية باللغة %s", "كيف تريد ترجمة هذه الأغنية؟",
+                    "للإعداد لاحقًا، اضغط مطولًا على عنوان الأغنية في المشغّل.",
+                    "النص الأصلي فقط", "النطق", "الترجمة", "النطق + الترجمة", "عدم الإعداد", "تطبيق هذه الإعدادات",
+                    "موفّر مخصّص للترجمة. عند الفشل، ينتقل إلى Google Translate ثم موفّر الذكاء الاصطناعي المحدد.",
+                    "موفّر مخصّص للترجمة يُستخدم عند تعطيل Bing Translate أو عدم توفره.",
+                    "تم حفظ إعداد موفّر الترجمة",
+                    "تعذرت الترجمة باستخدام موفّري الترجمة المفعّلين."
+            };
+            case "fa": return new String[] {
+                    "این نخستین بار است که آهنگی به زبان %s پخش می‌کنید", "این آهنگ چگونه ترجمه شود؟",
+                    "برای تنظیم در آینده، عنوان آهنگ را در پخش‌کننده لمس طولانی کنید.",
+                    "فقط متن اصلی", "تلفظ", "ترجمه", "تلفظ + ترجمه", "تنظیم نشود", "اعمال این تنظیمات",
+                    "ارائه‌دهنده مخصوص ترجمه. در صورت شکست، ابتدا از Google Translate و سپس ارائه‌دهنده هوش مصنوعی انتخاب‌شده استفاده می‌شود.",
+                    "ارائه‌دهنده مخصوص ترجمه که هنگام غیرفعال یا دردسترس نبودن Bing Translate استفاده می‌شود.",
+                    "تنظیم ارائه‌دهنده ترجمه ذخیره شد",
+                    "ترجمه با ارائه‌دهندگان ترجمه فعال انجام نشد."
+            };
+            case "de": return new String[] {
+                    "Du spielst zum ersten Mal einen Song auf %s ab", "Wie soll dieser Song übersetzt werden?",
+                    "Halte für eine spätere Einrichtung den Songtitel im Player gedrückt.",
+                    "Nur Original", "Aussprache", "Übersetzung", "Aussprache + Übersetzung", "Nicht einrichten", "Diese Einstellungen anwenden",
+                    "Anbieter nur für Übersetzungen. Bei einem Fehler wird Google Translate und danach der ausgewählte KI-Anbieter verwendet.",
+                    "Anbieter nur für Übersetzungen, der verwendet wird, wenn Bing Translate deaktiviert oder nicht verfügbar ist.",
+                    "Einstellung des Übersetzungsanbieters gespeichert",
+                    "Die Übersetzung mit den aktivierten Übersetzungsanbietern ist fehlgeschlagen."
+            };
+            case "ru": return new String[] {
+                    "Песня на языке «%s» воспроизводится впервые", "Как перевести эту песню?",
+                    "Чтобы настроить позже, нажмите и удерживайте название песни в плеере.",
+                    "Только оригинал", "Произношение", "Перевод", "Произношение + перевод", "Не настраивать", "Применить эти настройки",
+                    "Провайдер только для перевода. При сбое используется Google Translate, а затем выбранный ИИ-провайдер.",
+                    "Провайдер только для перевода, используемый, когда Bing Translate отключён или недоступен.",
+                    "Настройка провайдера перевода сохранена",
+                    "Не удалось выполнить перевод с помощью включённых провайдеров."
+            };
+            case "sv": return new String[] {
+                    "Första gången du spelar en låt på %s", "Hur ska den här låten översättas?",
+                    "Om du vill konfigurera detta senare håller du ned låttiteln i spelaren.",
+                    "Endast original", "Uttal", "Översättning", "Uttal + översättning", "Konfigurera inte", "Tillämpa dessa inställningar",
+                    "Leverantör endast för översättning. Vid fel används Google Translate och sedan den valda AI-leverantören.",
+                    "Leverantör endast för översättning som används när Bing Translate är avstängt eller inte tillgängligt.",
+                    "Inställningen för översättningsleverantör har sparats",
+                    "Det gick inte att översätta med de aktiverade översättningsleverantörerna."
+            };
+            case "pt": return new String[] {
+                    "Primeira vez que você reproduz uma música em %s", "Como esta música deve ser traduzida?",
+                    "Para configurar mais tarde, mantenha pressionado o título da música no reprodutor.",
+                    "Somente original", "Pronúncia", "Tradução", "Pronúncia + tradução", "Não configurar", "Aplicar estas configurações",
+                    "Provedor exclusivo para tradução. Em caso de falha, usa o Google Translate e depois o provedor de IA selecionado.",
+                    "Provedor exclusivo para tradução usado quando o Bing Translate está desativado ou indisponível.",
+                    "Configuração do provedor de tradução salva",
+                    "Não foi possível traduzir com os provedores de tradução ativados."
+            };
+            case "bn": return new String[] {
+                    "আপনি প্রথমবার %s ভাষার গান চালাচ্ছেন", "এই গানটি কীভাবে অনুবাদ করা হবে?",
+                    "পরে সেট করতে, প্লেয়ারে গানের শিরোনামটি চেপে ধরে রাখুন।",
+                    "শুধু মূল লেখা", "উচ্চারণ", "অনুবাদ", "উচ্চারণ + অনুবাদ", "সেট আপ করবেন না", "এই সেটিংস প্রয়োগ করুন",
+                    "শুধু অনুবাদের জন্য প্রদানকারী। ব্যর্থ হলে Google Translate এবং তারপর নির্বাচিত AI প্রদানকারী ব্যবহার করে।",
+                    "শুধু অনুবাদের জন্য প্রদানকারী, Bing Translate বন্ধ বা অনুপলব্ধ হলে ব্যবহৃত হয়।",
+                    "অনুবাদ প্রদানকারীর সেটিং সংরক্ষিত হয়েছে",
+                    "চালু থাকা অনুবাদ প্রদানকারীগুলো দিয়ে অনুবাদ করা যায়নি।"
+            };
+            case "cs": return new String[] {
+                    "Poprvé přehráváte skladbu v jazyce %s", "Jak se má tato skladba přeložit?",
+                    "Chcete-li nastavit později, podržte název skladby v přehrávači.",
+                    "Pouze originál", "Výslovnost", "Překlad", "Výslovnost + překlad", "Nenastavovat", "Použít tato nastavení",
+                    "Poskytovatel pouze pro překlad. Při selhání použije Google Translate a poté vybraného poskytovatele AI.",
+                    "Poskytovatel pouze pro překlad, který se použije, když je Bing Translate vypnutý nebo nedostupný.",
+                    "Nastavení poskytovatele překladu bylo uloženo",
+                    "Překlad pomocí zapnutých poskytovatelů se nezdařil."
+            };
+            case "it": return new String[] {
+                    "È la prima volta che riproduci un brano in %s", "Come vuoi tradurre questo brano?",
+                    "Per configurarlo in seguito, tieni premuto il titolo del brano nel lettore.",
+                    "Solo originale", "Pronuncia", "Traduzione", "Pronuncia + traduzione", "Non configurare", "Applica queste impostazioni",
+                    "Provider dedicato alla traduzione. In caso di errore usa Google Translate e poi il provider IA selezionato.",
+                    "Provider dedicato alla traduzione, usato quando Bing Translate è disattivato o non disponibile.",
+                    "Impostazione del provider di traduzione salvata",
+                    "Non è stato possibile tradurre con i provider di traduzione attivati."
+            };
+            case "th": return new String[] {
+                    "นี่เป็นครั้งแรกที่คุณเล่นเพลงภาษา%s", "ต้องการแปลเพลงนี้อย่างไร?",
+                    "หากต้องการตั้งค่าในภายหลัง ให้แตะชื่อเพลงในเครื่องเล่นค้างไว้",
+                    "ต้นฉบับเท่านั้น", "คำอ่าน", "คำแปล", "คำอ่าน + คำแปล", "ไม่ต้องตั้งค่า", "ใช้การตั้งค่าเหล่านี้",
+                    "ผู้ให้บริการสำหรับการแปลเท่านั้น หากล้มเหลวจะใช้ Google Translate แล้วตามด้วยผู้ให้บริการ AI ที่เลือก",
+                    "ผู้ให้บริการสำหรับการแปลเท่านั้น ซึ่งจะใช้เมื่อปิด Bing Translate หรือใช้งานไม่ได้",
+                    "บันทึกการตั้งค่าผู้ให้บริการแปลแล้ว",
+                    "ไม่สามารถแปลด้วยผู้ให้บริการแปลที่เปิดใช้งานอยู่ได้"
+            };
+            case "vi": return new String[] {
+                    "Đây là lần đầu bạn phát một bài hát bằng %s", "Bạn muốn dịch bài hát này như thế nào?",
+                    "Để thiết lập sau, hãy nhấn và giữ tên bài hát trong trình phát.",
+                    "Chỉ lời gốc", "Cách phát âm", "Bản dịch", "Cách phát âm + bản dịch", "Không thiết lập", "Áp dụng các cài đặt này",
+                    "Nhà cung cấp chỉ dành cho dịch thuật. Nếu thất bại, hệ thống sẽ dùng Google Translate rồi đến nhà cung cấp AI đã chọn.",
+                    "Nhà cung cấp chỉ dành cho dịch thuật, được dùng khi Bing Translate bị tắt hoặc không khả dụng.",
+                    "Đã lưu cài đặt nhà cung cấp dịch",
+                    "Không thể dịch bằng các nhà cung cấp dịch đang bật."
+            };
+            case "id": return new String[] {
+                    "Pertama kali memutar lagu berbahasa %s", "Bagaimana lagu ini akan diterjemahkan?",
+                    "Untuk mengaturnya nanti, tekan dan tahan judul lagu di pemutar.",
+                    "Hanya lirik asli", "Pelafalan", "Terjemahan", "Pelafalan + terjemahan", "Jangan siapkan", "Terapkan pengaturan ini",
+                    "Penyedia khusus terjemahan. Jika gagal, beralih ke Google Translate lalu penyedia AI yang dipilih.",
+                    "Penyedia khusus terjemahan yang digunakan saat Bing Translate dinonaktifkan atau tidak tersedia.",
+                    "Pengaturan penyedia terjemahan disimpan",
+                    "Tidak dapat menerjemahkan dengan penyedia terjemahan yang diaktifkan."
+            };
+            case "ms": return new String[] {
+                    "Kali pertama memainkan lagu dalam bahasa %s", "Bagaimanakah lagu ini harus diterjemahkan?",
+                    "Untuk menetapkannya kemudian, tekan dan tahan tajuk lagu dalam pemain.",
+                    "Asal sahaja", "Sebutan", "Terjemahan", "Sebutan + terjemahan", "Jangan sediakan", "Gunakan tetapan ini",
+                    "Penyedia khusus untuk terjemahan. Jika gagal, Google Translate dan kemudian penyedia AI yang dipilih akan digunakan.",
+                    "Penyedia khusus untuk terjemahan yang digunakan apabila Bing Translate dimatikan atau tidak tersedia.",
+                    "Tetapan penyedia terjemahan disimpan",
+                    "Tidak dapat menterjemah dengan penyedia terjemahan yang diaktifkan."
+            };
+            case "tr": return new String[] {
+                    "İlk kez %s dilinde bir şarkı çalıyorsunuz", "Bu şarkı nasıl çevrilsin?",
+                    "Daha sonra ayarlamak için oynatıcıdaki şarkı adına basılı tutun.",
+                    "Yalnızca orijinal", "Telaffuz", "Çeviri", "Telaffuz + çeviri", "Ayarlama", "Bu ayarları uygula",
+                    "Yalnızca çeviri sağlayıcısıdır. Başarısız olursa Google Translate, ardından seçili AI sağlayıcısı kullanılır.",
+                    "Bing Translate devre dışı veya kullanılamaz olduğunda kullanılan yalnızca çeviri sağlayıcısıdır.",
+                    "Çeviri sağlayıcısı ayarı kaydedildi",
+                    "Etkin çeviri sağlayıcılarıyla çeviri yapılamadı."
+            };
+            case "en":
+            default: return new String[] {
+                    "First time playing a %s song", "How should this song be translated?",
+                    "To configure this later, press and hold the song title in the player.",
+                    "Original only", "Pronunciation", "Translation", "Pronunciation + translation", "Don't configure", "Apply these settings",
+                    "Translation-only provider. Falls back to Google Translate, then the selected AI provider.",
+                    "Translation-only provider used when Bing Translate is disabled or unavailable.",
+                    "Translation provider setting saved",
+                    "Translation failed with the enabled translation providers."
+            };
+        }
+    }
+
+    private static void addSettingsTranslationOverrides(Map<String, Map<String, String>> languages) {
+        for (AiLyricsSettings.Language language : UI_LANGUAGES) {
+            Map<String, String> table = languages.get(language.code);
+            if (table == null) {
+                continue;
+            }
+            Map<String, String> copy = new LinkedHashMap<>(table);
+            SettingsTranslationOverrides.apply(language.code, copy);
+            languages.put(language.code, Collections.unmodifiableMap(copy));
+        }
+    }
+
+    private static void addLyricsToolsTranslationOverrides(Map<String, Map<String, String>> languages) {
+        for (AiLyricsSettings.Language language : UI_LANGUAGES) {
+            Map<String, String> table = languages.get(language.code);
+            if (table == null) {
+                continue;
+            }
+            Map<String, String> copy = new LinkedHashMap<>(table);
+            LyricsToolsTranslationOverrides.apply(language.code, copy);
+            VideoSelectionTranslations.apply(language.code, copy);
+            SettingsExperienceTranslations.apply(language.code, copy);
+            languages.put(language.code, Collections.unmodifiableMap(copy));
+        }
+    }
+
+    private static void addCulturalAnnotationStrings(Map<String, Map<String, String>> languages) {
+        String[] keys = {
+                "setting.cultural_annotations",
+                "setting.cultural_annotations_desc",
+                "setting.cultural_font_family",
+                "setting.cultural_font_size",
+                "setting.cultural_font_weight",
+                "setting.cultural_opacity",
+                "loading.cultural_annotations",
+                "font.pretendard",
+                "font.system",
+                "font.serif",
+                "font.monospace"
+        };
+        addLanguageStrings(languages, keyed("cultural annotation", keys, AppI18n::culturalAnnotationStrings));
+    }
+
+    private static String[] culturalAnnotationStrings(String language) {
+        switch (language) {
+            case "ko": return new String[] {
+                    "문화적 배경 설명",
+                    "번역만으로 이해하기 어려운 문화적 배경이 있는 가사 줄 아래에만 AI 설명을 표시합니다. 번역 대상 언어를 사용합니다. 일반 가사 페이지, 일반 전체화면, LP 모드에서 표시되며 Now Playing과 PIP에는 표시되지 않습니다.",
+                    "설명 글꼴", "설명 글자 크기", "설명 글자 굵기", "설명 불투명도", "문화적 설명",
+                    "Pretendard", "시스템", "명조체", "고정폭"
+            };
+            case "en": return new String[] {
+                    "Cultural context explanations",
+                    "Show AI explanations only under lyric lines whose cultural background would otherwise be lost in translation. Uses the translation target language. Shown on the normal lyrics page, fullscreen, and LP mode, but not in Now Playing or PIP.",
+                    "Explanation font", "Explanation font size", "Explanation font weight", "Explanation opacity", "Cultural context explanations",
+                    "Pretendard", "System", "Serif", "Monospace"
+            };
+            case "zh-CN": return new String[] {
+                    "文化背景说明",
+                    "仅在翻译难以传达文化背景的歌词行下方显示 AI 生成的说明。使用翻译目标语言。显示在普通歌词页面、普通全屏和 LP 模式中，不会显示在正在播放或画中画中。",
+                    "说明字体", "说明字号", "说明字重", "说明不透明度", "文化背景说明",
+                    "Pretendard", "系统", "衬线", "等宽"
+            };
+            case "zh-TW": return new String[] {
+                    "文化背景說明",
+                    "僅在翻譯難以傳達文化背景的歌詞行下方顯示 AI 產生的說明。使用翻譯目標語言。顯示於一般歌詞頁面、一般全螢幕與 LP 模式，不會顯示於正在播放或子母畫面。",
+                    "說明字型", "說明字型大小", "說明字重", "說明不透明度", "文化背景說明",
+                    "Pretendard", "系統", "襯線", "等寬"
+            };
+            case "ja": return new String[] {
+                    "文化的背景の解説",
+                    "翻訳だけでは伝わりにくい文化的背景がある歌詞の行にのみ、AIによる解説を表示します。翻訳先の言語を使用します。通常の歌詞ページ、全画面表示、LPモードに表示され、再生中画面とPIPには表示されません。",
+                    "解説のフォント", "解説の文字サイズ", "解説の文字の太さ", "解説の不透明度", "文化的背景の解説",
+                    "Pretendard", "システム", "セリフ", "等幅"
+            };
+            case "hi": return new String[] {
+                    "सांस्कृतिक संदर्भ की व्याख्या",
+                    "केवल उन गीत पंक्तियों के नीचे AI व्याख्या दिखाता है जिनकी सांस्कृतिक पृष्ठभूमि अनुवाद में खो सकती है। अनुवाद की लक्षित भाषा का उपयोग करता है। यह सामान्य लिरिक्स पेज, फ़ुलस्क्रीन और LP मोड में दिखता है, लेकिन Now Playing या PIP में नहीं।",
+                    "व्याख्या का फ़ॉन्ट", "व्याख्या का फ़ॉन्ट आकार", "व्याख्या का फ़ॉन्ट वज़न", "व्याख्या की अपारदर्शिता", "सांस्कृतिक संदर्भ की व्याख्या",
+                    "Pretendard", "सिस्टम", "सेरिफ़", "मोनोस्पेस"
+            };
+            case "es": return new String[] {
+                    "Explicaciones del contexto cultural",
+                    "Muestra explicaciones de IA solo bajo los versos cuyo trasfondo cultural se perdería al traducirlos. Usa el idioma de destino. Aparece en la página normal, en pantalla completa y en el modo LP, pero no en En reproducción ni PIP.",
+                    "Fuente de las explicaciones", "Tamaño de las explicaciones", "Grosor de las explicaciones", "Opacidad de las explicaciones", "Explicaciones del contexto cultural",
+                    "Pretendard", "Sistema", "Serif", "Monoespaciada"
+            };
+            case "fr": return new String[] {
+                    "Explications du contexte culturel",
+                    "Affiche des explications IA uniquement sous les lignes dont le contexte culturel serait perdu à la traduction. Utilise la langue cible. Visible sur la page normale, en plein écran et en mode LP, mais pas dans Lecture en cours ni PIP.",
+                    "Police des explications", "Taille des explications", "Graisse des explications", "Opacité des explications", "Explications du contexte culturel",
+                    "Pretendard", "Système", "Avec empattements", "Chasse fixe"
+            };
+            case "ar": return new String[] {
+                    "شرح السياق الثقافي",
+                    "يعرض شرحاً بالذكاء الاصطناعي فقط تحت الأسطر التي قد تضيع خلفيتها الثقافية في الترجمة. يستخدم لغة الترجمة المستهدفة. يظهر في صفحة الكلمات العادية والشاشة الكاملة ووضع LP، وليس في التشغيل الحالي أو PIP.",
+                    "خط الشرح", "حجم خط الشرح", "سماكة خط الشرح", "عتامة الشرح", "شرح السياق الثقافي",
+                    "Pretendard", "النظام", "مذيل", "أحادي المسافة"
+            };
+            case "fa": return new String[] {
+                    "توضیح زمینه فرهنگی",
+                    "فقط زیر سطرهایی که زمینه فرهنگی آن‌ها در ترجمه از بین می‌رود، توضیح هوش مصنوعی نمایش می‌دهد. از زبان مقصد استفاده می‌کند. در صفحه عادی، تمام‌صفحه و حالت LP دیده می‌شود، نه در پخش فعلی یا PIP.",
+                    "قلم توضیح", "اندازه قلم توضیح", "ضخامت قلم توضیح", "کدری توضیح", "توضیح زمینه فرهنگی",
+                    "Pretendard", "سیستم", "سریف", "تک‌فاصله"
+            };
+            case "de": return new String[] {
+                    "Kulturellen Kontext erklären",
+                    "Zeigt KI-Erklärungen nur unter Zeilen, deren kultureller Hintergrund bei der Übersetzung verloren ginge. Verwendet die Zielsprache. Auf der normalen Textseite, im Vollbild und im LP-Modus sichtbar, nicht in Aktueller Titel oder PIP.",
+                    "Schriftart der Erklärung", "Schriftgröße der Erklärung", "Schriftstärke der Erklärung", "Deckkraft der Erklärung", "Kulturellen Kontext erklären",
+                    "Pretendard", "System", "Serif", "Dicktengleich"
+            };
+            case "ru": return new String[] {
+                    "Пояснения культурного контекста",
+                    "Показывает пояснения ИИ только под строками, культурный фон которых теряется при переводе. Использует язык перевода. Видно на обычной странице, в полноэкранном режиме и режиме LP, но не в Сейчас играет или PIP.",
+                    "Шрифт пояснений", "Размер шрифта пояснений", "Толщина шрифта пояснений", "Непрозрачность пояснений", "Пояснения культурного контекста",
+                    "Pretendard", "Системный", "С засечками", "Моноширинный"
+            };
+            case "sv": return new String[] {
+                    "Förklaringar av kulturell kontext",
+                    "Visar AI-förklaringar endast under rader vars kulturella bakgrund annars förloras i översättningen. Använder målspråket. Visas på den vanliga textsidan, i helskärm och i LP-läge, men inte i Nu spelas eller PIP.",
+                    "Förklaringens typsnitt", "Förklaringens textstorlek", "Förklaringens teckenvikt", "Förklaringens opacitet", "Förklaringar av kulturell kontext",
+                    "Pretendard", "System", "Serif", "Fast bredd"
+            };
+            case "pt": return new String[] {
+                    "Explicações de contexto cultural",
+                    "Mostra explicações de IA apenas sob os versos cujo contexto cultural se perderia na tradução. Usa o idioma de destino. Aparece na página normal, em tela cheia e no modo LP, mas não em Reproduzindo agora ou PIP.",
+                    "Fonte das explicações", "Tamanho das explicações", "Peso das explicações", "Opacidade das explicações", "Explicações de contexto cultural",
+                    "Pretendard", "Sistema", "Serif", "Monoespaçada"
+            };
+            case "bn": return new String[] {
+                    "সাংস্কৃতিক প্রেক্ষাপটের ব্যাখ্যা",
+                    "অনুবাদে সাংস্কৃতিক পটভূমি হারিয়ে গেলে শুধু সেই লাইনের নিচে AI ব্যাখ্যা দেখায়। অনুবাদের লক্ষ্য ভাষা ব্যবহার করে। এটি সাধারণ লিরিক্স পৃষ্ঠা, পূর্ণস্ক্রিন ও LP মোডে দেখা যায়; Now Playing বা PIP-তে নয়।",
+                    "ব্যাখ্যার ফন্ট", "ব্যাখ্যার ফন্টের আকার", "ব্যাখ্যার ফন্টের ওজন", "ব্যাখ্যার অস্বচ্ছতা", "সাংস্কৃতিক প্রেক্ষাপটের ব্যাখ্যা",
+                    "Pretendard", "সিস্টেম", "সেরিফ", "মনোস্পেস"
+            };
+            case "cs": return new String[] {
+                    "Vysvětlení kulturního kontextu",
+                    "Zobrazí vysvětlení AI pouze pod řádky, u nichž by se kulturní kontext v překladu ztratil. Použije cílový jazyk. Zobrazuje se na běžné stránce, na celé obrazovce a v režimu LP, ne v Právě hraje ani PIP.",
+                    "Písmo vysvětlení", "Velikost písma vysvětlení", "Tloušťka písma vysvětlení", "Krytí vysvětlení", "Vysvětlení kulturního kontextu",
+                    "Pretendard", "Systém", "Patkové", "Neproporcionální"
+            };
+            case "it": return new String[] {
+                    "Spiegazioni del contesto culturale",
+                    "Mostra spiegazioni IA solo sotto i versi il cui contesto culturale andrebbe perso nella traduzione. Usa la lingua di destinazione. Visibile nella pagina normale, a schermo intero e in modalità LP, non in In riproduzione o PIP.",
+                    "Font delle spiegazioni", "Dimensione delle spiegazioni", "Spessore delle spiegazioni", "Opacità delle spiegazioni", "Spiegazioni del contesto culturale",
+                    "Pretendard", "Sistema", "Serif", "Monospazio"
+            };
+            case "th": return new String[] {
+                    "คำอธิบายบริบททางวัฒนธรรม",
+                    "แสดงคำอธิบาย AI เฉพาะใต้บรรทัดที่บริบททางวัฒนธรรมอาจสูญหายในการแปล ใช้ภาษาเป้าหมาย แสดงในหน้าปกติ เต็มจอ และโหมด LP แต่ไม่แสดงในกำลังเล่นหรือ PIP",
+                    "แบบอักษรคำอธิบาย", "ขนาดตัวอักษรคำอธิบาย", "น้ำหนักตัวอักษรคำอธิบาย", "ความทึบของคำอธิบาย", "คำอธิบายบริบททางวัฒนธรรม",
+                    "Pretendard", "ระบบ", "มีเชิง", "ความกว้างคงที่"
+            };
+            case "vi": return new String[] {
+                    "Giải thích bối cảnh văn hóa",
+                    "Chỉ hiển thị giải thích AI dưới những câu có bối cảnh văn hóa dễ bị mất khi dịch. Dùng ngôn ngữ đích. Hiển thị ở trang lời thường, toàn màn hình và chế độ LP, nhưng không hiển thị trong Đang phát hoặc PIP.",
+                    "Phông chữ giải thích", "Cỡ chữ giải thích", "Độ đậm chữ giải thích", "Độ mờ giải thích", "Giải thích bối cảnh văn hóa",
+                    "Pretendard", "Hệ thống", "Có chân", "Đơn cách"
+            };
+            case "id": return new String[] {
+                    "Penjelasan konteks budaya",
+                    "Menampilkan penjelasan AI hanya di bawah baris yang konteks budayanya akan hilang dalam terjemahan. Menggunakan bahasa target. Tampil di halaman biasa, layar penuh, dan mode LP, tetapi bukan di Sedang Diputar atau PIP.",
+                    "Font penjelasan", "Ukuran font penjelasan", "Ketebalan font penjelasan", "Opasitas penjelasan", "Penjelasan konteks budaya",
+                    "Pretendard", "Sistem", "Serif", "Monospace"
+            };
+            case "ms": return new String[] {
+                    "Penjelasan konteks budaya",
+                    "Memaparkan penjelasan AI hanya di bawah baris yang konteks budayanya akan hilang dalam terjemahan. Menggunakan bahasa sasaran. Dipaparkan pada halaman biasa, skrin penuh dan mod LP, tetapi bukan dalam Sedang Dimainkan atau PIP.",
+                    "Fon penjelasan", "Saiz fon penjelasan", "Ketebalan fon penjelasan", "Kelegapan penjelasan", "Penjelasan konteks budaya",
+                    "Pretendard", "Sistem", "Serif", "Monospace"
+            };
+            case "tr": return new String[] {
+                    "Kültürel bağlam açıklamaları",
+                    "Yalnızca kültürel arka planı çeviride kaybolabilecek satırların altında yapay zekâ açıklamaları gösterir. Hedef dili kullanır. Normal sayfa, tam ekran ve LP modunda gösterilir; Şu An Çalıyor veya PIP'te gösterilmez.",
+                    "Açıklama yazı tipi", "Açıklama yazı boyutu", "Açıklama yazı kalınlığı", "Açıklama opaklığı", "Kültürel bağlam açıklamaları",
+                    "Pretendard", "Sistem", "Serif", "Eş aralıklı"
+            };
+            default: return culturalAnnotationStrings("en");
+        }
+    }
+
+    private static void addProviderLoadingStrings(Map<String, Map<String, String>> languages) {
+        String[] keys = {
+                "status.lyrics_loading_provider_format",
+                "loading.translation_provider_format",
+                "loading.pronunciation_provider_format",
+                "status.ai_generating_provider_format",
+                "tmi.loading_provider_format"
+        };
+        addLanguageStrings(languages, keyed("provider loading", keys, AppI18n::providerLoadingStrings));
+    }
+
+    private static String[] providerLoadingStrings(String language) {
+        switch (language) {
+            case "ko": return new String[] {
+                    "%s에서 가사를 불러오는 중…", "%s에서 번역을 생성하는 중…",
+                    "%s에서 발음을 생성하는 중…", "%s에서 AI 가사를 생성하는 중…",
+                    "%s에서 TMI를 생성하는 중…"
+            };
+            case "zh-CN": return new String[] {
+                    "正在从 %s 加载歌词…", "正在使用 %s 生成翻译…",
+                    "正在使用 %s 生成发音…", "正在使用 %s 生成 AI 歌词…",
+                    "正在使用 %s 生成 TMI…"
+            };
+            case "zh-TW": return new String[] {
+                    "正在從 %s 載入歌詞…", "正在使用 %s 產生翻譯…",
+                    "正在使用 %s 產生發音…", "正在使用 %s 產生 AI 歌詞…",
+                    "正在使用 %s 產生 TMI…"
+            };
+            case "ja": return new String[] {
+                    "%s から歌詞を読み込み中…", "%s で翻訳を生成中…",
+                    "%s で発音を生成中…", "%s で AI 歌詞を生成中…",
+                    "%s で TMI を生成中…"
+            };
+            case "hi": return new String[] {
+                    "%s से गीत लोड किए जा रहे हैं…", "%s से अनुवाद बनाया जा रहा है…",
+                    "%s से उच्चारण बनाया जा रहा है…", "%s से AI गीत बनाए जा रहे हैं…",
+                    "%s से TMI बनाया जा रहा है…"
+            };
+            case "es": return new String[] {
+                    "Cargando letras desde %s…", "Generando traducción con %s…",
+                    "Generando pronunciación con %s…", "Generando letras con IA mediante %s…",
+                    "Generando TMI con %s…"
+            };
+            case "fr": return new String[] {
+                    "Chargement des paroles depuis %s…", "Génération de la traduction avec %s…",
+                    "Génération de la prononciation avec %s…", "Génération des paroles par IA avec %s…",
+                    "Génération du TMI avec %s…"
+            };
+            case "ar": return new String[] {
+                    "جارٍ تحميل كلمات الأغنية من %s…", "جارٍ إنشاء الترجمة باستخدام %s…",
+                    "جارٍ إنشاء النطق باستخدام %s…", "جارٍ إنشاء كلمات الأغنية بالذكاء الاصطناعي باستخدام %s…",
+                    "جارٍ إنشاء TMI باستخدام %s…"
+            };
+            case "fa": return new String[] {
+                    "در حال بارگیری متن ترانه از %s…", "در حال تولید ترجمه با %s…",
+                    "در حال تولید تلفظ با %s…", "در حال تولید متن ترانه با هوش مصنوعی از طریق %s…",
+                    "در حال تولید TMI با %s…"
+            };
+            case "de": return new String[] {
+                    "Liedtext wird von %s geladen…", "Übersetzung wird mit %s erstellt…",
+                    "Aussprache wird mit %s erstellt…", "KI-Liedtext wird mit %s erstellt…",
+                    "TMI wird mit %s erstellt…"
+            };
+            case "ru": return new String[] {
+                    "Загрузка текста из %s…", "Создание перевода с помощью %s…",
+                    "Создание произношения с помощью %s…", "Создание текста с помощью ИИ-сервиса %s…",
+                    "Создание TMI с помощью %s…"
+            };
+            case "sv": return new String[] {
+                    "Låttext läses in från %s…", "Översättning skapas med %s…",
+                    "Uttal skapas med %s…", "AI-låttext skapas med %s…",
+                    "TMI skapas med %s…"
+            };
+            case "pt": return new String[] {
+                    "Carregando letras de %s…", "Gerando tradução com %s…",
+                    "Gerando pronúncia com %s…", "Gerando letras com IA usando %s…",
+                    "Gerando TMI com %s…"
+            };
+            case "bn": return new String[] {
+                    "%s থেকে গানের কথা লোড হচ্ছে…", "%s দিয়ে অনুবাদ তৈরি হচ্ছে…",
+                    "%s দিয়ে উচ্চারণ তৈরি হচ্ছে…", "%s দিয়ে AI গানের কথা তৈরি হচ্ছে…",
+                    "%s দিয়ে TMI তৈরি হচ্ছে…"
+            };
+            case "cs": return new String[] {
+                    "Načítání textu z %s…", "Generování překladu pomocí %s…",
+                    "Generování výslovnosti pomocí %s…", "Generování AI textu pomocí %s…",
+                    "Generování TMI pomocí %s…"
+            };
+            case "it": return new String[] {
+                    "Caricamento dei testi da %s…", "Generazione della traduzione con %s…",
+                    "Generazione della pronuncia con %s…", "Generazione dei testi AI con %s…",
+                    "Generazione del TMI con %s…"
+            };
+            case "th": return new String[] {
+                    "กำลังโหลดเนื้อเพลงจาก %s…", "กำลังสร้างคำแปลด้วย %s…",
+                    "กำลังสร้างคำอ่านด้วย %s…", "กำลังสร้างเนื้อเพลง AI ด้วย %s…",
+                    "กำลังสร้าง TMI ด้วย %s…"
+            };
+            case "vi": return new String[] {
+                    "Đang tải lời bài hát từ %s…", "Đang tạo bản dịch bằng %s…",
+                    "Đang tạo cách phát âm bằng %s…", "Đang tạo lời bài hát AI bằng %s…",
+                    "Đang tạo TMI bằng %s…"
+            };
+            case "id": return new String[] {
+                    "Memuat lirik dari %s…", "Membuat terjemahan dengan %s…",
+                    "Membuat pelafalan dengan %s…", "Membuat lirik AI dengan %s…",
+                    "Membuat TMI dengan %s…"
+            };
+            case "ms": return new String[] {
+                    "Memuatkan lirik daripada %s…", "Menjana terjemahan dengan %s…",
+                    "Menjana sebutan dengan %s…", "Menjana lirik AI dengan %s…",
+                    "Menjana TMI dengan %s…"
+            };
+            case "tr": return new String[] {
+                    "%s üzerinden şarkı sözleri yükleniyor…", "%s ile çeviri oluşturuluyor…",
+                    "%s ile telaffuz oluşturuluyor…", "%s ile AI şarkı sözleri oluşturuluyor…",
+                    "%s ile TMI oluşturuluyor…"
+            };
+            default: return new String[] {
+                    "Loading lyrics from %s…", "Generating translation with %s…",
+                    "Generating pronunciation with %s…", "Generating AI lyrics with %s…",
+                    "Generating TMI with %s…"
+            };
+        }
+    }
+
+    private static void addSettingsNavigationStrings(Map<String, Map<String, String>> languages) {
+        String[] keys = {
+                "tab.general", "tab.appearance", "tab.player", "tab.system", "settings.subtitle"
+        };
+        addLanguageStrings(languages, keyed("settings navigation", keys, AppI18n::settingsNavigationStrings));
+    }
+
+    private static String[] settingsNavigationStrings(String language) {
+        switch (language) {
+            case "ko": return new String[] {"일반", "화면", "플레이어", "시스템", "일반, 가사, 화면, 플레이어, AI, 시스템 설정"};
+            case "zh-CN": return new String[] {"通用", "外观", "播放器", "系统", "通用、歌词、外观、播放器、AI 和系统设置"};
+            case "zh-TW": return new String[] {"一般", "外觀", "播放器", "系統", "一般、歌詞、外觀、播放器、AI 與系統設定"};
+            case "ja": return new String[] {"一般", "外観", "プレーヤー", "システム", "一般、歌詞、外観、プレーヤー、AI、システム設定"};
+            case "hi": return new String[] {"सामान्य", "रूप-रंग", "प्लेयर", "सिस्टम", "सामान्य, गीत, रूप-रंग, प्लेयर, AI और सिस्टम सेटिंग"};
+            case "es": return new String[] {"General", "Apariencia", "Reproductor", "Sistema", "Ajustes generales, de letras, apariencia, reproductor, IA y sistema"};
+            case "fr": return new String[] {"Général", "Apparence", "Lecteur", "Système", "Réglages généraux, paroles, apparence, lecteur, IA et système"};
+            case "ar": return new String[] {"عام", "المظهر", "المشغل", "النظام", "إعدادات عامة وكلمات الأغاني والمظهر والمشغل والذكاء الاصطناعي والنظام"};
+            case "fa": return new String[] {"عمومی", "ظاهر", "پخش‌کننده", "سیستم", "تنظیمات عمومی، متن ترانه، ظاهر، پخش‌کننده، هوش مصنوعی و سیستم"};
+            case "de": return new String[] {"Allgemein", "Darstellung", "Player", "System", "Einstellungen für Allgemein, Liedtexte, Darstellung, Player, KI und System"};
+            case "ru": return new String[] {"Общие", "Оформление", "Плеер", "Система", "Общие настройки, текст, оформление, плеер, ИИ и система"};
+            case "sv": return new String[] {"Allmänt", "Utseende", "Spelare", "System", "Inställningar för allmänt, text, utseende, spelare, AI och system"};
+            case "pt": return new String[] {"Geral", "Aparência", "Reprodutor", "Sistema", "Ajustes gerais, letras, aparência, reprodutor, IA e sistema"};
+            case "bn": return new String[] {"সাধারণ", "চেহারা", "প্লেয়ার", "সিস্টেম", "সাধারণ, গানের কথা, চেহারা, প্লেয়ার, AI ও সিস্টেম সেটিংস"};
+            case "cs": return new String[] {"Obecné", "Vzhled", "Přehrávač", "Systém", "Obecná nastavení, texty, vzhled, přehrávač, AI a systém"};
+            case "it": return new String[] {"Generali", "Aspetto", "Lettore", "Sistema", "Impostazioni generali, testi, aspetto, lettore, IA e sistema"};
+            case "th": return new String[] {"ทั่วไป", "รูปลักษณ์", "เครื่องเล่น", "ระบบ", "การตั้งค่าทั่วไป เนื้อเพลง รูปลักษณ์ เครื่องเล่น AI และระบบ"};
+            case "vi": return new String[] {"Chung", "Giao diện", "Trình phát", "Hệ thống", "Cài đặt chung, lời bài hát, giao diện, trình phát, AI và hệ thống"};
+            case "id": return new String[] {"Umum", "Tampilan", "Pemutar", "Sistem", "Pengaturan umum, lirik, tampilan, pemutar, AI, dan sistem"};
+            case "ms": return new String[] {"Umum", "Penampilan", "Pemain", "Sistem", "Tetapan umum, lirik, penampilan, pemain, AI dan sistem"};
+            case "tr": return new String[] {"Genel", "Görünüm", "Oynatıcı", "Sistem", "Genel, şarkı sözleri, görünüm, oynatıcı, AI ve sistem ayarları"};
+            default: return new String[] {
+                    "General", "Appearance", "Player", "System",
+                    "General, lyrics, appearance, player, AI, and system settings"
+            };
+        }
+    }
+
+    private static void addCreatorPrivacyStrings(Map<String, Map<String, String>> languages) {
+        String[] keys = {
+                "creator_privacy.section",
+                "creator_privacy.section_desc",
+                "creator_privacy.private_title",
+                "creator_privacy.private_desc",
+                "creator_privacy.status_loading",
+                "creator_privacy.status_signed_out",
+                "creator_privacy.status_not_loaded",
+                "creator_privacy.status_private",
+                "creator_privacy.status_public",
+                "creator_privacy.disconnect",
+                "creator_privacy.login",
+                "creator_privacy.refresh",
+                "creator_privacy.login_required",
+                "creator_privacy.disconnected",
+                "creator_privacy.logout_failed",
+                "creator_privacy.load_failed",
+                "creator_privacy.saved_private",
+                "creator_privacy.saved_public",
+                "creator_privacy.save_failed",
+                "creator_privacy.login_failed",
+                "creator_privacy.login_success",
+                "lyrics.credit_anonymous"
+        };
+        addLanguageStrings(languages, keyed("creator privacy", keys, AppI18n::creatorPrivacyStrings));
+    }
+
+    private static void addCloudSyncStrings(Map<String, Map<String, String>> languages) {
+        String[] keys = {
+                "cloud_sync.section", "cloud_sync.section_desc", "cloud_sync.status_working",
+                "cloud_sync.login_required", "cloud_sync.status_not_loaded", "cloud_sync.status_empty",
+                "cloud_sync.status_found_format", "cloud_sync.refresh", "cloud_sync.upload",
+                "cloud_sync.apply", "cloud_sync.delete", "cloud_sync.uploaded", "cloud_sync.applied",
+                "cloud_sync.deleted", "cloud_sync.confirm_apply", "cloud_sync.confirm_delete",
+                "cloud_sync.failed", "cloud_sync.monthly_required", "cloud_sync.conflict"
+        };
+        addLanguageStrings(languages, keyed("cloud sync", keys, AppI18n::cloudSyncStrings));
+    }
+
+    private static String[] cloudSyncStrings(String language) {
+        switch (language) {
+            case "ko": return new String[] {
+                    "클라우드 설정 동기화", "월간 후원자는 Android 설정을 기기 사이에 저장할 수 있습니다. API 키, 계정 정보와 곡별 오프셋은 제외됩니다.",
+                    "클라우드 설정을 확인하는 중…", "Discord 로그인이 필요합니다.", "새로고침하여 Android 클라우드 저장본을 확인하세요.",
+                    "저장된 Android 설정이 없습니다.", "리비전 %d · %s", "새로고침", "현재 설정 업로드", "클라우드 설정 적용", "클라우드 저장본 삭제",
+                    "현재 Android 설정을 업로드했습니다.", "클라우드 Android 설정을 적용했습니다.", "Android 클라우드 저장본을 삭제했습니다.",
+                    "현재 Android 설정이 클라우드 설정으로 교체됩니다. 계속할까요?", "저장된 Android 클라우드 설정을 삭제할까요?",
+                    "클라우드 설정을 처리하지 못했습니다.", "클라우드 동기화는 월간 후원자 전용 기능입니다.", "다른 기기에서 설정이 변경되었습니다. 새로고침 후 다시 시도하세요."
+            };
+            case "zh-CN": return new String[] {
+                    "云端设置同步", "月度支持者可在设备间保存 Android 设置。API 密钥、账户信息和单曲偏移不会同步。",
+                    "正在检查云端设置…", "需要登录 Discord。", "请刷新以检查 Android 云端存档。", "尚未保存 Android 设置。",
+                    "修订 %d · %s", "刷新", "上传当前设置", "应用云端设置", "删除云端存档", "已上传当前 Android 设置。", "已应用 Android 云端设置。", "已删除 Android 云端存档。",
+                    "当前 Android 设置将被云端设置替换。是否继续？", "要删除已保存的 Android 云端设置吗？", "无法处理云端设置。", "云同步仅面向月度支持者。", "设置已在其他设备上更改。请刷新后重试。"
+            };
+            case "zh-TW": return new String[] {
+                    "雲端設定同步", "月度支持者可在裝置間儲存 Android 設定。API 金鑰、帳戶資訊與單曲偏移不會同步。",
+                    "正在檢查雲端設定…", "需要登入 Discord。", "請重新整理以檢查 Android 雲端存檔。", "尚未儲存 Android 設定。",
+                    "修訂 %d · %s", "重新整理", "上傳目前設定", "套用雲端設定", "刪除雲端存檔", "已上傳目前的 Android 設定。", "已套用 Android 雲端設定。", "已刪除 Android 雲端存檔。",
+                    "目前的 Android 設定將由雲端設定取代。要繼續嗎？", "要刪除已儲存的 Android 雲端設定嗎？", "無法處理雲端設定。", "雲端同步僅供月度支持者使用。", "設定已在其他裝置上變更。請重新整理後再試。"
+            };
+            case "ja": return new String[] {
+                    "クラウド設定同期", "月額サポーターは Android 設定を端末間で保存できます。API キー、アカウント情報、曲別オフセットは除外されます。",
+                    "クラウド設定を確認中…", "Discord へのログインが必要です。", "更新して Android のクラウド保存を確認してください。", "保存された Android 設定はありません。",
+                    "リビジョン %d · %s", "更新", "現在の設定をアップロード", "クラウド設定を適用", "クラウド保存を削除", "現在の Android 設定をアップロードしました。", "Android のクラウド設定を適用しました。", "Android のクラウド保存を削除しました。",
+                    "現在の Android 設定はクラウド設定に置き換えられます。続行しますか？", "保存済みの Android クラウド設定を削除しますか？", "クラウド設定を処理できませんでした。", "クラウド同期は月額サポーター専用です。", "別の端末で設定が変更されました。更新してもう一度お試しください。"
+            };
+            case "hi": return new String[] {
+                    "क्लाउड सेटिंग सिंक", "मासिक समर्थक Android सेटिंग को डिवाइसों के बीच सहेज सकते हैं। API कुंजियाँ, खाता जानकारी और प्रति-गीत ऑफ़सेट शामिल नहीं हैं।",
+                    "क्लाउड सेटिंग जाँची जा रही हैं…", "Discord लॉगिन आवश्यक है।", "Android क्लाउड सेव देखने के लिए रीफ़्रेश करें।", "कोई Android सेटिंग सहेजी नहीं गई है।",
+                    "संशोधन %d · %s", "रीफ़्रेश", "मौजूदा सेटिंग अपलोड करें", "क्लाउड सेटिंग लागू करें", "क्लाउड सेव हटाएँ", "मौजूदा Android सेटिंग अपलोड हो गईं।", "Android क्लाउड सेटिंग लागू हो गईं।", "Android क्लाउड सेव हटा दिया गया।",
+                    "मौजूदा Android सेटिंग क्लाउड सेटिंग से बदल जाएँगी। जारी रखें?", "सहेजी गई Android क्लाउड सेटिंग हटाएँ?", "क्लाउड सेटिंग संसाधित नहीं हो सकीं।", "क्लाउड सिंक केवल मासिक समर्थकों के लिए है।", "सेटिंग किसी दूसरे डिवाइस पर बदली गई हैं। रीफ़्रेश करके फिर प्रयास करें।"
+            };
+            case "es": return new String[] {
+                    "Sincronización en la nube", "Los colaboradores mensuales pueden guardar los ajustes de Android entre dispositivos. Se excluyen las claves API, la cuenta y los desfases por canción.",
+                    "Comprobando ajustes en la nube…", "Debes iniciar sesión en Discord.", "Actualiza para comprobar la copia de Android.", "No hay ajustes de Android guardados.",
+                    "Revisión %d · %s", "Actualizar", "Subir ajustes actuales", "Aplicar ajustes de la nube", "Eliminar copia", "Se subieron los ajustes actuales de Android.", "Se aplicaron los ajustes de Android de la nube.", "Se eliminó la copia de Android.",
+                    "Los ajustes actuales de Android se sustituirán por los de la nube. ¿Continuar?", "¿Eliminar los ajustes de Android guardados en la nube?", "No se pudieron procesar los ajustes en la nube.", "La sincronización en la nube es exclusiva para colaboradores mensuales.", "Los ajustes cambiaron en otro dispositivo. Actualiza e inténtalo de nuevo."
+            };
+            case "fr": return new String[] {
+                    "Synchronisation des réglages", "Les soutiens mensuels peuvent enregistrer les réglages Android entre appareils. Les clés API, le compte et les décalages par titre sont exclus.",
+                    "Vérification des réglages cloud…", "Une connexion Discord est requise.", "Actualisez pour vérifier la sauvegarde Android.", "Aucun réglage Android n’est enregistré.",
+                    "Révision %d · %s", "Actualiser", "Envoyer les réglages actuels", "Appliquer les réglages cloud", "Supprimer la sauvegarde", "Les réglages Android actuels ont été envoyés.", "Les réglages Android du cloud ont été appliqués.", "La sauvegarde Android a été supprimée.",
+                    "Les réglages Android actuels seront remplacés par ceux du cloud. Continuer ?", "Supprimer les réglages Android enregistrés dans le cloud ?", "Impossible de traiter les réglages cloud.", "La synchronisation cloud est réservée aux soutiens mensuels.", "Les réglages ont changé sur un autre appareil. Actualisez puis réessayez."
+            };
+            case "ar": return new String[] {
+                    "مزامنة الإعدادات السحابية", "يمكن للداعمين الشهريين حفظ إعدادات Android بين الأجهزة. تُستثنى مفاتيح API ومعلومات الحساب وإزاحات كل أغنية.",
+                    "جارٍ التحقق من إعدادات السحابة…", "يلزم تسجيل الدخول إلى Discord.", "حدّث للتحقق من نسخة Android السحابية.", "لا توجد إعدادات Android محفوظة.",
+                    "المراجعة %d · %s", "تحديث", "رفع الإعدادات الحالية", "تطبيق إعدادات السحابة", "حذف النسخة السحابية", "تم رفع إعدادات Android الحالية.", "تم تطبيق إعدادات Android السحابية.", "تم حذف نسخة Android السحابية.",
+                    "ستُستبدل إعدادات Android الحالية بإعدادات السحابة. هل تريد المتابعة؟", "هل تريد حذف إعدادات Android المحفوظة في السحابة؟", "تعذرت معالجة إعدادات السحابة.", "المزامنة السحابية متاحة للداعمين الشهريين فقط.", "تغيّرت الإعدادات على جهاز آخر. حدّث وحاول مجددًا."
+            };
+            case "fa": return new String[] {
+                    "همگام‌سازی تنظیمات ابری", "حامیان ماهانه می‌توانند تنظیمات Android را میان دستگاه‌ها ذخیره کنند. کلیدهای API، اطلاعات حساب و جابه‌جایی هر آهنگ مستثنا هستند.",
+                    "در حال بررسی تنظیمات ابری…", "ورود به Discord لازم است.", "برای بررسی ذخیره ابری Android تازه‌سازی کنید.", "هیچ تنظیم Android ذخیره نشده است.",
+                    "بازبینی %d · %s", "تازه‌سازی", "بارگذاری تنظیمات فعلی", "اعمال تنظیمات ابری", "حذف ذخیره ابری", "تنظیمات فعلی Android بارگذاری شد.", "تنظیمات ابری Android اعمال شد.", "ذخیره ابری Android حذف شد.",
+                    "تنظیمات فعلی Android با تنظیمات ابری جایگزین می‌شود. ادامه می‌دهید؟", "تنظیمات ذخیره‌شده Android از ابر حذف شود؟", "پردازش تنظیمات ابری ممکن نشد.", "همگام‌سازی ابری فقط برای حامیان ماهانه است.", "تنظیمات در دستگاه دیگری تغییر کرده است. تازه‌سازی و دوباره تلاش کنید."
+            };
+            case "de": return new String[] {
+                    "Cloud-Einstellungen", "Monatliche Unterstützer können Android-Einstellungen zwischen Geräten speichern. API-Schlüssel, Kontodaten und Titel-Offsets sind ausgeschlossen.",
+                    "Cloud-Einstellungen werden geprüft…", "Eine Discord-Anmeldung ist erforderlich.", "Aktualisiere, um die Android-Cloud-Sicherung zu prüfen.", "Keine Android-Einstellungen gespeichert.",
+                    "Revision %d · %s", "Aktualisieren", "Aktuelle Einstellungen hochladen", "Cloud-Einstellungen anwenden", "Cloud-Sicherung löschen", "Aktuelle Android-Einstellungen wurden hochgeladen.", "Android-Cloud-Einstellungen wurden angewendet.", "Android-Cloud-Sicherung wurde gelöscht.",
+                    "Die aktuellen Android-Einstellungen werden durch die Cloud-Einstellungen ersetzt. Fortfahren?", "Gespeicherte Android-Cloud-Einstellungen löschen?", "Cloud-Einstellungen konnten nicht verarbeitet werden.", "Cloud-Synchronisierung ist nur für monatliche Unterstützer verfügbar.", "Die Einstellungen wurden auf einem anderen Gerät geändert. Aktualisiere und versuche es erneut."
+            };
+            case "ru": return new String[] {
+                    "Синхронизация настроек", "Ежемесячные подписчики могут сохранять настройки Android между устройствами. Ключи API, данные аккаунта и смещения треков исключены.",
+                    "Проверка облачных настроек…", "Требуется вход через Discord.", "Обновите, чтобы проверить облачную копию Android.", "Настройки Android ещё не сохранены.",
+                    "Ревизия %d · %s", "Обновить", "Загрузить текущие настройки", "Применить настройки из облака", "Удалить облачную копию", "Текущие настройки Android загружены.", "Облачные настройки Android применены.", "Облачная копия Android удалена.",
+                    "Текущие настройки Android будут заменены облачными. Продолжить?", "Удалить сохранённые облачные настройки Android?", "Не удалось обработать облачные настройки.", "Облачная синхронизация доступна только ежемесячным подписчикам.", "Настройки изменены на другом устройстве. Обновите и повторите попытку."
+            };
+            case "sv": return new String[] {
+                    "Synkronisering av molninställningar", "Månadssupportrar kan spara Android-inställningar mellan enheter. API-nycklar, kontoinformation och låtförskjutningar undantas.",
+                    "Kontrollerar molninställningar…", "Discord-inloggning krävs.", "Uppdatera för att kontrollera Android-molnkopian.", "Inga Android-inställningar har sparats.",
+                    "Revision %d · %s", "Uppdatera", "Ladda upp aktuella inställningar", "Använd molninställningar", "Ta bort molnkopian", "Aktuella Android-inställningar har laddats upp.", "Android-molninställningarna har tillämpats.", "Android-molnkopian har tagits bort.",
+                    "Aktuella Android-inställningar ersätts av molninställningarna. Fortsätta?", "Ta bort sparade Android-inställningar från molnet?", "Molninställningarna kunde inte behandlas.", "Molnsynkronisering är endast för månadssupportrar.", "Inställningarna ändrades på en annan enhet. Uppdatera och försök igen."
+            };
+            case "pt": return new String[] {
+                    "Sincronização na nuvem", "Apoiadores mensais podem salvar as configurações do Android entre dispositivos. Chaves de API, conta e ajustes por faixa são excluídos.",
+                    "Verificando configurações na nuvem…", "É necessário entrar no Discord.", "Atualize para verificar o backup do Android.", "Nenhuma configuração do Android foi salva.",
+                    "Revisão %d · %s", "Atualizar", "Enviar configurações atuais", "Aplicar configurações da nuvem", "Excluir backup", "As configurações atuais do Android foram enviadas.", "As configurações do Android na nuvem foram aplicadas.", "O backup do Android foi excluído.",
+                    "As configurações atuais do Android serão substituídas pelas da nuvem. Continuar?", "Excluir as configurações do Android salvas na nuvem?", "Não foi possível processar as configurações na nuvem.", "A sincronização na nuvem é exclusiva para apoiadores mensais.", "As configurações mudaram em outro dispositivo. Atualize e tente novamente."
+            };
+            case "bn": return new String[] {
+                    "ক্লাউড সেটিং সিঙ্ক", "মাসিক সমর্থকেরা ডিভাইসগুলোর মধ্যে Android সেটিং সংরক্ষণ করতে পারেন। API কী, অ্যাকাউন্ট তথ্য ও প্রতি-গানের অফসেট বাদ থাকে।",
+                    "ক্লাউড সেটিং যাচাই করা হচ্ছে…", "Discord লগইন প্রয়োজন।", "Android ক্লাউড সেভ দেখতে রিফ্রেশ করুন।", "কোনো Android সেটিং সংরক্ষিত নেই।",
+                    "রিভিশন %d · %s", "রিফ্রেশ", "বর্তমান সেটিং আপলোড", "ক্লাউড সেটিং প্রয়োগ", "ক্লাউড সেভ মুছুন", "বর্তমান Android সেটিং আপলোড হয়েছে।", "Android ক্লাউড সেটিং প্রয়োগ হয়েছে।", "Android ক্লাউড সেভ মুছে ফেলা হয়েছে।",
+                    "বর্তমান Android সেটিং ক্লাউড সেটিং দিয়ে প্রতিস্থাপিত হবে। চালিয়ে যাবেন?", "সংরক্ষিত Android ক্লাউড সেটিং মুছবেন?", "ক্লাউড সেটিং প্রক্রিয়া করা যায়নি।", "ক্লাউড সিঙ্ক শুধু মাসিক সমর্থকদের জন্য।", "অন্য ডিভাইসে সেটিং বদলেছে। রিফ্রেশ করে আবার চেষ্টা করুন।"
+            };
+            case "cs": return new String[] {
+                    "Synchronizace nastavení", "Měsíční podporovatelé mohou ukládat nastavení Androidu mezi zařízeními. Klíče API, údaje účtu a posuny skladeb jsou vyloučeny.",
+                    "Kontrola cloudových nastavení…", "Je vyžadováno přihlášení přes Discord.", "Obnovte stav cloudové zálohy Androidu.", "Nejsou uložena žádná nastavení Androidu.",
+                    "Revize %d · %s", "Obnovit", "Nahrát aktuální nastavení", "Použít cloudová nastavení", "Smazat cloudovou zálohu", "Aktuální nastavení Androidu byla nahrána.", "Cloudová nastavení Androidu byla použita.", "Cloudová záloha Androidu byla smazána.",
+                    "Aktuální nastavení Androidu budou nahrazena cloudovými. Pokračovat?", "Smazat uložená cloudová nastavení Androidu?", "Cloudová nastavení se nepodařilo zpracovat.", "Cloudová synchronizace je pouze pro měsíční podporovatele.", "Nastavení se změnila na jiném zařízení. Obnovte je a zkuste to znovu."
+            };
+            case "it": return new String[] {
+                    "Sincronizzazione cloud", "I sostenitori mensili possono salvare le impostazioni Android tra dispositivi. Chiavi API, account e offset per brano sono esclusi.",
+                    "Verifica delle impostazioni cloud…", "È necessario accedere a Discord.", "Aggiorna per controllare il salvataggio Android.", "Nessuna impostazione Android salvata.",
+                    "Revisione %d · %s", "Aggiorna", "Carica impostazioni attuali", "Applica impostazioni cloud", "Elimina salvataggio", "Le impostazioni Android attuali sono state caricate.", "Le impostazioni Android cloud sono state applicate.", "Il salvataggio Android è stato eliminato.",
+                    "Le impostazioni Android attuali verranno sostituite da quelle cloud. Continuare?", "Eliminare le impostazioni Android salvate nel cloud?", "Impossibile elaborare le impostazioni cloud.", "La sincronizzazione cloud è riservata ai sostenitori mensili.", "Le impostazioni sono cambiate su un altro dispositivo. Aggiorna e riprova."
+            };
+            case "th": return new String[] {
+                    "ซิงค์การตั้งค่าบนคลาวด์", "ผู้สนับสนุนรายเดือนบันทึกการตั้งค่า Android ระหว่างอุปกรณ์ได้ โดยไม่รวมคีย์ API ข้อมูลบัญชี และออฟเซ็ตแต่ละเพลง",
+                    "กำลังตรวจสอบการตั้งค่าบนคลาวด์…", "ต้องเข้าสู่ระบบ Discord", "รีเฟรชเพื่อตรวจสอบข้อมูล Android บนคลาวด์", "ยังไม่มีการตั้งค่า Android ที่บันทึกไว้",
+                    "รุ่นแก้ไข %d · %s", "รีเฟรช", "อัปโหลดการตั้งค่าปัจจุบัน", "ใช้การตั้งค่าจากคลาวด์", "ลบข้อมูลบนคลาวด์", "อัปโหลดการตั้งค่า Android ปัจจุบันแล้ว", "ใช้การตั้งค่า Android จากคลาวด์แล้ว", "ลบข้อมูล Android บนคลาวด์แล้ว",
+                    "การตั้งค่า Android ปัจจุบันจะถูกแทนที่ด้วยการตั้งค่าจากคลาวด์ ดำเนินการต่อหรือไม่", "ลบการตั้งค่า Android ที่บันทึกบนคลาวด์หรือไม่", "ประมวลผลการตั้งค่าบนคลาวด์ไม่ได้", "การซิงค์คลาวด์มีไว้สำหรับผู้สนับสนุนรายเดือนเท่านั้น", "การตั้งค่าถูกเปลี่ยนบนอุปกรณ์อื่น โปรดรีเฟรชแล้วลองอีกครั้ง"
+            };
+            case "vi": return new String[] {
+                    "Đồng bộ cài đặt đám mây", "Người ủng hộ hằng tháng có thể lưu cài đặt Android giữa các thiết bị. Khóa API, thông tin tài khoản và độ lệch từng bài bị loại trừ.",
+                    "Đang kiểm tra cài đặt đám mây…", "Cần đăng nhập Discord.", "Hãy làm mới để kiểm tra bản lưu Android.", "Chưa có cài đặt Android được lưu.",
+                    "Bản sửa đổi %d · %s", "Làm mới", "Tải lên cài đặt hiện tại", "Áp dụng cài đặt đám mây", "Xóa bản lưu", "Đã tải lên cài đặt Android hiện tại.", "Đã áp dụng cài đặt Android từ đám mây.", "Đã xóa bản lưu Android.",
+                    "Cài đặt Android hiện tại sẽ bị thay thế bằng cài đặt đám mây. Tiếp tục?", "Xóa cài đặt Android đã lưu trên đám mây?", "Không thể xử lý cài đặt đám mây.", "Đồng bộ đám mây chỉ dành cho người ủng hộ hằng tháng.", "Cài đặt đã thay đổi trên thiết bị khác. Hãy làm mới rồi thử lại."
+            };
+            case "id": return new String[] {
+                    "Sinkronisasi pengaturan cloud", "Pendukung bulanan dapat menyimpan pengaturan Android antarperangkat. Kunci API, informasi akun, dan offset per lagu tidak disertakan.",
+                    "Memeriksa pengaturan cloud…", "Login Discord diperlukan.", "Segarkan untuk memeriksa simpanan cloud Android.", "Belum ada pengaturan Android yang disimpan.",
+                    "Revisi %d · %s", "Segarkan", "Unggah pengaturan saat ini", "Terapkan pengaturan cloud", "Hapus simpanan cloud", "Pengaturan Android saat ini telah diunggah.", "Pengaturan cloud Android telah diterapkan.", "Simpanan cloud Android telah dihapus.",
+                    "Pengaturan Android saat ini akan diganti dengan pengaturan cloud. Lanjutkan?", "Hapus pengaturan Android yang tersimpan di cloud?", "Pengaturan cloud tidak dapat diproses.", "Sinkronisasi cloud hanya untuk pendukung bulanan.", "Pengaturan berubah di perangkat lain. Segarkan dan coba lagi."
+            };
+            case "ms": return new String[] {
+                    "Penyegerakan tetapan awan", "Penyokong bulanan boleh menyimpan tetapan Android antara peranti. Kunci API, maklumat akaun dan ofset setiap lagu dikecualikan.",
+                    "Menyemak tetapan awan…", "Log masuk Discord diperlukan.", "Muat semula untuk menyemak simpanan awan Android.", "Tiada tetapan Android disimpan.",
+                    "Semakan %d · %s", "Muat semula", "Muat naik tetapan semasa", "Gunakan tetapan awan", "Padam simpanan awan", "Tetapan Android semasa telah dimuat naik.", "Tetapan awan Android telah digunakan.", "Simpanan awan Android telah dipadam.",
+                    "Tetapan Android semasa akan digantikan dengan tetapan awan. Teruskan?", "Padam tetapan Android yang disimpan dalam awan?", "Tetapan awan tidak dapat diproses.", "Penyegerakan awan hanya untuk penyokong bulanan.", "Tetapan berubah pada peranti lain. Muat semula dan cuba lagi."
+            };
+            case "tr": return new String[] {
+                    "Bulut ayarları eşitleme", "Aylık destekçiler Android ayarlarını cihazlar arasında saklayabilir. API anahtarları, hesap bilgileri ve şarkı bazlı kaydırmalar hariç tutulur.",
+                    "Bulut ayarları kontrol ediliyor…", "Discord girişi gereklidir.", "Android bulut kaydını kontrol etmek için yenileyin.", "Kaydedilmiş Android ayarı yok.",
+                    "Revizyon %d · %s", "Yenile", "Geçerli ayarları yükle", "Bulut ayarlarını uygula", "Bulut kaydını sil", "Geçerli Android ayarları yüklendi.", "Android bulut ayarları uygulandı.", "Android bulut kaydı silindi.",
+                    "Geçerli Android ayarları bulut ayarlarıyla değiştirilecek. Devam edilsin mi?", "Buluta kaydedilmiş Android ayarları silinsin mi?", "Bulut ayarları işlenemedi.", "Bulut eşitleme yalnızca aylık destekçilere özeldir.", "Ayarlar başka bir cihazda değişti. Yenileyip tekrar deneyin."
+            };
+            default: return new String[] {
+                    "Cloud settings sync", "Monthly Supporters can save Android settings across devices. API keys, account data, and per-track offsets are excluded.",
+                    "Checking cloud settings…", "Discord login is required.", "Refresh to check the Android cloud save.", "No Android settings have been saved.",
+                    "Revision %d · %s", "Refresh", "Upload current settings", "Apply cloud settings", "Delete cloud save", "Current Android settings were uploaded.", "Android cloud settings were applied.", "Android cloud save was deleted.",
+                    "Current Android settings will be replaced by the cloud settings. Continue?", "Delete the saved Android cloud settings?", "Cloud settings could not be processed.", "Cloud sync is available to Monthly Supporters only.", "Settings changed on another device. Refresh and try again."
+            };
+        }
+    }
+
+    private static String[] creatorPrivacyStrings(String language) {
+        switch (language) {
+            case "ko": return new String[] {
+                    "싱크 제작자 프로필", "공개 가사 목록에서 내 제작자 정보를 표시할지 설정합니다.",
+                    "프로필 비공개", "켜면 목록은 유지되지만 이름, 프로필 사진과 프로필 링크가 익명으로 표시됩니다.",
+                    "프로필 공개 설정을 확인하는 중…", "Discord에 로그인하면 내 프로필 공개 설정을 변경할 수 있습니다.",
+                    "새로고침하여 현재 공개 설정을 확인하세요.", "현재 비공개 · 목록에는 익명으로 표시됩니다.",
+                    "현재 공개 · 이름과 프로필이 표시됩니다.", "로그아웃", "Discord로 로그인", "새로고침",
+                    "내 프로필 설정을 변경하려면 Discord 로그인이 필요합니다.", "제작자 계정에서 로그아웃했습니다.",
+                    "로그아웃하지 못했습니다. 연결 상태를 유지합니다.",
+                    "프로필 공개 설정을 불러오지 못했습니다.", "프로필을 비공개로 전환했습니다.",
+                    "프로필을 공개로 전환했습니다.", "프로필 공개 설정을 저장하지 못했습니다.",
+                    "Discord 로그인에 실패했습니다.", "Discord 로그인이 완료되었습니다.", "익명"
+            };
+            case "zh-CN": return new String[] {
+                    "同步创作者资料", "设置是否在公开歌词列表中显示你的创作者信息。",
+                    "隐藏个人资料", "开启后列表仍会保留，但姓名、头像和资料链接会匿名显示。",
+                    "正在检查资料可见性…", "登录 Discord 后可更改你的资料可见性。",
+                    "刷新以查看当前可见性。", "当前为私密 · 在列表中匿名显示。",
+                    "当前为公开 · 显示姓名和个人资料。", "退出登录", "使用 Discord 登录", "刷新",
+                    "需要登录 Discord 才能更改你的资料设置。", "已退出创作者账户。",
+                    "无法退出登录。连接状态已保留。",
+                    "无法加载资料可见性。", "资料已设为私密。", "资料已设为公开。",
+                    "无法保存资料可见性。", "Discord 登录失败。", "Discord 登录成功。", "匿名"
+            };
+            case "zh-TW": return new String[] {
+                    "同步創作者個人檔案", "設定是否在公開歌詞清單中顯示你的創作者資訊。",
+                    "隱藏個人檔案", "開啟後清單仍會保留，但名稱、頭像與個人檔案連結會匿名顯示。",
+                    "正在檢查個人檔案可見性…", "登入 Discord 後可變更你的個人檔案可見性。",
+                    "重新整理以查看目前可見性。", "目前為私人 · 在清單中匿名顯示。",
+                    "目前為公開 · 顯示名稱與個人檔案。", "登出", "使用 Discord 登入", "重新整理",
+                    "必須登入 Discord 才能變更你的個人檔案設定。", "已登出創作者帳號。",
+                    "無法登出。連線狀態已保留。",
+                    "無法載入個人檔案可見性。", "個人檔案已設為私人。", "個人檔案已設為公開。",
+                    "無法儲存個人檔案可見性。", "Discord 登入失敗。", "Discord 登入完成。", "匿名"
+            };
+            case "ja": return new String[] {
+                    "同期クリエイタープロフィール", "公開歌詞一覧にクリエイター情報を表示するか設定します。",
+                    "プロフィールを非公開", "オンにしても一覧は残りますが、名前、画像、リンクは匿名表示になります。",
+                    "公開設定を確認中…", "Discord にログインすると公開設定を変更できます。",
+                    "更新して現在の公開設定を確認してください。", "現在は非公開 · 一覧では匿名表示です。",
+                    "現在は公開 · 名前とプロフィールが表示されます。", "ログアウト", "Discord でログイン", "更新",
+                    "設定を変更するには Discord ログインが必要です。", "クリエイターアカウントからログアウトしました。",
+                    "ログアウトできませんでした。接続状態を維持します。",
+                    "公開設定を読み込めませんでした。", "プロフィールを非公開にしました。", "プロフィールを公開しました。",
+                    "公開設定を保存できませんでした。", "Discord ログインに失敗しました。", "Discord ログインが完了しました。", "匿名"
+            };
+            case "hi": return new String[] {
+                    "सिंक निर्माता प्रोफ़ाइल", "चुनें कि सार्वजनिक गीत सूची में आपकी निर्माता जानकारी दिखे या नहीं।",
+                    "प्रोफ़ाइल निजी रखें", "चालू होने पर सूची बनी रहती है, लेकिन नाम, फ़ोटो और प्रोफ़ाइल लिंक गुमनाम दिखते हैं।",
+                    "प्रोफ़ाइल दृश्यता जाँची जा रही है…", "अपनी प्रोफ़ाइल दृश्यता बदलने के लिए Discord से लॉग इन करें।",
+                    "मौजूदा दृश्यता देखने के लिए रीफ़्रेश करें।", "अभी निजी · सूचियों में गुमनाम।",
+                    "अभी सार्वजनिक · नाम और प्रोफ़ाइल दिखाई देते हैं।", "लॉग आउट", "Discord से लॉग इन", "रीफ़्रेश",
+                    "प्रोफ़ाइल सेटिंग बदलने के लिए Discord लॉगिन आवश्यक है।", "निर्माता खाते से लॉग आउट किया गया।",
+                    "लॉग आउट नहीं हो सका। खाता जुड़ा रहेगा।",
+                    "प्रोफ़ाइल दृश्यता लोड नहीं हुई।", "प्रोफ़ाइल निजी कर दी गई।", "प्रोफ़ाइल सार्वजनिक कर दी गई।",
+                    "प्रोफ़ाइल दृश्यता सहेजी नहीं जा सकी।", "Discord लॉगिन विफल रहा।", "Discord लॉगिन पूरा हुआ।", "गुमनाम"
+            };
+            case "es": return new String[] {
+                    "Perfil de creador de sync", "Elige si tu información de creador aparece en las listas públicas de letras.",
+                    "Perfil privado", "La lista se mantiene, pero el nombre, la foto y el enlace del perfil se muestran como anónimos.",
+                    "Comprobando la visibilidad…", "Inicia sesión con Discord para cambiar la visibilidad de tu perfil.",
+                    "Actualiza para consultar la visibilidad actual.", "Privado · apareces como anónimo en las listas.",
+                    "Público · se muestran tu nombre y perfil.", "Cerrar sesión", "Iniciar con Discord", "Actualizar",
+                    "Debes iniciar sesión con Discord para cambiar esta opción.", "Sesión de creador cerrada.",
+                    "No se pudo cerrar la sesión. La cuenta seguirá conectada.",
+                    "No se pudo cargar la visibilidad.", "Perfil cambiado a privado.", "Perfil cambiado a público.",
+                    "No se pudo guardar la visibilidad.", "Error al iniciar sesión con Discord.", "Sesión de Discord iniciada.", "Anónimo"
+            };
+            case "fr": return new String[] {
+                    "Profil de créateur de sync", "Choisis si tes informations apparaissent dans les listes publiques de paroles.",
+                    "Profil privé", "La liste reste visible, mais le nom, la photo et le lien du profil deviennent anonymes.",
+                    "Vérification de la visibilité…", "Connecte-toi avec Discord pour modifier la visibilité de ton profil.",
+                    "Actualise pour vérifier la visibilité actuelle.", "Privé · affiché anonymement dans les listes.",
+                    "Public · le nom et le profil sont affichés.", "Déconnexion", "Connexion avec Discord", "Actualiser",
+                    "La connexion Discord est requise pour modifier ce réglage.", "Déconnecté du compte créateur.",
+                    "Échec de la déconnexion. Le compte reste connecté.",
+                    "Impossible de charger la visibilité.", "Profil rendu privé.", "Profil rendu public.",
+                    "Impossible d’enregistrer la visibilité.", "Échec de la connexion Discord.", "Connexion Discord terminée.", "Anonyme"
+            };
+            case "ar": return new String[] {
+                    "ملف منشئ المزامنة", "اختر ما إذا كانت معلوماتك تظهر في قوائم الكلمات العامة.",
+                    "جعل الملف خاصًا", "تبقى العناصر في القائمة، لكن الاسم والصورة والرابط تظهر كمجهولة.",
+                    "جارٍ التحقق من ظهور الملف…", "سجّل الدخول عبر Discord لتغيير ظهور ملفك.",
+                    "حدّث للتحقق من الإعداد الحالي.", "خاص حاليًا · يظهر كمجهول في القوائم.",
+                    "عام حاليًا · يظهر الاسم والملف.", "تسجيل الخروج", "الدخول عبر Discord", "تحديث",
+                    "يلزم تسجيل الدخول عبر Discord لتغيير هذا الإعداد.", "تم تسجيل الخروج من حساب المنشئ.",
+                    "تعذر تسجيل الخروج. سيبقى الحساب متصلًا.",
+                    "تعذر تحميل إعداد الظهور.", "تم جعل الملف خاصًا.", "تم جعل الملف عامًا.",
+                    "تعذر حفظ إعداد الظهور.", "فشل تسجيل الدخول عبر Discord.", "اكتمل تسجيل الدخول عبر Discord.", "مجهول"
+            };
+            case "fa": return new String[] {
+                    "نمایه سازنده همگام‌سازی", "انتخاب کنید اطلاعات سازنده شما در فهرست عمومی ترانه‌ها نمایش داده شود یا نه.",
+                    "نمایه خصوصی", "فهرست باقی می‌ماند، اما نام، تصویر و پیوند نمایه ناشناس نمایش داده می‌شود.",
+                    "در حال بررسی نمایش نمایه…", "برای تغییر نمایش نمایه با Discord وارد شوید.",
+                    "برای دیدن وضعیت فعلی تازه‌سازی کنید.", "اکنون خصوصی · در فهرست‌ها ناشناس است.",
+                    "اکنون عمومی · نام و نمایه نمایش داده می‌شود.", "خروج", "ورود با Discord", "تازه‌سازی",
+                    "برای تغییر این تنظیم ورود با Discord لازم است.", "از حساب سازنده خارج شدید.",
+                    "خروج انجام نشد. حساب متصل می‌ماند.",
+                    "نمایش نمایه بارگیری نشد.", "نمایه خصوصی شد.", "نمایه عمومی شد.",
+                    "نمایش نمایه ذخیره نشد.", "ورود Discord ناموفق بود.", "ورود Discord کامل شد.", "ناشناس"
+            };
+            case "de": return new String[] {
+                    "Sync-Creator-Profil", "Lege fest, ob deine Creator-Informationen in öffentlichen Lyrics-Listen erscheinen.",
+                    "Profil privat", "Die Einträge bleiben sichtbar, Name, Bild und Profillink werden jedoch anonymisiert.",
+                    "Profilsichtbarkeit wird geprüft…", "Melde dich mit Discord an, um die Sichtbarkeit zu ändern.",
+                    "Aktualisiere, um die aktuelle Sichtbarkeit zu prüfen.", "Derzeit privat · in Listen anonym.",
+                    "Derzeit öffentlich · Name und Profil sichtbar.", "Abmelden", "Mit Discord anmelden", "Aktualisieren",
+                    "Zum Ändern ist eine Discord-Anmeldung erforderlich.", "Vom Creator-Konto abgemeldet.",
+                    "Abmeldung fehlgeschlagen. Das Konto bleibt verbunden.",
+                    "Profilsichtbarkeit konnte nicht geladen werden.", "Profil ist jetzt privat.", "Profil ist jetzt öffentlich.",
+                    "Profilsichtbarkeit konnte nicht gespeichert werden.", "Discord-Anmeldung fehlgeschlagen.", "Discord-Anmeldung abgeschlossen.", "Anonym"
+            };
+            case "ru": return new String[] {
+                    "Профиль автора синхронизации", "Выберите, показывать ли ваши данные автора в публичных списках текстов.",
+                    "Скрыть профиль", "Записи останутся в списках, но имя, фото и ссылка будут анонимными.",
+                    "Проверяем видимость профиля…", "Войдите через Discord, чтобы изменить видимость профиля.",
+                    "Обновите, чтобы проверить текущую видимость.", "Сейчас скрыт · в списках анонимно.",
+                    "Сейчас открыт · имя и профиль видны.", "Выйти", "Войти через Discord", "Обновить",
+                    "Для изменения настройки нужен вход через Discord.", "Вы вышли из аккаунта автора.",
+                    "Не удалось выйти. Аккаунт останется подключённым.",
+                    "Не удалось загрузить видимость.", "Профиль сделан приватным.", "Профиль сделан публичным.",
+                    "Не удалось сохранить видимость.", "Не удалось войти через Discord.", "Вход через Discord выполнен.", "Аноним"
+            };
+            case "sv": return new String[] {
+                    "Profil för sync-skapare", "Välj om din skaparinformation ska visas i offentliga textlistor.",
+                    "Privat profil", "Listposterna finns kvar, men namn, bild och profillänk visas anonymt.",
+                    "Kontrollerar profilsynlighet…", "Logga in med Discord för att ändra profilsynligheten.",
+                    "Uppdatera för att kontrollera aktuell synlighet.", "Privat · visas anonymt i listor.",
+                    "Offentlig · namn och profil visas.", "Logga ut", "Logga in med Discord", "Uppdatera",
+                    "Discord-inloggning krävs för att ändra inställningen.", "Utloggad från skaparkontot.",
+                    "Det gick inte att logga ut. Kontot förblir anslutet.",
+                    "Kunde inte läsa profilsynligheten.", "Profilen är nu privat.", "Profilen är nu offentlig.",
+                    "Kunde inte spara profilsynligheten.", "Discord-inloggningen misslyckades.", "Discord-inloggningen är klar.", "Anonym"
+            };
+            case "pt": return new String[] {
+                    "Perfil de criador de sync", "Escolha se suas informações aparecem nas listas públicas de letras.",
+                    "Perfil privado", "As entradas continuam visíveis, mas nome, foto e link ficam anônimos.",
+                    "Verificando a visibilidade…", "Entre com Discord para mudar a visibilidade do perfil.",
+                    "Atualize para verificar a visibilidade atual.", "Privado · exibido anonimamente nas listas.",
+                    "Público · nome e perfil são exibidos.", "Sair", "Entrar com Discord", "Atualizar",
+                    "É necessário entrar com Discord para mudar esta opção.", "Você saiu da conta de criador.",
+                    "Não foi possível sair. A conta continuará conectada.",
+                    "Não foi possível carregar a visibilidade.", "Perfil alterado para privado.", "Perfil alterado para público.",
+                    "Não foi possível salvar a visibilidade.", "Falha ao entrar com Discord.", "Login do Discord concluído.", "Anônimo"
+            };
+            case "bn": return new String[] {
+                    "সিঙ্ক নির্মাতা প্রোফাইল", "পাবলিক লিরিক তালিকায় আপনার নির্মাতা তথ্য দেখানো হবে কি না বেছে নিন।",
+                    "প্রোফাইল ব্যক্তিগত", "তালিকা থাকবে, তবে নাম, ছবি ও প্রোফাইল লিংক বেনামে দেখাবে।",
+                    "প্রোফাইল দৃশ্যমানতা যাচাই হচ্ছে…", "দৃশ্যমানতা বদলাতে Discord দিয়ে লগ ইন করুন।",
+                    "বর্তমান অবস্থা দেখতে রিফ্রেশ করুন।", "এখন ব্যক্তিগত · তালিকায় বেনাম।",
+                    "এখন পাবলিক · নাম ও প্রোফাইল দেখা যায়।", "লগ আউট", "Discord দিয়ে লগ ইন", "রিফ্রেশ",
+                    "এই সেটিং বদলাতে Discord লগইন প্রয়োজন।", "নির্মাতা অ্যাকাউন্ট থেকে লগ আউট হয়েছে।",
+                    "লগ আউট করা যায়নি। অ্যাকাউন্ট সংযুক্ত থাকবে।",
+                    "দৃশ্যমানতা লোড করা যায়নি।", "প্রোফাইল ব্যক্তিগত করা হয়েছে।", "প্রোফাইল পাবলিক করা হয়েছে।",
+                    "দৃশ্যমানতা সংরক্ষণ করা যায়নি।", "Discord লগইন ব্যর্থ হয়েছে।", "Discord লগইন সম্পন্ন।", "বেনাম"
+            };
+            case "cs": return new String[] {
+                    "Profil tvůrce synchronizace", "Zvolte, zda se mají vaše údaje zobrazovat ve veřejných seznamech textů.",
+                    "Soukromý profil", "Položky zůstanou v seznamu, ale jméno, obrázek a odkaz budou anonymní.",
+                    "Kontrola viditelnosti profilu…", "Pro změnu viditelnosti se přihlaste přes Discord.",
+                    "Obnovte pro kontrolu aktuální viditelnosti.", "Nyní soukromý · v seznamech anonymně.",
+                    "Nyní veřejný · jméno a profil jsou viditelné.", "Odhlásit", "Přihlásit přes Discord", "Obnovit",
+                    "Pro změnu nastavení je nutné přihlášení přes Discord.", "Odhlášeno z účtu tvůrce.",
+                    "Odhlášení se nezdařilo. Účet zůstane připojený.",
+                    "Viditelnost profilu se nepodařilo načíst.", "Profil je nyní soukromý.", "Profil je nyní veřejný.",
+                    "Viditelnost profilu se nepodařilo uložit.", "Přihlášení přes Discord selhalo.", "Přihlášení přes Discord dokončeno.", "Anonymní"
+            };
+            case "it": return new String[] {
+                    "Profilo creator sync", "Scegli se mostrare le tue informazioni nelle liste pubbliche dei testi.",
+                    "Profilo privato", "Le voci restano visibili, ma nome, foto e link del profilo diventano anonimi.",
+                    "Controllo della visibilità…", "Accedi con Discord per cambiare la visibilità del profilo.",
+                    "Aggiorna per verificare la visibilità attuale.", "Privato · mostrato anonimamente nelle liste.",
+                    "Pubblico · nome e profilo sono visibili.", "Esci", "Accedi con Discord", "Aggiorna",
+                    "Per modificare questa opzione devi accedere con Discord.", "Disconnesso dall’account creator.",
+                    "Disconnessione non riuscita. L’account resterà collegato.",
+                    "Impossibile caricare la visibilità.", "Profilo reso privato.", "Profilo reso pubblico.",
+                    "Impossibile salvare la visibilità.", "Accesso Discord non riuscito.", "Accesso Discord completato.", "Anonimo"
+            };
+            case "th": return new String[] {
+                    "โปรไฟล์ผู้สร้างซิงก์", "เลือกว่าจะแสดงข้อมูลผู้สร้างของคุณในรายการเนื้อเพลงสาธารณะหรือไม่",
+                    "โปรไฟล์ส่วนตัว", "รายการยังคงอยู่ แต่ชื่อ รูป และลิงก์โปรไฟล์จะแสดงแบบไม่ระบุตัวตน",
+                    "กำลังตรวจสอบการมองเห็น…", "เข้าสู่ระบบด้วย Discord เพื่อเปลี่ยนการมองเห็นโปรไฟล์",
+                    "รีเฟรชเพื่อตรวจสอบการตั้งค่าปัจจุบัน", "ขณะนี้เป็นส่วนตัว · แสดงแบบไม่ระบุตัวตน",
+                    "ขณะนี้เป็นสาธารณะ · แสดงชื่อและโปรไฟล์", "ออกจากระบบ", "เข้าสู่ระบบด้วย Discord", "รีเฟรช",
+                    "ต้องเข้าสู่ระบบ Discord เพื่อเปลี่ยนการตั้งค่านี้", "ออกจากบัญชีผู้สร้างแล้ว",
+                    "ออกจากระบบไม่สำเร็จ บัญชียังคงเชื่อมต่ออยู่",
+                    "โหลดการมองเห็นโปรไฟล์ไม่ได้", "ตั้งโปรไฟล์เป็นส่วนตัวแล้ว", "ตั้งโปรไฟล์เป็นสาธารณะแล้ว",
+                    "บันทึกการมองเห็นโปรไฟล์ไม่ได้", "เข้าสู่ระบบ Discord ไม่สำเร็จ", "เข้าสู่ระบบ Discord สำเร็จ", "ไม่ระบุตัวตน"
+            };
+            case "vi": return new String[] {
+                    "Hồ sơ người tạo đồng bộ", "Chọn có hiển thị thông tin người tạo trong danh sách lời công khai hay không.",
+                    "Hồ sơ riêng tư", "Mục vẫn nằm trong danh sách, nhưng tên, ảnh và liên kết hồ sơ sẽ được ẩn danh.",
+                    "Đang kiểm tra quyền hiển thị…", "Đăng nhập bằng Discord để đổi quyền hiển thị hồ sơ.",
+                    "Làm mới để kiểm tra trạng thái hiện tại.", "Hiện riêng tư · hiển thị ẩn danh trong danh sách.",
+                    "Hiện công khai · tên và hồ sơ được hiển thị.", "Đăng xuất", "Đăng nhập Discord", "Làm mới",
+                    "Cần đăng nhập Discord để thay đổi cài đặt này.", "Đã đăng xuất tài khoản người tạo.",
+                    "Không thể đăng xuất. Tài khoản sẽ vẫn được kết nối.",
+                    "Không tải được quyền hiển thị.", "Đã chuyển hồ sơ sang riêng tư.", "Đã chuyển hồ sơ sang công khai.",
+                    "Không lưu được quyền hiển thị.", "Đăng nhập Discord thất bại.", "Đăng nhập Discord hoàn tất.", "Ẩn danh"
+            };
+            case "id": return new String[] {
+                    "Profil kreator sinkron", "Pilih apakah info kreator ditampilkan di daftar lirik publik.",
+                    "Profil privat", "Entri tetap ada, tetapi nama, foto, dan tautan profil ditampilkan anonim.",
+                    "Memeriksa visibilitas profil…", "Masuk dengan Discord untuk mengubah visibilitas profil.",
+                    "Segarkan untuk memeriksa visibilitas saat ini.", "Saat ini privat · anonim di daftar.",
+                    "Saat ini publik · nama dan profil ditampilkan.", "Keluar", "Masuk dengan Discord", "Segarkan",
+                    "Login Discord diperlukan untuk mengubah pengaturan ini.", "Keluar dari akun kreator.",
+                    "Gagal keluar. Akun akan tetap terhubung.",
+                    "Tidak dapat memuat visibilitas profil.", "Profil dijadikan privat.", "Profil dijadikan publik.",
+                    "Tidak dapat menyimpan visibilitas profil.", "Login Discord gagal.", "Login Discord selesai.", "Anonim"
+            };
+            case "ms": return new String[] {
+                    "Profil pencipta segerak", "Pilih sama ada maklumat pencipta dipaparkan dalam senarai lirik awam.",
+                    "Profil peribadi", "Entri kekal dalam senarai, tetapi nama, gambar dan pautan profil dipaparkan tanpa nama.",
+                    "Menyemak keterlihatan profil…", "Log masuk dengan Discord untuk mengubah keterlihatan profil.",
+                    "Muat semula untuk menyemak keadaan semasa.", "Kini peribadi · dipaparkan tanpa nama.",
+                    "Kini awam · nama dan profil dipaparkan.", "Log keluar", "Log masuk dengan Discord", "Muat semula",
+                    "Log masuk Discord diperlukan untuk mengubah tetapan ini.", "Telah log keluar daripada akaun pencipta.",
+                    "Log keluar gagal. Akaun akan kekal disambungkan.",
+                    "Keterlihatan profil tidak dapat dimuatkan.", "Profil kini peribadi.", "Profil kini awam.",
+                    "Keterlihatan profil tidak dapat disimpan.", "Log masuk Discord gagal.", "Log masuk Discord selesai.", "Tanpa nama"
+            };
+            case "tr": return new String[] {
+                    "Senkron oluşturucu profili", "Oluşturucu bilgilerinizin herkese açık söz listelerinde gösterilip gösterilmeyeceğini seçin.",
+                    "Profili gizli tut", "Kayıtlar listede kalır; ad, fotoğraf ve profil bağlantısı anonim görünür.",
+                    "Profil görünürlüğü kontrol ediliyor…", "Görünürlüğü değiştirmek için Discord ile giriş yapın.",
+                    "Geçerli görünürlüğü kontrol etmek için yenileyin.", "Şu anda gizli · listelerde anonim.",
+                    "Şu anda herkese açık · ad ve profil görünür.", "Çıkış yap", "Discord ile giriş", "Yenile",
+                    "Bu ayarı değiştirmek için Discord girişi gereklidir.", "Oluşturucu hesabından çıkış yapıldı.",
+                    "Çıkış yapılamadı. Hesap bağlı kalacak.",
+                    "Profil görünürlüğü yüklenemedi.", "Profil gizli yapıldı.", "Profil herkese açıldı.",
+                    "Profil görünürlüğü kaydedilemedi.", "Discord girişi başarısız.", "Discord girişi tamamlandı.", "Anonim"
+            };
+            case "en":
+            default: return new String[] {
+                    "Sync creator profile", "Choose whether your creator identity appears in public lyrics listings.",
+                    "Private profile", "Your entries stay listed, but your name, photo, and profile link are shown anonymously.",
+                    "Checking profile visibility…", "Sign in with Discord to change your profile visibility.",
+                    "Refresh to check the current visibility.", "Currently private · shown anonymously in listings.",
+                    "Currently public · your name and profile are shown.", "Sign out", "Sign in with Discord", "Refresh",
+                    "Discord login is required to change your profile settings.", "Signed out of the creator account.",
+                    "Could not sign out. The account will remain connected.",
+                    "Could not load profile visibility.", "Profile changed to private.", "Profile changed to public.",
+                    "Could not save profile visibility.", "Discord login failed.", "Discord login complete.", "Anonymous"
+            };
+        }
+    }
+
+    private static void addLyricsProviderSettingsStrings(Map<String, Map<String, String>> languages) {
+        for (AiLyricsSettings.Language language : UI_LANGUAGES) {
+            Map<String, String> table = languages.get(language.code);
+            if (table == null) {
+                continue;
+            }
+            boolean korean = "ko".equalsIgnoreCase(language.code);
+            Map<String, String> copy = new LinkedHashMap<>(table);
+            copy.put("section.lyrics_providers", korean ? "가사 제공자" : "Lyrics providers");
+            copy.put("section.lyrics_providers_desc", korean
+                    ? "가사 제공자의 사용 여부, 우선순위와 허용할 가사 형식을 설정합니다."
+                    : "Choose which providers are used, their priority, and the lyric formats each may provide.");
+            copy.put("setting.lyrics_type_first", korean
+                    ? "형식 우선 조회 (노래방 → 싱크 → 일반)"
+                    : "Prefer format (karaoke → synced → plain)");
+            copy.put("setting.lyrics_type_first_desc", korean
+                    ? "먼저 모든 제공자에서 노래방 가사를 찾고, 없으면 싱크 가사, 그다음 일반 가사를 찾습니다."
+                    : "Try every provider for karaoke first, then synced lyrics, then plain lyrics.");
+            copy.put("setting.prefer_sync_data_provider", korean
+                    ? "ivLyrics sync-data 제공자 우선"
+                    : "Prefer provider with ivLyrics sync-data");
+            copy.put("setting.prefer_sync_data_provider_desc", korean
+                    ? "OpenDB에 이 곡의 ISRC가 있으면 해당 sync-data를 가진 제공자를 우선 선택합니다."
+                    : "When OpenDB lists this ISRC, prioritize the provider that has ivLyrics sync-data.");
+            copy.put("lyrics_provider.author_format", korean ? "제작자: %s" : "Author: %s");
+            copy.put("lyrics.provider_attribution_label", korean ? "가사 제공자" : "Lyrics Provider");
+            copy.put("lyrics_provider.enabled", korean ? "사용" : "Enabled");
+            copy.put("lyrics_provider.move_up", korean ? "우선순위 올리기" : "Move up");
+            copy.put("lyrics_provider.move_down", korean ? "우선순위 내리기" : "Move down");
+            copy.put("lyrics_provider.project", korean ? "프로젝트" : "Project");
+            copy.put("lyrics_provider.karaoke", korean ? "노래방 가사 허용" : "Allow karaoke lyrics");
+            copy.put("lyrics_provider.synced", korean ? "싱크 가사 허용" : "Allow synced lyrics");
+            copy.put("lyrics_provider.plain", korean ? "일반 가사 허용" : "Allow plain lyrics");
+            copy.put("toast.lyrics_provider_settings_saved", korean
+                    ? "가사 제공자 설정이 저장되었습니다"
+                    : "Lyrics provider settings saved");
+            languages.put(language.code, Collections.unmodifiableMap(copy));
+        }
+    }
+
+    private static void addPaxsenixProviderStrings(Map<String, Map<String, String>> languages) {
+        for (AiLyricsSettings.Language language : UI_LANGUAGES) {
+            Map<String, String> table = languages.get(language.code);
+            if (table == null) continue;
+            String[] values = paxsenixStrings(language.code);
+            Map<String, String> copy = new LinkedHashMap<>(table);
+            copy.put("provider.desc.paxsenix", values[0]);
+            copy.put("button.choose_model", values[1]);
+            OpenAIConnectionI18n.add(copy, language.code);
+            copy.put("status.model_loading", values[2]);
+            copy.put("dialog.select_model", copy.getOrDefault("field.model", values[3]));
+            copy.put("toast.model_load_failed", values[4]);
+            copy.put("toast.model_empty", values[5]);
+            copy.put("status.ai_model_needed", values[6]);
+            languages.put(language.code, Collections.unmodifiableMap(copy));
+        }
+    }
+
+    private static String[] paxsenixStrings(String language) {
+        switch (language) {
+            case "ko":
+                return new String[]{"Paxsenix OpenAI 호환 API", "모델 목록에서 선택", "모델 불러오는 중…", "Paxsenix 모델 선택", "모델 목록을 불러오지 못했습니다", "사용 가능한 모델이 없습니다", "AI 모델을 직접 선택해 주세요"};
+            case "ja":
+                return new String[]{"Paxsenix OpenAI互換API", "モデル一覧から選択", "モデルを読み込み中…", "Paxsenixモデルを選択", "モデル一覧を読み込めませんでした", "利用可能なモデルがありません", "AIモデルを選択してください"};
+            case "zh-CN":
+                return new String[]{"Paxsenix OpenAI 兼容 API", "从模型列表中选择", "正在加载模型…", "选择 Paxsenix 模型", "无法加载模型列表", "没有可用模型", "请选择 AI 模型"};
+            case "zh-TW":
+                return new String[]{"Paxsenix OpenAI 相容 API", "從模型清單中選擇", "正在載入模型…", "選擇 Paxsenix 模型", "無法載入模型清單", "沒有可用模型", "請選擇 AI 模型"};
+            case "es":
+                return new String[]{"API de Paxsenix compatible con OpenAI", "Elegir de la lista", "Cargando modelos…", "Elegir modelo de Paxsenix", "No se pudo cargar la lista de modelos", "No hay modelos disponibles", "Selecciona un modelo de IA"};
+            case "fr":
+                return new String[]{"API Paxsenix compatible OpenAI", "Choisir dans la liste", "Chargement des modèles…", "Choisir un modèle Paxsenix", "Impossible de charger les modèles", "Aucun modèle disponible", "Sélectionnez un modèle IA"};
+            case "de":
+                return new String[]{"OpenAI-kompatible Paxsenix-API", "Aus Modellliste wählen", "Modelle werden geladen…", "Paxsenix-Modell wählen", "Modellliste konnte nicht geladen werden", "Keine Modelle verfügbar", "Bitte ein KI-Modell auswählen"};
+            case "ru":
+                return new String[]{"OpenAI-совместимый API Paxsenix", "Выбрать из списка", "Загрузка моделей…", "Выберите модель Paxsenix", "Не удалось загрузить список моделей", "Нет доступных моделей", "Выберите модель ИИ"};
+            case "pt":
+                return new String[]{"API Paxsenix compatível com OpenAI", "Escolher da lista", "Carregando modelos…", "Escolher modelo Paxsenix", "Falha ao carregar modelos", "Nenhum modelo disponível", "Selecione um modelo de IA"};
+            case "it":
+                return new String[]{"API Paxsenix compatibile con OpenAI", "Scegli dall'elenco", "Caricamento modelli…", "Scegli modello Paxsenix", "Impossibile caricare i modelli", "Nessun modello disponibile", "Seleziona un modello IA"};
+            case "hi":
+                return new String[]{"Paxsenix OpenAI-संगत API", "मॉडल सूची से चुनें", "मॉडल लोड हो रहे हैं…", "Paxsenix मॉडल चुनें", "मॉडल सूची लोड नहीं हुई", "कोई मॉडल उपलब्ध नहीं है", "AI मॉडल चुनें"};
+            case "ar":
+                return new String[]{"واجهة Paxsenix المتوافقة مع OpenAI", "اختر من قائمة النماذج", "جارٍ تحميل النماذج…", "اختر نموذج Paxsenix", "تعذر تحميل قائمة النماذج", "لا توجد نماذج متاحة", "يرجى اختيار نموذج ذكاء اصطناعي"};
+            case "fa":
+                return new String[]{"API سازگار با OpenAI در Paxsenix", "انتخاب از فهرست مدل‌ها", "در حال بارگیری مدل‌ها…", "انتخاب مدل Paxsenix", "فهرست مدل‌ها بارگیری نشد", "مدلی در دسترس نیست", "یک مدل هوش مصنوعی انتخاب کنید"};
+            case "sv":
+                return new String[]{"Paxsenix OpenAI-kompatibla API", "Välj från modellistan", "Läser in modeller…", "Välj Paxsenix-modell", "Kunde inte läsa in modeller", "Inga modeller är tillgängliga", "Välj en AI-modell"};
+            case "bn":
+                return new String[]{"Paxsenix OpenAI-সামঞ্জস্যপূর্ণ API", "মডেল তালিকা থেকে বাছুন", "মডেল লোড হচ্ছে…", "Paxsenix মডেল বাছুন", "মডেল তালিকা লোড করা যায়নি", "কোনো মডেল উপলভ্য নেই", "একটি AI মডেল বাছুন"};
+            case "th":
+                return new String[]{"Paxsenix API ที่เข้ากันได้กับ OpenAI", "เลือกจากรายการโมเดล", "กำลังโหลดโมเดล…", "เลือกโมเดล Paxsenix", "โหลดรายการโมเดลไม่สำเร็จ", "ไม่มีโมเดลที่ใช้ได้", "โปรดเลือกโมเดล AI"};
+            case "vi":
+                return new String[]{"API Paxsenix tương thích OpenAI", "Chọn từ danh sách", "Đang tải mô hình…", "Chọn mô hình Paxsenix", "Không thể tải danh sách mô hình", "Không có mô hình khả dụng", "Hãy chọn một mô hình AI"};
+            case "id":
+                return new String[]{"API Paxsenix yang kompatibel dengan OpenAI", "Pilih dari daftar model", "Memuat model…", "Pilih model Paxsenix", "Gagal memuat daftar model", "Tidak ada model tersedia", "Pilih model AI"};
+            case "ms":
+                return new String[]{"API Paxsenix serasi OpenAI", "Pilih daripada senarai", "Memuatkan model…", "Pilih model Paxsenix", "Gagal memuatkan senarai model", "Tiada model tersedia", "Pilih model AI"};
+            case "cs":
+                return new String[]{"API Paxsenix kompatibilní s OpenAI", "Vybrat ze seznamu", "Načítání modelů…", "Vybrat model Paxsenix", "Seznam modelů se nepodařilo načíst", "Nejsou dostupné žádné modely", "Vyberte model AI"};
+            case "tr":
+                return new String[]{"Paxsenix OpenAI uyumlu API", "Model listesinden seç", "Modeller yükleniyor…", "Paxsenix modeli seç", "Model listesi yüklenemedi", "Kullanılabilir model yok", "Bir AI modeli seçin"};
+            default:
+                return new String[]{"Paxsenix OpenAI-compatible API", "Choose from model list", "Loading models…", "Choose a Paxsenix model", "Could not load the model list", "No models are available", "Select an AI model"};
+        }
+    }
+
+    private static void addBluetoothSyncOffsetStrings(Map<String, Map<String, String>> languages) {
+        addLanguageStrings(languages, AppI18n::bluetoothSyncOffsetStrings);
+    }
+
+    private static String[] bluetoothSyncOffsetStrings(String lang) {
+        switch (normalize(lang)) {
+            case "ko":
+                return bluetoothSyncOffsetStringValues("Bluetooth 기기 오프셋", "연결된 Bluetooth 오디오 기기가 없습니다.", "\"%s\"에만 저장됩니다.", "Bluetooth 스피커/이어폰에서 소리가 늦게 들릴 때 기기별로 가사 타이밍을 보정합니다.", "Bluetooth 오프셋 초기화", "%s Bluetooth 오프셋 %s", "알 수 없는 Bluetooth 기기");
+            case "zh-CN":
+                return bluetoothSyncOffsetStringValues("Bluetooth 设备偏移", "没有连接的 Bluetooth 音频设备。", "仅为“%s”保存。", "当 Bluetooth 扬声器/耳机声音延迟时，按设备校正歌词时间。", "重置 Bluetooth 偏移", "%s Bluetooth 偏移 %s", "未知 Bluetooth 设备");
+            case "zh-TW":
+                return bluetoothSyncOffsetStringValues("Bluetooth 裝置偏移", "沒有連接的 Bluetooth 音訊裝置。", "僅為「%s」儲存。", "當 Bluetooth 喇叭/耳機聲音延遲時，依裝置校正歌詞時間。", "重設 Bluetooth 偏移", "%s Bluetooth 偏移 %s", "未知 Bluetooth 裝置");
+            case "ja":
+                return bluetoothSyncOffsetStringValues("Bluetooth デバイスオフセット", "接続中の Bluetooth オーディオ機器がありません。", "「%s」にのみ保存されます。", "Bluetooth スピーカー/イヤホンで音が遅れる場合、機器ごとに歌詞タイミングを補正します。", "Bluetooth オフセットをリセット", "%s の Bluetooth オフセット %s", "不明な Bluetooth 機器");
+            case "hi":
+                return bluetoothSyncOffsetStringValues("Bluetooth डिवाइस ऑफसेट", "कोई Bluetooth ऑडियो डिवाइस कनेक्ट नहीं है।", "केवल \"%s\" के लिए सहेजा गया।", "Bluetooth स्पीकर/ईयरफोन में ध्वनि देर से सुनाई दे तो डिवाइस के अनुसार गीत समय ठीक करता है।", "Bluetooth ऑफसेट रीसेट", "%s Bluetooth ऑफसेट %s", "अज्ञात Bluetooth डिवाइस");
+            case "es":
+                return bluetoothSyncOffsetStringValues("Compensación Bluetooth", "No hay ningún dispositivo de audio Bluetooth conectado.", "Guardado sólo para \"%s\".", "Corrige el tiempo de la letra por dispositivo cuando el audio Bluetooth llega tarde.", "Restablecer compensación Bluetooth", "%s compensación Bluetooth %s", "Dispositivo Bluetooth desconocido");
+            case "fr":
+                return bluetoothSyncOffsetStringValues("Décalage Bluetooth", "Aucun appareil audio Bluetooth connecté.", "Enregistré uniquement pour \"%s\".", "Corrige le timing des paroles par appareil lorsque l'audio Bluetooth arrive en retard.", "Réinitialiser le décalage Bluetooth", "%s décalage Bluetooth %s", "Appareil Bluetooth inconnu");
+            case "ar":
+                return bluetoothSyncOffsetStringValues("إزاحة Bluetooth", "لا يوجد جهاز صوت Bluetooth متصل.", "تم الحفظ لـ \"%s\" فقط.", "يضبط توقيت الكلمات لكل جهاز عندما يتأخر صوت سماعة Bluetooth.", "إعادة تعيين إزاحة Bluetooth", "%s إزاحة Bluetooth %s", "جهاز Bluetooth غير معروف");
+            case "fa":
+                return bluetoothSyncOffsetStringValues("افست Bluetooth", "هیچ دستگاه صوتی Bluetooth متصل نیست.", "فقط برای \"%s\" ذخیره شد.", "وقتی صدای بلندگو/ایرفون Bluetooth دیر می‌رسد، زمان‌بندی متن را برای همان دستگاه اصلاح می‌کند.", "بازنشانی افست Bluetooth", "%s افست Bluetooth %s", "دستگاه Bluetooth ناشناس");
+            case "de":
+                return bluetoothSyncOffsetStringValues("Bluetooth-Geräteoffset", "Kein Bluetooth-Audiogerät verbunden.", "Nur für „%s“ gespeichert.", "Korrigiert das Liedtext-Timing pro Gerät, wenn Bluetooth-Audio verzögert ankommt.", "Bluetooth-Offset zurücksetzen", "%s Bluetooth-Offset %s", "Unbekanntes Bluetooth-Gerät");
+            case "ru":
+                return bluetoothSyncOffsetStringValues("Смещение Bluetooth", "Аудиоустройство Bluetooth не подключено.", "Сохранено только для \"%s\".", "Корректирует время текста для каждого устройства, когда звук Bluetooth запаздывает.", "Сбросить смещение Bluetooth", "%s смещение Bluetooth %s", "Неизвестное устройство Bluetooth");
+            case "sv":
+                return bluetoothSyncOffsetStringValues("Bluetooth-enhetsoffset", "Ingen Bluetooth-ljudenhet är ansluten.", "Sparad endast för \"%s\".", "Korrigerar texttajming per enhet när Bluetooth-ljudet kommer sent.", "Återställ Bluetooth-offset", "%s Bluetooth-offset %s", "Okänd Bluetooth-enhet");
+            case "pt":
+                return bluetoothSyncOffsetStringValues("Deslocamento Bluetooth", "Nenhum dispositivo de áudio Bluetooth conectado.", "Salvo apenas para \"%s\".", "Corrige o tempo da letra por dispositivo quando o áudio Bluetooth chega atrasado.", "Redefinir deslocamento Bluetooth", "%s deslocamento Bluetooth %s", "Dispositivo Bluetooth desconhecido");
+            case "bn":
+                return bluetoothSyncOffsetStringValues("Bluetooth ডিভাইস অফসেট", "কোনো Bluetooth অডিও ডিভাইস সংযুক্ত নেই।", "শুধুমাত্র \"%s\" এর জন্য সংরক্ষিত।", "Bluetooth স্পিকার/ইয়ারফোনে শব্দ দেরিতে এলে ডিভাইস অনুযায়ী লিরিক্স সময় ঠিক করে।", "Bluetooth অফসেট রিসেট", "%s Bluetooth অফসেট %s", "অজানা Bluetooth ডিভাইস");
+            case "it":
+                return bluetoothSyncOffsetStringValues("Offset Bluetooth", "Nessun dispositivo audio Bluetooth collegato.", "Salvato solo per \"%s\".", "Corregge il tempo dei testi per dispositivo quando l'audio Bluetooth arriva in ritardo.", "Reimposta offset Bluetooth", "%s offset Bluetooth %s", "Dispositivo Bluetooth sconosciuto");
+            case "th":
+                return bluetoothSyncOffsetStringValues("ออฟเซ็ตอุปกรณ์ Bluetooth", "ไม่มีอุปกรณ์เสียง Bluetooth ที่เชื่อมต่ออยู่", "บันทึกเฉพาะสำหรับ \"%s\"", "ปรับเวลาเนื้อเพลงแยกตามอุปกรณ์เมื่อเสียง Bluetooth มาช้า", "รีเซ็ตออฟเซ็ต Bluetooth", "%s ออฟเซ็ต Bluetooth %s", "อุปกรณ์ Bluetooth ที่ไม่รู้จัก");
+            case "vi":
+                return bluetoothSyncOffsetStringValues("Bù thiết bị Bluetooth", "Không có thiết bị âm thanh Bluetooth nào được kết nối.", "Chỉ lưu cho \"%s\".", "Chỉnh thời gian lời theo từng thiết bị khi âm thanh Bluetooth đến muộn.", "Đặt lại bù Bluetooth", "%s bù Bluetooth %s", "Thiết bị Bluetooth không xác định");
+            case "id":
+                return bluetoothSyncOffsetStringValues("Offset perangkat Bluetooth", "Tidak ada perangkat audio Bluetooth yang terhubung.", "Disimpan hanya untuk \"%s\".", "Mengoreksi timing lirik per perangkat saat audio Bluetooth terlambat terdengar.", "Reset offset Bluetooth", "%s offset Bluetooth %s", "Perangkat Bluetooth tidak dikenal");
+            case "ms":
+                return bluetoothSyncOffsetStringValues("Ofset peranti Bluetooth", "Tiada peranti audio Bluetooth disambungkan.", "Disimpan hanya untuk \"%s\".", "Membetulkan masa lirik mengikut peranti apabila audio Bluetooth lambat kedengaran.", "Tetapkan semula ofset Bluetooth", "%s ofset Bluetooth %s", "Peranti Bluetooth tidak diketahui");
+            case "tr":
+                return bluetoothSyncOffsetStringValues("Bluetooth cihaz ofseti", "Bağlı Bluetooth ses cihazı yok.", "Yalnızca \"%s\" için kaydedildi.", "Bluetooth hoparlör/kulaklık sesi geç geldiğinde şarkı sözü zamanını cihaza göre düzeltir.", "Bluetooth ofsetini sıfırla", "%s Bluetooth ofseti %s", "Bilinmeyen Bluetooth cihazı");
+            default:
+                return bluetoothSyncOffsetStringValues("Bluetooth Device Offset", "No Bluetooth audio device is connected.", "Saved only for \"%s\".", "Adjust lyric timing per Bluetooth speaker/headphones when audio is heard late.", "Reset Bluetooth Offset", "%s Bluetooth offset %s", "Unknown Bluetooth device");
+        }
+    }
+
+    private static String[] bluetoothSyncOffsetStringValues(
+            String title,
+            String noDevice,
+            String deviceScope,
+            String help,
+            String reset,
+            String toastFormat,
+            String unknownDevice
+    ) {
+        return new String[]{
+                "lyrics.bluetooth_sync.title", title,
+                "lyrics.bluetooth_sync.no_device", noDevice,
+                "lyrics.bluetooth_sync.device_scope", deviceScope,
+                "lyrics.bluetooth_sync.help", help,
+                "lyrics.bluetooth_sync.reset", reset,
+                "toast.bluetooth_sync_offset_format", toastFormat,
+                "bluetooth_sync.unknown_device", unknownDevice
+        };
+    }
+
+    private static void addGlobalSyncOffsetStrings(Map<String, Map<String, String>> languages) {
+        addLanguageStrings(languages, AppI18n::globalSyncOffsetStrings);
+    }
+
+    private static String[] globalSyncOffsetStrings(String lang) {
+        switch (normalize(lang)) {
+            case "ko":
+                return globalSyncOffsetStringValues("전역 싱크 오프셋", "모든 곡에 적용되며 곡별 및 Bluetooth 오프셋과 별도로 더해집니다. +값은 가사를 더 일찍, -값은 더 늦게 보여줍니다.", "전역 오프셋 초기화", "전역 싱크 오프셋 %s");
+            case "zh-CN":
+                return globalSyncOffsetStringValues("全局同步偏移", "应用于所有歌曲，并与单曲偏移和 Bluetooth 偏移分别叠加。+ 值会更早显示歌词，- 值会更晚显示。", "重置全局偏移", "全局同步偏移 %s");
+            case "zh-TW":
+                return globalSyncOffsetStringValues("全域同步偏移", "套用於所有歌曲，並與單曲偏移和 Bluetooth 偏移分別疊加。+ 值會更早顯示歌詞，- 值會更晚顯示。", "重設全域偏移", "全域同步偏移 %s");
+            case "ja":
+                return globalSyncOffsetStringValues("グローバル同期オフセット", "すべての曲に適用され、曲別オフセットと Bluetooth オフセットに個別に加算されます。+値は歌詞を早く、-値は遅く表示します。", "グローバルオフセットをリセット", "グローバル同期オフセット %s");
+            case "hi":
+                return globalSyncOffsetStringValues("वैश्विक सिंक ऑफसेट", "यह सभी गानों पर लागू होता है और प्रति-गाना तथा Bluetooth ऑफसेट में अलग से जुड़ता है। + मान गीत पहले और - मान बाद में दिखाते हैं।", "वैश्विक ऑफसेट रीसेट करें", "वैश्विक सिंक ऑफसेट %s");
+            case "es":
+                return globalSyncOffsetStringValues("Desplazamiento global", "Se aplica a todas las canciones y se suma por separado a los ajustes por canción y Bluetooth. Los valores + muestran la letra antes; los valores - la muestran después.", "Restablecer desplazamiento global", "Desplazamiento global %s");
+            case "fr":
+                return globalSyncOffsetStringValues("Décalage global", "S’applique à tous les morceaux et s’ajoute séparément aux décalages par morceau et Bluetooth. Les valeurs + affichent les paroles plus tôt, les valeurs - plus tard.", "Réinitialiser le décalage global", "Décalage global %s");
+            case "ar":
+                return globalSyncOffsetStringValues("إزاحة المزامنة العامة", "تُطبّق على جميع الأغاني وتُضاف بشكل مستقل إلى إزاحة الأغنية وإزاحة Bluetooth. تعرض القيم + الكلمات أبكر والقيم - لاحقًا.", "إعادة ضبط الإزاحة العامة", "إزاحة المزامنة العامة %s");
+            case "fa":
+                return globalSyncOffsetStringValues("افست همگام‌سازی سراسری", "روی همه آهنگ‌ها اعمال می‌شود و جداگانه به افست هر آهنگ و Bluetooth افزوده می‌شود. مقادیر + متن را زودتر و مقادیر - دیرتر نشان می‌دهند.", "بازنشانی افست سراسری", "افست همگام‌سازی سراسری %s");
+            case "de":
+                return globalSyncOffsetStringValues("Globaler Sync-Offset", "Gilt für alle Songs und wird getrennt zu Song- und Bluetooth-Offsets addiert. Positive Werte zeigen Liedtexte früher, negative später.", "Globalen Offset zurücksetzen", "Globaler Sync-Offset %s");
+            case "ru":
+                return globalSyncOffsetStringValues("Глобальное смещение", "Применяется ко всем песням и отдельно складывается со смещениями песни и Bluetooth. Значения + показывают текст раньше, значения - позже.", "Сбросить глобальное смещение", "Глобальное смещение %s");
+            case "sv":
+                return globalSyncOffsetStringValues("Global synkförskjutning", "Gäller alla låtar och läggs separat till låt- och Bluetooth-förskjutningar. Positiva värden visar texten tidigare, negativa senare.", "Återställ global förskjutning", "Global synkförskjutning %s");
+            case "pt":
+                return globalSyncOffsetStringValues("Deslocamento global", "Aplica-se a todas as músicas e soma-se separadamente aos ajustes por música e Bluetooth. Valores + mostram a letra mais cedo; valores - mais tarde.", "Redefinir deslocamento global", "Deslocamento global %s");
+            case "bn":
+                return globalSyncOffsetStringValues("গ্লোবাল সিঙ্ক অফসেট", "এটি সব গানে প্রযোজ্য এবং প্রতি-গান ও Bluetooth অফসেটের সঙ্গে আলাদাভাবে যোগ হয়। + মান লিরিক্স আগে এবং - মান পরে দেখায়।", "গ্লোবাল অফসেট রিসেট", "গ্লোবাল সিঙ্ক অফসেট %s");
+            case "cs":
+                return globalSyncOffsetStringValues("Globální posun synchronizace", "Platí pro všechny skladby a samostatně se přičítá k posunu skladby a Bluetooth. Kladné hodnoty zobrazí text dříve, záporné později.", "Obnovit globální posun", "Globální posun synchronizace %s");
+            case "it":
+                return globalSyncOffsetStringValues("Offset globale", "Si applica a tutti i brani e si somma separatamente agli offset del brano e Bluetooth. I valori + mostrano il testo prima, i valori - dopo.", "Reimposta offset globale", "Offset globale %s");
+            case "th":
+                return globalSyncOffsetStringValues("ออฟเซ็ตซิงค์ส่วนกลาง", "ใช้กับทุกเพลงและบวกแยกจากออฟเซ็ตประจำเพลงและ Bluetooth ค่า + จะแสดงเนื้อเพลงเร็วขึ้น ส่วนค่า - จะแสดงช้าลง", "รีเซ็ตออฟเซ็ตส่วนกลาง", "ออฟเซ็ตซิงค์ส่วนกลาง %s");
+            case "vi":
+                return globalSyncOffsetStringValues("Bù đồng bộ toàn cục", "Áp dụng cho mọi bài hát và được cộng riêng với bù theo bài hát và Bluetooth. Giá trị + hiển thị lời sớm hơn, giá trị - hiển thị muộn hơn.", "Đặt lại bù toàn cục", "Bù đồng bộ toàn cục %s");
+            case "id":
+                return globalSyncOffsetStringValues("Offset sinkronisasi global", "Berlaku untuk semua lagu dan ditambahkan secara terpisah ke offset per lagu dan Bluetooth. Nilai + menampilkan lirik lebih awal, nilai - lebih lambat.", "Reset offset global", "Offset sinkronisasi global %s");
+            case "ms":
+                return globalSyncOffsetStringValues("Ofset penyegerakan global", "Digunakan pada semua lagu dan ditambah secara berasingan pada ofset setiap lagu dan Bluetooth. Nilai + memaparkan lirik lebih awal, nilai - lebih lewat.", "Tetapkan semula ofset global", "Ofset penyegerakan global %s");
+            case "tr":
+                return globalSyncOffsetStringValues("Genel senkron ofseti", "Tüm şarkılara uygulanır ve şarkı ile Bluetooth ofsetlerine ayrı olarak eklenir. + değerler sözleri daha erken, - değerler daha geç gösterir.", "Genel ofseti sıfırla", "Genel senkron ofseti %s");
+            default:
+                return globalSyncOffsetStringValues("Global Sync Offset", "Applies to every song and is added separately to per-song and Bluetooth offsets. Positive values show lyrics earlier; negative values show them later.", "Reset Global Offset", "Global sync offset %s");
+        }
+    }
+
+    private static String[] globalSyncOffsetStringValues(String title, String help, String reset, String toast) {
+        return new String[]{
+                "lyrics.global_sync.title", title,
+                "lyrics.global_sync.help", help,
+                "lyrics.global_sync.reset", reset,
+                "toast.global_sync_offset_format", toast
+        };
+    }
+
+    private static void addTmiStrings(Map<String, Map<String, String>> languages) {
+        addLanguageStrings(languages, AppI18n::tmiStrings);
+    }
+
+    private static String[] tmiStrings(String lang) {
+        switch (normalize(lang)) {
+            case "ko":
+                return tmiStringValues("TMI", "TMI 생성 중", "알고 있었나요?", "검증된 출처", "관련 출처", "기타 출처", "이 곡에 대한 TMI가 아직 없습니다.", "다시 생성", "TMI를 불러오는 중 오류가 발생했습니다.", "AI 제공자 API 키가 필요합니다.", "신뢰도: %s");
+            case "zh-CN":
+                return tmiStringValues("TMI", "正在生成 TMI", "你知道吗？", "已验证来源", "相关来源", "其他来源", "暂时没有这首歌的 TMI。", "重新生成", "加载 TMI 时出错。", "需要 AI 提供商 API 密钥。", "可信度：%s");
+            case "zh-TW":
+                return tmiStringValues("TMI", "正在產生 TMI", "你知道嗎？", "已驗證來源", "相關來源", "其他來源", "目前沒有這首歌的 TMI。", "重新產生", "載入 TMI 時發生錯誤。", "需要 AI 供應商 API 金鑰。", "可信度：%s");
+            case "ja":
+                return tmiStringValues("TMI", "TMI を生成中", "知っていましたか？", "検証済みソース", "関連ソース", "その他のソース", "この曲の TMI はまだありません。", "再生成", "TMI の読み込み中にエラーが発生しました。", "AI プロバイダーの API キーが必要です。", "信頼度: %s");
+            case "hi":
+                return tmiStringValues("TMI", "TMI बनाया जा रहा है", "क्या आप जानते हैं?", "सत्यापित स्रोत", "संबंधित स्रोत", "अन्य स्रोत", "इस गीत के लिए अभी कोई TMI नहीं है।", "फिर बनाएं", "TMI लोड करते समय त्रुटि हुई।", "AI प्रदाता API कुंजी चाहिए।", "विश्वसनीयता: %s");
+            case "es":
+                return tmiStringValues("TMI", "Generando TMI", "¿Lo sabías?", "Fuentes verificadas", "Fuentes relacionadas", "Otras fuentes", "Aún no hay TMI para esta canción.", "Regenerar", "Error al cargar TMI.", "Se necesita la clave API del proveedor de IA.", "Confianza: %s");
+            case "fr":
+                return tmiStringValues("TMI", "Génération du TMI", "Le saviez-vous ?", "Sources vérifiées", "Sources liées", "Autres sources", "Aucun TMI disponible pour ce morceau.", "Régénérer", "Erreur lors du chargement du TMI.", "Une clé API du fournisseur IA est requise.", "Fiabilité : %s");
+            case "ar":
+                return tmiStringValues("TMI", "جارٍ إنشاء TMI", "هل تعلم؟", "مصادر موثقة", "مصادر ذات صلة", "مصادر أخرى", "لا توجد معلومات TMI لهذه الأغنية بعد.", "إعادة الإنشاء", "حدث خطأ أثناء تحميل TMI.", "يلزم مفتاح API لموفر الذكاء الاصطناعي.", "الثقة: %s");
+            case "fa":
+                return tmiStringValues("TMI", "در حال ساخت TMI", "می‌دانستید؟", "منابع تأییدشده", "منابع مرتبط", "منابع دیگر", "هنوز TMI برای این آهنگ وجود ندارد.", "ساخت دوباره", "هنگام بارگیری TMI خطایی رخ داد.", "کلید API ارائه‌دهنده هوش مصنوعی لازم است.", "اطمینان: %s");
+            case "de":
+                return tmiStringValues("TMI", "TMI wird erstellt", "Wusstest du schon?", "Verifizierte Quellen", "Verwandte Quellen", "Andere Quellen", "Für diesen Song gibt es noch kein TMI.", "Neu erstellen", "Fehler beim Laden von TMI.", "API-Schlüssel des KI-Anbieters erforderlich.", "Vertrauen: %s");
+            case "ru":
+                return tmiStringValues("TMI", "Создание TMI", "Знали ли вы?", "Проверенные источники", "Связанные источники", "Другие источники", "Для этой песни пока нет TMI.", "Создать заново", "Ошибка загрузки TMI.", "Нужен API-ключ поставщика ИИ.", "Надёжность: %s");
+            case "sv":
+                return tmiStringValues("TMI", "Skapar TMI", "Visste du?", "Verifierade källor", "Relaterade källor", "Andra källor", "Det finns ännu ingen TMI för låten.", "Skapa igen", "Fel när TMI skulle läsas in.", "API-nyckel för AI-leverantören krävs.", "Tillförlitlighet: %s");
+            case "pt":
+                return tmiStringValues("TMI", "Gerando TMI", "Você sabia?", "Fontes verificadas", "Fontes relacionadas", "Outras fontes", "Ainda não há TMI para esta música.", "Gerar novamente", "Erro ao carregar TMI.", "É necessária a chave API do provedor de IA.", "Confiança: %s");
+            case "bn":
+                return tmiStringValues("TMI", "TMI তৈরি হচ্ছে", "জানতেন?", "যাচাইকৃত উৎস", "সম্পর্কিত উৎস", "অন্যান্য উৎস", "এই গানের জন্য এখনও কোনো TMI নেই।", "আবার তৈরি করুন", "TMI লোড করতে ত্রুটি হয়েছে।", "AI প্রদানকারীর API কী প্রয়োজন।", "বিশ্বাসযোগ্যতা: %s");
+            case "it":
+                return tmiStringValues("TMI", "Generazione TMI", "Lo sapevi?", "Fonti verificate", "Fonti correlate", "Altre fonti", "Non ci sono ancora TMI per questo brano.", "Rigenera", "Errore durante il caricamento del TMI.", "Serve la chiave API del provider IA.", "Affidabilità: %s");
+            case "th":
+                return tmiStringValues("TMI", "กำลังสร้าง TMI", "รู้หรือไม่?", "แหล่งที่ยืนยันแล้ว", "แหล่งที่เกี่ยวข้อง", "แหล่งอื่น", "ยังไม่มี TMI สำหรับเพลงนี้", "สร้างใหม่", "เกิดข้อผิดพลาดขณะโหลด TMI", "ต้องใช้คีย์ API ของผู้ให้บริการ AI", "ความน่าเชื่อถือ: %s");
+            case "vi":
+                return tmiStringValues("TMI", "Đang tạo TMI", "Bạn có biết?", "Nguồn đã xác minh", "Nguồn liên quan", "Nguồn khác", "Chưa có TMI cho bài hát này.", "Tạo lại", "Lỗi khi tải TMI.", "Cần khóa API của nhà cung cấp AI.", "Độ tin cậy: %s");
+            case "id":
+                return tmiStringValues("TMI", "Membuat TMI", "Tahukah kamu?", "Sumber terverifikasi", "Sumber terkait", "Sumber lain", "Belum ada TMI untuk lagu ini.", "Buat ulang", "Gagal memuat TMI.", "Kunci API penyedia AI diperlukan.", "Keyakinan: %s");
+            case "ms":
+                return tmiStringValues("TMI", "Menjana TMI", "Tahukah anda?", "Sumber disahkan", "Sumber berkaitan", "Sumber lain", "Belum ada TMI untuk lagu ini.", "Jana semula", "Ralat semasa memuatkan TMI.", "Kunci API penyedia AI diperlukan.", "Keyakinan: %s");
+            case "tr":
+                return tmiStringValues("TMI", "TMI oluşturuluyor", "Biliyor muydun?", "Doğrulanmış kaynaklar", "İlgili kaynaklar", "Diğer kaynaklar", "Bu şarkı için henüz TMI yok.", "Yeniden oluştur", "TMI yüklenirken hata oluştu.", "AI sağlayıcısı API anahtarı gerekiyor.", "Güven: %s");
+            default:
+                return tmiStringValues("TMI", "Generating TMI", "Did you know?", "Verified sources", "Related sources", "Other sources", "No TMI is available for this song yet.", "Regenerate", "Failed to load TMI.", "An AI provider API key is required.", "Confidence: %s");
+        }
+    }
+
+    private static String[] tmiStringValues(
+            String title,
+            String loading,
+            String didYouKnow,
+            String verifiedSources,
+            String relatedSources,
+            String otherSources,
+            String noData,
+            String regenerate,
+            String errorFetch,
+            String requireKey,
+            String confidenceFormat
+    ) {
+        return new String[]{
+                "tmi.title", title,
+                "tmi.loading", loading,
+                "tmi.did_you_know", didYouKnow,
+                "tmi.verified_sources", verifiedSources,
+                "tmi.related_sources", relatedSources,
+                "tmi.other_sources", otherSources,
+                "tmi.no_data", noData,
+                "tmi.regenerate", regenerate,
+                "tmi.error_fetch", errorFetch,
+                "tmi.require_key", requireKey,
+                "tmi.confidence_format", confidenceFormat
+        };
+    }
+
+    private static void addKaraokeLineModeStrings(Map<String, Map<String, String>> languages) {
+        addLanguageStrings(languages, AppI18n::karaokeLineModeStrings);
+    }
+
+    private static void addVinylStrings(Map<String, Map<String, String>> languages) {
+        addLanguageStrings(languages, AppI18n::vinylStrings, AppI18n::vinylSettingsStrings,
+                AppI18n::vinylTonearmSettingsStrings);
+    }
+
+    private static String[] vinylStrings(String lang) {
+        switch (normalize(lang)) {
+            case "ko":
+                return vinylStringValues(
+                        "LP 모드", "탭하여 LP 모드 열기", "앨범을 탭하여 돌아가기",
+                        "LP를 탭하여 재생 또는 일시정지", "톤암을 드래그하여 재생 위치 이동",
+                        "앨범을 길게 눌러 TMI 열기", "AI로 생성된 TMI는 정확하지 않을 수 있습니다."
+                );
+            case "zh-CN":
+                return vinylStringValues(
+                        "黑胶模式", "轻点打开黑胶模式", "轻点封面返回",
+                        "轻点唱片播放或暂停", "拖动唱臂调整播放位置",
+                        "长按封面打开 TMI", "AI 生成的 TMI 可能不完全准确。"
+                );
+            case "zh-TW":
+                return vinylStringValues(
+                        "黑膠模式", "點一下開啟黑膠模式", "點一下封面返回",
+                        "點一下唱片播放或暫停", "拖曳唱臂調整播放位置",
+                        "長按封面開啟 TMI", "AI 產生的 TMI 可能不完全準確。"
+                );
+            case "ja":
+                return vinylStringValues(
+                        "LP モード", "タップして LP モードを開く", "ジャケットをタップして戻る",
+                        "レコードをタップして再生または一時停止", "トーンアームをドラッグして再生位置を変更",
+                        "ジャケットを長押しして TMI を開く", "AI が生成した TMI は正確でない場合があります。"
+                );
+            case "hi":
+                return vinylStringValues(
+                        "विनाइल मोड", "विनाइल मोड खोलने के लिए टैप करें", "वापस जाने के लिए एल्बम कवर पर टैप करें",
+                        "चलाने या रोकने के लिए रिकॉर्ड पर टैप करें", "प्लेबैक की स्थिति बदलने के लिए टोनआर्म खींचें",
+                        "TMI खोलने के लिए एल्बम कवर को देर तक दबाएँ", "AI से बनाया गया TMI हमेशा सटीक नहीं हो सकता।"
+                );
+            case "es":
+                return vinylStringValues(
+                        "Modo vinilo", "Toca para abrir el modo vinilo", "Toca la portada para volver",
+                        "Toca el disco para reproducir o pausar", "Arrastra el brazo para cambiar la posición de reproducción",
+                        "Mantén pulsada la portada para abrir TMI", "El TMI generado por IA puede no ser siempre preciso."
+                );
+            case "fr":
+                return vinylStringValues(
+                        "Mode vinyle", "Touchez pour ouvrir le mode vinyle", "Touchez la pochette pour revenir",
+                        "Touchez le disque pour lire ou mettre en pause", "Faites glisser le bras de lecture pour changer de position",
+                        "Appuyez longuement sur la pochette pour ouvrir TMI", "Le TMI généré par l’IA peut ne pas toujours être exact."
+                );
+            case "ar":
+                return vinylStringValues(
+                        "وضع الأسطوانة", "اضغط لفتح وضع الأسطوانة", "اضغط على الغلاف للعودة",
+                        "اضغط على الأسطوانة للتشغيل أو الإيقاف المؤقت", "اسحب ذراع التشغيل لتغيير موضع التشغيل",
+                        "اضغط مطولًا على الغلاف لفتح TMI", "قد لا تكون معلومات TMI التي أنشأها الذكاء الاصطناعي دقيقة دائمًا."
+                );
+            case "fa":
+                return vinylStringValues(
+                        "حالت وینیل", "برای باز کردن حالت وینیل ضربه بزنید", "برای بازگشت روی جلد آلبوم ضربه بزنید",
+                        "برای پخش یا مکث روی صفحه بزنید", "برای جابه‌جایی زمان پخش، بازوی گرامافون را بکشید",
+                        "برای باز کردن TMI، جلد آلبوم را نگه دارید", "TMI تولیدشده با هوش مصنوعی ممکن است همیشه دقیق نباشد."
+                );
+            case "de":
+                return vinylStringValues(
+                        "Vinylmodus", "Tippen, um den Vinylmodus zu öffnen", "Auf das Cover tippen, um zurückzukehren",
+                        "Auf die Platte tippen, um die Wiedergabe zu starten oder zu pausieren", "Tonarm ziehen, um die Wiedergabeposition zu ändern",
+                        "Cover gedrückt halten, um TMI zu öffnen", "KI-generierte TMI-Informationen sind möglicherweise nicht immer korrekt."
+                );
+            case "ru":
+                return vinylStringValues(
+                        "Режим винила", "Коснитесь, чтобы открыть режим винила", "Коснитесь обложки, чтобы вернуться",
+                        "Коснитесь пластинки, чтобы включить или приостановить воспроизведение", "Перетащите тонарм, чтобы изменить позицию воспроизведения",
+                        "Удерживайте обложку, чтобы открыть TMI", "Информация TMI, созданная ИИ, может быть не всегда точной."
+                );
+            case "sv":
+                return vinylStringValues(
+                        "Vinylläge", "Tryck för att öppna vinylläget", "Tryck på omslaget för att gå tillbaka",
+                        "Tryck på skivan för att spela upp eller pausa", "Dra tonarmen för att ändra uppspelningsposition",
+                        "Håll ned omslaget för att öppna TMI", "AI-genererad TMI-information är kanske inte alltid korrekt."
+                );
+            case "pt":
+                return vinylStringValues(
+                        "Modo vinil", "Toque para abrir o modo vinil", "Toque na capa para voltar",
+                        "Toque no disco para reproduzir ou pausar", "Arraste o braço para alterar a posição da reprodução",
+                        "Mantenha a capa pressionada para abrir o TMI", "As informações TMI geradas por IA podem nem sempre ser precisas."
+                );
+            case "bn":
+                return vinylStringValues(
+                        "ভিনাইল মোড", "ভিনাইল মোড খুলতে ট্যাপ করুন", "ফিরে যেতে অ্যালবাম কভারে ট্যাপ করুন",
+                        "প্লে বা বিরতি দিতে রেকর্ডে ট্যাপ করুন", "প্লেব্যাকের অবস্থান বদলাতে টোনআর্ম টেনে নিন",
+                        "TMI খুলতে অ্যালবাম কভার চেপে ধরে রাখুন", "AI-তৈরি TMI সব সময় সঠিক নাও হতে পারে।"
+                );
+            case "cs":
+                return vinylStringValues(
+                        "Vinylový režim", "Klepnutím otevřete vinylový režim", "Klepnutím na obal se vrátíte",
+                        "Klepnutím na desku spustíte nebo pozastavíte přehrávání", "Přetažením raménka změníte pozici přehrávání",
+                        "Podržením obalu otevřete TMI", "TMI vytvořené umělou inteligencí nemusí být vždy přesné."
+                );
+            case "it":
+                return vinylStringValues(
+                        "Modalità vinile", "Tocca per aprire la modalità vinile", "Tocca la copertina per tornare indietro",
+                        "Tocca il disco per riprodurre o mettere in pausa", "Trascina il braccio per cambiare la posizione di riproduzione",
+                        "Tieni premuta la copertina per aprire TMI", "Le informazioni TMI generate dall'IA potrebbero non essere sempre accurate."
+                );
+            case "th":
+                return vinylStringValues(
+                        "โหมดแผ่นเสียง", "แตะเพื่อเปิดโหมดแผ่นเสียง", "แตะปกอัลบั้มเพื่อกลับ",
+                        "แตะแผ่นเสียงเพื่อเล่นหรือหยุดชั่วคราว", "ลากโทนอาร์มเพื่อเปลี่ยนตำแหน่งการเล่น",
+                        "แตะปกอัลบั้มค้างไว้เพื่อเปิด TMI", "TMI ที่สร้างโดย AI อาจไม่ถูกต้องเสมอไป"
+                );
+            case "vi":
+                return vinylStringValues(
+                        "Chế độ đĩa than", "Chạm để mở chế độ đĩa than", "Chạm vào bìa album để quay lại",
+                        "Chạm vào đĩa để phát hoặc tạm dừng", "Kéo cần máy hát để thay đổi vị trí phát",
+                        "Nhấn giữ bìa album để mở TMI", "TMI do AI tạo có thể không phải lúc nào cũng chính xác."
+                );
+            case "id":
+                return vinylStringValues(
+                        "Mode vinil", "Ketuk untuk membuka mode vinil", "Ketuk sampul album untuk kembali",
+                        "Ketuk piringan untuk memutar atau menjeda", "Seret lengan pemutar untuk mengubah posisi pemutaran",
+                        "Tekan lama sampul album untuk membuka TMI", "TMI yang dibuat AI mungkin tidak selalu akurat."
+                );
+            case "ms":
+                return vinylStringValues(
+                        "Mod vinil", "Ketik untuk membuka mod vinil", "Ketik kulit album untuk kembali",
+                        "Ketik piring hitam untuk main atau jeda", "Seret lengan pikap untuk menukar kedudukan main balik",
+                        "Tekan lama kulit album untuk membuka TMI", "TMI yang dijana AI mungkin tidak sentiasa tepat."
+                );
+            case "tr":
+                return vinylStringValues(
+                        "Plak modu", "Plak modunu açmak için dokunun", "Geri dönmek için albüm kapağına dokunun",
+                        "Oynatmak veya duraklatmak için plağa dokunun", "Oynatma konumunu değiştirmek için pikap kolunu sürükleyin",
+                        "TMI'ı açmak için albüm kapağını basılı tutun", "Yapay zekâ tarafından oluşturulan TMI her zaman doğru olmayabilir."
+                );
+            case "en":
+            default:
+                return vinylStringValues(
+                        "Vinyl mode", "Tap to open vinyl mode", "Tap the cover to return",
+                        "Tap the record to play or pause", "Drag the tonearm to seek",
+                        "Hold the cover to open TMI", "AI-generated TMI may not always be accurate."
+                );
+        }
+    }
+
+    private static String[] vinylStringValues(
+            String mode,
+            String openHint,
+            String closeHint,
+            String recordHint,
+            String tonearmHint,
+            String tmiHint,
+            String tmiDisclaimer
+    ) {
+        return new String[] {
+                "vinyl.mode", mode,
+                "vinyl.open_hint", openHint,
+                "vinyl.close_hint", closeHint,
+                "vinyl.record_hint", recordHint,
+                "vinyl.tonearm_hint", tonearmHint,
+                "vinyl.tmi_hint", tmiHint,
+                "tmi.disclaimer", tmiDisclaimer
+        };
+    }
+
+    private static String[] vinylSettingsStrings(String lang) {
+        switch (normalize(lang)) {
+            case "ko":
+                return vinylSettingsStringValues(
+                        "전체화면",
+                        "LP 모드의 크기, 모션, 하단 가사 글꼴을 조정합니다.",
+                        "앨범 커버 크기",
+                        "LP 모드의 앨범 커버 크기를 조절합니다.",
+                        "LP 판 크기",
+                        "LP 모드의 LP 판 크기를 조절합니다.",
+                        "LP 애니메이션",
+                        "재생·정지, 회전, 등장 및 곡 전환 애니메이션을 사용합니다.",
+                        "LP 중앙 회전",
+                        "재생 중 LP 중앙 라벨을 LP 판과 함께 회전합니다.",
+                        "LP 가사 표시",
+                        "LP 모드에서 LP 아래에 현재 가사를 표시합니다.",
+                        "LP 원문",
+                        "LP 아래에 표시되는 원문 가사의 크기와 굵기를 조절합니다.",
+                        "LP 발음",
+                        "LP 아래에 표시되는 발음 가사의 크기와 굵기를 조절합니다.",
+                        "LP 번역",
+                        "LP 아래에 표시되는 번역 가사의 크기와 굵기를 조절합니다.",
+                        "LP 아래에 표시되는 원문, 발음, 번역의 글꼴을 각각 조절합니다."
+                );
+            case "zh-CN":
+                return vinylSettingsStringValues(
+                        "全屏",
+                        "调整黑胶模式的尺寸、动效和底部歌词字体。",
+                        "专辑封面大小",
+                        "调整黑胶模式中的专辑封面大小。",
+                        "唱片大小",
+                        "调整黑胶模式中的唱片大小。",
+                        "黑胶动画",
+                        "启用播放/暂停、唱片旋转、入场和切歌动画。",
+                        "旋转唱片中心",
+                        "播放时让唱片中心标签随唱片一起旋转。",
+                        "显示黑胶歌词",
+                        "在黑胶模式的唱片下方显示当前歌词。",
+                        "黑胶原文",
+                        "调整黑胶唱片下方原文歌词的字号和字重。",
+                        "黑胶注音",
+                        "调整黑胶唱片下方注音歌词的字号和字重。",
+                        "黑胶翻译",
+                        "调整黑胶唱片下方翻译歌词的字号和字重。",
+                        "分别调整黑胶唱片下方原文、注音和翻译的字体。"
+                );
+            case "zh-TW":
+                return vinylSettingsStringValues(
+                        "全螢幕",
+                        "調整黑膠模式的大小、動效與底部歌詞字型。",
+                        "專輯封面大小",
+                        "調整黑膠模式中的專輯封面大小。",
+                        "唱片大小",
+                        "調整黑膠模式中的唱片大小。",
+                        "黑膠動畫",
+                        "啟用播放/暫停、唱片旋轉、進場與切歌動畫。",
+                        "旋轉唱片中心",
+                        "播放時讓唱片中央標籤隨唱片一起旋轉。",
+                        "顯示黑膠歌詞",
+                        "在黑膠模式的唱片下方顯示目前歌詞。",
+                        "黑膠原文",
+                        "調整黑膠唱片下方原文歌詞的字級與字重。",
+                        "黑膠注音",
+                        "調整黑膠唱片下方注音歌詞的字級與字重。",
+                        "黑膠翻譯",
+                        "調整黑膠唱片下方翻譯歌詞的字級與字重。",
+                        "分別調整黑膠唱片下方原文、注音與翻譯的字型。"
+                );
+            case "ja":
+                return vinylSettingsStringValues(
+                        "フルスクリーン",
+                        "LP モードのサイズ、アニメーション、下部歌詞のフォントを調整します。",
+                        "アルバムジャケットのサイズ",
+                        "LP モードのアルバムジャケットのサイズを調整します。",
+                        "レコードのサイズ",
+                        "LP モードのレコードのサイズを調整します。",
+                        "LP アニメーション",
+                        "再生・一時停止、回転、登場、曲変更のアニメーションを使用します。",
+                        "LP中央を回転",
+                        "再生中に中央ラベルをレコードと一緒に回転させます。",
+                        "LP歌詞を表示",
+                        "LPモードでレコードの下に現在の歌詞を表示します。",
+                        "LP 原文",
+                        "LP の下に表示する原文歌詞のサイズと太さを調整します。",
+                        "LP 発音",
+                        "LP の下に表示する発音歌詞のサイズと太さを調整します。",
+                        "LP 翻訳",
+                        "LP の下に表示する翻訳歌詞のサイズと太さを調整します。",
+                        "LP の下に表示する原文・発音・翻訳のフォントを個別に調整します。"
+                );
+            case "hi":
+                return vinylSettingsStringValues(
+                        "पूर्ण स्क्रीन",
+                        "विनाइल मोड का आकार, ऐनिमेशन और नीचे दिखने वाले गीतों का फ़ॉन्ट बदलें।",
+                        "एल्बम कवर का आकार",
+                        "विनाइल मोड में एल्बम कवर का आकार बदलें।",
+                        "रिकॉर्ड का आकार",
+                        "विनाइल मोड में रिकॉर्ड का आकार बदलें।",
+                        "विनाइल ऐनिमेशन",
+                        "चलाने/रोकने, रिकॉर्ड घुमाने, प्रवेश और गीत बदलने के ऐनिमेशन चालू करें।",
+                        "LP केंद्र घुमाएँ",
+                        "प्लेबैक के दौरान बीच का लेबल रिकॉर्ड के साथ घुमाएँ।",
+                        "LP गीत दिखाएँ",
+                        "LP मोड में रिकॉर्ड के नीचे मौजूदा गीत पंक्ति दिखाएँ।",
+                        "विनाइल मूल",
+                        "विनाइल के नीचे मूल गीत के आकार और मोटाई को बदलें।",
+                        "विनाइल उच्चारण",
+                        "विनाइल के नीचे उच्चारण के आकार और मोटाई को बदलें।",
+                        "विनाइल अनुवाद",
+                        "विनाइल के नीचे अनुवाद के आकार और मोटाई को बदलें।",
+                        "विनाइल के नीचे दिखने वाले मूल, उच्चारण और अनुवाद के फ़ॉन्ट अलग-अलग बदलें।"
+                );
+            case "es":
+                return vinylSettingsStringValues(
+                        "Pantalla completa",
+                        "Personaliza el tamaño, las animaciones y la tipografía inferior del modo vinilo.",
+                        "Tamaño de la portada",
+                        "Ajusta el tamaño de la portada en el modo vinilo.",
+                        "Tamaño del disco",
+                        "Ajusta el tamaño del disco en el modo vinilo.",
+                        "Animaciones del vinilo",
+                        "Usa animaciones de reproducción, pausa, giro, entrada y cambio de canción.",
+                        "Girar el centro del vinilo",
+                        "Gira la etiqueta central junto con el disco durante la reproducción.",
+                        "Mostrar letra en modo LP",
+                        "Muestra la línea actual debajo del disco en el modo LP.",
+                        "Original del vinilo",
+                        "Ajusta el tamaño y el grosor de la letra original bajo el vinilo.",
+                        "Pronunciación del vinilo",
+                        "Ajusta el tamaño y el grosor de la pronunciación bajo el vinilo.",
+                        "Traducción del vinilo",
+                        "Ajusta el tamaño y el grosor de la traducción bajo el vinilo.",
+                        "Ajusta por separado las fuentes del original, la pronunciación y la traducción bajo el vinilo."
+                );
+            case "fr":
+                return vinylSettingsStringValues(
+                        "Plein écran",
+                        "Personnalisez la taille, les animations et la typographie inférieure du mode vinyle.",
+                        "Taille de la pochette",
+                        "Ajuste la taille de la pochette en mode vinyle.",
+                        "Taille du disque",
+                        "Ajuste la taille du disque en mode vinyle.",
+                        "Animations du vinyle",
+                        "Active les animations de lecture, pause, rotation, entrée et changement de morceau.",
+                        "Faire tourner le centre du vinyle",
+                        "Fait tourner l’étiquette centrale avec le disque pendant la lecture.",
+                        "Afficher les paroles en mode vinyle",
+                        "Affiche la ligne actuelle sous le disque en mode vinyle.",
+                        "Original du vinyle",
+                        "Ajuste la taille et la graisse des paroles originales sous le vinyle.",
+                        "Prononciation du vinyle",
+                        "Ajuste la taille et la graisse de la prononciation sous le vinyle.",
+                        "Traduction du vinyle",
+                        "Ajuste la taille et la graisse de la traduction sous le vinyle.",
+                        "Ajustez séparément les polices de l’original, de la prononciation et de la traduction sous le vinyle."
+                );
+            case "ar":
+                return vinylSettingsStringValues(
+                        "ملء الشاشة",
+                        "خصّص حجم وضع الأسطوانة وحركته وخط الكلمات السفلية.",
+                        "حجم غلاف الألبوم",
+                        "يضبط حجم غلاف الألبوم في وضع الأسطوانة.",
+                        "حجم الأسطوانة",
+                        "يضبط حجم الأسطوانة في وضع الأسطوانة.",
+                        "حركات الأسطوانة",
+                        "استخدم حركات التشغيل والإيقاف والدوران والظهور وتغيير الأغنية.",
+                        "تدوير مركز الأسطوانة",
+                        "يدوّر الملصق الأوسط مع الأسطوانة أثناء التشغيل.",
+                        "إظهار كلمات وضع الأسطوانة",
+                        "يعرض سطر الكلمات الحالي أسفل الأسطوانة في وضع الأسطوانة.",
+                        "النص الأصلي للأسطوانة",
+                        "اضبط حجم وسمك الكلمات الأصلية أسفل الأسطوانة.",
+                        "نطق الأسطوانة",
+                        "اضبط حجم وسمك النطق أسفل الأسطوانة.",
+                        "ترجمة الأسطوانة",
+                        "اضبط حجم وسمك الترجمة أسفل الأسطوانة.",
+                        "اضبط خطوط النص الأصلي والنطق والترجمة الظاهرة أسفل الأسطوانة كلًا على حدة."
+                );
+            case "fa":
+                return vinylSettingsStringValues(
+                        "تمام‌صفحه",
+                        "اندازه، پویانمایی و قلم متن پایین حالت وینیل را شخصی‌سازی کنید.",
+                        "اندازه جلد آلبوم",
+                        "اندازه جلد آلبوم را در حالت وینیل تنظیم می‌کند.",
+                        "اندازه صفحه وینیل",
+                        "اندازه صفحه را در حالت وینیل تنظیم می‌کند.",
+                        "پویانمایی‌های وینیل",
+                        "پویانمایی پخش، مکث، چرخش، ورود و تعویض آهنگ را فعال می‌کند.",
+                        "چرخش مرکز صفحه",
+                        "برچسب مرکزی را هنگام پخش همراه صفحه می‌چرخاند.",
+                        "نمایش متن در حالت صفحه",
+                        "خط فعلی ترانه را زیر صفحه در حالت صفحه نمایش می‌دهد.",
+                        "متن اصلی وینیل",
+                        "اندازه و ضخامت متن اصلی زیر وینیل را تنظیم کنید.",
+                        "تلفظ وینیل",
+                        "اندازه و ضخامت تلفظ زیر وینیل را تنظیم کنید.",
+                        "ترجمه وینیل",
+                        "اندازه و ضخامت ترجمه زیر وینیل را تنظیم کنید.",
+                        "قلم متن اصلی، تلفظ و ترجمه زیر وینیل را جداگانه تنظیم کنید."
+                );
+            case "de":
+                return vinylSettingsStringValues(
+                        "Vollbild",
+                        "Passe Größe, Animationen und die untere Liedtext-Typografie des Vinylmodus an.",
+                        "Covergröße",
+                        "Passt die Größe des Albumcovers im Vinylmodus an.",
+                        "Plattengröße",
+                        "Passt die Größe der Schallplatte im Vinylmodus an.",
+                        "Vinyl-Animationen",
+                        "Aktiviert Animationen für Wiedergabe, Pause, Drehung, Einblenden und Titelwechsel.",
+                        "LP-Mitte drehen",
+                        "Dreht das mittlere Etikett während der Wiedergabe mit der Schallplatte.",
+                        "LP-Text anzeigen",
+                        "Zeigt im LP-Modus die aktuelle Textzeile unter der Schallplatte an.",
+                        "Vinyl-Original",
+                        "Passt Größe und Stärke des Originaltexts unter der Platte an.",
+                        "Vinyl-Aussprache",
+                        "Passt Größe und Stärke der Aussprache unter der Platte an.",
+                        "Vinyl-Übersetzung",
+                        "Passt Größe und Stärke der Übersetzung unter der Platte an.",
+                        "Passe die Schriften für Original, Aussprache und Übersetzung unter der Platte getrennt an."
+                );
+            case "ru":
+                return vinylSettingsStringValues(
+                        "Полный экран",
+                        "Настройте размер, анимацию и шрифт нижней строки в режиме винила.",
+                        "Размер обложки",
+                        "Настраивает размер обложки альбома в режиме винила.",
+                        "Размер пластинки",
+                        "Настраивает размер пластинки в режиме винила.",
+                        "Анимации винила",
+                        "Включает анимации запуска, паузы, вращения, появления и смены трека.",
+                        "Вращать центр пластинки",
+                        "Вращает центральную этикетку вместе с пластинкой во время воспроизведения.",
+                        "Показывать текст в LP-режиме",
+                        "Показывает текущую строку текста под пластинкой в LP-режиме.",
+                        "Оригинал на виниле",
+                        "Настройте размер и начертание оригинального текста под пластинкой.",
+                        "Произношение на виниле",
+                        "Настройте размер и начертание произношения под пластинкой.",
+                        "Перевод на виниле",
+                        "Настройте размер и начертание перевода под пластинкой.",
+                        "Отдельно настройте шрифты оригинала, произношения и перевода под пластинкой."
+                );
+            case "sv":
+                return vinylSettingsStringValues(
+                        "Helskärm",
+                        "Anpassa storlek, animationer och typografi för den nedre textraden i vinylläget.",
+                        "Omslagsstorlek",
+                        "Justerar albumomslagets storlek i vinylläget.",
+                        "Skivstorlek",
+                        "Justerar vinylskivans storlek i vinylläget.",
+                        "Vinylanimationer",
+                        "Använd animationer för uppspelning, paus, rotation, entré och låtbyte.",
+                        "Rotera skivans mitt",
+                        "Roterar mittetiketten tillsammans med skivan under uppspelning.",
+                        "Visa LP-text",
+                        "Visar den aktuella textraden under skivan i LP-läget.",
+                        "Vinyl original",
+                        "Justera storlek och vikt för originaltexten under skivan.",
+                        "Vinyl uttal",
+                        "Justera storlek och vikt för uttalet under skivan.",
+                        "Vinyl översättning",
+                        "Justera storlek och vikt för översättningen under skivan.",
+                        "Justera typsnitten för original, uttal och översättning under skivan separat."
+                );
+            case "pt":
+                return vinylSettingsStringValues(
+                        "Tela cheia",
+                        "Personalize o tamanho, as animações e a tipografia inferior do modo vinil.",
+                        "Tamanho da capa",
+                        "Ajusta o tamanho da capa do álbum no modo vinil.",
+                        "Tamanho do disco",
+                        "Ajusta o tamanho do disco no modo vinil.",
+                        "Animações do vinil",
+                        "Usa animações de reprodução, pausa, rotação, entrada e troca de faixa.",
+                        "Girar o centro do vinil",
+                        "Gira o rótulo central junto com o disco durante a reprodução.",
+                        "Mostrar letra no modo vinil",
+                        "Mostra a linha atual abaixo do disco no modo vinil.",
+                        "Original do vinil",
+                        "Ajuste o tamanho e o peso da letra original abaixo do vinil.",
+                        "Pronúncia do vinil",
+                        "Ajuste o tamanho e o peso da pronúncia abaixo do vinil.",
+                        "Tradução do vinil",
+                        "Ajuste o tamanho e o peso da tradução abaixo do vinil.",
+                        "Ajuste separadamente as fontes do original, da pronúncia e da tradução abaixo do vinil."
+                );
+            case "bn":
+                return vinylSettingsStringValues(
+                        "পূর্ণস্ক্রিন",
+                        "ভিনাইল মোডের আকার, অ্যানিমেশন ও নিচের গানের ফন্ট কাস্টমাইজ করুন।",
+                        "অ্যালবাম কভারের আকার",
+                        "ভিনাইল মোডে অ্যালবাম কভারের আকার ঠিক করুন।",
+                        "রেকর্ডের আকার",
+                        "ভিনাইল মোডে রেকর্ডের আকার ঠিক করুন।",
+                        "ভিনাইল অ্যানিমেশন",
+                        "প্লে, বিরতি, ঘূর্ণন, প্রবেশ ও গান বদলের অ্যানিমেশন ব্যবহার করুন।",
+                        "LP-এর কেন্দ্র ঘোরান",
+                        "প্লেব্যাকের সময় মাঝের লেবেলটি রেকর্ডের সঙ্গে ঘোরায়।",
+                        "LP গানের কথা দেখান",
+                        "LP মোডে রেকর্ডের নিচে বর্তমান গানের লাইন দেখায়।",
+                        "ভিনাইল মূল",
+                        "ভিনাইলের নিচে মূল গানের আকার ও ওজন ঠিক করুন।",
+                        "ভিনাইল উচ্চারণ",
+                        "ভিনাইলের নিচে উচ্চারণের আকার ও ওজন ঠিক করুন।",
+                        "ভিনাইল অনুবাদ",
+                        "ভিনাইলের নিচে অনুবাদের আকার ও ওজন ঠিক করুন।",
+                        "ভিনাইলের নিচে মূল, উচ্চারণ ও অনুবাদের ফন্ট আলাদাভাবে ঠিক করুন।"
+                );
+            case "cs":
+                return vinylSettingsStringValues(
+                        "Celá obrazovka",
+                        "Přizpůsobte velikost, animace a typografii spodního textu ve vinylovém režimu.",
+                        "Velikost obalu",
+                        "Upraví velikost obalu alba ve vinylovém režimu.",
+                        "Velikost desky",
+                        "Upraví velikost vinylové desky ve vinylovém režimu.",
+                        "Animace vinylu",
+                        "Použije animace přehrávání, pauzy, otáčení, příchodu a změny skladby.",
+                        "Otáčet střed desky",
+                        "Během přehrávání otáčí středovým štítkem společně s deskou.",
+                        "Zobrazit text v režimu vinylu",
+                        "V režimu vinylu zobrazí aktuální řádek textu pod deskou.",
+                        "Vinyl – originál",
+                        "Upravte velikost a řez původního textu pod deskou.",
+                        "Vinyl – výslovnost",
+                        "Upravte velikost a řez výslovnosti pod deskou.",
+                        "Vinyl – překlad",
+                        "Upravte velikost a řez překladu pod deskou.",
+                        "Samostatně upravte písma originálu, výslovnosti a překladu pod deskou."
+                );
+            case "it":
+                return vinylSettingsStringValues(
+                        "Schermo intero",
+                        "Personalizza dimensioni, animazioni e tipografia inferiore della modalità vinile.",
+                        "Dimensione copertina",
+                        "Regola la dimensione della copertina in modalità vinile.",
+                        "Dimensione disco",
+                        "Regola la dimensione del disco in modalità vinile.",
+                        "Animazioni vinile",
+                        "Usa le animazioni di riproduzione, pausa, rotazione, ingresso e cambio brano.",
+                        "Ruota il centro del vinile",
+                        "Ruota l’etichetta centrale insieme al disco durante la riproduzione.",
+                        "Mostra testo in modalità vinile",
+                        "Mostra la riga corrente sotto il disco nella modalità vinile.",
+                        "Originale vinile",
+                        "Regola dimensione e peso del testo originale sotto il vinile.",
+                        "Pronuncia vinile",
+                        "Regola dimensione e peso della pronuncia sotto il vinile.",
+                        "Traduzione vinile",
+                        "Regola dimensione e peso della traduzione sotto il vinile.",
+                        "Regola separatamente i font di originale, pronuncia e traduzione sotto il vinile."
+                );
+            case "th":
+                return vinylSettingsStringValues(
+                        "เต็มหน้าจอ",
+                        "ปรับแต่งขนาด แอนิเมชัน และแบบอักษรเนื้อเพลงด้านล่างของโหมดแผ่นเสียง",
+                        "ขนาดปกอัลบั้ม",
+                        "ปรับขนาดปกอัลบั้มในโหมดแผ่นเสียง",
+                        "ขนาดแผ่นเสียง",
+                        "ปรับขนาดแผ่นเสียงในโหมดแผ่นเสียง",
+                        "แอนิเมชันแผ่นเสียง",
+                        "ใช้แอนิเมชันเล่น หยุด หมุน ปรากฏ และเปลี่ยนเพลง",
+                        "หมุนส่วนกลางของแผ่นเสียง",
+                        "หมุนฉลากตรงกลางไปพร้อมกับแผ่นเสียงระหว่างเล่น",
+                        "แสดงเนื้อเพลงโหมดแผ่นเสียง",
+                        "แสดงเนื้อเพลงบรรทัดปัจจุบันใต้แผ่นเสียงในโหมดแผ่นเสียง",
+                        "ต้นฉบับแผ่นเสียง",
+                        "ปรับขนาดและน้ำหนักของเนื้อเพลงต้นฉบับใต้แผ่นเสียง",
+                        "คำอ่านแผ่นเสียง",
+                        "ปรับขนาดและน้ำหนักของคำอ่านใต้แผ่นเสียง",
+                        "คำแปลแผ่นเสียง",
+                        "ปรับขนาดและน้ำหนักของคำแปลใต้แผ่นเสียง",
+                        "ปรับแบบอักษรต้นฉบับ คำอ่าน และคำแปลใต้แผ่นเสียงแยกกัน"
+                );
+            case "vi":
+                return vinylSettingsStringValues(
+                        "Toàn màn hình",
+                        "Tùy chỉnh kích thước, chuyển động và phông lời bên dưới của chế độ đĩa than.",
+                        "Kích thước bìa album",
+                        "Điều chỉnh kích thước bìa album trong chế độ đĩa than.",
+                        "Kích thước đĩa",
+                        "Điều chỉnh kích thước đĩa trong chế độ đĩa than.",
+                        "Hoạt ảnh đĩa than",
+                        "Dùng hoạt ảnh phát, tạm dừng, xoay, xuất hiện và chuyển bài.",
+                        "Xoay tâm đĩa than",
+                        "Xoay nhãn ở giữa cùng với đĩa trong khi phát.",
+                        "Hiện lời ở chế độ đĩa than",
+                        "Hiển thị câu hát hiện tại bên dưới đĩa trong chế độ đĩa than.",
+                        "Lời gốc đĩa than",
+                        "Điều chỉnh cỡ và độ đậm của lời gốc bên dưới đĩa.",
+                        "Phiên âm đĩa than",
+                        "Điều chỉnh cỡ và độ đậm của phiên âm bên dưới đĩa.",
+                        "Bản dịch đĩa than",
+                        "Điều chỉnh cỡ và độ đậm của bản dịch bên dưới đĩa.",
+                        "Điều chỉnh riêng phông chữ cho lời gốc, phiên âm và bản dịch bên dưới đĩa."
+                );
+            case "id":
+                return vinylSettingsStringValues(
+                        "Layar penuh",
+                        "Sesuaikan ukuran, animasi, dan tipografi lirik bawah pada mode vinil.",
+                        "Ukuran sampul album",
+                        "Menyesuaikan ukuran sampul album dalam mode vinil.",
+                        "Ukuran piringan",
+                        "Menyesuaikan ukuran piringan dalam mode vinil.",
+                        "Animasi vinil",
+                        "Gunakan animasi putar, jeda, rotasi, masuk, dan pergantian lagu.",
+                        "Putar bagian tengah vinil",
+                        "Memutar label tengah bersama piringan saat diputar.",
+                        "Tampilkan lirik mode vinil",
+                        "Menampilkan baris lirik saat ini di bawah piringan dalam mode vinil.",
+                        "Teks asli vinil",
+                        "Sesuaikan ukuran dan ketebalan lirik asli di bawah piringan.",
+                        "Pelafalan vinil",
+                        "Sesuaikan ukuran dan ketebalan pelafalan di bawah piringan.",
+                        "Terjemahan vinil",
+                        "Sesuaikan ukuran dan ketebalan terjemahan di bawah piringan.",
+                        "Sesuaikan font teks asli, pelafalan, dan terjemahan di bawah piringan secara terpisah."
+                );
+            case "ms":
+                return vinylSettingsStringValues(
+                        "Skrin penuh",
+                        "Sesuaikan saiz, animasi dan tipografi lirik bawah bagi mod vinil.",
+                        "Saiz kulit album",
+                        "Melaraskan saiz kulit album dalam mod vinil.",
+                        "Saiz piring hitam",
+                        "Melaraskan saiz piring hitam dalam mod vinil.",
+                        "Animasi vinil",
+                        "Gunakan animasi main, jeda, putaran, kemunculan dan pertukaran lagu.",
+                        "Putar bahagian tengah vinil",
+                        "Memutar label tengah bersama piring hitam semasa dimainkan.",
+                        "Tunjukkan lirik mod vinil",
+                        "Memaparkan baris lirik semasa di bawah piring hitam dalam mod vinil.",
+                        "Teks asal vinil",
+                        "Laraskan saiz dan ketebalan lirik asal di bawah piring hitam.",
+                        "Sebutan vinil",
+                        "Laraskan saiz dan ketebalan sebutan di bawah piring hitam.",
+                        "Terjemahan vinil",
+                        "Laraskan saiz dan ketebalan terjemahan di bawah piring hitam.",
+                        "Laraskan fon teks asal, sebutan dan terjemahan di bawah piring hitam secara berasingan."
+                );
+            case "tr":
+                return vinylSettingsStringValues(
+                        "Tam ekran",
+                        "Plak modunun boyutunu, animasyonlarını ve alttaki şarkı sözü yazı tipini özelleştirin.",
+                        "Albüm kapağı boyutu",
+                        "Plak modundaki albüm kapağının boyutunu ayarlar.",
+                        "Plak boyutu",
+                        "Plak modundaki plağın boyutunu ayarlar.",
+                        "Plak animasyonları",
+                        "Oynatma, duraklatma, dönme, giriş ve parça geçişi animasyonlarını kullanır.",
+                        "Plak merkezini döndür",
+                        "Oynatma sırasında merkez etiketini plakla birlikte döndürür.",
+                        "Plak modu sözlerini göster",
+                        "Plak modunda geçerli söz satırını plağın altında gösterir.",
+                        "Plak özgün metni",
+                        "Plağın altındaki özgün sözlerin boyutunu ve kalınlığını ayarlayın.",
+                        "Plak telaffuzu",
+                        "Plağın altındaki telaffuzun boyutunu ve kalınlığını ayarlayın.",
+                        "Plak çevirisi",
+                        "Plağın altındaki çevirinin boyutunu ve kalınlığını ayarlayın.",
+                        "Plağın altında görünen özgün metin, telaffuz ve çeviri yazı tiplerini ayrı ayrı ayarlayın."
+                );
+            case "en":
+            default:
+                return vinylSettingsStringValues(
+                        "Fullscreen",
+                        "Customize the LP mode size, motion, and bottom lyric typography.",
+                        "Album cover size",
+                        "Adjusts the album cover size in LP mode.",
+                        "Record size",
+                        "Adjusts the vinyl record size in LP mode.",
+                        "LP animations",
+                        "Use play/pause, record spin, entrance, and track-change animations.",
+                        "Rotate LP center",
+                        "Rotate the center label together with the record during playback.",
+                        "Show LP lyrics",
+                        "Show the current lyric below the record in LP mode.",
+                        "LP original",
+                        "Adjust the size and weight of the original lyric below the LP.",
+                        "LP pronunciation",
+                        "Adjust the size and weight of the pronunciation below the LP.",
+                        "LP translation",
+                        "Adjust the size and weight of the translation below the LP.",
+                        "Adjust the fonts for the original, pronunciation, and translation shown below the LP."
+                );
+        }
+    }
+
+    private static String[] vinylSettingsStringValues(
+            String fullscreenTab,
+            String subtitle,
+            String albumSize,
+            String albumSizeDesc,
+            String recordSize,
+            String recordSizeDesc,
+            String animations,
+            String animationsDesc,
+            String centerRotation,
+            String centerRotationDesc,
+            String lyrics,
+            String lyricsDesc,
+            String original,
+            String originalDesc,
+            String pronunciation,
+            String pronunciationDesc,
+            String translation,
+            String translationDesc,
+            String typographyDesc
+    ) {
+        return new String[] {
+                "tab.fullscreen", fullscreenTab,
+                "vinyl.settings.subtitle", subtitle,
+                "vinyl.settings.album_size", albumSize,
+                "vinyl.settings.album_size_desc", albumSizeDesc,
+                "vinyl.settings.record_size", recordSize,
+                "vinyl.settings.record_size_desc", recordSizeDesc,
+                "vinyl.settings.animations", animations,
+                "vinyl.settings.animations_desc", animationsDesc,
+                "vinyl.settings.center_rotation", centerRotation,
+                "vinyl.settings.center_rotation_desc", centerRotationDesc,
+                "vinyl.settings.lyrics", lyrics,
+                "vinyl.settings.lyrics_desc", lyricsDesc,
+                "typography.slot.vinyl_original", original,
+                "typography.slot.vinyl_original_desc", originalDesc,
+                "typography.slot.vinyl_pronunciation", pronunciation,
+                "typography.slot.vinyl_pronunciation_desc", pronunciationDesc,
+                "typography.slot.vinyl_translation", translation,
+                "typography.slot.vinyl_translation_desc", translationDesc,
+                "vinyl.settings.typography_desc", typographyDesc
+        };
+    }
+
+    private static String[] vinylTonearmSettingsStrings(String lang) {
+        switch (normalize(lang)) {
+            case "ko":
+                return vinylTonearmSettingsStringValues(
+                        "톤암", "톤암의 형태, 마감과 크기를 원하는 대로 조절합니다.",
+                        "톤암 형태", "LP 모드에서 사용할 톤암 디자인을 선택합니다.",
+                        "S형 (클래식)", "직선형", "J형", "리니어 트래킹",
+                        "톤암 마감", "톤암의 색상과 마감을 선택합니다.",
+                        "화이트", "실버", "블랙",
+                        "톤암 크기", "LP 모드에서 톤암의 크기를 조절합니다."
+                );
+            case "zh-CN":
+                return vinylTonearmSettingsStringValues(
+                        "唱臂", "自定义唱臂的造型、饰面和大小。",
+                        "唱臂样式", "选择黑胶模式中使用的唱臂设计。",
+                        "S 型（经典）", "直臂", "J 型", "直线循迹",
+                        "唱臂饰面", "选择唱臂的颜色和饰面。",
+                        "白色", "银色", "黑色",
+                        "唱臂大小", "调整黑胶模式中的唱臂大小。"
+                );
+            case "zh-TW":
+                return vinylTonearmSettingsStringValues(
+                        "唱臂", "自訂唱臂的造型、外觀與大小。",
+                        "唱臂樣式", "選擇黑膠模式中使用的唱臂設計。",
+                        "S 型（經典）", "直臂", "J 型", "直線循跡",
+                        "唱臂外觀", "選擇唱臂的顏色與外觀。",
+                        "白色", "銀色", "黑色",
+                        "唱臂大小", "調整黑膠模式中的唱臂大小。"
+                );
+            case "ja":
+                return vinylTonearmSettingsStringValues(
+                        "トーンアーム", "トーンアームの形状、仕上げ、サイズを調整します。",
+                        "トーンアームの形状", "LP モードで使用するトーンアームのデザインを選びます。",
+                        "S 字型（クラシック）", "ストレート", "J 字型", "リニアトラッキング",
+                        "トーンアームの仕上げ", "トーンアームの色と仕上げを選びます。",
+                        "ホワイト", "シルバー", "ブラック",
+                        "トーンアームのサイズ", "LP モードのトーンアームのサイズを調整します。"
+                );
+            case "hi":
+                return vinylTonearmSettingsStringValues(
+                        "टोनआर्म", "टोनआर्म का आकार, फ़िनिश और माप बदलें।",
+                        "टोनआर्म शैली", "विनाइल मोड में इस्तेमाल होने वाला टोनआर्म डिज़ाइन चुनें।",
+                        "S-आकार (क्लासिक)", "सीधा", "J-आकार", "लिनियर ट्रैकिंग",
+                        "टोनआर्म फ़िनिश", "टोनआर्म का रंग और फ़िनिश चुनें।",
+                        "सफ़ेद", "सिल्वर", "काला",
+                        "टोनआर्म का आकार", "विनाइल मोड में टोनआर्म का आकार बदलें।"
+                );
+            case "es":
+                return vinylTonearmSettingsStringValues(
+                        "Brazo", "Personaliza la forma, el acabado y el tamaño del brazo.",
+                        "Estilo del brazo", "Elige el diseño del brazo para el modo vinilo.",
+                        "En S (clásico)", "Recto", "En J", "Seguimiento lineal",
+                        "Acabado del brazo", "Elige el color y el acabado del brazo.",
+                        "Blanco", "Plateado", "Negro",
+                        "Tamaño del brazo", "Ajusta el tamaño del brazo en el modo vinilo."
+                );
+            case "fr":
+                return vinylTonearmSettingsStringValues(
+                        "Bras de lecture", "Personnalisez la forme, la finition et la taille du bras de lecture.",
+                        "Style du bras", "Choisissez le modèle du bras de lecture en mode vinyle.",
+                        "En S (classique)", "Droit", "En J", "Suivi linéaire",
+                        "Finition du bras", "Choisissez la couleur et la finition du bras de lecture.",
+                        "Blanc", "Argent", "Noir",
+                        "Taille du bras", "Ajustez la taille du bras de lecture en mode vinyle."
+                );
+            case "ar":
+                return vinylTonearmSettingsStringValues(
+                        "ذراع التشغيل", "خصّص شكل ذراع التشغيل وتشطيبه وحجمه.",
+                        "شكل ذراع التشغيل", "اختر تصميم ذراع التشغيل في وضع الأسطوانة.",
+                        "على شكل S (كلاسيكي)", "مستقيم", "على شكل J", "تتبّع خطي",
+                        "تشطيب ذراع التشغيل", "اختر لون ذراع التشغيل وتشطيبه.",
+                        "أبيض", "فضي", "أسود",
+                        "حجم ذراع التشغيل", "اضبط حجم ذراع التشغيل في وضع الأسطوانة."
+                );
+            case "fa":
+                return vinylTonearmSettingsStringValues(
+                        "بازوی گرامافون", "شکل، پرداخت و اندازهٔ بازوی گرامافون را شخصی‌سازی کنید.",
+                        "سبک بازو", "طرح بازوی گرامافون را برای حالت وینیل انتخاب کنید.",
+                        "S شکل (کلاسیک)", "صاف", "J شکل", "ردیابی خطی",
+                        "پرداخت بازو", "رنگ و پرداخت بازوی گرامافون را انتخاب کنید.",
+                        "سفید", "نقره‌ای", "مشکی",
+                        "اندازهٔ بازو", "اندازهٔ بازوی گرامافون را در حالت وینیل تنظیم کنید."
+                );
+            case "de":
+                return vinylTonearmSettingsStringValues(
+                        "Tonarm", "Passe Form, Oberfläche und Größe des Tonarms an.",
+                        "Tonarmstil", "Wähle das Tonarmdesign für den Vinylmodus.",
+                        "S-förmig (klassisch)", "Gerade", "J-förmig", "Linear-Tracking",
+                        "Tonarmoberfläche", "Wähle Farbe und Oberfläche des Tonarms.",
+                        "Weiß", "Silber", "Schwarz",
+                        "Tonarmgröße", "Passe die Größe des Tonarms im Vinylmodus an."
+                );
+            case "ru":
+                return vinylTonearmSettingsStringValues(
+                        "Тонарм", "Настройте форму, отделку и размер тонарма.",
+                        "Стиль тонарма", "Выберите конструкцию тонарма для режима винила.",
+                        "S-образный (классика)", "Прямой", "J-образный", "Линейный",
+                        "Отделка тонарма", "Выберите цвет и отделку тонарма.",
+                        "Белый", "Серебристый", "Чёрный",
+                        "Размер тонарма", "Настройте размер тонарма в режиме винила."
+                );
+            case "sv":
+                return vinylTonearmSettingsStringValues(
+                        "Tonarm", "Anpassa tonarmens form, finish och storlek.",
+                        "Tonarmsstil", "Välj tonarmsdesign för vinylläget.",
+                        "S-formad (klassisk)", "Rak", "J-formad", "Linjär spårning",
+                        "Tonarmsfinish", "Välj tonarmens färg och finish.",
+                        "Vit", "Silver", "Svart",
+                        "Tonarmsstorlek", "Justera tonarmens storlek i vinylläget."
+                );
+            case "pt":
+                return vinylTonearmSettingsStringValues(
+                        "Braço", "Personalize o formato, o acabamento e o tamanho do braço.",
+                        "Estilo do braço", "Escolha o design do braço para o modo vinil.",
+                        "Em S (clássico)", "Reto", "Em J", "Rastreamento linear",
+                        "Acabamento do braço", "Escolha a cor e o acabamento do braço.",
+                        "Branco", "Prateado", "Preto",
+                        "Tamanho do braço", "Ajuste o tamanho do braço no modo vinil."
+                );
+            case "bn":
+                return vinylTonearmSettingsStringValues(
+                        "টোনআর্ম", "টোনআর্মের আকৃতি, ফিনিশ ও আকার বদলান।",
+                        "টোনআর্ম স্টাইল", "ভিনাইল মোডের টোনআর্ম ডিজাইন বেছে নিন।",
+                        "S-আকৃতি (ক্লাসিক)", "সোজা", "J-আকৃতি", "লিনিয়ার ট্র্যাকিং",
+                        "টোনআর্ম ফিনিশ", "টোনআর্মের রং ও ফিনিশ বেছে নিন।",
+                        "সাদা", "রূপালি", "কালো",
+                        "টোনআর্মের আকার", "ভিনাইল মোডে টোনআর্মের আকার ঠিক করুন।"
+                );
+            case "cs":
+                return vinylTonearmSettingsStringValues(
+                        "Raménko", "Přizpůsobte tvar, povrch a velikost raménka.",
+                        "Styl raménka", "Vyberte konstrukci raménka pro vinylový režim.",
+                        "Ve tvaru S (klasické)", "Rovné", "Ve tvaru J", "Lineární vedení",
+                        "Povrch raménka", "Vyberte barvu a povrch raménka.",
+                        "Bílá", "Stříbrná", "Černá",
+                        "Velikost raménka", "Upravte velikost raménka ve vinylovém režimu."
+                );
+            case "it":
+                return vinylTonearmSettingsStringValues(
+                        "Braccio", "Personalizza forma, finitura e dimensione del braccio.",
+                        "Stile del braccio", "Scegli il design del braccio per la modalità vinile.",
+                        "A S (classico)", "Dritto", "A J", "Tracciamento lineare",
+                        "Finitura del braccio", "Scegli il colore e la finitura del braccio.",
+                        "Bianco", "Argento", "Nero",
+                        "Dimensione del braccio", "Regola la dimensione del braccio in modalità vinile."
+                );
+            case "th":
+                return vinylTonearmSettingsStringValues(
+                        "โทนอาร์ม", "ปรับรูปทรง พื้นผิว และขนาดของโทนอาร์ม",
+                        "รูปแบบโทนอาร์ม", "เลือกดีไซน์โทนอาร์มสำหรับโหมดแผ่นเสียง",
+                        "ทรง S (คลาสสิก)", "ทรงตรง", "ทรง J", "ติดตามแนวเส้นตรง",
+                        "พื้นผิวโทนอาร์ม", "เลือกสีและพื้นผิวของโทนอาร์ม",
+                        "สีขาว", "สีเงิน", "สีดำ",
+                        "ขนาดโทนอาร์ม", "ปรับขนาดโทนอาร์มในโหมดแผ่นเสียง"
+                );
+            case "vi":
+                return vinylTonearmSettingsStringValues(
+                        "Cần máy hát", "Tùy chỉnh hình dáng, lớp hoàn thiện và kích thước của cần máy hát.",
+                        "Kiểu cần máy hát", "Chọn thiết kế cần máy hát cho chế độ đĩa than.",
+                        "Dạng S (cổ điển)", "Thẳng", "Dạng J", "Theo dõi tuyến tính",
+                        "Lớp hoàn thiện", "Chọn màu và lớp hoàn thiện của cần máy hát.",
+                        "Trắng", "Bạc", "Đen",
+                        "Kích thước cần", "Điều chỉnh kích thước cần máy hát trong chế độ đĩa than."
+                );
+            case "id":
+                return vinylTonearmSettingsStringValues(
+                        "Lengan pemutar", "Sesuaikan bentuk, lapisan, dan ukuran lengan pemutar.",
+                        "Gaya lengan", "Pilih desain lengan pemutar untuk mode vinil.",
+                        "Bentuk S (klasik)", "Lurus", "Bentuk J", "Pelacakan linear",
+                        "Lapisan lengan", "Pilih warna dan lapisan lengan pemutar.",
+                        "Putih", "Perak", "Hitam",
+                        "Ukuran lengan", "Sesuaikan ukuran lengan pemutar dalam mode vinil."
+                );
+            case "ms":
+                return vinylTonearmSettingsStringValues(
+                        "Lengan pikap", "Sesuaikan bentuk, kemasan dan saiz lengan pikap.",
+                        "Gaya lengan", "Pilih reka bentuk lengan pikap untuk mod vinil.",
+                        "Bentuk S (klasik)", "Lurus", "Bentuk J", "Penjejakan linear",
+                        "Kemasan lengan", "Pilih warna dan kemasan lengan pikap.",
+                        "Putih", "Perak", "Hitam",
+                        "Saiz lengan", "Laraskan saiz lengan pikap dalam mod vinil."
+                );
+            case "tr":
+                return vinylTonearmSettingsStringValues(
+                        "Pikap kolu", "Pikap kolunun şeklini, kaplamasını ve boyutunu özelleştirin.",
+                        "Kol stili", "Plak modu için pikap kolu tasarımını seçin.",
+                        "S biçimli (klasik)", "Düz", "J biçimli", "Doğrusal izleme",
+                        "Kol kaplaması", "Pikap kolunun rengini ve kaplamasını seçin.",
+                        "Beyaz", "Gümüş", "Siyah",
+                        "Kol boyutu", "Plak modunda pikap kolunun boyutunu ayarlayın."
+                );
+            case "en":
+            default:
+                return vinylTonearmSettingsStringValues(
+                        "Tonearm", "Customize the tonearm shape, finish, and size.",
+                        "Tonearm style", "Choose the tonearm design used in vinyl mode.",
+                        "S-shaped (classic)", "Straight", "J-shaped", "Linear tracking",
+                        "Tonearm finish", "Choose the tonearm color and finish.",
+                        "White", "Silver", "Black",
+                        "Tonearm size", "Adjust the tonearm size in vinyl mode."
+                );
+        }
+    }
+
+    private static String[] vinylTonearmSettingsStringValues(
+            String title, String subtitle,
+            String style, String styleDesc,
+            String styleS, String styleStraight, String styleJ, String styleLinear,
+            String finish, String finishDesc,
+            String finishWhite, String finishSilver, String finishBlack,
+            String size, String sizeDesc
+    ) {
+        return new String[]{
+                "vinyl.settings.tonearm_title", title,
+                "vinyl.settings.tonearm_subtitle", subtitle,
+                "vinyl.settings.tonearm_style", style,
+                "vinyl.settings.tonearm_style_desc", styleDesc,
+                "vinyl.settings.tonearm_style_s", styleS,
+                "vinyl.settings.tonearm_style_straight", styleStraight,
+                "vinyl.settings.tonearm_style_j", styleJ,
+                "vinyl.settings.tonearm_style_linear", styleLinear,
+                "vinyl.settings.tonearm_finish", finish,
+                "vinyl.settings.tonearm_finish_desc", finishDesc,
+                "vinyl.settings.tonearm_finish_white", finishWhite,
+                "vinyl.settings.tonearm_finish_silver", finishSilver,
+                "vinyl.settings.tonearm_finish_black", finishBlack,
+                "vinyl.settings.tonearm_size", size,
+                "vinyl.settings.tonearm_size_desc", sizeDesc
+        };
+    }
+
+    private static String[] karaokeLineModeStrings(String lang) {
+        switch (normalize(lang)) {
+            case "ko":
+                return karaokeLineModeStringsValues("노래방 데이터를 일반 싱크로 표시", "sync-data 노래방 타이밍이 있어도 글자별 채움 없이 라인 단위 싱크 가사처럼 표시합니다.", "노래방 표시 단위", "노래방 및 일반 줄 싱크의 진행 효과를 글자, 단어 또는 줄 단위로 표시합니다.", "글자", "단어", "줄");
+            case "zh-CN":
+                return karaokeLineModeStringsValues("将卡拉 OK 数据显示为行同步", "即使 sync-data 含卡拉 OK 逐字时间，也不做逐字填色，只按整行同步显示。", "卡拉 OK 显示单位", "将卡拉 OK 与普通行同步歌词的进度按字符、词语或整行显示。", "字符", "词语", "整行");
+            case "zh-TW":
+                return karaokeLineModeStringsValues("將卡拉 OK 資料顯示為行同步", "即使 sync-data 含卡拉 OK 逐字時間，也不做逐字填色，只按整行同步顯示。", "卡拉 OK 顯示單位", "將卡拉 OK 與一般行同步歌詞的進度按字元、詞語或整行顯示。", "字元", "詞語", "整行");
+            case "ja":
+                return karaokeLineModeStringsValues("カラオケデータを行同期で表示", "sync-data にカラオケの文字タイミングがあっても、文字ごとの塗りなしで通常の行同期歌詞として表示します。", "カラオケ表示単位", "カラオケと通常の行同期歌詞の進行を、文字・単語・行単位で表示します。", "文字", "単語", "行");
+            case "hi":
+                return karaokeLineModeStringsValues("कराओके डेटा को लाइन-सिंक की तरह दिखाएँ", "sync-data में कराओके टाइमिंग होने पर भी अक्षर भराव के बिना सामान्य लाइन-सिंक गीतों की तरह दिखाता है।", "कराओके प्रदर्शन इकाई", "कराओके और सामान्य लाइन-सिंक गीतों की प्रगति अक्षर, शब्द या पंक्ति के अनुसार दिखाएँ।", "अक्षर", "शब्द", "पंक्ति");
+            case "es":
+                return karaokeLineModeStringsValues("Mostrar karaoke como sincronización por línea", "Aunque sync-data tenga tiempos de karaoke, lo muestra como letras sincronizadas por línea sin relleno por carácter.", "Unidad de visualización del karaoke", "Muestra el progreso del karaoke y de las letras sincronizadas por línea por carácter, palabra o línea completa.", "Carácter", "Palabra", "Línea");
+            case "fr":
+                return karaokeLineModeStringsValues("Afficher le karaoké en lignes synchronisées", "Même si sync-data contient un minutage karaoké, affiche les paroles comme des lignes synchronisées sans remplissage par caractère.", "Unité d’affichage du karaoké", "Affiche la progression du karaoké et des paroles synchronisées par caractère, mot ou ligne entière.", "Caractère", "Mot", "Ligne");
+            case "ar":
+                return karaokeLineModeStringsValues("عرض بيانات الكاريوكي كمزامنة سطرية", "حتى عند وجود توقيت كاريوكي في sync-data، يعرض الكلمات كسطور متزامنة عادية من دون تعبئة الأحرف.", "وحدة عرض الكاريوكي", "اعرض تقدم الكاريوكي والكلمات المتزامنة حسب الحرف أو الكلمة أو السطر الكامل.", "حرف", "كلمة", "سطر");
+            case "fa":
+                return karaokeLineModeStringsValues("نمایش داده کارائوکه به صورت همگام خطی", "حتی اگر sync-data زمان‌بندی کارائوکه داشته باشد، متن را بدون پرشدن کاراکتری و مانند متن همگام خطی نمایش می‌دهد.", "واحد نمایش کارائوکه", "پیشرفت کارائوکه و متن همگام خطی را بر اساس نویسه، واژه یا کل خط نمایش می‌دهد.", "نویسه", "واژه", "خط");
+            case "de":
+                return karaokeLineModeStringsValues("Karaoke-Daten als Zeilensync anzeigen", "Auch wenn sync-data Karaoke-Timing enthält, wird es ohne Zeichenfüllung wie normal synchronisierte Zeilen angezeigt.", "Karaoke-Anzeigeeinheit", "Zeigt den Fortschritt von Karaoke und zeilensynchronen Texten nach Zeichen, Wort oder ganzer Zeile an.", "Zeichen", "Wort", "Zeile");
+            case "ru":
+                return karaokeLineModeStringsValues("Показывать караоке как построчную синхронизацию", "Даже если sync-data содержит караоке-тайминги, текст отображается как обычные синхронные строки без посимвольной заливки.", "Единица отображения караоке", "Показывает прогресс караоке и построчно синхронизированного текста по символам, словам или целой строке.", "Символ", "Слово", "Строка");
+            case "sv":
+                return karaokeLineModeStringsValues("Visa karaokedata som radsynk", "Även när sync-data har karaoketajming visas texten som vanliga synkade rader utan teckenfyllning.", "Visningsenhet för karaoke", "Visar förloppet för karaoke och radsynkad text per tecken, ord eller hel rad.", "Tecken", "Ord", "Rad");
+            case "pt":
+                return karaokeLineModeStringsValues("Mostrar dados de karaokê como sincronização por linha", "Mesmo com tempos de karaokê no sync-data, exibe como letras sincronizadas por linha sem preenchimento por caractere.", "Unidade de exibição do karaokê", "Mostra o progresso do karaokê e das letras sincronizadas por caractere, palavra ou linha inteira.", "Caractere", "Palavra", "Linha");
+            case "bn":
+                return karaokeLineModeStringsValues("কারাওকে ডেটা লাইন-সিঙ্ক হিসেবে দেখান", "sync-data-তে কারাওকে টাইমিং থাকলেও অক্ষরভিত্তিক ভরাট ছাড়া সাধারণ লাইন-সিঙ্ক লিরিক্সের মতো দেখায়।", "কারাওকে প্রদর্শন একক", "কারাওকে ও লাইন-সিঙ্ক গানের অগ্রগতি অক্ষর, শব্দ বা পুরো লাইন অনুযায়ী দেখায়।", "অক্ষর", "শব্দ", "লাইন");
+            case "cs":
+                return karaokeLineModeStringsValues("Zobrazit karaoke data jako řádkově synchronizovaná", "Pokud sync-data obsahují časování karaoke, zobrazí je jako běžné řádkově synchronizované texty bez vyplňování jednotlivých znaků.", "Jednotka zobrazení karaoke", "Zobrazuje průběh karaoke a řádkově synchronizovaných textů po znacích, slovech nebo celých řádcích.", "Znak", "Slovo", "Řádek");
+            case "it":
+                return karaokeLineModeStringsValues("Mostra il karaoke come sincronizzazione per riga", "Anche se sync-data contiene tempi karaoke, mostra il testo come righe sincronizzate senza riempimento per carattere.", "Unità di visualizzazione karaoke", "Mostra l’avanzamento del karaoke e dei testi sincronizzati per carattere, parola o riga intera.", "Carattere", "Parola", "Riga");
+            case "th":
+                return karaokeLineModeStringsValues("แสดงข้อมูลคาราโอเกะเป็นซิงก์รายบรรทัด", "แม้ sync-data จะมีจังหวะคาราโอเกะ ก็จะแสดงเป็นเนื้อเพลงซิงก์รายบรรทัดโดยไม่มีการเติมสีทีละตัวอักษร", "หน่วยการแสดงคาราโอเกะ", "แสดงความคืบหน้าของคาราโอเกะและเนื้อเพลงซิงก์ตามตัวอักษร คำ หรือทั้งบรรทัด", "ตัวอักษร", "คำ", "บรรทัด");
+            case "vi":
+                return karaokeLineModeStringsValues("Hiển thị dữ liệu karaoke như lời đồng bộ dòng", "Ngay cả khi sync-data có thời gian karaoke, vẫn hiển thị như lời đồng bộ theo dòng, không tô từng ký tự.", "Đơn vị hiển thị karaoke", "Hiển thị tiến trình karaoke và lời đồng bộ theo ký tự, từ hoặc toàn bộ dòng.", "Ký tự", "Từ", "Dòng");
+            case "id":
+                return karaokeLineModeStringsValues("Tampilkan data karaoke sebagai sinkron baris", "Meski sync-data memiliki timing karaoke, tampilkan seperti lirik sinkron baris tanpa isi per karakter.", "Satuan tampilan karaoke", "Tampilkan progres karaoke dan lirik sinkron per karakter, kata, atau seluruh baris.", "Karakter", "Kata", "Baris");
+            case "ms":
+                return karaokeLineModeStringsValues("Papar data karaoke sebagai segerak baris", "Walaupun sync-data mempunyai pemasaan karaoke, paparkan seperti lirik segerak baris tanpa isian aksara demi aksara.", "Unit paparan karaoke", "Paparkan kemajuan karaoke dan lirik segerak mengikut aksara, perkataan atau seluruh baris.", "Aksara", "Perkataan", "Baris");
+            case "tr":
+                return karaokeLineModeStringsValues("Karaoke verisini satır senkronlu göster", "sync-data karaoke zamanlaması içerse bile harf dolumu olmadan normal satır senkronlu söz gibi gösterir.", "Karaoke görüntüleme birimi", "Karaoke ve satır senkronlu sözlerin ilerlemesini karakter, kelime veya tüm satır olarak gösterir.", "Karakter", "Kelime", "Satır");
+            default:
+                return karaokeLineModeStringsValues("Show karaoke data as line-synced", "When sync-data has karaoke timing, render it like regular line-synced lyrics without per-character fill.", "Karaoke display unit", "Show karaoke and line-synced lyric progress by character, word, or whole line.", "Character", "Word", "Line");
+        }
+    }
+
+    private static String[] karaokeLineModeStringsValues(
+            String oldTitle,
+            String oldDesc,
+            String title,
+            String desc,
+            String character,
+            String word,
+            String line
+    ) {
+        return new String[]{
+                "setting.karaoke_data_as_line_synced", oldTitle,
+                "setting.karaoke_data_as_line_synced_desc", oldDesc,
+                "setting.karaoke_display_granularity", title,
+                "setting.karaoke_display_granularity_desc", desc,
+                "karaoke.display.character", character,
+                "karaoke.display.word", word,
+                "karaoke.display.line", line
+        };
+    }
+
+    private static void addLyricsAlignmentStrings(Map<String, Map<String, String>> languages) {
+        addLanguageStrings(languages, AppI18n::lyricsAlignmentStrings);
+    }
+
+    private static String[] lyricsAlignmentStrings(String lang) {
+        switch (normalize(lang)) {
+            case "ko":
+                return lyricsAlignmentStringsValues("가사 정렬", "가사 페이지의 원문, 발음, 번역 줄을 어느 방향으로 정렬할지 선택합니다.", "좌측", "가운데", "우측", "가사 정렬 저장됨");
+            case "zh-CN":
+                return lyricsAlignmentStringsValues("歌词对齐", "选择歌词页中原文、发音和翻译行的对齐方式。", "左对齐", "居中", "右对齐", "歌词对齐已保存");
+            case "zh-TW":
+                return lyricsAlignmentStringsValues("歌詞對齊", "選擇歌詞頁中原文、發音與翻譯行的對齊方式。", "靠左", "置中", "靠右", "歌詞對齊已儲存");
+            case "ja":
+                return lyricsAlignmentStringsValues("歌詞の配置", "歌詞ページの原文、発音、翻訳行をどの方向に揃えるか選択します。", "左揃え", "中央", "右揃え", "歌詞の配置を保存しました");
+            case "hi":
+                return lyricsAlignmentStringsValues("लिरिक्स संरेखण", "लिरिक्स पेज पर मूल, उच्चारण और अनुवाद पंक्तियों की दिशा चुनें।", "बाएँ", "बीच", "दाएँ", "लिरिक्स संरेखण सहेजा गया");
+            case "es":
+                return lyricsAlignmentStringsValues("Alineación de letras", "Elige cómo alinear las líneas original, pronunciación y traducción en la página de letras.", "Izquierda", "Centro", "Derecha", "Alineación guardada");
+            case "fr":
+                return lyricsAlignmentStringsValues("Alignement des paroles", "Choisissez l'alignement des lignes originales, prononciation et traduction dans la page des paroles.", "Gauche", "Centre", "Droite", "Alignement des paroles enregistré");
+            case "ar":
+                return lyricsAlignmentStringsValues("محاذاة الكلمات", "اختر طريقة محاذاة سطور النص الأصلي والنطق والترجمة في صفحة الكلمات.", "يسار", "وسط", "يمين", "تم حفظ محاذاة الكلمات");
+            case "fa":
+                return lyricsAlignmentStringsValues("تراز متن ترانه", "نحوه تراز خطوط متن اصلی، تلفظ و ترجمه را در صفحه ترانه انتخاب کنید.", "چپ", "وسط", "راست", "تراز متن ترانه ذخیره شد");
+            case "de":
+                return lyricsAlignmentStringsValues("Lyrics-Ausrichtung", "Wähle, wie Original-, Aussprache- und Übersetzungszeilen auf der Lyrics-Seite ausgerichtet werden.", "Links", "Mitte", "Rechts", "Lyrics-Ausrichtung gespeichert");
+            case "ru":
+                return lyricsAlignmentStringsValues("Выравнивание текста", "Выберите выравнивание строк оригинала, произношения и перевода на странице текста.", "Слева", "По центру", "Справа", "Выравнивание текста сохранено");
+            case "sv":
+                return lyricsAlignmentStringsValues("Textjustering", "Välj hur original-, uttals- och översättningsrader justeras på textsidan.", "Vänster", "Centrerat", "Höger", "Textjustering sparad");
+            case "pt":
+                return lyricsAlignmentStringsValues("Alinhamento da letra", "Escolha como alinhar as linhas original, pronúncia e tradução na página de letras.", "Esquerda", "Centro", "Direita", "Alinhamento salvo");
+            case "bn":
+                return lyricsAlignmentStringsValues("লিরিক্স সারিবদ্ধতা", "লিরিক্স পেজে মূল, উচ্চারণ এবং অনুবাদ লাইন কীভাবে সারিবদ্ধ হবে তা বেছে নিন।", "বামে", "মাঝে", "ডানে", "লিরিক্স সারিবদ্ধতা সংরক্ষিত");
+            case "it":
+                return lyricsAlignmentStringsValues("Allineamento testo", "Scegli come allineare le righe originali, pronuncia e traduzione nella pagina del testo.", "Sinistra", "Centro", "Destra", "Allineamento salvato");
+            case "th":
+                return lyricsAlignmentStringsValues("การจัดแนวเนื้อเพลง", "เลือกการจัดแนวของบรรทัดต้นฉบับ คำอ่าน และคำแปลในหน้าเนื้อเพลง", "ซ้าย", "กลาง", "ขวา", "บันทึกการจัดแนวเนื้อเพลงแล้ว");
+            case "vi":
+                return lyricsAlignmentStringsValues("Căn lề lời bài hát", "Chọn cách căn lề các dòng nguyên bản, phát âm và bản dịch trên trang lời bài hát.", "Trái", "Giữa", "Phải", "Đã lưu căn lề lời bài hát");
+            case "id":
+                return lyricsAlignmentStringsValues("Perataan lirik", "Pilih perataan baris asli, pelafalan, dan terjemahan di halaman lirik.", "Kiri", "Tengah", "Kanan", "Perataan lirik disimpan");
+            case "ms":
+                return lyricsAlignmentStringsValues("Penjajaran lirik", "Pilih penjajaran baris asal, sebutan dan terjemahan pada halaman lirik.", "Kiri", "Tengah", "Kanan", "Penjajaran lirik disimpan");
+            case "tr":
+                return lyricsAlignmentStringsValues("Söz Hizalaması", "Söz sayfasında orijinal, telaffuz ve çeviri satırlarının hizasını seçin.", "Sol", "Orta", "Sağ", "Söz hizalaması kaydedildi");
+            default:
+                return lyricsAlignmentStringsValues("Lyrics Alignment", "Choose how original, pronunciation, and translation lines are aligned on the lyrics page.", "Left", "Center", "Right", "Lyrics alignment saved");
+        }
+    }
+
+    private static String[] lyricsAlignmentStringsValues(String title, String desc, String left, String center, String right, String toast) {
+        return new String[]{
+                "setting.lyrics_alignment", title,
+                "setting.lyrics_alignment_desc", desc,
+                "lyrics_alignment.left", left,
+                "lyrics_alignment.center", center,
+                "lyrics_alignment.right", right,
+                "toast.lyrics_alignment_saved", toast
+        };
+    }
+
+    private static void addPictureInPictureStrings(Map<String, Map<String, String>> languages) {
+        addLanguageStrings(languages, AppI18n::pictureInPictureStrings, AppI18n::pictureInPictureSettingStrings,
+                AppI18n::pictureInPictureSizeStrings);
+    }
+
+    private static String[] pictureInPictureStrings(String lang) {
+        switch (normalize(lang)) {
+            case "ko":
+                return pictureInPictureStringsValues("PiP로 가사 보기", "이 기기는 PiP를 지원하지 않습니다.", "PiP 모드를 열 수 없습니다.");
+            case "zh-CN":
+                return pictureInPictureStringsValues("用 PiP 查看歌词", "此设备不支持 PiP。", "无法打开 PiP 模式。");
+            case "zh-TW":
+                return pictureInPictureStringsValues("以 PiP 查看歌詞", "此裝置不支援 PiP。", "無法開啟 PiP 模式。");
+            case "ja":
+                return pictureInPictureStringsValues("PiPで歌詞を見る", "この端末は PiP に対応していません。", "PiP モードを開けません。");
+            case "hi":
+                return pictureInPictureStringsValues("PiP में लिरिक्स देखें", "यह डिवाइस PiP का समर्थन नहीं करता।", "PiP मोड नहीं खुल सका।");
+            case "es":
+                return pictureInPictureStringsValues("Ver letras en PiP", "Este dispositivo no admite PiP.", "No se pudo abrir el modo PiP.");
+            case "fr":
+                return pictureInPictureStringsValues("Voir les paroles en PiP", "Cet appareil ne prend pas en charge le PiP.", "Impossible d'ouvrir le mode PiP.");
+            case "ar":
+                return pictureInPictureStringsValues("عرض الكلمات في PiP", "هذا الجهاز لا يدعم PiP.", "تعذر فتح وضع PiP.");
+            case "fa":
+                return pictureInPictureStringsValues("نمایش متن در PiP", "این دستگاه از PiP پشتیبانی نمی‌کند.", "حالت PiP باز نشد.");
+            case "de":
+                return pictureInPictureStringsValues("Lyrics im PiP anzeigen", "Dieses Gerät unterstützt PiP nicht.", "PiP-Modus konnte nicht geöffnet werden.");
+            case "ru":
+                return pictureInPictureStringsValues("Показать текст в PiP", "Это устройство не поддерживает PiP.", "Не удалось открыть режим PiP.");
+            case "sv":
+                return pictureInPictureStringsValues("Visa text i PiP", "Den här enheten stöder inte PiP.", "Kunde inte öppna PiP-läget.");
+            case "pt":
+                return pictureInPictureStringsValues("Ver letras em PiP", "Este dispositivo não oferece suporte a PiP.", "Não foi possível abrir o modo PiP.");
+            case "bn":
+                return pictureInPictureStringsValues("PiP-এ লিরিক্স দেখুন", "এই ডিভাইস PiP সমর্থন করে না।", "PiP মোড খোলা যায়নি।");
+            case "it":
+                return pictureInPictureStringsValues("Mostra testo in PiP", "Questo dispositivo non supporta PiP.", "Impossibile aprire la modalità PiP.");
+            case "th":
+                return pictureInPictureStringsValues("ดูเนื้อเพลงแบบ PiP", "อุปกรณ์นี้ไม่รองรับ PiP", "ไม่สามารถเปิดโหมด PiP ได้");
+            case "vi":
+                return pictureInPictureStringsValues("Xem lời ở PiP", "Thiết bị này không hỗ trợ PiP.", "Không thể mở chế độ PiP.");
+            case "id":
+                return pictureInPictureStringsValues("Lihat lirik di PiP", "Perangkat ini tidak mendukung PiP.", "Tidak dapat membuka mode PiP.");
+            case "ms":
+                return pictureInPictureStringsValues("Lihat lirik dalam PiP", "Peranti ini tidak menyokong PiP.", "Tidak dapat membuka mod PiP.");
+            case "tr":
+                return pictureInPictureStringsValues("Sözleri PiP'de göster", "Bu cihaz PiP desteklemiyor.", "PiP modu açılamadı.");
+            default:
+                return pictureInPictureStringsValues("Show Lyrics in PiP", "This device does not support PiP.", "Could not open PiP mode.");
+        }
+    }
+
+    private static String[] pictureInPictureStringsValues(String open, String unavailable, String failed) {
+        return new String[]{
+                "pip.open_lyrics", open,
+                "pip.unavailable", unavailable,
+                "pip.enter_failed", failed
+        };
+    }
+
+    private static String[] pictureInPictureSettingStrings(String lang) {
+        switch (normalize(lang)) {
+            case "ko":
+                return pictureInPictureSettingStringsValues("PiP 모드", "작은 창에 표시할 내용과 방향을 조정합니다.", "앨범 이미지 표시", "끄면 PiP에 가사만 표시합니다.", "PiP 방향", "작은 창을 가로, 세로 또는 정사각형 비율로 띄웁니다.", "가로", "세로", "정사각형", "PiP 가사 정렬", "PiP 안의 가사 줄만 별도로 정렬합니다.", "PiP 설정이 저장되었습니다.");
+            case "zh-CN":
+                return pictureInPictureSettingStringsValues("PiP 模式", "调整小窗中显示的内容和方向。", "显示专辑图", "关闭后 PiP 只显示歌词。", "PiP 方向", "以横向、纵向或正方形比例显示小窗。", "横向", "纵向", "正方形", "PiP 歌词对齐", "仅单独对齐 PiP 中的歌词行。", "PiP 设置已保存。");
+            case "zh-TW":
+                return pictureInPictureSettingStringsValues("PiP 模式", "調整小視窗中顯示的內容與方向。", "顯示專輯圖", "關閉後 PiP 只顯示歌詞。", "PiP 方向", "以橫向、直向或正方形比例顯示小視窗。", "橫向", "直向", "正方形", "PiP 歌詞對齊", "只單獨對齊 PiP 中的歌詞行。", "PiP 設定已儲存。");
+            case "ja":
+                return pictureInPictureSettingStringsValues("PiP モード", "小さなウィンドウに表示する内容と向きを調整します。", "アルバム画像を表示", "オフにすると PiP には歌詞だけを表示します。", "PiP の向き", "小さなウィンドウを横、縦、または正方形で表示します。", "横", "縦", "正方形", "PiP 歌詞配置", "PiP 内の歌詞行だけを別に揃えます。", "PiP 設定を保存しました。");
+            case "hi":
+                return pictureInPictureSettingStringsValues("PiP मोड", "छोटी विंडो में दिखने वाली सामग्री और दिशा बदलें।", "एल्बम चित्र दिखाएं", "बंद करने पर PiP में केवल लिरिक्स दिखेंगे।", "PiP दिशा", "छोटी विंडो को लैंडस्केप, पोर्ट्रेट या वर्ग अनुपात में दिखाएं।", "लैंडस्केप", "पोर्ट्रेट", "वर्गाकार", "PiP लिरिक्स संरेखण", "केवल PiP में लिरिक्स पंक्तियों को अलग से संरेखित करें।", "PiP सेटिंग सहेजी गई।");
+            case "es":
+                return pictureInPictureSettingStringsValues("Modo PiP", "Ajusta el contenido y la orientación de la ventana pequeña.", "Mostrar portada", "Si se desactiva, PiP solo muestra la letra.", "Orientación PiP", "Muestra la ventana pequeña en horizontal, vertical o cuadrada.", "Horizontal", "Vertical", "Cuadrada", "Alineación de letras PiP", "Alinea solo las líneas de letra dentro de PiP.", "Configuración de PiP guardada.");
+            case "fr":
+                return pictureInPictureSettingStringsValues("Mode PiP", "Réglez le contenu et l'orientation de la petite fenêtre.", "Afficher la pochette", "Désactivé, le PiP affiche uniquement les paroles.", "Orientation PiP", "Affiche la petite fenêtre en paysage, portrait ou carré.", "Paysage", "Portrait", "Carré", "Alignement des paroles PiP", "Aligne séparément les lignes de paroles dans le PiP.", "Réglages PiP enregistrés.");
+            case "ar":
+                return pictureInPictureSettingStringsValues("وضع PiP", "اضبط المحتوى والاتجاه في النافذة الصغيرة.", "إظهار غلاف الألبوم", "عند إيقافه يعرض PiP الكلمات فقط.", "اتجاه PiP", "اعرض النافذة الصغيرة أفقياً أو عمودياً أو مربعة.", "أفقي", "عمودي", "مربع", "محاذاة كلمات PiP", "حاذِ سطور الكلمات داخل PiP بشكل منفصل.", "تم حفظ إعدادات PiP.");
+            case "fa":
+                return pictureInPictureSettingStringsValues("حالت PiP", "محتوا و جهت پنجره کوچک را تنظیم کنید.", "نمایش تصویر آلبوم", "با خاموش کردن، PiP فقط متن را نشان می‌دهد.", "جهت PiP", "پنجره کوچک را افقی، عمودی یا مربعی نشان دهید.", "افقی", "عمودی", "مربعی", "تراز متن PiP", "فقط خطوط متن داخل PiP را جداگانه تراز کنید.", "تنظیمات PiP ذخیره شد.");
+            case "de":
+                return pictureInPictureSettingStringsValues("PiP-Modus", "Inhalt und Ausrichtung des kleinen Fensters anpassen.", "Albumcover anzeigen", "Ausgeschaltet zeigt PiP nur Lyrics.", "PiP-Ausrichtung", "Kleines Fenster im Quer-, Hoch- oder Quadratformat anzeigen.", "Querformat", "Hochformat", "Quadrat", "PiP-Lyrics-Ausrichtung", "Richtet nur die Lyrics-Zeilen im PiP separat aus.", "PiP-Einstellungen gespeichert.");
+            case "ru":
+                return pictureInPictureSettingStringsValues("Режим PiP", "Настройте содержимое и ориентацию малого окна.", "Показывать обложку", "Если выключено, PiP показывает только текст.", "Ориентация PiP", "Показывать малое окно горизонтально, вертикально или квадратом.", "Альбомная", "Портретная", "Квадрат", "Выравнивание текста PiP", "Отдельно выравнивает строки текста только в PiP.", "Настройки PiP сохранены.");
+            case "sv":
+                return pictureInPictureSettingStringsValues("PiP-läge", "Justera innehåll och riktning i det lilla fönstret.", "Visa albumomslag", "Av visar bara text i PiP.", "PiP-riktning", "Visa det lilla fönstret liggande, stående eller kvadratiskt.", "Liggande", "Stående", "Kvadrat", "PiP-textjustering", "Justera bara textraderna i PiP separat.", "PiP-inställningar sparade.");
+            case "pt":
+                return pictureInPictureSettingStringsValues("Modo PiP", "Ajuste o conteúdo e a orientação da janela pequena.", "Mostrar capa", "Desativado, o PiP mostra apenas a letra.", "Orientação do PiP", "Mostre a janela pequena na horizontal, vertical ou quadrada.", "Horizontal", "Vertical", "Quadrado", "Alinhamento de letras PiP", "Alinha separadamente apenas as linhas de letra no PiP.", "Configurações de PiP salvas.");
+            case "bn":
+                return pictureInPictureSettingStringsValues("PiP মোড", "ছোট উইন্ডোর কনটেন্ট ও দিক ঠিক করুন।", "অ্যালবাম ছবি দেখান", "বন্ধ করলে PiP-এ শুধু লিরিক্স দেখাবে।", "PiP দিক", "ছোট উইন্ডো ল্যান্ডস্কেপ, পোর্ট্রেট বা বর্গাকারে দেখান।", "ল্যান্ডস্কেপ", "পোর্ট্রেট", "বর্গাকার", "PiP লিরিক্স সারিবদ্ধতা", "শুধু PiP-র লিরিক্স লাইন আলাদাভাবে সারিবদ্ধ করুন।", "PiP সেটিংস সংরক্ষিত।");
+            case "it":
+                return pictureInPictureSettingStringsValues("Modalità PiP", "Regola contenuto e orientamento della finestra piccola.", "Mostra copertina", "Se disattivato, PiP mostra solo il testo.", "Orientamento PiP", "Mostra la finestra piccola in orizzontale, verticale o quadrata.", "Orizzontale", "Verticale", "Quadrata", "Allineamento testo PiP", "Allinea separatamente solo le righe del testo in PiP.", "Impostazioni PiP salvate.");
+            case "th":
+                return pictureInPictureSettingStringsValues("โหมด PiP", "ปรับเนื้อหาและแนวของหน้าต่างเล็ก", "แสดงภาพอัลบั้ม", "ปิดแล้ว PiP จะแสดงเฉพาะเนื้อเพลง", "แนว PiP", "แสดงหน้าต่างเล็กแนวนอน แนวตั้ง หรือสี่เหลี่ยมจัตุรัส", "แนวนอน", "แนวตั้ง", "สี่เหลี่ยมจัตุรัส", "จัดแนวเนื้อเพลง PiP", "จัดแนวเฉพาะบรรทัดเนื้อเพลงใน PiP แยกต่างหาก", "บันทึกการตั้งค่า PiP แล้ว");
+            case "vi":
+                return pictureInPictureSettingStringsValues("Chế độ PiP", "Điều chỉnh nội dung và hướng của cửa sổ nhỏ.", "Hiện ảnh album", "Tắt để PiP chỉ hiển thị lời bài hát.", "Hướng PiP", "Hiển thị cửa sổ nhỏ ngang, dọc hoặc vuông.", "Ngang", "Dọc", "Vuông", "Căn lề lời PiP", "Chỉ căn lề riêng các dòng lời trong PiP.", "Đã lưu cài đặt PiP.");
+            case "id":
+                return pictureInPictureSettingStringsValues("Mode PiP", "Atur konten dan orientasi jendela kecil.", "Tampilkan sampul album", "Jika mati, PiP hanya menampilkan lirik.", "Orientasi PiP", "Tampilkan jendela kecil secara lanskap, potret, atau persegi.", "Lanskap", "Potret", "Persegi", "Perataan lirik PiP", "Ratakan hanya baris lirik di PiP secara terpisah.", "Pengaturan PiP disimpan.");
+            case "ms":
+                return pictureInPictureSettingStringsValues("Mod PiP", "Laraskan kandungan dan orientasi tetingkap kecil.", "Tunjuk kulit album", "Jika dimatikan, PiP hanya memaparkan lirik.", "Orientasi PiP", "Paparkan tetingkap kecil secara landskap, potret atau segi empat.", "Landskap", "Potret", "Segi empat sama", "Penjajaran lirik PiP", "Jajarkan hanya baris lirik dalam PiP secara berasingan.", "Tetapan PiP disimpan.");
+            case "tr":
+                return pictureInPictureSettingStringsValues("PiP modu", "Küçük pencerede gösterilecek içeriği ve yönü ayarlayın.", "Albüm görselini göster", "Kapalıyken PiP yalnızca sözleri gösterir.", "PiP yönü", "Küçük pencereyi yatay, dikey veya kare oranla göster.", "Yatay", "Dikey", "Kare", "PiP söz hizalaması", "Yalnızca PiP içindeki söz satırlarını ayrı hizala.", "PiP ayarları kaydedildi.");
+            default:
+                return pictureInPictureSettingStringsValues("PiP Mode", "Choose what appears in the small window and its orientation.", "Show album artwork", "Turn off to show only lyrics in PiP.", "PiP orientation", "Show the small window in landscape, portrait, or square.", "Landscape", "Portrait", "Square", "PiP lyrics alignment", "Align only the lyric lines inside PiP separately.", "PiP settings saved.");
+        }
+    }
+
+    private static String[] pictureInPictureSettingStringsValues(String section, String sectionDesc, String showArtwork, String showArtworkDesc, String orientation, String orientationDesc, String landscape, String portrait, String square, String lyricsAlignment, String lyricsAlignmentDesc, String saved) {
+        return new String[]{
+                "section.pip", section,
+                "section.pip_desc", sectionDesc,
+                "setting.pip_show_artwork", showArtwork,
+                "setting.pip_show_artwork_desc", showArtworkDesc,
+                "setting.pip_orientation", orientation,
+                "setting.pip_orientation_desc", orientationDesc,
+                "pip.orientation.landscape", landscape,
+                "pip.orientation.portrait", portrait,
+                "pip.orientation.square", square,
+                "setting.pip_lyrics_alignment", lyricsAlignment,
+                "setting.pip_lyrics_alignment_desc", lyricsAlignmentDesc,
+                "toast.pip_settings_saved", saved
+        };
+    }
+
+    private static String[] pictureInPictureSizeStrings(String lang) {
+        switch (normalize(lang)) {
+            case "ko":
+                return pictureInPictureSizeStringsValues("PiP 가사 크기", "일반 가사페이지에서 설정한 가사 크기를 기준으로 PiP 안의 가사만 비율로 조정합니다.");
+            case "zh-CN":
+                return pictureInPictureSizeStringsValues("PiP 歌词大小", "以普通歌词页设置的歌词大小为基准，仅按比例调整 PiP 中的歌词。");
+            case "zh-TW":
+                return pictureInPictureSizeStringsValues("PiP 歌詞大小", "以一般歌詞頁設定的歌詞大小為基準，只按比例調整 PiP 中的歌詞。");
+            case "ja":
+                return pictureInPictureSizeStringsValues("PiP 歌詞サイズ", "通常の歌詞ページで設定した歌詞サイズを基準に、PiP 内の歌詞だけを比率で調整します。");
+            case "hi":
+                return pictureInPictureSizeStringsValues("PiP लिरिक्स आकार", "सामान्य लिरिक्स पेज के आकार को आधार मानकर केवल PiP की लिरिक्स को प्रतिशत से बदलें।");
+            case "es":
+                return pictureInPictureSizeStringsValues("Tamaño de letra PiP", "Ajusta solo la letra dentro de PiP como porcentaje del tamaño configurado en la página normal.");
+            case "fr":
+                return pictureInPictureSizeStringsValues("Taille des paroles PiP", "Ajuste uniquement les paroles dans le PiP en pourcentage de la taille de la page normale.");
+            case "ar":
+                return pictureInPictureSizeStringsValues("حجم كلمات PiP", "اضبط كلمات PiP فقط كنسبة من حجم الكلمات المحدد في صفحة الكلمات العادية.");
+            case "fa":
+                return pictureInPictureSizeStringsValues("اندازه متن PiP", "فقط متن داخل PiP را بر اساس درصدی از اندازه متن صفحه عادی تنظیم کنید.");
+            case "de":
+                return pictureInPictureSizeStringsValues("PiP-Lyrics-Größe", "Passt nur die Lyrics im PiP als Prozentsatz der normalen Lyrics-Seitengröße an.");
+            case "ru":
+                return pictureInPictureSizeStringsValues("Размер текста PiP", "Настраивает только текст в PiP как процент от размера текста обычной страницы.");
+            case "sv":
+                return pictureInPictureSizeStringsValues("PiP-textstorlek", "Justera bara texten i PiP som procent av storleken på den vanliga textsidan.");
+            case "pt":
+                return pictureInPictureSizeStringsValues("Tamanho da letra PiP", "Ajusta apenas a letra no PiP como porcentagem do tamanho definido na página normal.");
+            case "bn":
+                return pictureInPictureSizeStringsValues("PiP লিরিক্স আকার", "সাধারণ লিরিক্স পেজের আকারকে ভিত্তি ধরে শুধু PiP লিরিক্স শতাংশে বদলান।");
+            case "it":
+                return pictureInPictureSizeStringsValues("Dimensione testo PiP", "Regola solo il testo in PiP come percentuale della dimensione impostata nella pagina normale.");
+            case "th":
+                return pictureInPictureSizeStringsValues("ขนาดเนื้อเพลง PiP", "ปรับเฉพาะเนื้อเพลงใน PiP เป็นเปอร์เซ็นต์จากขนาดในหน้าเนื้อเพลงปกติ");
+            case "vi":
+                return pictureInPictureSizeStringsValues("Cỡ lời PiP", "Chỉ chỉnh lời trong PiP theo phần trăm của cỡ lời ở trang lời bình thường.");
+            case "id":
+                return pictureInPictureSizeStringsValues("Ukuran lirik PiP", "Atur hanya lirik di PiP sebagai persentase dari ukuran lirik halaman normal.");
+            case "ms":
+                return pictureInPictureSizeStringsValues("Saiz lirik PiP", "Laraskan hanya lirik dalam PiP sebagai peratus saiz lirik halaman biasa.");
+            case "tr":
+                return pictureInPictureSizeStringsValues("PiP söz boyutu", "Yalnızca PiP içindeki sözleri normal söz sayfası boyutunun yüzdesi olarak ayarla.");
+            default:
+                return pictureInPictureSizeStringsValues("PiP lyric size", "Scale only the lyrics inside PiP as a percentage of the normal lyrics page size.");
+        }
+    }
+
+    private static String[] pictureInPictureSizeStringsValues(String title, String desc) {
+        return new String[]{
+                "setting.pip_lyrics_size", title,
+                "setting.pip_lyrics_size_desc", desc
+        };
+    }
+
+    private static void addTrackBackgroundStrings(Map<String, Map<String, String>> languages) {
+        addLanguageStrings(languages, AppI18n::trackBackgroundStrings);
+    }
+
+    private static String[] trackBackgroundStrings(String lang) {
+        String language = normalize(lang);
+        if ("ko".equals(language)) {
+            return new String[]{
+                    "lyrics.tab.background", "배경",
+                    "lyrics.background.title", "현재 곡 배경",
+                    "lyrics.background.desc", "설정의 전체 배경값 대신 이 곡에만 적용할 배경을 저장합니다.",
+                    "lyrics.background.override", "이 곡에만 적용",
+                    "lyrics.background.override_desc", "끄면 설정 화면의 전체 배경 설정을 사용합니다.",
+                    "lyrics.background.mode_desc", "앨범 커버, 블러 그라데이션, 영상, 단색 중 이 곡에만 사용할 방식을 선택합니다.",
+                    "lyrics.background.reset", "이 곡 배경 초기화",
+                    "toast.track_background_saved", "현재 곡 배경 저장됨",
+                    "toast.track_background_cleared", "현재 곡 배경 초기화됨"
+            };
+        }
+        return new String[]{
+                "lyrics.tab.background", trackBackgroundTabLabel(language),
+                "lyrics.background.title", "Current Track Background",
+                "lyrics.background.desc", "Save a background override for this track instead of the global background setting.",
+                "lyrics.background.override", "Apply only to this track",
+                "lyrics.background.override_desc", "Turn this off to use the global background settings.",
+                "lyrics.background.mode_desc", "Choose album cover, blurred gradient, video, or solid color for this track only.",
+                "lyrics.background.reset", "Reset This Track Background",
+                "toast.track_background_saved", "Track background saved",
+                "toast.track_background_cleared", "Track background reset"
+        };
+    }
+
+    /** The lyrics popup's background tab, worded as in the iOS app. */
+    private static String trackBackgroundTabLabel(String language) {
+        switch (language) {
+            case "zh-CN":
+            case "zh-TW":
+            case "ja":
+                return "背景";
+            case "hi": return "पृष्ठभूमि";
+            case "es": return "Fondo";
+            case "fr": return "Arrière-plan";
+            case "ar": return "الخلفية";
+            case "fa": return "پس‌زمینه";
+            case "de": return "Hintergrund";
+            case "ru": return "Фон";
+            case "sv": return "Bakgrund";
+            case "pt": return "Fundo";
+            case "bn": return "পটভূমি";
+            case "it": return "Sfondo";
+            case "th": return "พื้นหลัง";
+            case "vi": return "Nền";
+            case "id":
+            case "ms":
+                return "Latar belakang";
+            case "tr": return "Arka plan";
+            case "cs": return "Pozadí";
+            default: return "Background";
+        }
+    }
+
+    private static void addLandscapeNoLyricsStrings(Map<String, Map<String, String>> languages) {
+        addLanguageStrings(languages, AppI18n::landscapeNoLyricsStrings);
+    }
+
+    private static String[] landscapeNoLyricsStrings(String lang) {
+        if ("ko".equals(normalize(lang))) {
+            return new String[]{
+                    "setting.landscape_center_no_lyrics", "가로모드 가사 없음 중앙 정렬",
+                    "setting.landscape_center_no_lyrics_desc", "가사가 없을 때 앨범과 컨트롤을 화면 가운데에 배치합니다. 끄면 기존처럼 좌우 분할 상태를 유지합니다.",
+                    "toast.landscape_center_no_lyrics_on", "가사 없음 중앙 정렬 켜짐",
+                    "toast.landscape_center_no_lyrics_off", "가사 없음 중앙 정렬 꺼짐"
+            };
+        }
+        return new String[]{
+                "setting.landscape_center_no_lyrics", "Center landscape player without lyrics",
+                "setting.landscape_center_no_lyrics_desc", "When no lyrics are available, center the album and controls. Turn this off to keep the split landscape layout.",
+                "toast.landscape_center_no_lyrics_on", "No-lyrics landscape centering on",
+                "toast.landscape_center_no_lyrics_off", "No-lyrics landscape centering off"
+        };
+    }
+
+    private static void addPollinationsAuthStrings(Map<String, Map<String, String>> languages) {
+        addLanguageStrings(languages, AppI18n::pollinationsAuthStrings);
+    }
+
+    private static String[] pollinationsAuthStrings(String lang) {
+        if ("ko".equals(normalize(lang))) {
+            return new String[]{
+                    "pollinations.account", "Pollinations 계정",
+                    "pollinations.account_desc", "Pollinations는 API key 직접 입력과 계정 로그인 토큰을 모두 지원합니다. 로그인 토큰이 있으면 우선 사용됩니다.",
+                    "pollinations.connect", "Pollinations 로그인",
+                    "pollinations.reconnect", "다시 로그인",
+                    "pollinations.waiting", "로그인 대기 중",
+                    "pollinations.open_login", "로그인 페이지 열기",
+                    "pollinations.disconnect", "연결 해제",
+                    "pollinations.test", "연결 테스트",
+                    "pollinations.configured", "설정됨",
+                    "pollinations.status_disconnected", "Pollinations 계정이 연결되어 있지 않습니다. 수동 access key를 입력하거나 로그인하세요.",
+                    "pollinations.status_requesting", "Pollinations 로그인 코드를 요청하는 중...",
+                    "pollinations.status_waiting", "브라우저에서 Pollinations 로그인을 완료하면 자동으로 연결됩니다.",
+                    "pollinations.status_code_format", "브라우저에서 Pollinations 로그인을 완료하세요. 코드: %s",
+                    "pollinations.user_code_format", "Pollinations 로그인 코드: %s",
+                    "pollinations.status_connected_format", "Pollinations 로그인 연결됨: %s",
+                    "pollinations.status_saved", "Pollinations 로그인 토큰을 저장했습니다.",
+                    "pollinations.status_failed_format", "Pollinations 연결 실패: %s",
+                    "pollinations.status_no_token", "테스트할 Pollinations 토큰이 없습니다.",
+                    "pollinations.status_testing", "Pollinations 토큰 확인 중...",
+                    "pollinations.status_valid", "Pollinations 토큰 유효",
+                    "pollinations.status_invalid", "Pollinations 토큰 유효하지 않음",
+                    "pollinations.expires_days_format", "%d일 후 만료",
+                    "pollinations.toast_connected", "Pollinations 연결됨",
+                    "pollinations.toast_disconnected", "Pollinations 연결 해제됨",
+                    "pollinations.toast_failed", "Pollinations 연결 실패",
+                    "pollinations.toast_valid", "Pollinations 토큰 확인됨"
+            };
+        }
+        return new String[]{
+                "pollinations.account", "Pollinations Account",
+                "pollinations.account_desc", "Pollinations supports both manual API keys and account login tokens. Login tokens are used first when available.",
+                "pollinations.connect", "Sign in to Pollinations",
+                "pollinations.reconnect", "Reconnect",
+                "pollinations.waiting", "Waiting for login",
+                "pollinations.open_login", "Open Login Page",
+                "pollinations.disconnect", "Disconnect",
+                "pollinations.test", "Test Connection",
+                "pollinations.configured", "configured",
+                "pollinations.status_disconnected", "Pollinations is not connected. Enter a manual access key or sign in.",
+                "pollinations.status_requesting", "Requesting Pollinations login code...",
+                "pollinations.status_waiting", "Complete Pollinations login in your browser. The app will connect automatically.",
+                "pollinations.status_code_format", "Complete Pollinations login in your browser. Code: %s",
+                "pollinations.user_code_format", "Pollinations login code: %s",
+                "pollinations.status_connected_format", "Pollinations login connected: %s",
+                "pollinations.status_saved", "Pollinations login token saved.",
+                "pollinations.status_failed_format", "Pollinations connection failed: %s",
+                "pollinations.status_no_token", "No Pollinations token is available to test.",
+                "pollinations.status_testing", "Checking Pollinations token...",
+                "pollinations.status_valid", "Pollinations token valid",
+                "pollinations.status_invalid", "Pollinations token invalid",
+                "pollinations.expires_days_format", "expires in %d day(s)",
+                "pollinations.toast_connected", "Pollinations connected",
+                "pollinations.toast_disconnected", "Pollinations disconnected",
+                "pollinations.toast_failed", "Pollinations connection failed",
+                "pollinations.toast_valid", "Pollinations token verified"
+        };
+    }
+
+    private static void addManualLrclibSearchStrings(Map<String, Map<String, String>> languages) {
+        addLanguageStrings(languages, AppI18n::manualLrclibSearchStrings);
+    }
+
+    private static String[] manualLrclibSearchStrings(String lang) {
+        switch (normalize(lang)) {
+            case "ko":
+                return new String[]{
+                        "lyrics.lrclib_search.title", "LRCLIB 수동 검색",
+                        "lyrics.lrclib_search.desc", "현재 곡에 맞지 않는 가사가 불러와졌을 때 LRCLIB에서 직접 검색해 적용합니다.",
+                        "lyrics.lrclib_search.title_hint", "곡 제목",
+                        "lyrics.lrclib_search.artist_hint", "아티스트",
+                        "lyrics.lrclib_search.field_title", "제목",
+                        "lyrics.lrclib_search.field_artist", "아티스트",
+                        "lyrics.lrclib_search.button", "LRCLIB 검색",
+                        "lyrics.lrclib_search.ready", "검색어를 확인한 뒤 LRCLIB를 검색하세요.",
+                        "lyrics.lrclib_search.empty_title", "검색할 곡 제목을 입력하세요.",
+                        "lyrics.lrclib_search.loading", "LRCLIB 검색 중...",
+                        "lyrics.lrclib_search.no_results", "LRCLIB 결과가 없습니다.",
+                        "lyrics.lrclib_search.result_count_format", "LRCLIB 결과 %d개",
+                        "lyrics.lrclib_search.selecting", "선택한 LRCLIB 가사를 불러오는 중...",
+                        "lyrics.lrclib_search.loaded", "LRCLIB 가사를 적용했습니다.",
+                        "lyrics.lrclib_search.error_format", "LRCLIB 검색 실패: %s",
+                        "lyrics.lrclib_search.instrumental", "연주곡",
+                        "lyrics.lrclib_search.synced", "싱크",
+                        "lyrics.lrclib_search.plain", "일반",
+                        "repo.detail.manual_lrclib", "수동으로 선택한 LRCLIB 가사입니다."
+                };
+            case "zh-CN":
+                return new String[]{
+                        "lyrics.lrclib_search.title", "手动搜索 LRCLIB",
+                        "lyrics.lrclib_search.desc", "当加载的歌词不匹配当前歌曲时，可在 LRCLIB 中手动搜索并应用。",
+                        "lyrics.lrclib_search.title_hint", "歌曲标题",
+                        "lyrics.lrclib_search.artist_hint", "艺人",
+                        "lyrics.lrclib_search.field_title", "标题",
+                        "lyrics.lrclib_search.field_artist", "艺人",
+                        "lyrics.lrclib_search.button", "搜索 LRCLIB",
+                        "lyrics.lrclib_search.ready", "确认关键词后搜索 LRCLIB。",
+                        "lyrics.lrclib_search.empty_title", "请输入要搜索的歌曲标题。",
+                        "lyrics.lrclib_search.loading", "正在搜索 LRCLIB...",
+                        "lyrics.lrclib_search.no_results", "没有 LRCLIB 结果。",
+                        "lyrics.lrclib_search.result_count_format", "%d 个 LRCLIB 结果",
+                        "lyrics.lrclib_search.selecting", "正在加载所选 LRCLIB 歌词...",
+                        "lyrics.lrclib_search.loaded", "已应用 LRCLIB 歌词。",
+                        "lyrics.lrclib_search.error_format", "LRCLIB 搜索失败：%s",
+                        "lyrics.lrclib_search.instrumental", "纯音乐",
+                        "lyrics.lrclib_search.synced", "同步",
+                        "lyrics.lrclib_search.plain", "纯文本",
+                        "repo.detail.manual_lrclib", "这是手动选择的 LRCLIB 歌词。"
+                };
+            case "zh-TW":
+                return new String[]{
+                        "lyrics.lrclib_search.title", "手動搜尋 LRCLIB",
+                        "lyrics.lrclib_search.desc", "載入的歌詞不符合目前歌曲時，可在 LRCLIB 中手動搜尋並套用。",
+                        "lyrics.lrclib_search.title_hint", "歌曲標題",
+                        "lyrics.lrclib_search.artist_hint", "藝人",
+                        "lyrics.lrclib_search.field_title", "標題",
+                        "lyrics.lrclib_search.field_artist", "藝人",
+                        "lyrics.lrclib_search.button", "搜尋 LRCLIB",
+                        "lyrics.lrclib_search.ready", "確認關鍵字後搜尋 LRCLIB。",
+                        "lyrics.lrclib_search.empty_title", "請輸入要搜尋的歌曲標題。",
+                        "lyrics.lrclib_search.loading", "正在搜尋 LRCLIB...",
+                        "lyrics.lrclib_search.no_results", "沒有 LRCLIB 結果。",
+                        "lyrics.lrclib_search.result_count_format", "%d 個 LRCLIB 結果",
+                        "lyrics.lrclib_search.selecting", "正在載入所選 LRCLIB 歌詞...",
+                        "lyrics.lrclib_search.loaded", "已套用 LRCLIB 歌詞。",
+                        "lyrics.lrclib_search.error_format", "LRCLIB 搜尋失敗：%s",
+                        "lyrics.lrclib_search.instrumental", "純音樂",
+                        "lyrics.lrclib_search.synced", "同步",
+                        "lyrics.lrclib_search.plain", "純文字",
+                        "repo.detail.manual_lrclib", "這是手動選取的 LRCLIB 歌詞。"
+                };
+            case "ja":
+                return new String[]{
+                        "lyrics.lrclib_search.title", "LRCLIBを手動検索",
+                        "lyrics.lrclib_search.desc", "現在の曲と違う歌詞が読み込まれたとき、LRCLIBで直接検索して適用します。",
+                        "lyrics.lrclib_search.title_hint", "曲名",
+                        "lyrics.lrclib_search.artist_hint", "アーティスト",
+                        "lyrics.lrclib_search.field_title", "曲名",
+                        "lyrics.lrclib_search.field_artist", "アーティスト",
+                        "lyrics.lrclib_search.button", "LRCLIBを検索",
+                        "lyrics.lrclib_search.ready", "検索語を確認してLRCLIBを検索してください。",
+                        "lyrics.lrclib_search.empty_title", "検索する曲名を入力してください。",
+                        "lyrics.lrclib_search.loading", "LRCLIBを検索中...",
+                        "lyrics.lrclib_search.no_results", "LRCLIBの結果がありません。",
+                        "lyrics.lrclib_search.result_count_format", "LRCLIB結果 %d件",
+                        "lyrics.lrclib_search.selecting", "選択したLRCLIB歌詞を読み込み中...",
+                        "lyrics.lrclib_search.loaded", "LRCLIB歌詞を適用しました。",
+                        "lyrics.lrclib_search.error_format", "LRCLIB検索失敗: %s",
+                        "lyrics.lrclib_search.instrumental", "インスト",
+                        "lyrics.lrclib_search.synced", "同期",
+                        "lyrics.lrclib_search.plain", "通常",
+                        "repo.detail.manual_lrclib", "手動で選択したLRCLIB歌詞です。"
+                };
+            case "hi":
+                return manualLrclibSearchStringsEn(
+                        "Manual LRCLIB Search",
+                        "Search LRCLIB directly and apply a result when the loaded lyrics do not match this song."
+                );
+            case "es":
+                return new String[]{
+                        "lyrics.lrclib_search.title", "Buscar LRCLIB manualmente",
+                        "lyrics.lrclib_search.desc", "Si la letra cargada no coincide con la canción actual, busca en LRCLIB y aplícala.",
+                        "lyrics.lrclib_search.title_hint", "Título",
+                        "lyrics.lrclib_search.artist_hint", "Artista",
+                        "lyrics.lrclib_search.field_title", "Título",
+                        "lyrics.lrclib_search.field_artist", "Artista",
+                        "lyrics.lrclib_search.button", "Buscar en LRCLIB",
+                        "lyrics.lrclib_search.ready", "Revisa la búsqueda y busca en LRCLIB.",
+                        "lyrics.lrclib_search.empty_title", "Introduce el título de la canción.",
+                        "lyrics.lrclib_search.loading", "Buscando en LRCLIB...",
+                        "lyrics.lrclib_search.no_results", "No hay resultados de LRCLIB.",
+                        "lyrics.lrclib_search.result_count_format", "%d resultados de LRCLIB",
+                        "lyrics.lrclib_search.selecting", "Cargando la letra LRCLIB seleccionada...",
+                        "lyrics.lrclib_search.loaded", "Letra LRCLIB aplicada.",
+                        "lyrics.lrclib_search.error_format", "Error al buscar en LRCLIB: %s",
+                        "lyrics.lrclib_search.instrumental", "Instrumental",
+                        "lyrics.lrclib_search.synced", "Sincronizada",
+                        "lyrics.lrclib_search.plain", "Simple",
+                        "repo.detail.manual_lrclib", "Letra LRCLIB seleccionada manualmente."
+                };
+            case "fr":
+                return new String[]{
+                        "lyrics.lrclib_search.title", "Recherche LRCLIB manuelle",
+                        "lyrics.lrclib_search.desc", "Si les paroles chargées ne correspondent pas, cherchez dans LRCLIB et appliquez le bon résultat.",
+                        "lyrics.lrclib_search.title_hint", "Titre",
+                        "lyrics.lrclib_search.artist_hint", "Artiste",
+                        "lyrics.lrclib_search.field_title", "Titre",
+                        "lyrics.lrclib_search.field_artist", "Artiste",
+                        "lyrics.lrclib_search.button", "Rechercher dans LRCLIB",
+                        "lyrics.lrclib_search.ready", "Vérifiez les termes puis recherchez dans LRCLIB.",
+                        "lyrics.lrclib_search.empty_title", "Saisissez le titre a rechercher.",
+                        "lyrics.lrclib_search.loading", "Recherche LRCLIB...",
+                        "lyrics.lrclib_search.no_results", "Aucun résultat LRCLIB.",
+                        "lyrics.lrclib_search.result_count_format", "%d résultats LRCLIB",
+                        "lyrics.lrclib_search.selecting", "Chargement des paroles LRCLIB choisies...",
+                        "lyrics.lrclib_search.loaded", "Paroles LRCLIB appliquées.",
+                        "lyrics.lrclib_search.error_format", "Échec de la recherche LRCLIB : %s",
+                        "lyrics.lrclib_search.instrumental", "Instrumental",
+                        "lyrics.lrclib_search.synced", "Synchronisé",
+                        "lyrics.lrclib_search.plain", "Simple",
+                        "repo.detail.manual_lrclib", "Paroles LRCLIB choisies manuellement."
+                };
+            case "ar":
+                return manualLrclibSearchStringsEn("بحث LRCLIB يدوي", "ابحث في LRCLIB مباشرة وطبّق النتيجة المناسبة لهذه الأغنية.");
+            case "fa":
+                return manualLrclibSearchStringsEn("جستجوی دستی LRCLIB", "اگر متن بارگذاری‌شده درست نیست، مستقیماً در LRCLIB جستجو و اعمال کنید.");
+            case "de":
+                return new String[]{
+                        "lyrics.lrclib_search.title", "LRCLIB manuell suchen",
+                        "lyrics.lrclib_search.desc", "Wenn die geladenen Lyrics nicht passen, suchen Sie direkt in LRCLIB und wenden ein Ergebnis an.",
+                        "lyrics.lrclib_search.title_hint", "Titel",
+                        "lyrics.lrclib_search.artist_hint", "Kuenstler",
+                        "lyrics.lrclib_search.field_title", "Titel",
+                        "lyrics.lrclib_search.field_artist", "Kuenstler",
+                        "lyrics.lrclib_search.button", "LRCLIB durchsuchen",
+                        "lyrics.lrclib_search.ready", "Suchbegriffe prüfen und LRCLIB durchsuchen.",
+                        "lyrics.lrclib_search.empty_title", "Geben Sie den Songtitel ein.",
+                        "lyrics.lrclib_search.loading", "LRCLIB wird gesucht...",
+                        "lyrics.lrclib_search.no_results", "Keine LRCLIB-Ergebnisse.",
+                        "lyrics.lrclib_search.result_count_format", "%d LRCLIB-Ergebnisse",
+                        "lyrics.lrclib_search.selecting", "Ausgewaehlte LRCLIB-Lyrics werden geladen...",
+                        "lyrics.lrclib_search.loaded", "LRCLIB-Lyrics angewendet.",
+                        "lyrics.lrclib_search.error_format", "LRCLIB-Suche fehlgeschlagen: %s",
+                        "lyrics.lrclib_search.instrumental", "Instrumental",
+                        "lyrics.lrclib_search.synced", "Synchron",
+                        "lyrics.lrclib_search.plain", "Normal",
+                        "repo.detail.manual_lrclib", "Manuell ausgewaehlte LRCLIB-Lyrics."
+                };
+            case "ru":
+                return manualLrclibSearchStringsEn("Ручной поиск LRCLIB", "Если загруженный текст не подходит, найдите его в LRCLIB и примените вручную.");
+            case "sv":
+                return manualLrclibSearchStringsEn("Manuell LRCLIB-sokning", "Sok direkt i LRCLIB och anvand ratt resultat nar texten inte passar laten.");
+            case "pt":
+                return new String[]{
+                        "lyrics.lrclib_search.title", "Busca manual no LRCLIB",
+                        "lyrics.lrclib_search.desc", "Quando a letra carregada não combina, pesquise no LRCLIB e aplique o resultado correto.",
+                        "lyrics.lrclib_search.title_hint", "Titulo",
+                        "lyrics.lrclib_search.artist_hint", "Artista",
+                        "lyrics.lrclib_search.field_title", "Titulo",
+                        "lyrics.lrclib_search.field_artist", "Artista",
+                        "lyrics.lrclib_search.button", "Buscar no LRCLIB",
+                        "lyrics.lrclib_search.ready", "Confira os termos e busque no LRCLIB.",
+                        "lyrics.lrclib_search.empty_title", "Digite o titulo da musica.",
+                        "lyrics.lrclib_search.loading", "Buscando no LRCLIB...",
+                        "lyrics.lrclib_search.no_results", "Nenhum resultado do LRCLIB.",
+                        "lyrics.lrclib_search.result_count_format", "%d resultados do LRCLIB",
+                        "lyrics.lrclib_search.selecting", "Carregando a letra LRCLIB escolhida...",
+                        "lyrics.lrclib_search.loaded", "Letra LRCLIB aplicada.",
+                        "lyrics.lrclib_search.error_format", "Falha na busca LRCLIB: %s",
+                        "lyrics.lrclib_search.instrumental", "Instrumental",
+                        "lyrics.lrclib_search.synced", "Sincronizada",
+                        "lyrics.lrclib_search.plain", "Simples",
+                        "repo.detail.manual_lrclib", "Letra LRCLIB selecionada manualmente."
+                };
+            case "bn":
+                return manualLrclibSearchStringsEn("Manual LRCLIB Search", "Search LRCLIB directly and apply a result when the loaded lyrics do not match this song.");
+            case "it":
+                return manualLrclibSearchStringsEn("Ricerca LRCLIB manuale", "Cerca direttamente in LRCLIB e applica il risultato quando il testo non corrisponde al brano.");
+            case "th":
+                return manualLrclibSearchStringsEn("ค้นหา LRCLIB ด้วยตนเอง", "ค้นหาใน LRCLIB โดยตรงและใช้ผลลัพธ์เมื่อเนื้อเพลงไม่ตรงกับเพลงนี้");
+            case "vi":
+                return manualLrclibSearchStringsEn("Tim LRCLIB thu cong", "Tim truc tiep trong LRCLIB va ap dung ket qua khi loi bai hat khong dung voi bai nay.");
+            case "id":
+                return manualLrclibSearchStringsEn("Pencarian LRCLIB manual", "Cari langsung di LRCLIB dan terapkan hasil saat lirik tidak cocok dengan lagu ini.");
+            case "ms":
+                return manualLrclibSearchStringsEn("Carian LRCLIB manual", "Cari terus dalam LRCLIB dan guna keputusan apabila lirik tidak sepadan dengan lagu ini.");
+            case "tr":
+                return new String[]{
+                        "lyrics.lrclib_search.title", "LRCLIB El ile Arama",
+                        "lyrics.lrclib_search.desc", "Yüklenen sözler bu şarkıyla eşleşmediğinde LRCLIB'de doğrudan arayın ve bir sonucu uygulayın.",
+                        "lyrics.lrclib_search.title_hint", "Şarkı başlığı",
+                        "lyrics.lrclib_search.artist_hint", "Sanatçı",
+                        "lyrics.lrclib_search.field_title", "Başlık",
+                        "lyrics.lrclib_search.field_artist", "Sanatçı",
+                        "lyrics.lrclib_search.button", "LRCLIB'de Ara",
+                        "lyrics.lrclib_search.ready", "Arama terimlerini kontrol edip LRCLIB'de arayın.",
+                        "lyrics.lrclib_search.empty_title", "Aranacak şarkı başlığını girin.",
+                        "lyrics.lrclib_search.loading", "LRCLIB aranıyor...",
+                        "lyrics.lrclib_search.no_results", "LRCLIB sonucu yok.",
+                        "lyrics.lrclib_search.result_count_format", "%d LRCLIB sonucu",
+                        "lyrics.lrclib_search.selecting", "Seçili LRCLIB sözleri yükleniyor...",
+                        "lyrics.lrclib_search.loaded", "LRCLIB sözleri uygulandı.",
+                        "lyrics.lrclib_search.error_format", "LRCLIB araması başarısız: %s",
+                        "lyrics.lrclib_search.instrumental", "Enstrümantal",
+                        "lyrics.lrclib_search.synced", "Senkronlu",
+                        "lyrics.lrclib_search.plain", "Düz",
+                        "repo.detail.manual_lrclib", "El ile seçilen LRCLIB sözleri."
+                };
+            default:
+                return manualLrclibSearchStringsEn(
+                        "Manual LRCLIB Search",
+                        "Search LRCLIB directly and apply a result when the loaded lyrics do not match this song."
+                );
+        }
+    }
+
+    private static String[] manualLrclibSearchStringsEn(String title, String desc) {
+        return new String[]{
+                "lyrics.lrclib_search.title", title,
+                "lyrics.lrclib_search.desc", desc,
+                "lyrics.lrclib_search.title_hint", "Song title",
+                "lyrics.lrclib_search.artist_hint", "Artist",
+                "lyrics.lrclib_search.field_title", "Title",
+                "lyrics.lrclib_search.field_artist", "Artist",
+                "lyrics.lrclib_search.button", "Search LRCLIB",
+                "lyrics.lrclib_search.ready", "Check the search terms, then search LRCLIB.",
+                "lyrics.lrclib_search.empty_title", "Enter a song title to search.",
+                "lyrics.lrclib_search.loading", "Searching LRCLIB...",
+                "lyrics.lrclib_search.no_results", "No LRCLIB results.",
+                "lyrics.lrclib_search.result_count_format", "%d LRCLIB results",
+                "lyrics.lrclib_search.selecting", "Loading the selected LRCLIB lyrics...",
+                "lyrics.lrclib_search.loaded", "LRCLIB lyrics applied.",
+                "lyrics.lrclib_search.error_format", "LRCLIB search failed: %s",
+                "lyrics.lrclib_search.instrumental", "Instrumental",
+                "lyrics.lrclib_search.synced", "Synced",
+                "lyrics.lrclib_search.plain", "Plain",
+                "repo.detail.manual_lrclib", "Manually selected LRCLIB lyrics."
+        };
+    }
+
+    private static void addSpotifyShortcutStrings(Map<String, Map<String, String>> languages) {
+        addLanguageStrings(languages, AppI18n::spotifyShortcutStrings);
+    }
+
+    private static String[] spotifyShortcutStrings(String lang) {
+        switch (normalize(lang)) {
+            case "ko":
+                return new String[]{
+                        "section.spotify_shortcut", "Spotify 바로가기",
+                        "section.spotify_shortcut_desc", "Spotify 재생 화면에서만 작은 이동식 아이콘을 띄웁니다. 누르면 ivLyrics 가사 페이지로 이동합니다.",
+                        "button.open_accessibility_permission", "Spotify 감지 권한 열기",
+                        "button.accessibility_permission_enabled", "Spotify 감지 권한 허용됨",
+                        "button.open_overlay_permission", "플로팅 아이콘 권한 열기",
+                        "button.overlay_permission_enabled", "플로팅 아이콘 권한 허용됨",
+                        "toast.accessibility_permission_needed", "Spotify 감지 권한이 필요합니다",
+                        "toast.overlay_permission_needed", "다른 앱 위에 표시 권한이 필요합니다",
+                        "toast.spotify_open_failed", "Spotify를 열 수 없습니다",
+                        "onboarding.preview.line4", "제목이나 아티스트를 탭하면 Spotify로 돌아갑니다",
+                        "lyrics.menu_tip", "한 번 탭하면 Spotify로 이동하고, 길게 누르면 번역·발음 설정이 열립니다."
+                };
+            case "zh-CN":
+                return spotifyShortcutStringsEn(
+                        "Spotify 快捷入口",
+                        "Only shows a small movable icon on Spotify's Now Playing screen. Tapping opens the ivLyrics lyrics page.",
+                        "点按标题或艺人即可返回 Spotify。",
+                        "点按一次打开 Spotify；长按可打开翻译和发音设置。"
+                );
+            case "zh-TW":
+                return spotifyShortcutStringsEn(
+                        "Spotify 快捷入口",
+                        "Only shows a small movable icon on Spotify's Now Playing screen. Tapping opens the ivLyrics lyrics page.",
+                        "點按標題或藝人即可返回 Spotify。",
+                        "點按一次開啟 Spotify；長按可開啟翻譯與發音設定。"
+                );
+            case "ja":
+                return spotifyShortcutStringsEn(
+                        "Spotifyショートカット",
+                        "Spotifyの再生画面でのみ、小さな移動アイコンを表示します。タップするとivLyricsの歌詞ページを開きます。",
+                        "タイトルまたはアーティストをタップするとSpotifyに戻ります。",
+                        "1回タップでSpotifyを開き、長押しで翻訳・発音設定を開きます。"
+                );
+            case "hi":
+                return spotifyShortcutStringsEn(
+                        "Spotify शॉर्टकट",
+                        "Only shows a small movable icon on Spotify's Now Playing screen. Tapping opens the ivLyrics lyrics page.",
+                        "Spotify पर वापस जाने के लिए शीर्षक या कलाकार पर टैप करें।",
+                        "एक बार टैप करने से Spotify खुलेगा; देर तक दबाने से अनुवाद और उच्चारण सेटिंग खुलेंगी।"
+                );
+            case "es":
+                return spotifyShortcutStringsEn(
+                        "Acceso directo de Spotify",
+                        "Solo muestra un icono pequeño y movible en la pantalla de reproduccion de Spotify. Al tocarlo abre la pagina de letras de ivLyrics.",
+                        "Toca el título o artista para volver a Spotify.",
+                        "Toca una vez para abrir Spotify; mantén pulsado para abrir traducción y pronunciación."
+                );
+            case "fr":
+                return spotifyShortcutStringsEn(
+                        "Raccourci Spotify",
+                        "Affiche une petite icone deplacable uniquement sur l'ecran de lecture Spotify. Un toucher ouvre la page de paroles ivLyrics.",
+                        "Touchez le titre ou l'artiste pour revenir à Spotify.",
+                        "Touchez une fois pour ouvrir Spotify ; appuyez longuement pour ouvrir traduction et prononciation."
+                );
+            case "ar":
+                return spotifyShortcutStringsEn(
+                        "اختصار Spotify",
+                        "Only shows a small movable icon on Spotify's Now Playing screen. Tapping opens the ivLyrics lyrics page.",
+                        "اضغط على العنوان أو الفنان للعودة إلى Spotify.",
+                        "اضغط مرة واحدة لفتح Spotify؛ واضغط مطولًا لفتح إعدادات الترجمة والنطق."
+                );
+            case "fa":
+                return spotifyShortcutStringsEn(
+                        "میانبر Spotify",
+                        "Only shows a small movable icon on Spotify's Now Playing screen. Tapping opens the ivLyrics lyrics page.",
+                        "برای بازگشت به Spotify روی عنوان یا هنرمند بزنید.",
+                        "یک بار بزنید تا Spotify باز شود؛ برای باز کردن تنظیمات ترجمه و تلفظ نگه دارید."
+                );
+            case "de":
+                return spotifyShortcutStringsEn(
+                        "Spotify-Verknüpfung",
+                        "Zeigt nur auf dem Spotify-Now-Playing-Bildschirm ein kleines verschiebbares Symbol. Antippen oeffnet die ivLyrics-Lyrics-Seite.",
+                        "Titel oder Kuenstler antippen, um zu Spotify zurueckzukehren.",
+                        "Einmal tippen oeffnet Spotify, langes Druecken oeffnet Uebersetzung und Aussprache."
+                );
+            case "ru":
+                return spotifyShortcutStringsEn(
+                        "Ярлык Spotify",
+                        "Only shows a small movable icon on Spotify's Now Playing screen. Tapping opens the ivLyrics lyrics page.",
+                        "Коснитесь названия или исполнителя, чтобы вернуться в Spotify.",
+                        "Коснитесь один раз, чтобы открыть Spotify; нажмите и удерживайте, чтобы открыть настройки перевода и произношения."
+                );
+            case "sv":
+                return spotifyShortcutStringsEn(
+                        "Spotify-genväg",
+                        "Only shows a small movable icon on Spotify's Now Playing screen. Tapping opens the ivLyrics lyrics page.",
+                        "Tryck på titel eller artist för att gå tillbaka till Spotify.",
+                        "Tryck en gång för att öppna Spotify; håll in för att öppna översättning och uttal."
+                );
+            case "pt":
+                return spotifyShortcutStringsEn(
+                        "Atalho do Spotify",
+                        "Mostra um pequeno icone movel somente na tela de reproducao do Spotify. Tocar abre a pagina de letras do ivLyrics.",
+                        "Toque no titulo ou artista para voltar ao Spotify.",
+                        "Toque uma vez para abrir o Spotify; mantenha pressionado para abrir traducao e pronuncia."
+                );
+            case "bn":
+                return spotifyShortcutStringsEn(
+                        "Spotify শর্টকাট",
+                        "Only shows a small movable icon on Spotify's Now Playing screen. Tapping opens the ivLyrics lyrics page.",
+                        "Spotify-এ ফিরতে শিরোনাম বা শিল্পীর নামে ট্যাপ করুন।",
+                        "একবার ট্যাপ করলে Spotify খুলবে; ধরে চাপলে অনুবাদ ও উচ্চারণ সেটিংস খুলবে।"
+                );
+            case "it":
+                return spotifyShortcutStringsEn(
+                        "Scorciatoia Spotify",
+                        "Only shows a small movable icon on Spotify's Now Playing screen. Tapping opens the ivLyrics lyrics page.",
+                        "Tocca titolo o artista per tornare a Spotify.",
+                        "Tocca una volta per aprire Spotify; tieni premuto per aprire traduzione e pronuncia."
+                );
+            case "th":
+                return spotifyShortcutStringsEn(
+                        "ทางลัด Spotify",
+                        "Only shows a small movable icon on Spotify's Now Playing screen. Tapping opens the ivLyrics lyrics page.",
+                        "แตะชื่อเพลงหรือศิลปินเพื่อกลับไปที่ Spotify",
+                        "แตะหนึ่งครั้งเพื่อเปิด Spotify; กดค้างเพื่อเปิดการตั้งค่าคำแปลและการออกเสียง"
+                );
+            case "vi":
+                return spotifyShortcutStringsEn(
+                        "Lối tắt Spotify",
+                        "Only shows a small movable icon on Spotify's Now Playing screen. Tapping opens the ivLyrics lyrics page.",
+                        "Nhấn tiêu đề hoặc nghệ sĩ để quay lại Spotify.",
+                        "Nhấn một lần để mở Spotify; nhấn giữ để mở cài đặt dịch và phát âm."
+                );
+            case "id":
+                return spotifyShortcutStringsEn(
+                        "Pintasan Spotify",
+                        "Only shows a small movable icon on Spotify's Now Playing screen. Tapping opens the ivLyrics lyrics page.",
+                        "Ketuk judul atau artis untuk kembali ke Spotify.",
+                        "Ketuk sekali untuk membuka Spotify; tekan lama untuk membuka pengaturan terjemahan dan pengucapan."
+                );
+            case "ms":
+                return spotifyShortcutStringsEn(
+                        "Pintasan Spotify",
+                        "Only shows a small movable icon on Spotify's Now Playing screen. Tapping opens the ivLyrics lyrics page.",
+                        "Ketik tajuk atau artis untuk kembali ke Spotify.",
+                        "Ketik sekali untuk membuka Spotify; tekan lama untuk membuka tetapan terjemahan dan sebutan."
+                );
+            case "tr":
+                return new String[]{
+                        "section.spotify_shortcut", "Spotify Kısayolu",
+                        "section.spotify_shortcut_desc", "Yalnızca Spotify Şu Anda Çalıyor ekranında küçük taşınabilir bir ikon gösterir. Dokununca ivLyrics söz sayfasını açar.",
+                        "button.open_accessibility_permission", "Spotify Algılama İznini Aç",
+                        "button.accessibility_permission_enabled", "Spotify Algılama İzni Etkin",
+                        "button.open_overlay_permission", "Kayan İkon İznini Aç",
+                        "button.overlay_permission_enabled", "Kayan İkon İzni Etkin",
+                        "toast.accessibility_permission_needed", "Spotify algılama izni gereklidir",
+                        "toast.overlay_permission_needed", "Diğer uygulamaların üzerinde gösterme izni gereklidir",
+                        "toast.spotify_open_failed", "Spotify açılamadı",
+                        "onboarding.preview.line4", "Spotify'a dönmek için başlığa veya sanatçıya dokunun",
+                        "lyrics.menu_tip", "Spotify'ı açmak için bir kez dokunun; çeviri ve telaffuz ayarlarını açmak için uzun basın."
+                };
+            default:
+                return spotifyShortcutStringsEn(
+                        "Spotify Shortcut",
+                        "Only shows a small movable icon on Spotify's Now Playing screen. Tapping opens the ivLyrics lyrics page.",
+                        "Tap the title or artist to jump back to Spotify.",
+                        "Tap once to open Spotify; long-press to open translation and pronunciation settings."
+                );
+        }
+    }
+
+    private static String[] spotifyShortcutStringsEn(String title, String desc, String previewTip, String menuTip) {
+        return new String[]{
+                "section.spotify_shortcut", title,
+                "section.spotify_shortcut_desc", desc,
+                "button.open_accessibility_permission", "Open Spotify Detection Permission",
+                "button.accessibility_permission_enabled", "Spotify Detection Permission Enabled",
+                "button.open_overlay_permission", "Open Floating Icon Permission",
+                "button.overlay_permission_enabled", "Floating Icon Permission Enabled",
+                "toast.accessibility_permission_needed", "Spotify detection permission is required",
+                "toast.overlay_permission_needed", "Draw over other apps permission is required",
+                "toast.spotify_open_failed", "Could not open Spotify",
+                "onboarding.preview.line4", previewTip,
+                "lyrics.menu_tip", menuTip
+        };
+    }
+
+    private static void addPlayerCardBackgroundStrings(Map<String, Map<String, String>> languages) {
+        String[][] translations = {
+                {"ko", "플레이어 가사 위젯 배경 표시", "끄면 Spotify 플레이어 하단의 가사 위젯 배경을 투명하게 표시합니다."},
+                {"en", "Player lyrics widget background", "Turn off to make the lyrics widget background transparent at the bottom of the Spotify player."},
+                {"zh-CN", "播放器歌词组件背景", "关闭后，Spotify 播放器底部的歌词组件背景将变为透明。"},
+                {"zh-TW", "播放器歌詞小工具背景", "關閉後，Spotify 播放器底部的歌詞小工具背景會變為透明。"},
+                {"ja", "プレイヤーの歌詞ウィジェット背景", "オフにすると、Spotifyプレイヤー下部の歌詞ウィジェットの背景が透明になります。"},
+                {"hi", "प्लेयर के गीत विजेट की पृष्ठभूमि", "Spotify प्लेयर के नीचे गीत विजेट की पृष्ठभूमि पारदर्शी बनाने के लिए बंद करें।"},
+                {"es", "Fondo del widget de letras", "Desactívalo para que el fondo del widget de letras de la parte inferior del reproductor de Spotify sea transparente."},
+                {"fr", "Arrière-plan du widget de paroles", "Désactivez cette option pour rendre transparent le fond du widget de paroles en bas du lecteur Spotify."},
+                {"ar", "خلفية أداة كلمات الأغنية", "أوقف هذا الخيار لجعل خلفية أداة كلمات الأغنية أسفل مشغّل Spotify شفافة."},
+                {"fa", "پس‌زمینهٔ ابزارک متن آهنگ", "برای شفاف شدن پس‌زمینهٔ ابزارک متن آهنگ در پایین پخش‌کنندهٔ Spotify، این گزینه را خاموش کنید."},
+                {"de", "Hintergrund des Liedtext-Widgets", "Deaktiviere diese Option, um den Hintergrund des Liedtext-Widgets unten im Spotify-Player transparent zu machen."},
+                {"ru", "Фон виджета текста песни", "Отключите, чтобы сделать фон виджета текста песни внизу плеера Spotify прозрачным."},
+                {"sv", "Bakgrund för låttextwidgeten", "Stäng av för att göra bakgrunden för låttextwidgeten längst ned i Spotify-spelaren genomskinlig."},
+                {"pt", "Fundo do widget de letras", "Desative para tornar transparente o fundo do widget de letras na parte inferior do player do Spotify."},
+                {"bn", "প্লেয়ারের গানের কথা উইজেটের পটভূমি", "Spotify প্লেয়ারের নিচে গানের কথা উইজেটের পটভূমি স্বচ্ছ করতে এটি বন্ধ করুন।"},
+                {"it", "Sfondo del widget dei testi", "Disattiva per rendere trasparente lo sfondo del widget dei testi nella parte inferiore del lettore Spotify."},
+                {"th", "พื้นหลังวิดเจ็ตเนื้อเพลง", "ปิดเพื่อให้พื้นหลังวิดเจ็ตเนื้อเพลงด้านล่างของเครื่องเล่น Spotify โปร่งใส"},
+                {"vi", "Nền tiện ích lời bài hát", "Tắt để làm trong suốt nền tiện ích lời bài hát ở cuối trình phát Spotify."},
+                {"id", "Latar belakang widget lirik", "Nonaktifkan agar latar belakang widget lirik di bagian bawah pemutar Spotify menjadi transparan."},
+                {"ms", "Latar belakang widget lirik", "Matikan untuk menjadikan latar belakang widget lirik di bahagian bawah pemain Spotify telus."},
+                {"tr", "Şarkı sözü bileşeninin arka planı", "Spotify oynatıcısının altındaki şarkı sözü bileşeninin arka planını şeffaf yapmak için kapatın."},
+                {"cs", "Pozadí widgetu s textem písně", "Vypnutím zprůhledníte pozadí widgetu s textem písně ve spodní části přehrávače Spotify."}
+        };
+        for (String[] values : translations) {
+            Map<String, String> copy = new LinkedHashMap<>(languages.get(values[0]));
+            copy.put("setting.player_card_background", values[1]);
+            copy.put("setting.player_card_background_desc", values[2]);
+            languages.put(values[0], Collections.unmodifiableMap(copy));
+        }
+    }
+
+    private static void addDisplayPowerStrings(Map<String, Map<String, String>> languages) {
+        addLanguageStrings(languages, AppI18n::displayPowerStrings);
+    }
+
+    private static String[] displayPowerStrings(String lang) {
+        switch (normalize(lang)) {
+            case "ko":
+                return displayPowerStringsValues(
+                        "화면 켜짐 유지",
+                        "앱을 사용하는 동안 휴대폰 화면이 자동으로 꺼지지 않게 합니다.",
+                        "화면 켜짐 유지",
+                        "화면 자동 꺼짐 허용"
+                );
+            case "zh-CN":
+                return displayPowerStringsValues(
+                        "保持屏幕常亮",
+                        "使用应用时防止手机屏幕自动关闭。",
+                        "已保持屏幕常亮",
+                        "允许屏幕自动关闭"
+                );
+            case "zh-TW":
+                return displayPowerStringsValues(
+                        "保持螢幕常亮",
+                        "使用 App 時防止手機螢幕自動關閉。",
+                        "已保持螢幕常亮",
+                        "允許螢幕自動關閉"
+                );
+            case "ja":
+                return displayPowerStringsValues(
+                        "画面を常にオン",
+                        "アプリ使用中に端末の画面が自動で消灯しないようにします。",
+                        "画面を常にオンにします",
+                        "画面の自動消灯を許可します"
+                );
+            case "hi":
+                return displayPowerStringsValues(
+                        "स्क्रीन चालू रखें",
+                        "ऐप इस्तेमाल करते समय फोन की स्क्रीन अपने आप बंद न हो।",
+                        "स्क्रीन चालू रखी जाएगी",
+                        "स्क्रीन अपने आप बंद हो सकती है"
+                );
+            case "es":
+                return displayPowerStringsValues(
+                        "Mantener pantalla encendida",
+                        "Evita que la pantalla se apague automáticamente mientras usas la app.",
+                        "Pantalla siempre encendida",
+                        "Apagado automático permitido"
+                );
+            case "fr":
+                return displayPowerStringsValues(
+                        "Garder l'ecran allume",
+                        "Empeche l'ecran du telephone de s'eteindre pendant l'utilisation de l'app.",
+                        "Ecran maintenu allume",
+                        "Extinction automatique autorisee"
+                );
+            case "ar":
+                return displayPowerStringsValues(
+                        "إبقاء الشاشة قيد التشغيل",
+                        "يمنع إيقاف شاشة الهاتف تلقائيًا أثناء استخدام التطبيق.",
+                        "سيتم إبقاء الشاشة قيد التشغيل",
+                        "تم السماح بإيقاف الشاشة تلقائيًا"
+                );
+            case "fa":
+                return displayPowerStringsValues(
+                        "روشن نگه داشتن صفحه",
+                        "هنگام استفاده از برنامه از خاموش شدن خودکار صفحه جلوگیری می کند.",
+                        "صفحه روشن می‌ماند",
+                        "خاموشی خودکار صفحه مجاز است"
+                );
+            case "de":
+                return displayPowerStringsValues(
+                        "Bildschirm eingeschaltet lassen",
+                        "Verhindert, dass sich der Bildschirm waehrend der App-Nutzung automatisch ausschaltet.",
+                        "Bildschirm bleibt eingeschaltet",
+                        "Automatisches Ausschalten erlaubt"
+                );
+            case "ru":
+                return displayPowerStringsValues(
+                        "Не выключать экран",
+                        "Не дает экрану телефона автоматически гаснуть во время использования приложения.",
+                        "Экран будет оставаться включенным",
+                        "Автоотключение экрана разрешено"
+                );
+            case "sv":
+                return displayPowerStringsValues(
+                        "Håll skärmen vaken",
+                        "Förhindrar att telefonens skärm släcks automatiskt när appen används.",
+                        "Skärmen hålls vaken",
+                        "Automatisk skärmsläckning tillåten"
+                );
+            case "pt":
+                return displayPowerStringsValues(
+                        "Manter tela ligada",
+                        "Impede que a tela do telefone apague automaticamente enquanto usa o app.",
+                        "Tela mantida ligada",
+                        "Desligamento automatico permitido"
+                );
+            case "bn":
+                return displayPowerStringsValues(
+                        "স্ক্রিন চালু রাখুন",
+                        "অ্যাপ ব্যবহারের সময় ফোনের স্ক্রিন স্বয়ংক্রিয়ভাবে বন্ধ হতে দেবে না।",
+                        "স্ক্রিন চালু রাখা হবে",
+                        "স্ক্রিন স্বয়ংক্রিয়ভাবে বন্ধ হতে পারে"
+                );
+            case "it":
+                return displayPowerStringsValues(
+                        "Mantieni schermo acceso",
+                        "Impedisce allo schermo del telefono di spegnersi automaticamente mentre usi l'app.",
+                        "Schermo mantenuto acceso",
+                        "Spegnimento automatico consentito"
+                );
+            case "th":
+                return displayPowerStringsValues(
+                        "เปิดหน้าจอค้างไว้",
+                        "ป้องกันไม่ให้หน้าจอโทรศัพท์ดับอัตโนมัติระหว่างใช้แอป",
+                        "เปิดหน้าจอค้างไว้แล้ว",
+                        "อนุญาตให้หน้าจอดับอัตโนมัติ"
+                );
+            case "vi":
+                return displayPowerStringsValues(
+                        "Giữ màn hình sáng",
+                        "Ngăn màn hình điện thoại tự tắt khi đang dùng ứng dụng.",
+                        "Màn hình sẽ luôn sáng",
+                        "Cho phép tự tắt màn hình"
+                );
+            case "id":
+                return displayPowerStringsValues(
+                        "Jaga layar tetap menyala",
+                        "Mencegah layar ponsel mati otomatis saat aplikasi digunakan.",
+                        "Layar tetap menyala",
+                        "Layar boleh mati otomatis"
+                );
+            case "ms":
+                return displayPowerStringsValues(
+                        "Kekalkan skrin menyala",
+                        "Menghalang skrin telefon padam secara automatik semasa menggunakan aplikasi.",
+                        "Skrin dikekalkan menyala",
+                        "Skrin boleh padam automatik"
+                );
+            case "tr":
+                return displayPowerStringsValues(
+                        "Ekranı açık tut",
+                        "Uygulamayı kullanırken telefon ekranının otomatik kapanmasını önler.",
+                        "Ekran açık kalacak",
+                        "Ekran otomatik kapanabilir"
+                );
+            default:
+                return displayPowerStringsValues(
+                        "Keep screen on",
+                        "Prevents the phone screen from turning off while using the app.",
+                        "Screen will stay on",
+                        "Screen can turn off automatically"
+                );
+        }
+    }
+
+    private static String[] displayPowerStringsValues(String title, String desc, String enabled, String disabled) {
+        return new String[]{
+                "setting.keep_screen_on", title,
+                "setting.keep_screen_on_desc", desc,
+                "toast.keep_screen_on_on", enabled,
+                "toast.keep_screen_on_off", disabled
+        };
+    }
+
+    private static void addUpdateStrings(Map<String, Map<String, String>> languages) {
+        addLanguageStrings(languages, AppI18n::updateStrings);
+    }
+
+    private static String[] updateStrings(String lang) {
+        switch (normalize(lang)) {
+            case "ko":
+                return updateStringsValues(
+                        "자동 업데이트",
+                        "GitHub Releases에서 최신 APK를 확인하고 설치를 안내합니다.",
+                        "업데이트 확인",
+                        "릴리즈 페이지",
+                        "아직 업데이트를 확인하지 않았습니다.",
+                        "최신 버전을 확인하는 중...",
+                        "현재 버전 %s이 최신입니다.",
+                        "새 버전 %s 사용 가능",
+                        "업데이트 확인 실패: %s",
+                        "새 버전이 있습니다",
+                        "현재: %s (%d)\n최신: %s (%d)\n\n%s",
+                        "릴리즈 노트가 없습니다.",
+                        "다운로드",
+                        "나중에",
+                        "릴리즈 열기",
+                        "업데이트 APK 다운로드 준비 중",
+                        "%s 다운로드 시작",
+                        "다운로드 완료. 설치 화면을 여는 중...",
+                        "설치 화면을 열 수 없습니다.",
+                        "업데이트 확인 중",
+                        "현재 최신 버전입니다.",
+                        "새 버전 %s이 있습니다.",
+                        "업데이트 확인에 실패했습니다."
+                );
+            case "zh-CN":
+                return updateStringsValues("自动更新", "从 GitHub Releases 检查最新 APK 并引导安装。", "检查更新", "发布页面", "尚未检查更新。", "正在检查最新版本...", "当前版本 %s 已是最新。", "有新版本 %s", "检查更新失败：%s", "有新版本可用", "当前：%s (%d)\n最新：%s (%d)\n\n%s", "没有发布说明。", "下载", "稍后", "打开发布页", "正在准备下载更新 APK", "已开始下载 %s", "下载完成，正在打开安装界面...", "无法打开安装界面。", "正在检查更新", "当前已是最新版本。", "有新版本 %s。", "检查更新失败。");
+            case "zh-TW":
+                return updateStringsValues("自動更新", "從 GitHub Releases 檢查最新 APK 並引導安裝。", "檢查更新", "發佈頁面", "尚未檢查更新。", "正在檢查最新版本...", "目前版本 %s 已是最新。", "有新版本 %s", "檢查更新失敗：%s", "有新版本可用", "目前：%s (%d)\n最新：%s (%d)\n\n%s", "沒有發佈說明。", "下載", "稍後", "開啟發佈頁", "正在準備下載更新 APK", "已開始下載 %s", "下載完成，正在開啟安裝畫面...", "無法開啟安裝畫面。", "正在檢查更新", "目前已是最新版本。", "有新版本 %s。", "檢查更新失敗。");
+            case "ja":
+                return updateStringsValues("自動アップデート", "GitHub Releases から最新 APK を確認し、インストールを案内します。", "アップデート確認", "リリースページ", "まだアップデートを確認していません。", "最新バージョンを確認中...", "現在のバージョン %s は最新です。", "新しいバージョン %s があります", "アップデート確認に失敗: %s", "新しいバージョンがあります", "現在: %s (%d)\n最新: %s (%d)\n\n%s", "リリースノートはありません。", "ダウンロード", "あとで", "リリースを開く", "更新 APK のダウンロードを準備中", "%s のダウンロードを開始しました", "ダウンロード完了。インストール画面を開いています...", "インストール画面を開けません。", "アップデート確認中", "現在は最新バージョンです。", "新しいバージョン %s があります。", "アップデート確認に失敗しました。");
+            case "hi":
+                return updateStringsValues("ऑटो अपडेट", "GitHub Releases से नया APK जांचें और इंस्टॉल करने में मदद करें।", "अपडेट जांचें", "रिलीज़ पेज", "अपडेट अभी जांचा नहीं गया।", "नया संस्करण जांचा जा रहा है...", "मौजूदा संस्करण %s नया है।", "नया संस्करण %s उपलब्ध है", "अपडेट जांच विफल: %s", "नया संस्करण उपलब्ध है", "मौजूदा: %s (%d)\nनया: %s (%d)\n\n%s", "रिलीज़ नोट नहीं हैं।", "डाउनलोड", "बाद में", "रिलीज़ खोलें", "अपडेट APK डाउनलोड की तैयारी", "%s डाउनलोड शुरू", "डाउनलोड पूरा। इंस्टॉल स्क्रीन खुल रही है...", "इंस्टॉल स्क्रीन नहीं खुली।", "अपडेट जांचा जा रहा है", "आप नवीनतम संस्करण पर हैं।", "नया संस्करण %s उपलब्ध है।", "अपडेट जांच विफल।");
+            case "es":
+                return updateStringsValues("Actualización automática", "Comprueba el APK más reciente en GitHub Releases y guía la instalación.", "Buscar actualizaciones", "Página de versiones", "Aún no se han comprobado actualizaciones.", "Comprobando la última versión...", "La versión actual %s está actualizada.", "Nueva versión %s disponible", "Error al comprobar actualizaciones: %s", "Hay una nueva versión", "Actual: %s (%d)\nNueva: %s (%d)\n\n%s", "No hay notas de versión.", "Descargar", "Más tarde", "Abrir versión", "Preparando la descarga del APK", "Descarga de %s iniciada", "Descarga completa. Abriendo instalación...", "No se puede abrir la instalación.", "Comprobando actualizaciones", "Ya tienes la última versión.", "Hay una nueva versión %s.", "No se pudo comprobar la actualización.");
+            case "fr":
+                return updateStringsValues("Mise à jour automatique", "Vérifie le dernier APK sur GitHub Releases et guide l'installation.", "Rechercher des mises à jour", "Page des versions", "Aucune vérification effectuée.", "Recherche de la dernière version...", "La version actuelle %s est à jour.", "Nouvelle version %s disponible", "Échec de la vérification : %s", "Nouvelle version disponible", "Actuelle: %s (%d)\nDernière: %s (%d)\n\n%s", "Aucune note de version.", "Télécharger", "Plus tard", "Ouvrir la version", "Préparation du téléchargement de l'APK", "Téléchargement de %s démarré", "Téléchargement terminé. Ouverture de l'installation...", "Impossible d'ouvrir l'installation.", "Vérification en cours", "Vous avez la dernière version.", "Nouvelle version %s disponible.", "Échec de la vérification.");
+            case "ar":
+                return updateStringsValues("التحديث التلقائي", "يفحص أحدث APK من GitHub Releases ويفتح خطوة التثبيت.", "فحص التحديث", "صفحة الإصدارات", "لم يتم فحص التحديث بعد.", "جارٍ فحص أحدث إصدار...", "الإصدار الحالي %s هو الأحدث.", "يتوفر إصدار جديد %s", "فشل فحص التحديث: %s", "يتوفر إصدار جديد", "الحالي: %s (%d)\nالأحدث: %s (%d)\n\n%s", "لا توجد ملاحظات إصدار.", "تنزيل", "لاحقًا", "فتح الإصدار", "جارٍ تحضير تنزيل APK", "بدأ تنزيل %s", "اكتمل التنزيل. جارٍ فتح شاشة التثبيت...", "تعذر فتح شاشة التثبيت.", "جارٍ فحص التحديث", "أنت على أحدث إصدار.", "يتوفر إصدار جديد %s.", "فشل فحص التحديث.");
+            case "fa":
+                return updateStringsValues("به‌روزرسانی خودکار", "آخرین APK را از GitHub Releases بررسی کرده و نصب را راهنمایی می‌کند.", "بررسی به‌روزرسانی", "صفحه انتشار", "هنوز به‌روزرسانی بررسی نشده است.", "در حال بررسی آخرین نسخه...", "نسخه فعلی %s جدیدترین است.", "نسخه جدید %s موجود است", "بررسی به‌روزرسانی ناموفق بود: %s", "نسخه جدید موجود است", "فعلی: %s (%d)\nجدید: %s (%d)\n\n%s", "یادداشت انتشار موجود نیست.", "دانلود", "بعداً", "باز کردن انتشار", "آماده‌سازی دانلود APK", "دانلود %s شروع شد", "دانلود کامل شد. صفحه نصب باز می‌شود...", "صفحه نصب باز نشد.", "در حال بررسی به‌روزرسانی", "شما آخرین نسخه را دارید.", "نسخه جدید %s موجود است.", "بررسی به‌روزرسانی ناموفق بود.");
+            case "de":
+                return updateStringsValues("Automatische Updates", "Prüft GitHub Releases auf das neueste APK und führt zur Installation.", "Updates prüfen", "Release-Seite", "Noch nicht nach Updates gesucht.", "Suche nach der neuesten Version...", "Version %s ist aktuell.", "Neue Version %s verfügbar", "Update-Prüfung fehlgeschlagen: %s", "Neue Version verfügbar", "Aktuell: %s (%d)\nNeu: %s (%d)\n\n%s", "Keine Release Notes vorhanden.", "Herunterladen", "Später", "Release öffnen", "APK-Download wird vorbereitet", "Download von %s gestartet", "Download abgeschlossen. Installation wird geöffnet...", "Installation konnte nicht geöffnet werden.", "Update wird geprüft", "Du hast die neueste Version.", "Neue Version %s verfügbar.", "Update-Prüfung fehlgeschlagen.");
+            case "ru":
+                return updateStringsValues("Автообновление", "Проверяет новый APK в GitHub Releases и открывает установку.", "Проверить обновления", "Страница релиза", "Обновления еще не проверялись.", "Проверка последней версии...", "Текущая версия %s актуальна.", "Доступна новая версия %s", "Ошибка проверки обновления: %s", "Доступна новая версия", "Текущая: %s (%d)\nНовая: %s (%d)\n\n%s", "Нет заметок к релизу.", "Скачать", "Позже", "Открыть релиз", "Подготовка загрузки APK", "Загрузка %s началась", "Загрузка завершена. Открывается установка...", "Не удалось открыть установку.", "Проверка обновлений", "У вас последняя версия.", "Доступна новая версия %s.", "Не удалось проверить обновления.");
+            case "sv":
+                return updateStringsValues("Automatisk uppdatering", "Kontrollerar senaste APK på GitHub Releases och guidar installationen.", "Sök uppdatering", "Release-sida", "Ingen uppdatering har kontrollerats.", "Kontrollerar senaste version...", "Version %s är aktuell.", "Ny version %s finns", "Uppdateringskontroll misslyckades: %s", "Ny version finns", "Nuvarande: %s (%d)\nSenaste: %s (%d)\n\n%s", "Inga release notes.", "Ladda ner", "Senare", "Öppna release", "Förbereder APK-nedladdning", "Nedladdning av %s startad", "Nedladdning klar. Öppnar installation...", "Kan inte öppna installation.", "Kontrollerar uppdatering", "Du har senaste versionen.", "Ny version %s finns.", "Kunde inte kontrollera uppdatering.");
+            case "pt":
+                return updateStringsValues("Atualização automática", "Verifica o APK mais recente no GitHub Releases e orienta a instalação.", "Verificar atualizações", "Página da versão", "Atualizações ainda não verificadas.", "Verificando a versão mais recente...", "A versão atual %s está atualizada.", "Nova versão %s disponível", "Falha ao verificar atualização: %s", "Há uma nova versão", "Atual: %s (%d)\nNova: %s (%d)\n\n%s", "Sem notas de versão.", "Baixar", "Depois", "Abrir versão", "Preparando download do APK", "Download de %s iniciado", "Download concluído. Abrindo instalação...", "Não foi possível abrir a instalação.", "Verificando atualização", "Você já está na versão mais recente.", "Nova versão %s disponível.", "Falha ao verificar atualização.");
+            case "bn":
+                return updateStringsValues("স্বয়ংক্রিয় আপডেট", "GitHub Releases থেকে নতুন APK পরীক্ষা করে ইনস্টল নির্দেশনা দেয়।", "আপডেট দেখুন", "রিলিজ পেজ", "এখনও আপডেট দেখা হয়নি।", "নতুন সংস্করণ দেখা হচ্ছে...", "বর্তমান সংস্করণ %s সর্বশেষ।", "নতুন সংস্করণ %s আছে", "আপডেট পরীক্ষা ব্যর্থ: %s", "নতুন সংস্করণ আছে", "বর্তমান: %s (%d)\nনতুন: %s (%d)\n\n%s", "রিলিজ নোট নেই।", "ডাউনলোড", "পরে", "রিলিজ খুলুন", "APK ডাউনলোড প্রস্তুত হচ্ছে", "%s ডাউনলোড শুরু", "ডাউনলোড শেষ। ইনস্টল খোলা হচ্ছে...", "ইনস্টল স্ক্রিন খোলা যায়নি।", "আপডেট দেখা হচ্ছে", "আপনি সর্বশেষ সংস্করণে আছেন।", "নতুন সংস্করণ %s আছে।", "আপডেট পরীক্ষা ব্যর্থ।");
+            case "it":
+                return updateStringsValues("Aggiornamento automatico", "Controlla l'APK più recente su GitHub Releases e guida l'installazione.", "Controlla aggiornamenti", "Pagina release", "Aggiornamenti non ancora controllati.", "Controllo dell'ultima versione...", "La versione attuale %s è aggiornata.", "Nuova versione %s disponibile", "Controllo aggiornamenti non riuscito: %s", "È disponibile una nuova versione", "Attuale: %s (%d)\nNuova: %s (%d)\n\n%s", "Nessuna nota di rilascio.", "Scarica", "Più tardi", "Apri release", "Preparazione download APK", "Download di %s avviato", "Download completato. Apertura installazione...", "Impossibile aprire l'installazione.", "Controllo aggiornamenti", "Hai già l'ultima versione.", "Nuova versione %s disponibile.", "Controllo aggiornamenti non riuscito.");
+            case "th":
+                return updateStringsValues("อัปเดตอัตโนมัติ", "ตรวจสอบ APK ล่าสุดจาก GitHub Releases และเปิดขั้นตอนติดตั้ง", "ตรวจสอบอัปเดต", "หน้ารีลีส", "ยังไม่ได้ตรวจสอบอัปเดต", "กำลังตรวจสอบเวอร์ชันล่าสุด...", "เวอร์ชันปัจจุบัน %s เป็นล่าสุดแล้ว", "มีเวอร์ชันใหม่ %s", "ตรวจสอบอัปเดตล้มเหลว: %s", "มีเวอร์ชันใหม่", "ปัจจุบัน: %s (%d)\nล่าสุด: %s (%d)\n\n%s", "ไม่มีบันทึกรีลีส", "ดาวน์โหลด", "ภายหลัง", "เปิดรีลีส", "กำลังเตรียมดาวน์โหลด APK", "เริ่มดาวน์โหลด %s", "ดาวน์โหลดเสร็จแล้ว กำลังเปิดหน้าติดตั้ง...", "เปิดหน้าติดตั้งไม่ได้", "กำลังตรวจสอบอัปเดต", "คุณใช้เวอร์ชันล่าสุดแล้ว", "มีเวอร์ชันใหม่ %s", "ตรวจสอบอัปเดตล้มเหลว");
+            case "vi":
+                return updateStringsValues("Tự động cập nhật", "Kiểm tra APK mới nhất trên GitHub Releases và hướng dẫn cài đặt.", "Kiểm tra cập nhật", "Trang phát hành", "Chưa kiểm tra cập nhật.", "Đang kiểm tra phiên bản mới nhất...", "Phiên bản hiện tại %s là mới nhất.", "Có phiên bản mới %s", "Kiểm tra cập nhật thất bại: %s", "Có phiên bản mới", "Hiện tại: %s (%d)\nMới nhất: %s (%d)\n\n%s", "Không có ghi chú phát hành.", "Tải xuống", "Để sau", "Mở bản phát hành", "Đang chuẩn bị tải APK", "Đã bắt đầu tải %s", "Tải xong. Đang mở cài đặt...", "Không thể mở màn hình cài đặt.", "Đang kiểm tra cập nhật", "Bạn đang dùng phiên bản mới nhất.", "Có phiên bản mới %s.", "Kiểm tra cập nhật thất bại.");
+            case "id":
+                return updateStringsValues("Pembaruan otomatis", "Memeriksa APK terbaru di GitHub Releases dan memandu pemasangan.", "Periksa pembaruan", "Halaman rilis", "Pembaruan belum diperiksa.", "Memeriksa versi terbaru...", "Versi saat ini %s sudah terbaru.", "Versi baru %s tersedia", "Gagal memeriksa pembaruan: %s", "Versi baru tersedia", "Saat ini: %s (%d)\nTerbaru: %s (%d)\n\n%s", "Tidak ada catatan rilis.", "Unduh", "Nanti", "Buka rilis", "Menyiapkan unduhan APK", "Unduhan %s dimulai", "Unduhan selesai. Membuka pemasangan...", "Tidak dapat membuka pemasangan.", "Memeriksa pembaruan", "Anda sudah memakai versi terbaru.", "Versi baru %s tersedia.", "Gagal memeriksa pembaruan.");
+            case "ms":
+                return updateStringsValues("Kemas kini automatik", "Menyemak APK terkini di GitHub Releases dan membimbing pemasangan.", "Semak kemas kini", "Halaman keluaran", "Kemas kini belum disemak.", "Menyemak versi terkini...", "Versi semasa %s ialah yang terkini.", "Versi baharu %s tersedia", "Semakan kemas kini gagal: %s", "Versi baharu tersedia", "Semasa: %s (%d)\nTerkini: %s (%d)\n\n%s", "Tiada nota keluaran.", "Muat turun", "Nanti", "Buka keluaran", "Menyediakan muat turun APK", "Muat turun %s bermula", "Muat turun selesai. Membuka pemasangan...", "Tidak dapat membuka pemasangan.", "Menyemak kemas kini", "Anda sudah menggunakan versi terkini.", "Versi baharu %s tersedia.", "Semakan kemas kini gagal.");
+            case "tr":
+                return updateStringsValues("Otomatik Güncellemeler", "GitHub Releases üzerinden en son APK'yi kontrol eder ve kuruluma yönlendirir.", "Güncellemeleri Kontrol Et", "Sürüm Sayfası", "Güncellemeler henüz kontrol edilmedi.", "En son sürüm kontrol ediliyor...", "Geçerli sürüm %s güncel.", "Yeni sürüm %s mevcut", "Güncelleme kontrolü başarısız: %s", "Yeni Sürüm Mevcut", "Geçerli: %s (%d)\nEn son: %s (%d)\n\n%s", "Sürüm notu yok.", "İndir", "Daha Sonra", "Sürümü Aç", "Güncelleme APK indirmesi hazırlanıyor", "%s indirmesi başladı", "İndirme tamamlandı. Kurulum ekranı açılıyor...", "Kurulum ekranı açılamadı.", "Güncellemeler kontrol ediliyor", "En son sürümü kullanıyorsunuz.", "Yeni sürüm %s mevcut.", "Güncelleme kontrolü başarısız.");
+            default:
+                return updateStringsValues("Automatic Updates", "Check GitHub Releases for the latest APK and guide installation.", "Check Updates", "Release Page", "Updates have not been checked yet.", "Checking the latest version...", "Current version %s is up to date.", "New version %s available", "Update check failed: %s", "New Version Available", "Current: %s (%d)\nLatest: %s (%d)\n\n%s", "No release notes.", "Download", "Later", "Open Release", "Preparing update APK download", "%s download started", "Download complete. Opening install screen...", "Could not open the install screen.", "Checking updates", "You are on the latest version.", "New version %s is available.", "Update check failed.");
+        }
+    }
+
+    private static String[] updateStringsValues(
+            String section,
+            String sectionDesc,
+            String checkButton,
+            String releaseButton,
+            String idle,
+            String checking,
+            String latestFormat,
+            String availableFormat,
+            String failedFormat,
+            String dialogTitle,
+            String dialogMessageFormat,
+            String noNotes,
+            String download,
+            String later,
+            String openRelease,
+            String downloadStarting,
+            String downloadStartedFormat,
+            String downloadComplete,
+            String installFailed,
+            String toastChecking,
+            String toastLatest,
+            String toastAvailableFormat,
+            String toastFailed
+    ) {
+        return new String[]{
+                "section.app_update", section,
+                "section.app_update_desc", sectionDesc,
+                "button.check_updates", checkButton,
+                "button.open_release_page", releaseButton,
+                "update.status_idle", idle,
+                "update.status_checking", checking,
+                "update.status_latest_format", latestFormat,
+                "update.status_available_format", availableFormat,
+                "update.status_failed_format", failedFormat,
+                "update.dialog_title", dialogTitle,
+                "update.dialog_message_format", dialogMessageFormat,
+                "update.dialog_message_no_notes", noNotes,
+                "update.download", download,
+                "update.later", later,
+                "update.open_release", openRelease,
+                "update.download_starting", downloadStarting,
+                "update.download_started_format", downloadStartedFormat,
+                "update.download_complete", downloadComplete,
+                "update.install_failed", installFailed,
+                "toast.update_checking", toastChecking,
+                "toast.update_latest", toastLatest,
+                "toast.update_available_format", toastAvailableFormat,
+                "toast.update_failed", toastFailed
+        };
+    }
+
+    private static void addUnifiedOutputLanguageStrings(Map<String, Map<String, String>> languages) {
+        addLanguageStrings(languages, AppI18n::unifiedOutputLanguageStrings);
+    }
+
+    private static String[] unifiedOutputLanguageStrings(String lang) {
+        switch (normalize(lang)) {
+            case "ko":
+                return unifiedOutputLanguageStringsValues(
+                        "앱 표시 언어와 발음/번역 출력 언어를 관리합니다.",
+                        "발음/번역 언어",
+                        "발음 표기와 번역이 함께 사용할 언어입니다. UI 언어와 동일하게 두거나 특정 언어로 고정할 수 있습니다.",
+                        "UI 언어와 동일",
+                        "발음/번역 언어 저장됨",
+                        "현재 곡의 제목과 아티스트 이름도 선택한 출력 언어 기준으로 표시합니다."
+                );
+            case "zh-CN":
+                return unifiedOutputLanguageStringsValues(
+                        "管理界面语言以及发音/翻译输出语言。",
+                        "发音/翻译语言",
+                        "发音标注和翻译共同使用的语言。可与界面语言相同，也可固定为指定语言。",
+                        "与界面语言相同",
+                        "发音/翻译语言已保存",
+                        "当前歌曲的标题和艺人也会按所选输出语言显示。"
+                );
+            case "zh-TW":
+                return unifiedOutputLanguageStringsValues(
+                        "管理介面語言以及發音/翻譯輸出語言。",
+                        "發音/翻譯語言",
+                        "發音標註和翻譯共同使用的語言。可與介面語言相同，也可固定為指定語言。",
+                        "與介面語言相同",
+                        "發音/翻譯語言已儲存",
+                        "目前歌曲的標題和藝人也會依所選輸出語言顯示。"
+                );
+            case "ja":
+                return unifiedOutputLanguageStringsValues(
+                        "アプリ表示言語と発音/翻訳の出力言語を管理します。",
+                        "発音/翻訳言語",
+                        "発音表記と翻訳で共通して使う言語です。UI言語と同じにするか、特定の言語に固定できます。",
+                        "UI言語と同じ",
+                        "発音/翻訳言語を保存しました",
+                        "現在の曲名とアーティスト名も選択した出力言語で表示します。"
+                );
+            case "hi":
+                return unifiedOutputLanguageStringsValues(
+                        "App display language and pronunciation/translation output language.",
+                        "Pronunciation/Translation Language",
+                        "The shared language for pronunciation and translation output. Match the UI language or pin a specific language.",
+                        "Same as UI language",
+                        "Pronunciation/translation language saved",
+                        "Track title and artist are also shown in the selected output language."
+                );
+            case "es":
+                return unifiedOutputLanguageStringsValues(
+                        "Gestiona el idioma de la app y el idioma de salida de pronunciación/traducción.",
+                        "Idioma de pronunciación/traducción",
+                        "Idioma compartido para la pronunciación y la traducción. Puedes usar el idioma de la interfaz o fijar uno concreto.",
+                        "Igual que el idioma de la interfaz",
+                        "Idioma de pronunciación/traducción guardado",
+                        "El título y el artista también se muestran en el idioma de salida seleccionado."
+                );
+            case "fr":
+                return unifiedOutputLanguageStringsValues(
+                        "Gere la langue de l'app et la langue de sortie prononciation/traduction.",
+                        "Langue de prononciation/traduction",
+                        "Langue commune pour la prononciation et la traduction. Utilisez la langue de l'interface ou fixez une langue precise.",
+                        "Identique a la langue de l'interface",
+                        "Langue de prononciation/traduction enregistree",
+                        "Le titre et l'artiste sont aussi affiches dans la langue de sortie choisie."
+                );
+            case "ar":
+                return unifiedOutputLanguageStringsValues(
+                        "إدارة لغة واجهة التطبيق ولغة نطق/ترجمة الإخراج.",
+                        "لغة النطق/الترجمة",
+                        "اللغة المشتركة لإخراج النطق والترجمة. يمكن مطابقتها مع لغة الواجهة أو تثبيتها على لغة محددة.",
+                        "مثل لغة الواجهة",
+                        "تم حفظ لغة النطق/الترجمة",
+                        "سيظهر عنوان المقطع واسم الفنان أيضاً بلغة الإخراج المحددة."
+                );
+            case "fa":
+                return unifiedOutputLanguageStringsValues(
+                        "زبان نمایش برنامه و زبان خروجی تلفظ/ترجمه را مدیریت کنید.",
+                        "زبان تلفظ/ترجمه",
+                        "زبان مشترک برای خروجی تلفظ و ترجمه. می‌توانید آن را با زبان رابط یکی کنید یا روی یک زبان ثابت بگذارید.",
+                        "همانند زبان رابط کاربری",
+                        "زبان تلفظ/ترجمه ذخیره شد",
+                        "عنوان آهنگ و نام هنرمند نیز با زبان خروجی انتخاب‌شده نمایش داده می‌شود."
+                );
+            case "de":
+                return unifiedOutputLanguageStringsValues(
+                        "Verwalte App-Sprache und Ausgabe-Sprache fuer Aussprache/Uebersetzung.",
+                        "Aussprache-/Uebersetzungssprache",
+                        "Gemeinsame Sprache fuer Aussprache und Uebersetzung. Sie kann der UI-Sprache folgen oder fest gewaehlt werden.",
+                        "Wie UI-Sprache",
+                        "Aussprache-/Uebersetzungssprache gespeichert",
+                        "Titel und Kuenstler werden ebenfalls in der gewaehlten Ausgabesprache angezeigt."
+                );
+            case "ru":
+                return unifiedOutputLanguageStringsValues(
+                        "Управление языком интерфейса и языком вывода произношения/перевода.",
+                        "Язык произношения/перевода",
+                        "Общий язык для произношения и перевода. Можно использовать язык интерфейса или закрепить конкретный язык.",
+                        "Как язык интерфейса",
+                        "Язык произношения/перевода сохранен",
+                        "Название трека и артист также отображаются на выбранном языке вывода."
+                );
+            case "sv":
+                return unifiedOutputLanguageStringsValues(
+                        "Hantera appens språk och utdata för uttal/översättning.",
+                        "Uttals-/översättningsspråk",
+                        "Gemensamt språk för uttal och översättning. Följ UI-språket eller välj ett fast språk.",
+                        "Samma som UI-språket",
+                        "Uttals-/översättningsspråk sparat",
+                        "Låttitel och artist visas också på valt utdataspråk."
+                );
+            case "pt":
+                return unifiedOutputLanguageStringsValues(
+                        "Gerencie o idioma do app e o idioma de saida de pronuncia/traducao.",
+                        "Idioma de pronuncia/traducao",
+                        "Idioma compartilhado para pronuncia e traducao. Use o idioma da interface ou fixe um idioma especifico.",
+                        "Igual ao idioma da interface",
+                        "Idioma de pronuncia/traducao salvo",
+                        "O titulo e o artista tambem aparecem no idioma de saida escolhido."
+                );
+            case "bn":
+                return unifiedOutputLanguageStringsValues(
+                        "App display language and pronunciation/translation output language.",
+                        "Pronunciation/Translation Language",
+                        "The shared language for pronunciation and translation output. Match the UI language or pin a specific language.",
+                        "Same as UI language",
+                        "Pronunciation/translation language saved",
+                        "Track title and artist are also shown in the selected output language."
+                );
+            case "it":
+                return unifiedOutputLanguageStringsValues(
+                        "Gestisci la lingua dell'app e la lingua di output per pronuncia/traduzione.",
+                        "Lingua pronuncia/traduzione",
+                        "Lingua condivisa per pronuncia e traduzione. Segui la lingua dell'interfaccia o scegli una lingua fissa.",
+                        "Uguale alla lingua dell'interfaccia",
+                        "Lingua pronuncia/traduzione salvata",
+                        "Titolo e artista vengono mostrati anche nella lingua di output scelta."
+                );
+            case "th":
+                return unifiedOutputLanguageStringsValues(
+                        "จัดการภาษาที่แสดงในแอปและภาษาผลลัพธ์ของการออกเสียง/การแปล",
+                        "ภาษาการออกเสียง/การแปล",
+                        "ภาษาที่ใช้ร่วมกันสำหรับผลลัพธ์การออกเสียงและการแปล จะให้ตรงกับภาษา UI หรือกำหนดภาษาเองก็ได้",
+                        "เหมือนภาษา UI",
+                        "บันทึกภาษาการออกเสียง/การแปลแล้ว",
+                        "ชื่อเพลงและศิลปินจะแสดงเป็นภาษาผลลัพธ์ที่เลือกด้วย"
+                );
+            case "vi":
+                return unifiedOutputLanguageStringsValues(
+                        "Quan ly ngon ngu hien thi cua ung dung va ngon ngu dau ra phat am/dich.",
+                        "Ngon ngu phat am/dich",
+                        "Ngon ngu dung chung cho phat am va ban dich. Co the theo ngon ngu giao dien hoac co dinh mot ngon ngu.",
+                        "Giong ngon ngu giao dien",
+                        "Da luu ngon ngu phat am/dich",
+                        "Tieu de bai hat va nghe si cung hien thi bang ngon ngu dau ra da chon."
+                );
+            case "id":
+                return unifiedOutputLanguageStringsValues(
+                        "Kelola bahasa tampilan app dan bahasa keluaran pelafalan/terjemahan.",
+                        "Bahasa pelafalan/terjemahan",
+                        "Bahasa bersama untuk keluaran pelafalan dan terjemahan. Ikuti bahasa UI atau pilih bahasa tetap.",
+                        "Sama dengan bahasa UI",
+                        "Bahasa pelafalan/terjemahan disimpan",
+                        "Judul lagu dan artis juga ditampilkan dalam bahasa keluaran yang dipilih."
+                );
+            case "ms":
+                return unifiedOutputLanguageStringsValues(
+                        "Urus bahasa paparan app dan bahasa output sebutan/terjemahan.",
+                        "Bahasa sebutan/terjemahan",
+                        "Bahasa bersama untuk output sebutan dan terjemahan. Ikut bahasa UI atau tetapkan bahasa tertentu.",
+                        "Sama seperti bahasa UI",
+                        "Bahasa sebutan/terjemahan disimpan",
+                        "Tajuk lagu dan artis juga dipaparkan dalam bahasa output yang dipilih."
+                );
+            case "tr":
+                return unifiedOutputLanguageStringsValues(
+                        "Uygulama görüntü dili ile telaffuz/çeviri çıkış dilini yönetin.",
+                        "Telaffuz/Çeviri Dili",
+                        "Telaffuz ve çeviri çıktısı için ortak dil. UI diliyle aynı bırakabilir veya belirli bir dile sabitleyebilirsiniz.",
+                        "UI diliyle aynı",
+                        "Telaffuz/çeviri dili kaydedildi",
+                        "Şarkı başlığı ve sanatçı da seçili çıkış dilinde gösterilir."
+                );
+            default:
+                return unifiedOutputLanguageStringsValues(
+                        "Manage app display language and pronunciation/translation output language.",
+                        "Pronunciation/Translation Language",
+                        "The shared language for pronunciation and translation output. Match the UI language or pin a specific language.",
+                        "Same as UI language",
+                        "Pronunciation/translation language saved",
+                        "Track title and artist are also shown in the selected output language."
+                );
+        }
+    }
+
+    private static String[] unifiedOutputLanguageStringsValues(
+            String sectionDescription,
+            String title,
+            String description,
+            String sameUi,
+            String saved,
+            String metadataDescription
+    ) {
+        return new String[]{
+                "section.language_desc", sectionDescription,
+                "setting.pronunciation_language", title,
+                "setting.pronunciation_language_desc", description,
+                "label.same_as_ui_language", sameUi,
+                "toast.pronunciation_language_saved", saved,
+                "setting.metadata_translation_desc", metadataDescription
+        };
+    }
+
+    private static void addFuriganaStrings(Map<String, Map<String, String>> languages) {
+        addLanguageStrings(languages, AppI18n::furiganaStrings);
+    }
+
+    private static String[] furiganaStrings(String lang) {
+        switch (normalize(lang)) {
+            case "ko":
+                return furiganaStringsValues(
+                        "일본어 후리가나",
+                        "일본어 가사로 인식된 곡에서 한자 위에 히라가나 읽음을 표시합니다. 한자가 있을 때만 AI가 생성합니다.",
+                        "후리가나",
+                        "후리가나 켜짐",
+                        "후리가나 꺼짐"
+                );
+            case "zh-CN":
+                return furiganaStringsValues(
+                        "日语振假名",
+                        "当歌词被识别为日语时，在汉字上方显示平假名读音。仅在有汉字时由 AI 生成。",
+                        "振假名",
+                        "振假名已开启",
+                        "振假名已关闭"
+                );
+            case "zh-TW":
+                return furiganaStringsValues(
+                        "日語振假名",
+                        "當歌詞被辨識為日語時，在漢字上方顯示平假名讀音。只有含漢字時才由 AI 產生。",
+                        "振假名",
+                        "振假名已開啟",
+                        "振假名已關閉"
+                );
+            case "ja":
+                return furiganaStringsValues(
+                        "日本語ふりがな",
+                        "歌詞が日本語として認識された曲で、漢字の上にひらがなの読みを表示します。漢字がある場合だけAIで生成します。",
+                        "ふりがな",
+                        "ふりがなをオンにしました",
+                        "ふりがなをオフにしました"
+                );
+            case "tr":
+                return furiganaStringsValues(
+                        "Japonca furigana",
+                        "Sözler Japonca olarak algılandığında kanjilerin üzerinde hiragana okunuşlarını gösterir. Yalnızca kanji varsa oluşturulur.",
+                        "Furigana",
+                        "Furigana açık",
+                        "Furigana kapalı"
+                );
+            default:
+                return furiganaStringsValues(
+                        "Japanese Furigana",
+                        "Show hiragana readings above kanji when lyrics are detected as Japanese. Generated by AI only when kanji is present.",
+                        furiganaLabel(lang),
+                        "Furigana on",
+                        "Furigana off"
+                );
+        }
+    }
+
+    /** The term in languages that do not write it in Latin letters; the others keep "Furigana". */
+    private static String furiganaLabel(String lang) {
+        switch (normalize(lang)) {
+            case "hi": return "फुरिगाना";
+            case "ar": return "فوريغانا";
+            case "fa": return "فوریگانا";
+            case "ru": return "Фуригана";
+            case "bn": return "ফুরিগানা";
+            case "th": return "ฟุริกานะ";
+            default: return "Furigana";
+        }
+    }
+
+    private static String[] furiganaStringsValues(
+            String title,
+            String description,
+            String label,
+            String enabled,
+            String disabled
+    ) {
+        return new String[]{
+                "setting.japanese_furigana", title,
+                "setting.japanese_furigana_desc", description,
+                "lyrics.furigana", label,
+                "toast.furigana_on", enabled,
+                "toast.furigana_off", disabled
+        };
+    }
+
+    private static void addTypographyStrings(Map<String, Map<String, String>> languages) {
+        addLanguageStrings(languages, AppI18n::typographyStrings);
+    }
+
+    private static String[] typographyStrings(String lang) {
+        switch (normalize(lang)) {
+            case "ko":
+                return typographyStringsValues(
+                        "타이포그래피",
+                        "메인 화면과 가사 페이지의 글자 크기와 두께를 항목별로 조절합니다.",
+                        "크기",
+                        "두께",
+                        "보통",
+                        "약간 굵게",
+                        "굵게",
+                        "글자 설정 저장됨",
+                        "메인 제목",
+                        "메인 아티스트",
+                        "메인 하단 원어 가사",
+                        "메인 하단 발음",
+                        "메인 하단 번역",
+                        "가사페이지 제목",
+                        "가사페이지 아티스트",
+                        "가사페이지 원어",
+                        "가사페이지 발음",
+                        "가사페이지 번역",
+                        "이 항목의 크기와 두께를 조절합니다."
+                );
+            case "zh-CN":
+                return typographyStringsValues(
+                        "字体排版",
+                        "分别调整主屏幕和歌词页面的字号与字重。",
+                        "大小",
+                        "字重",
+                        "常规",
+                        "中粗",
+                        "粗体",
+                        "文字设置已保存",
+                        "主屏标题",
+                        "主屏艺人",
+                        "主屏底部原文歌词",
+                        "主屏底部发音",
+                        "主屏底部翻译",
+                        "歌词页标题",
+                        "歌词页艺人",
+                        "歌词页原文",
+                        "歌词页发音",
+                        "歌词页翻译",
+                        "调整此项目的大小和字重。"
+                );
+            case "zh-TW":
+                return typographyStringsValues(
+                        "字體排版",
+                        "分別調整主畫面與歌詞頁面的字級與字重。",
+                        "大小",
+                        "字重",
+                        "標準",
+                        "中粗",
+                        "粗體",
+                        "文字設定已儲存",
+                        "主畫面標題",
+                        "主畫面藝人",
+                        "主畫面底部原文歌詞",
+                        "主畫面底部發音",
+                        "主畫面底部翻譯",
+                        "歌詞頁標題",
+                        "歌詞頁藝人",
+                        "歌詞頁原文",
+                        "歌詞頁發音",
+                        "歌詞頁翻譯",
+                        "調整此項目的大小與字重。"
+                );
+            case "ja":
+                return typographyStringsValues(
+                        "タイポグラフィ",
+                        "メイン画面と歌詞ページの文字サイズと太さを項目ごとに調整します。",
+                        "サイズ",
+                        "太さ",
+                        "レギュラー",
+                        "セミボールド",
+                        "ボールド",
+                        "文字設定を保存しました",
+                        "メインタイトル",
+                        "メインアーティスト",
+                        "メイン下部の原文歌詞",
+                        "メイン下部の発音",
+                        "メイン下部の翻訳",
+                        "歌詞ページタイトル",
+                        "歌詞ページアーティスト",
+                        "歌詞ページ原文",
+                        "歌詞ページ発音",
+                        "歌詞ページ翻訳",
+                        "この項目のサイズと太さを調整します。"
+                );
+            case "hi":
+                return typographyStringsValues(
+                        "टाइपोग्राफी",
+                        "मुख्य प्लेयर और गीत पृष्ठ के टेक्स्ट आकार और मोटाई को अलग-अलग बदलें।",
+                        "आकार",
+                        "मोटाई",
+                        "सामान्य",
+                        "सेमी-बोल्ड",
+                        "बोल्ड",
+                        "टाइपोग्राफी सहेजी गई",
+                        "मुख्य शीर्षक",
+                        "मुख्य कलाकार",
+                        "मुख्य नीचे मूल गीत",
+                        "मुख्य नीचे उच्चारण",
+                        "मुख्य नीचे अनुवाद",
+                        "गीत पृष्ठ शीर्षक",
+                        "गीत पृष्ठ कलाकार",
+                        "गीत पृष्ठ मूल",
+                        "गीत पृष्ठ उच्चारण",
+                        "गीत पृष्ठ अनुवाद",
+                        "इस आइटम का आकार और मोटाई बदलें।"
+                );
+            case "es":
+                return typographyStringsValues(
+                        "Tipografía",
+                        "Personaliza el tamaño y el grosor del texto en el reproductor principal y la página de letras.",
+                        "Tamaño",
+                        "Grosor",
+                        "Normal",
+                        "Seminegrita",
+                        "Negrita",
+                        "Tipografía guardada",
+                        "Título principal",
+                        "Artista principal",
+                        "Original inferior principal",
+                        "Pronunciación inferior principal",
+                        "Traducción inferior principal",
+                        "Título de la página de letras",
+                        "Artista de la página de letras",
+                        "Original de la página de letras",
+                        "Pronunciación de la página de letras",
+                        "Traducción de la página de letras",
+                        "Ajusta el tamaño y el grosor de este elemento."
+                );
+            case "fr":
+                return typographyStringsValues(
+                        "Typographie",
+                        "Personnalisez la taille et la graisse du texte pour le lecteur principal et la page de paroles.",
+                        "Taille",
+                        "Graisse",
+                        "Normal",
+                        "Demi-gras",
+                        "Gras",
+                        "Typographie enregistrée",
+                        "Titre principal",
+                        "Artiste principal",
+                        "Original du bas principal",
+                        "Prononciation du bas principal",
+                        "Traduction du bas principal",
+                        "Titre de la page paroles",
+                        "Artiste de la page paroles",
+                        "Original de la page paroles",
+                        "Prononciation de la page paroles",
+                        "Traduction de la page paroles",
+                        "Ajustez la taille et la graisse de cet élément."
+                );
+            case "ar":
+                return typographyStringsValues(
+                        "الطباعة",
+                        "خصص حجم النص ووزنه لكل عنصر في المشغل الرئيسي وصفحة الكلمات.",
+                        "الحجم",
+                        "الوزن",
+                        "عادي",
+                        "شبه غامق",
+                        "غامق",
+                        "تم حفظ إعدادات النص",
+                        "عنوان الشاشة الرئيسية",
+                        "فنان الشاشة الرئيسية",
+                        "الكلمات الأصلية أسفل الشاشة",
+                        "النطق أسفل الشاشة",
+                        "الترجمة أسفل الشاشة",
+                        "عنوان صفحة الكلمات",
+                        "فنان صفحة الكلمات",
+                        "الأصل في صفحة الكلمات",
+                        "النطق في صفحة الكلمات",
+                        "الترجمة في صفحة الكلمات",
+                        "اضبط حجم هذا العنصر ووزنه."
+                );
+            case "fa":
+                return typographyStringsValues(
+                        "تایپوگرافی",
+                        "اندازه و ضخامت متن را برای پخش کننده اصلی و صفحه متن آهنگ جداگانه تنظیم کنید.",
+                        "اندازه",
+                        "ضخامت",
+                        "معمولی",
+                        "نیمه‌پررنگ",
+                        "پررنگ",
+                        "تنظیمات تایپوگرافی ذخیره شد",
+                        "عنوان اصلی",
+                        "هنرمند اصلی",
+                        "متن اصلی پایین صفحه",
+                        "تلفظ پایین صفحه",
+                        "ترجمه پایین صفحه",
+                        "عنوان صفحه متن آهنگ",
+                        "هنرمند صفحه متن آهنگ",
+                        "متن اصلی صفحه متن آهنگ",
+                        "تلفظ صفحه متن آهنگ",
+                        "ترجمه صفحه متن آهنگ",
+                        "اندازه و ضخامت این مورد را تنظیم کنید."
+                );
+            case "de":
+                return typographyStringsValues(
+                        "Typografie",
+                        "Textgröße und Schriftstärke für Hauptplayer und Lyrics-Seite einzeln anpassen.",
+                        "Größe",
+                        "Stärke",
+                        "Normal",
+                        "Halbfett",
+                        "Fett",
+                        "Typografie gespeichert",
+                        "Haupttitel",
+                        "Hauptkünstler",
+                        "Original unten im Hauptbildschirm",
+                        "Aussprache unten im Hauptbildschirm",
+                        "Übersetzung unten im Hauptbildschirm",
+                        "Titel der Lyrics-Seite",
+                        "Künstler der Lyrics-Seite",
+                        "Original der Lyrics-Seite",
+                        "Aussprache der Lyrics-Seite",
+                        "Übersetzung der Lyrics-Seite",
+                        "Größe und Stärke dieses Elements anpassen."
+                );
+            case "ru":
+                return typographyStringsValues(
+                        "Типографика",
+                        "Настройте размер и толщину текста для главного плеера и страницы текста песни.",
+                        "Размер",
+                        "Толщина",
+                        "Обычный",
+                        "Полужирный",
+                        "Жирный",
+                        "Типографика сохранена",
+                        "Главный заголовок",
+                        "Главный исполнитель",
+                        "Оригинал внизу главного экрана",
+                        "Произношение внизу главного экрана",
+                        "Перевод внизу главного экрана",
+                        "Заголовок страницы текста",
+                        "Исполнитель страницы текста",
+                        "Оригинал страницы текста",
+                        "Произношение страницы текста",
+                        "Перевод страницы текста",
+                        "Настройте размер и толщину этого элемента."
+                );
+            case "sv":
+                return typographyStringsValues(
+                        "Typografi",
+                        "Anpassa textstorlek och vikt för huvudspelaren och textsidan.",
+                        "Storlek",
+                        "Vikt",
+                        "Normal",
+                        "Halvfet",
+                        "Fet",
+                        "Typografi sparad",
+                        "Huvudtitel",
+                        "Huvudartist",
+                        "Huvud nedre original",
+                        "Huvud nedre uttal",
+                        "Huvud nedre översättning",
+                        "Textsidans titel",
+                        "Textsidans artist",
+                        "Textsidans original",
+                        "Textsidans uttal",
+                        "Textsidans översättning",
+                        "Justera storlek och vikt för detta objekt."
+                );
+            case "pt":
+                return typographyStringsValues(
+                        "Tipografia",
+                        "Personalize o tamanho e o peso do texto no player principal e na página de letras.",
+                        "Tamanho",
+                        "Peso",
+                        "Normal",
+                        "Seminegrito",
+                        "Negrito",
+                        "Tipografia salva",
+                        "Título principal",
+                        "Artista principal",
+                        "Original inferior principal",
+                        "Pronúncia inferior principal",
+                        "Tradução inferior principal",
+                        "Título da página de letras",
+                        "Artista da página de letras",
+                        "Original da página de letras",
+                        "Pronúncia da página de letras",
+                        "Tradução da página de letras",
+                        "Ajuste o tamanho e o peso deste item."
+                );
+            case "bn":
+                return typographyStringsValues(
+                        "টাইপোগ্রাফি",
+                        "মেইন প্লেয়ার ও লিরিক্স পেজের টেক্সট সাইজ এবং ওজন আলাদা করে বদলান।",
+                        "সাইজ",
+                        "ওজন",
+                        "সাধারণ",
+                        "আধা গাঢ়",
+                        "গাঢ়",
+                        "টাইপোগ্রাফি সংরক্ষিত",
+                        "মেইন শিরোনাম",
+                        "মেইন শিল্পী",
+                        "মেইন নিচের মূল লিরিক্স",
+                        "মেইন নিচের উচ্চারণ",
+                        "মেইন নিচের অনুবাদ",
+                        "লিরিক্স পেজ শিরোনাম",
+                        "লিরিক্স পেজ শিল্পী",
+                        "লিরিক্স পেজ মূল",
+                        "লিরিক্স পেজ উচ্চারণ",
+                        "লিরিক্স পেজ অনুবাদ",
+                        "এই আইটেমের সাইজ ও ওজন বদলান।"
+                );
+            case "it":
+                return typographyStringsValues(
+                        "Tipografia",
+                        "Personalizza dimensione e peso del testo nel player principale e nella pagina testi.",
+                        "Dimensione",
+                        "Peso",
+                        "Normale",
+                        "Semigrassetto",
+                        "Grassetto",
+                        "Tipografia salvata",
+                        "Titolo principale",
+                        "Artista principale",
+                        "Originale in basso principale",
+                        "Pronuncia in basso principale",
+                        "Traduzione in basso principale",
+                        "Titolo pagina testi",
+                        "Artista pagina testi",
+                        "Originale pagina testi",
+                        "Pronuncia pagina testi",
+                        "Traduzione pagina testi",
+                        "Regola dimensione e peso di questo elemento."
+                );
+            case "th":
+                return typographyStringsValues(
+                        "ตัวอักษร",
+                        "ปรับขนาดและน้ำหนักตัวอักษรของหน้าหลักและหน้าเนื้อเพลงแยกตามรายการ",
+                        "ขนาด",
+                        "น้ำหนัก",
+                        "ปกติ",
+                        "กึ่งหนา",
+                        "หนา",
+                        "บันทึกการตั้งค่าตัวอักษรแล้ว",
+                        "ชื่อเพลงหน้าหลัก",
+                        "ศิลปินหน้าหลัก",
+                        "เนื้อเพลงต้นฉบับด้านล่าง",
+                        "คำอ่านด้านล่าง",
+                        "คำแปลด้านล่าง",
+                        "ชื่อเพลงหน้าเนื้อเพลง",
+                        "ศิลปินหน้าเนื้อเพลง",
+                        "ต้นฉบับหน้าเนื้อเพลง",
+                        "คำอ่านหน้าเนื้อเพลง",
+                        "คำแปลหน้าเนื้อเพลง",
+                        "ปรับขนาดและน้ำหนักของรายการนี้"
+                );
+            case "vi":
+                return typographyStringsValues(
+                        "Kiểu chữ",
+                        "Tùy chỉnh cỡ chữ và độ đậm cho trình phát chính và trang lời bài hát.",
+                        "Cỡ chữ",
+                        "Độ đậm",
+                        "Thường",
+                        "Hơi đậm",
+                        "Đậm",
+                        "Đã lưu kiểu chữ",
+                        "Tiêu đề chính",
+                        "Nghệ sĩ chính",
+                        "Lời gốc phía dưới",
+                        "Phát âm phía dưới",
+                        "Bản dịch phía dưới",
+                        "Tiêu đề trang lời bài hát",
+                        "Nghệ sĩ trang lời bài hát",
+                        "Lời gốc trang lời bài hát",
+                        "Phát âm trang lời bài hát",
+                        "Bản dịch trang lời bài hát",
+                        "Điều chỉnh cỡ chữ và độ đậm cho mục này."
+                );
+            case "id":
+                return typographyStringsValues(
+                        "Tipografi",
+                        "Sesuaikan ukuran dan ketebalan teks untuk pemutar utama dan halaman lirik.",
+                        "Ukuran",
+                        "Ketebalan",
+                        "Biasa",
+                        "Semi-tebal",
+                        "Tebal",
+                        "Tipografi disimpan",
+                        "Judul utama",
+                        "Artis utama",
+                        "Lirik asli bawah utama",
+                        "Pelafalan bawah utama",
+                        "Terjemahan bawah utama",
+                        "Judul halaman lirik",
+                        "Artis halaman lirik",
+                        "Asli halaman lirik",
+                        "Pelafalan halaman lirik",
+                        "Terjemahan halaman lirik",
+                        "Sesuaikan ukuran dan ketebalan item ini."
+                );
+            case "ms":
+                return typographyStringsValues(
+                        "Tipografi",
+                        "Laraskan saiz dan ketebalan teks untuk pemain utama dan halaman lirik.",
+                        "Saiz",
+                        "Ketebalan",
+                        "Biasa",
+                        "Separuh tebal",
+                        "Tebal",
+                        "Tipografi disimpan",
+                        "Tajuk utama",
+                        "Artis utama",
+                        "Lirik asal bawah utama",
+                        "Sebutan bawah utama",
+                        "Terjemahan bawah utama",
+                        "Tajuk halaman lirik",
+                        "Artis halaman lirik",
+                        "Asal halaman lirik",
+                        "Sebutan halaman lirik",
+                        "Terjemahan halaman lirik",
+                        "Laraskan saiz dan ketebalan item ini."
+                );
+            case "tr":
+                return typographyStringsValues(
+                        "Tipografi",
+                        "Ana oynatıcı ve söz sayfası için metin boyutunu ve kalınlığını özelleştirin.",
+                        "Boyut",
+                        "Kalınlık",
+                        "Normal",
+                        "Yarı kalın",
+                        "Kalın",
+                        "Tipografi kaydedildi",
+                        "Ana Başlık",
+                        "Ana Sanatçı",
+                        "Ana Alt Orijinal",
+                        "Ana Alt Telaffuz",
+                        "Ana Alt Çeviri",
+                        "Söz Sayfası Başlığı",
+                        "Söz Sayfası Sanatçısı",
+                        "Söz Sayfası Orijinal",
+                        "Söz Sayfası Telaffuz",
+                        "Söz Sayfası Çeviri",
+                        "Bu öğe için boyut ve kalınlığı ayarlayın."
+                );
+            default:
+                return typographyStringsValues(
+                        "Typography",
+                        "Customize text size and weight for the main player and lyrics page.",
+                        "Size",
+                        "Weight",
+                        "Regular",
+                        "SemiBold",
+                        "Bold",
+                        "Typography saved",
+                        "Main Title",
+                        "Main Artist",
+                        "Main Bottom Original",
+                        "Main Bottom Pronunciation",
+                        "Main Bottom Translation",
+                        "Lyrics Page Title",
+                        "Lyrics Page Artist",
+                        "Lyrics Page Original",
+                        "Lyrics Page Pronunciation",
+                        "Lyrics Page Translation",
+                        "Adjust size and weight for this item."
+                );
+        }
+    }
+
+    private static String[] typographyStringsValues(
+            String sectionTitle,
+            String sectionDescription,
+            String size,
+            String weight,
+            String regular,
+            String semibold,
+            String bold,
+            String saved,
+            String mainTitle,
+            String mainArtist,
+            String mainPreviewOriginal,
+            String mainPreviewPronunciation,
+            String mainPreviewTranslation,
+            String lyricsHeaderTitle,
+            String lyricsHeaderArtist,
+            String lyricsOriginal,
+            String lyricsPronunciation,
+            String lyricsTranslation,
+            String slotDescription
+    ) {
+        return new String[]{
+                "section.typography", sectionTitle,
+                "section.typography_desc", sectionDescription,
+                "typography.size", size,
+                "typography.weight", weight,
+                "typography.weight.regular", regular,
+                "typography.weight.semibold", semibold,
+                "typography.weight.bold", bold,
+                "toast.typography_saved", saved,
+                "typography.slot.main_title", mainTitle,
+                "typography.slot.main_title_desc", slotDescription,
+                "typography.slot.main_artist", mainArtist,
+                "typography.slot.main_artist_desc", slotDescription,
+                "typography.slot.main_preview_original", mainPreviewOriginal,
+                "typography.slot.main_preview_original_desc", slotDescription,
+                "typography.slot.main_preview_pronunciation", mainPreviewPronunciation,
+                "typography.slot.main_preview_pronunciation_desc", slotDescription,
+                "typography.slot.main_preview_translation", mainPreviewTranslation,
+                "typography.slot.main_preview_translation_desc", slotDescription,
+                "typography.slot.lyrics_header_title", lyricsHeaderTitle,
+                "typography.slot.lyrics_header_title_desc", slotDescription,
+                "typography.slot.lyrics_header_artist", lyricsHeaderArtist,
+                "typography.slot.lyrics_header_artist_desc", slotDescription,
+                "typography.slot.lyrics_original", lyricsOriginal,
+                "typography.slot.lyrics_original_desc", slotDescription,
+                "typography.slot.lyrics_pronunciation", lyricsPronunciation,
+                "typography.slot.lyrics_pronunciation_desc", slotDescription,
+                "typography.slot.lyrics_translation", lyricsTranslation,
+                "typography.slot.lyrics_translation_desc", slotDescription
+        };
+    }
+
+    private static void addSpeakerColorStrings(Map<String, Map<String, String>> languages) {
+        addLanguageStrings(languages, AppI18n::speakerColorStrings);
+    }
+
+    private static String[] speakerColorStrings(String lang) {
+        switch (normalize(lang)) {
+            case "ko":
+                return speakerColorStringsValues("보컬 색상", "기본, 듀엣, 남성, 여성 보컬 색상을 색상 선택기로 조절합니다.", "기본", "듀엣", "남성", "여성", "선택 색상", "색상 저장", "기본값으로", "보컬 색상 저장됨", "보컬 색상 기본값 적용됨", "%s 색상 형식이 올바르지 않습니다.");
+            case "zh-CN":
+                return speakerColorStringsValues("人声颜色", "使用颜色选择器调整普通、合唱、男声、女声的歌词颜色。", "普通", "合唱", "男声", "女声", "已选颜色", "保存颜色", "恢复默认", "人声颜色已保存", "人声颜色已恢复默认", "%s 的颜色格式不正确。");
+            case "zh-TW":
+                return speakerColorStringsValues("人聲顏色", "使用色彩選擇器調整一般、合唱、男聲、女聲的歌詞顏色。", "一般", "合唱", "男聲", "女聲", "已選色彩", "儲存色彩", "恢復預設", "人聲色彩已儲存", "人聲色彩已恢復預設", "%s 的色彩格式不正確。");
+            case "ja":
+                return speakerColorStringsValues("ボーカルカラー", "通常、デュエット、男性、女性の歌詞色をカラーピッカーで調整します。", "通常", "デュエット", "男性", "女性", "選択色", "色を保存", "初期値に戻す", "ボーカルカラーを保存しました", "ボーカルカラーを初期値に戻しました", "%s の色形式が正しくありません。");
+            case "hi":
+                return speakerColorStringsValues("वोकल रंग", "सामान्य, डुएट, पुरुष और महिला गीत रंगों को रंग चयनकर्ता से बदलें।", "सामान्य", "डुएट", "पुरुष", "महिला", "चुना गया रंग", "रंग सहेजें", "डिफॉल्ट", "वोकल रंग सहेजे गए", "वोकल रंग डिफॉल्ट पर लौटे", "%s रंग प्रारूप सही नहीं है।");
+            case "es":
+                return speakerColorStringsValues("Colores vocales", "Ajusta los colores normal, dueto, masculino y femenino con un selector de color.", "Normal", "Dueto", "Masculino", "Femenino", "Color elegido", "Guardar colores", "Restablecer", "Colores vocales guardados", "Colores vocales restablecidos", "El formato de color de %s no es válido.");
+            case "fr":
+                return speakerColorStringsValues("Couleurs vocales", "Réglez les couleurs normale, duo, homme et femme à l’aide d’un sélecteur de couleur.", "Normal", "Duo", "Homme", "Femme", "Couleur choisie", "Enregistrer", "Réinitialiser", "Couleurs vocales enregistrées", "Couleurs vocales réinitialisées", "Le format de couleur de %s est invalide.");
+            case "ar":
+                return speakerColorStringsValues("ألوان الأصوات", "اضبط ألوان عادي وثنائي وذكر وأنثى باستخدام منتقي الألوان.", "عادي", "ثنائي", "ذكر", "أنثى", "اللون المحدد", "حفظ الألوان", "إعادة الضبط", "تم حفظ ألوان الأصوات", "تمت إعادة ألوان الأصوات", "تنسيق لون %s غير صحيح.");
+            case "fa":
+                return speakerColorStringsValues("رنگ‌های وکال", "رنگ عادی، دونفره، مرد و زن را با انتخابگر رنگ تنظیم کنید.", "عادی", "دونفره", "مرد", "زن", "رنگ انتخاب‌شده", "ذخیره رنگ‌ها", "بازنشانی", "رنگ‌های وکال ذخیره شد", "رنگ‌های وکال بازنشانی شد", "قالب رنگ %s درست نیست.");
+            case "de":
+                return speakerColorStringsValues("Gesangsfarben", "Passe die Farben für Standard, Duett, männlich und weiblich mit einem Farbwähler an.", "Normal", "Duett", "Männlich", "Weiblich", "Ausgewählte Farbe", "Farben speichern", "Zurücksetzen", "Gesangsfarben gespeichert", "Vokal-Farben zurückgesetzt", "Das Farbformat von %s ist ungültig.");
+            case "ru":
+                return speakerColorStringsValues("Цвета вокала", "Настройте цвета «Обычный», «Дуэт», «Мужской» и «Женский» через выбор цвета.", "Обычный", "Дуэт", "Мужской", "Женский", "Выбранный цвет", "Сохранить цвета", "Сбросить", "Цвета вокала сохранены", "Цвета вокала сброшены", "Неверный формат цвета для %s.");
+            case "sv":
+                return speakerColorStringsValues("Röstfärger", "Justera färgerna för normal, duett, manlig och kvinnlig med en färgväljare.", "Normal", "Duett", "Manlig", "Kvinnlig", "Vald färg", "Spara färger", "Återställ", "Röstfärger sparade", "Röstfärger återställda", "Färgformatet för %s är ogiltigt.");
+            case "pt":
+                return speakerColorStringsValues("Cores vocais", "Ajuste as cores normal, dueto, masculina e feminina com um seletor de cor.", "Normal", "Dueto", "Masculino", "Feminino", "Cor escolhida", "Salvar cores", "Redefinir", "Cores vocais salvas", "Cores vocais redefinidas", "O formato de cor de %s é inválido.");
+            case "bn":
+                return speakerColorStringsValues("ভোকাল রঙ", "সাধারণ, ডুয়েট, পুরুষ ও নারী লিরিক্সের রঙ নির্বাচনকারী দিয়ে বদলান।", "সাধারণ", "ডুয়েট", "পুরুষ", "নারী", "নির্বাচিত রঙ", "রঙ সংরক্ষণ", "রিসেট", "ভোকাল রঙ সংরক্ষিত", "ভোকাল রঙ রিসেট হয়েছে", "%s রঙের ফরম্যাট সঠিক নয়।");
+            case "it":
+                return speakerColorStringsValues("Colori vocali", "Regola i colori normale, duetto, maschile e femminile con un selettore colore.", "Normale", "Duetto", "Maschile", "Femminile", "Colore scelto", "Salva colori", "Ripristina", "Colori vocali salvati", "Colori vocali ripristinati", "Il formato colore di %s non è valido.");
+            case "th":
+                return speakerColorStringsValues("สีเสียงร้อง", "ปรับสีปกติ ดูเอต ชาย และหญิงด้วยตัวเลือกสี", "ปกติ", "ดูเอต", "ชาย", "หญิง", "สีที่เลือก", "บันทึกสี", "รีเซ็ต", "บันทึกสีเสียงร้องแล้ว", "รีเซ็ตสีเสียงร้องแล้ว", "รูปแบบสีของ %s ไม่ถูกต้อง");
+            case "vi":
+                return speakerColorStringsValues("Màu giọng hát", "Điều chỉnh màu giọng thường, song ca, nam và nữ bằng bộ chọn màu.", "Thường", "Song ca", "Nam", "Nữ", "Màu đã chọn", "Lưu màu", "Đặt lại", "Đã lưu màu giọng hát", "Đã đặt lại màu giọng hát", "Định dạng màu của %s không hợp lệ.");
+            case "id":
+                return speakerColorStringsValues("Warna vokal", "Atur warna normal, duet, pria, dan wanita dengan pemilih warna.", "Normal", "Duet", "Pria", "Wanita", "Warna terpilih", "Simpan warna", "Reset", "Warna vokal disimpan", "Warna vokal direset", "Format warna %s tidak valid.");
+            case "ms":
+                return speakerColorStringsValues("Warna vokal", "Laraskan warna biasa, duet, lelaki dan perempuan dengan pemilih warna.", "Biasa", "Duet", "Lelaki", "Perempuan", "Warna dipilih", "Simpan warna", "Tetapkan semula", "Warna vokal disimpan", "Warna vokal ditetapkan semula", "Format warna %s tidak sah.");
+            case "tr":
+                return speakerColorStringsValues("Vokal Renkleri", "Normal, düet, erkek ve kadın söz renklerini renk seçiciyle özelleştirin.", "Normal", "Düet", "Erkek", "Kadın", "Seçili renk", "Renkleri uygula", "Sıfırla", "Vokal renkleri kaydedildi", "Vokal renkleri sıfırlandı", "%s renk biçimi geçersiz.");
+            default:
+                return speakerColorStringsValues("Vocal Colors", "Customize normal, duet, male, and female lyric colors with a color picker.", "Normal", "Duet", "Male", "Female", "Selected color", "Apply colors", "Reset", "Vocal colors saved", "Vocal colors reset", "%s color format is invalid.");
+        }
+    }
+
+    private static String[] speakerColorStringsValues(
+            String sectionTitle,
+            String sectionDescription,
+            String normal,
+            String duet,
+            String male,
+            String female,
+            String hexHint,
+            String apply,
+            String reset,
+            String saved,
+            String resetToast,
+            String invalidFormat
+    ) {
+        return new String[]{
+                "section.speaker_colors", sectionTitle,
+                "section.speaker_colors_desc", sectionDescription,
+                "speaker_color.normal", normal,
+                "speaker_color.duet", duet,
+                "speaker_color.male", male,
+                "speaker_color.female", female,
+                "speaker_color.hex_hint", hexHint,
+                "button.apply_colors", apply,
+                "button.reset_colors", reset,
+                "toast.speaker_colors_saved", saved,
+                "toast.speaker_colors_reset", resetToast,
+                "toast.invalid_color_format", invalidFormat
+        };
+    }
+
+    private static void addCreatorSpeakerColorStrings(Map<String, Map<String, String>> languages) {
+        addLanguageStrings(languages, AppI18n::creatorSpeakerColorStrings);
+    }
+
+    private static String[] creatorSpeakerColorStrings(String lang) {
+        switch (normalize(lang)) {
+            case "ko":
+                return creatorSpeakerColorStringsValues("싱크 제작자 커스텀 색상 사용", "싱크 제작자가 데이터에 지정한 보컬 색상을 사용합니다. 끄면 CUSTOM 스피커는 싱크 제작자가 지정한 대체 색상을 사용합니다.");
+            case "zh-CN":
+                return creatorSpeakerColorStringsValues("使用同步制作者的自定义颜色", "使用同步制作者嵌入数据的声部颜色。关闭后，CUSTOM 声部将使用制作者选择的备用颜色。");
+            case "zh-TW":
+                return creatorSpeakerColorStringsValues("使用同步製作者的自訂顏色", "使用同步製作者嵌入資料的聲部顏色。關閉後，CUSTOM 聲部將使用製作者選擇的備用顏色。");
+            case "ja":
+                return creatorSpeakerColorStringsValues("同期作成者のカスタム色を使用", "同期作成者がデータに設定したボーカル色を使用します。オフにすると、CUSTOM話者には同期作成者が選んだフォールバック色が使われます。");
+            case "hi":
+                return creatorSpeakerColorStringsValues("सिंक निर्माता के कस्टम रंग उपयोग करें", "सिंक निर्माता द्वारा डेटा में जोड़े गए वोकल रंग उपयोग करता है। बंद होने पर CUSTOM वोकल निर्माता द्वारा चुना गया फ़ॉलबैक रंग उपयोग करते हैं।");
+            case "es":
+                return creatorSpeakerColorStringsValues("Usar colores personalizados del creador de sincronización", "Usa los colores de voz incluidos por el creador de la sincronización. Si se desactiva, las voces CUSTOM usan el color alternativo elegido por el creador.");
+            case "fr":
+                return creatorSpeakerColorStringsValues("Utiliser les couleurs personnalisées du créateur de synchro", "Utilise les couleurs de voix intégrées par le créateur de la synchronisation. Si désactivé, les voix CUSTOM utilisent la couleur de remplacement choisie par le créateur.");
+            case "ar":
+                return creatorSpeakerColorStringsValues("استخدام الألوان المخصصة لمنشئ المزامنة", "يستخدم ألوان الأصوات التي يضمّنها منشئ المزامنة في البيانات. عند إيقافه، تستخدم أصوات CUSTOM اللون الاحتياطي الذي حدده منشئ المزامنة.");
+            case "fa":
+                return creatorSpeakerColorStringsValues("استفاده از رنگ‌های سفارشی سازنده همگام‌سازی", "از رنگ‌های خواننده که سازنده همگام‌سازی در داده قرار داده استفاده می‌کند. با خاموش کردن، خواننده‌های CUSTOM از رنگ جایگزین انتخاب‌شده توسط سازنده استفاده می‌کنند.");
+            case "de":
+                return creatorSpeakerColorStringsValues("Benutzerdefinierte Farben des Sync-Erstellers verwenden", "Verwendet die vom Sync-Ersteller eingebetteten Stimmenfarben. Wenn deaktiviert, nutzen CUSTOM-Stimmen die vom Sync-Ersteller gewählte Fallback-Farbe.");
+            case "ru":
+                return creatorSpeakerColorStringsValues("Использовать пользовательские цвета автора синхронизации", "Использует цвета вокала, заданные автором синхронизации. Если выключено, вокалы CUSTOM используют резервный цвет, выбранный автором.");
+            case "sv":
+                return creatorSpeakerColorStringsValues("Använd synkskaparens anpassade färger", "Använder röstfärger som synkskaparen bäddat in. När det är avstängt använder CUSTOM-röster reservfärgen som synkskaparen valt.");
+            case "pt":
+                return creatorSpeakerColorStringsValues("Usar cores personalizadas do criador da sincronização", "Usa as cores de voz incorporadas pelo criador da sincronização. Quando desativado, vozes CUSTOM usam a cor alternativa escolhida pelo criador.");
+            case "bn":
+                return creatorSpeakerColorStringsValues("সিঙ্ক নির্মাতার কাস্টম রং ব্যবহার করুন", "সিঙ্ক নির্মাতার ডেটায় যোগ করা ভোকাল রং ব্যবহার করে। বন্ধ থাকলে CUSTOM ভোকাল নির্মাতার নির্বাচিত বিকল্প রং ব্যবহার করে।");
+            case "it":
+                return creatorSpeakerColorStringsValues("Usa i colori personalizzati del creatore della sincronizzazione", "Usa i colori delle voci incorporati dal creatore della sincronizzazione. Se disattivato, le voci CUSTOM usano il colore alternativo scelto dal creatore.");
+            case "th":
+                return creatorSpeakerColorStringsValues("ใช้สีแบบกำหนดเองของผู้สร้างซิงก์", "ใช้สีเสียงร้องที่ผู้สร้างซิงก์ฝังไว้ในข้อมูล เมื่อปิด เสียงร้อง CUSTOM จะใช้สีสำรองที่ผู้สร้างซิงก์เลือกไว้");
+            case "vi":
+                return creatorSpeakerColorStringsValues("Dùng màu tùy chỉnh của người tạo đồng bộ", "Dùng màu giọng hát do người tạo đồng bộ nhúng vào dữ liệu. Khi tắt, giọng CUSTOM dùng màu dự phòng do người tạo chọn.");
+            case "id":
+                return creatorSpeakerColorStringsValues("Gunakan warna kustom pembuat sinkronisasi", "Gunakan warna vokal yang disematkan pembuat sinkronisasi dalam data. Jika dimatikan, vokal CUSTOM memakai warna cadangan pilihan pembuat.");
+            case "ms":
+                return creatorSpeakerColorStringsValues("Gunakan warna tersuai pencipta penyegerakan", "Gunakan warna vokal yang dibenamkan oleh pencipta penyegerakan dalam data. Apabila dimatikan, vokal CUSTOM menggunakan warna sandaran pilihan pencipta.");
+            case "tr":
+                return creatorSpeakerColorStringsValues("Senkronizasyon oluşturucunun özel renklerini kullan", "Senkronizasyon oluşturucunun veriye eklediği vokal renklerini kullanır. Kapatıldığında CUSTOM vokaller oluşturucunun seçtiği yedek rengi kullanır.");
+            default:
+                return creatorSpeakerColorStringsValues("Use sync creator custom colors", "Use custom speaker colors embedded by sync creators. When disabled, CUSTOM speakers use the fallback selected by the sync creator.");
+        }
+    }
+
+    private static String[] creatorSpeakerColorStringsValues(String label, String description) {
+        return new String[]{
+                "setting.creator_speaker_colors", label,
+                "setting.creator_speaker_colors_desc", description
+        };
+    }
+
+    private static void addVideoBackgroundStrings(Map<String, Map<String, String>> languages) {
+        addLanguageStrings(languages, AppI18n::videoBackgroundStrings, AppI18n::videoBackgroundScaleStrings);
+    }
+
+    private static String[] videoBackgroundStrings(String lang) {
+        switch (normalize(lang)) {
+            case "ko":
+                return videoBackgroundStringsValues("앨범 커버, 영상, 블러 그라데이션, 단색 배경 중 하나를 사용합니다.", "영상", "ivLyrics YouTube 영상 정보를 불러와 실제 영상을 배경으로 재생합니다.");
+            case "zh-CN":
+                return videoBackgroundStringsValues("选择专辑封面、视频、模糊渐变或纯色背景。", "视频", "加载 ivLyrics YouTube 视频信息，并在播放器后方播放真实视频。");
+            case "zh-TW":
+                return videoBackgroundStringsValues("選擇專輯封面、影片、模糊漸層或純色背景。", "影片", "載入 ivLyrics YouTube 影片資訊，並在播放器後方播放實際影片。");
+            case "ja":
+                return videoBackgroundStringsValues("アルバムカバー、動画、ぼかしグラデーション、単色背景から選びます。", "動画", "ivLyrics の YouTube 動画情報を読み込み、実際の動画を背景で再生します。");
+            case "hi":
+                return videoBackgroundStringsValues("एल्बम कवर, वीडियो, धुंधली ढाल, या ठोस रंग पृष्ठभूमि चुनें।", "वीडियो", "ivLyrics YouTube वीडियो जानकारी लोड करता है और प्लेयर के पीछे असली वीडियो चलाता है।");
+            case "es":
+                return videoBackgroundStringsValues("Elija portada del álbum, video, degradado borroso o fondo sólido.", "Video", "Carga datos de video de YouTube de ivLyrics y reproduce el video real detrás del reproductor.");
+            case "fr":
+                return videoBackgroundStringsValues("Choisissez une pochette, une vidéo, un dégradé flou ou une couleur unie.", "Vidéo", "Charge la vidéo YouTube ivLyrics et lit la vraie vidéo derrière le lecteur.");
+            case "ar":
+                return videoBackgroundStringsValues("اختر غلاف الألبوم أو الفيديو أو التدرج الضبابي أو لونًا ثابتًا.", "فيديو", "يحمّل معلومات فيديو YouTube من ivLyrics ويشغل الفيديو الحقيقي خلف المشغّل.");
+            case "fa":
+                return videoBackgroundStringsValues("جلد آلبوم، ویدیو، گرادیان تار یا رنگ ثابت را انتخاب کنید.", "ویدیو", "اطلاعات ویدیوی YouTube از ivLyrics را می‌گیرد و ویدیوی واقعی را پشت پخش‌کننده اجرا می‌کند.");
+            case "de":
+                return videoBackgroundStringsValues("Wählen Sie Albumcover, Video, unscharfen Verlauf oder Volltonfarbe.", "Video", "Lädt ivLyrics-YouTube-Videodaten und spielt das echte Video hinter dem Player ab.");
+            case "ru":
+                return videoBackgroundStringsValues("Выберите обложку, видео, размытый градиент или сплошной цвет.", "Видео", "Загружает YouTube-видео ivLyrics и воспроизводит настоящее видео за плеером.");
+            case "sv":
+                return videoBackgroundStringsValues("Välj albumomslag, video, suddig gradient eller enfärgad bakgrund.", "Video", "Läser in ivLyrics YouTube-video och spelar den riktiga videon bakom spelaren.");
+            case "pt":
+                return videoBackgroundStringsValues("Escolha capa do álbum, vídeo, gradiente desfocado ou cor sólida.", "Vídeo", "Carrega o vídeo do YouTube do ivLyrics e reproduz o vídeo real atrás do player.");
+            case "bn":
+                return videoBackgroundStringsValues("অ্যালবাম কভার, ভিডিও, ঝাপসা গ্রেডিয়েন্ট বা কঠিন রঙের পটভূমি বেছে নিন।", "ভিডিও", "ivLyrics YouTube ভিডিও তথ্য লোড করে এবং প্লেয়ারের পেছনে আসল ভিডিও চালায়।");
+            case "it":
+                return videoBackgroundStringsValues("Scegli copertina, video, sfumatura sfocata o colore solido.", "Video", "Carica il video YouTube di ivLyrics e riproduce il video reale dietro il player.");
+            case "th":
+                return videoBackgroundStringsValues("เลือกปกอัลบั้ม วิดีโอ ไล่ระดับแบบเบลอ หรือพื้นหลังสีทึบ", "วิดีโอ", "โหลดข้อมูลวิดีโอ YouTube ของ ivLyrics และเล่นวิดีโอจริงด้านหลังเครื่องเล่น");
+            case "vi":
+                return videoBackgroundStringsValues("Chọn bìa album, video, nền chuyển màu mờ hoặc màu đặc.", "Video", "Tải video YouTube của ivLyrics và phát video thật phía sau trình phát.");
+            case "id":
+                return videoBackgroundStringsValues("Pilih sampul album, video, gradien buram, atau warna solid.", "Video", "Memuat video YouTube ivLyrics dan memutar video asli di belakang pemutar.");
+            case "ms":
+                return videoBackgroundStringsValues("Pilih kulit album, video, kecerunan kabur atau warna pepejal.", "Video", "Memuatkan video YouTube ivLyrics dan memainkan video sebenar di belakang pemain.");
+            case "tr":
+                return videoBackgroundStringsValues("Albüm kapağı, video, bulanık gradyan veya düz renk arka plan seçin.", "Video", "ivLyrics YouTube video bilgisini yükler ve gerçek videoyu oynatıcının arkasında oynatır.");
+            default:
+                return videoBackgroundStringsValues("Choose album cover, video, blurred gradient, or solid color background.", "Video", "Loads ivLyrics YouTube video metadata and plays the real video behind the player.");
+        }
+    }
+
+    private static String[] videoBackgroundStringsValues(String sectionDesc, String label, String desc) {
+        return new String[]{
+                "section.background_desc", sectionDesc,
+                "background.mode.video", label,
+                "background.mode.video_desc", desc
+        };
+    }
+
+    private static String[] videoBackgroundScaleStrings(String lang) {
+        switch (normalize(lang)) {
+            case "ko":
+                return videoBackgroundScaleStringsValues("영상 확대", "영상에 검은 여백이 있거나 화면을 더 채워야 할 때 배경 영상을 확대합니다.");
+            case "zh-CN":
+                return videoBackgroundScaleStringsValues("视频缩放", "当视频带有黑边或需要更充满屏幕时，放大背景视频。");
+            case "zh-TW":
+                return videoBackgroundScaleStringsValues("影片縮放", "當影片有黑邊或需要更填滿畫面時，放大背景影片。");
+            case "ja":
+                return videoBackgroundScaleStringsValues("動画の拡大", "映像に黒帯がある場合や画面をより埋めたい場合に背景動画を拡大します。");
+            case "hi":
+                return videoBackgroundScaleStringsValues("वीडियो ज़ूम", "वीडियो में काली पट्टियां हों या स्क्रीन को अधिक भरना हो तो पृष्ठभूमि वीडियो को बड़ा करें।");
+            case "es":
+                return videoBackgroundScaleStringsValues("Zoom de video", "Amplia el video de fondo cuando la fuente tiene barras negras o necesita llenar más la pantalla.");
+            case "fr":
+                return videoBackgroundScaleStringsValues("Zoom vidéo", "Agrandit la vidéo d'arrière-plan si la source a des bandes noires ou doit mieux remplir l'écran.");
+            case "ar":
+                return videoBackgroundScaleStringsValues("تكبير الفيديو", "يكبر فيديو الخلفية عندما يحتوي المصدر على أشرطة سوداء أو يحتاج إلى ملء الشاشة أكثر.");
+            case "fa":
+                return videoBackgroundScaleStringsValues("بزرگ‌نمایی ویدیو", "وقتی منبع نوار سیاه دارد یا باید صفحه را بیشتر پر کند، ویدیوی پس‌زمینه را بزرگ می‌کند.");
+            case "de":
+                return videoBackgroundScaleStringsValues("Video-Zoom", "Vergroessert das Hintergrundvideo, wenn die Quelle schwarze Balken hat oder den Bildschirm staerker fuellen soll.");
+            case "ru":
+                return videoBackgroundScaleStringsValues("Масштаб видео", "Увеличивает фоновое видео, если в источнике есть черные поля или нужно лучше заполнить экран.");
+            case "sv":
+                return videoBackgroundScaleStringsValues("Videozoom", "Zoomar bakgrundsvideon när källan har svarta kanter eller behöver fylla mer av skärmen.");
+            case "pt":
+                return videoBackgroundScaleStringsValues("Zoom do vídeo", "Amplia o vídeo de fundo quando a origem tem faixas pretas ou precisa preencher mais a tela.");
+            case "bn":
+                return videoBackgroundScaleStringsValues("ভিডিও জুম", "ভিডিওতে কালো বার থাকলে বা স্ক্রিন আরও ভরাট করতে হলে ব্যাকগ্রাউন্ড ভিডিও বড় করে।");
+            case "it":
+                return videoBackgroundScaleStringsValues("Zoom video", "Ingrandisce il video di sfondo quando la sorgente ha bande nere o deve riempire meglio lo schermo.");
+            case "th":
+                return videoBackgroundScaleStringsValues("ซูมวิดีโอ", "ขยายวิดีโอพื้นหลังเมื่อแหล่งวิดีโอมีขอบดำหรือต้องการให้เต็มหน้าจอมากขึ้น");
+            case "vi":
+                return videoBackgroundScaleStringsValues("Thu phóng video", "Phóng to video nền khi nguồn có viền đen hoặc cần lấp đầy màn hình hơn.");
+            case "id":
+                return videoBackgroundScaleStringsValues("Zoom video", "Memperbesar video latar saat sumber memiliki bilah hitam atau perlu memenuhi layar lebih banyak.");
+            case "ms":
+                return videoBackgroundScaleStringsValues("Zum video", "Membesarkan video latar apabila sumber mempunyai jalur hitam atau perlu memenuhi skrin dengan lebih baik.");
+            case "tr":
+                return videoBackgroundScaleStringsValues("Video yakınlaştırma", "Kaynakta siyah kenarlık varsa veya ekranı daha iyi doldurması gerekiyorsa video arka planını yakınlaştırır.");
+            default:
+                return videoBackgroundScaleStringsValues("Video zoom", "Zoom the video background when the source has letterboxing or needs to fill more of the screen.");
+        }
+    }
+
+    private static String[] videoBackgroundScaleStringsValues(String label, String desc) {
+        return new String[]{
+                "setting.video_scale", label,
+                "setting.video_scale_desc", desc
+        };
+    }
+
+    private static void addVideoSyncOffsetStrings(Map<String, Map<String, String>> languages) {
+        addLanguageStrings(languages, AppI18n::videoSyncOffsetStrings);
+    }
+
+    private static String[] videoSyncOffsetStrings(String lang) {
+        switch (normalize(lang)) {
+            case "ko":
+                return videoSyncOffsetStringsValues("영상", "영상 싱크 오프셋", "%s 영상 보정", "현재 곡이 없습니다.", "+값은 영상을 더 뒤쪽 시간으로 이동하고, -값은 이전 시간으로 늦춥니다. 가사 싱크 오프셋 위에 추가로 적용됩니다.", "영상 오프셋 초기화", "영상 오프셋 %s");
+            case "zh-CN":
+                return videoSyncOffsetStringsValues("视频", "视频同步偏移", "%s 视频校正", "没有当前歌曲。", "+ 值让视频跳到更靠后的时间，- 值让视频回到更早的时间。它会叠加在歌词同步偏移上。", "重置视频偏移", "视频偏移 %s");
+            case "zh-TW":
+                return videoSyncOffsetStringsValues("影片", "影片同步偏移", "%s 影片校正", "沒有目前歌曲。", "+ 值會讓影片移到較後的時間，- 值會讓影片回到較早的時間。它會疊加在歌詞同步偏移上。", "重設影片偏移", "影片偏移 %s");
+            case "ja":
+                return videoSyncOffsetStringsValues("動画", "動画同期オフセット", "%s の動画補正", "現在の曲がありません。", "+値は動画を先の時刻へ進め、-値は前の時刻へ戻します。歌詞同期オフセットに追加で適用されます。", "動画オフセットをリセット", "動画オフセット %s");
+            case "hi":
+                return videoSyncOffsetStringsValues("वीडियो", "वीडियो सिंक ऑफसेट", "%s वीडियो सुधार", "कोई वर्तमान गीत नहीं है।", "+ मान वीडियो को आगे के समय पर ले जाता है, - मान पीछे के समय पर ले जाता है। यह लिरिक्स सिंक ऑफसेट के ऊपर लागू होता है।", "वीडियो ऑफसेट रीसेट करें", "वीडियो ऑफसेट %s");
+            case "es":
+                return videoSyncOffsetStringsValues("Video", "Desplazamiento de video", "Ajuste de video de %s", "No hay canción actual.", "Un valor + mueve el video a un tiempo posterior; un valor - lo retrasa. Se suma al desplazamiento de la letra.", "Restablecer desplazamiento de video", "Desplazamiento de video %s");
+            case "fr":
+                return videoSyncOffsetStringsValues("Vidéo", "Décalage vidéo", "Correction vidéo de %s", "Aucun morceau en cours.", "Une valeur + avance la vidéo dans le temps, une valeur - la recule. Elle s'ajoute au décalage des paroles.", "Réinitialiser le décalage vidéo", "Décalage vidéo %s");
+            case "ar":
+                return videoSyncOffsetStringsValues("فيديو", "إزاحة مزامنة الفيديو", "تصحيح فيديو %s", "لا توجد أغنية حالية.", "القيمة + تنقل الفيديو إلى وقت لاحق، والقيمة - تعيده إلى وقت سابق. تُضاف فوق إزاحة مزامنة الكلمات.", "إعادة ضبط إزاحة الفيديو", "إزاحة الفيديو %s");
+            case "fa":
+                return videoSyncOffsetStringsValues("ویدیو", "افست همگام سازی ویدیو", "اصلاح ویدیوی %s", "آهنگ فعلی وجود ندارد.", "مقدار + ویدیو را به زمان جلوتر می برد و مقدار - آن را عقب می برد. این روی افست همگام سازی متن افزوده می شود.", "بازنشانی افست ویدیو", "افست ویدیو %s");
+            case "de":
+                return videoSyncOffsetStringsValues("Video", "Video-Sync-Offset", "%s Videokorrektur", "Kein aktueller Song.", "+ verschiebt das Video zu einer späteren Zeit, - zu einer früheren Zeit. Es wird zusätzlich zum Lyrics-Sync-Offset angewendet.", "Video-Offset zurücksetzen", "Video-Offset %s");
+            case "ru":
+                return videoSyncOffsetStringsValues("Видео", "Смещение синхронизации видео", "Коррекция видео %s", "Нет текущей песни.", "+ переносит видео на более позднее время, - на более раннее. Значение добавляется к смещению текста.", "Сбросить смещение видео", "Смещение видео %s");
+            case "sv":
+                return videoSyncOffsetStringsValues("Video", "Videosynkförskjutning", "%s videokorrigering", "Ingen aktuell låt.", "+ flyttar videon till en senare tid, - till en tidigare tid. Det läggs ovanpå textens synkförskjutning.", "Återställ videooffset", "Videooffset %s");
+            case "pt":
+                return videoSyncOffsetStringsValues("Vídeo", "Deslocamento de vídeo", "Correção de vídeo de %s", "Nenhuma música atual.", "Um valor + move o vídeo para um tempo posterior; um valor - o atrasa. Ele é somado ao deslocamento da letra.", "Redefinir deslocamento do vídeo", "Deslocamento de vídeo %s");
+            case "bn":
+                return videoSyncOffsetStringsValues("ভিডিও", "ভিডিও সিঙ্ক অফসেট", "%s ভিডিও সংশোধন", "বর্তমান গান নেই।", "+ মান ভিডিওকে পরের সময়ে নেয়, - মান আগের সময়ে নেয়। এটি লিরিক্স সিঙ্ক অফসেটের ওপর যোগ হয়।", "ভিডিও অফসেট রিসেট", "ভিডিও অফসেট %s");
+            case "it":
+                return videoSyncOffsetStringsValues("Video", "Offset sincronizzazione video", "Correzione video di %s", "Nessun brano corrente.", "Un valore + porta il video a un tempo successivo, un valore - a un tempo precedente. Si aggiunge all'offset delle parole.", "Reimposta offset video", "Offset video %s");
+            case "th":
+                return videoSyncOffsetStringsValues("วิดีโอ", "ออฟเซ็ตซิงค์วิดีโอ", "ปรับวิดีโอของ %s", "ไม่มีเพลงปัจจุบัน", "ค่า + เลื่อนวิดีโอไปเวลาถัดไป ค่า - เลื่อนกลับไปเวลาก่อนหน้า และจะบวกเพิ่มจากออฟเซ็ตเนื้อเพลง", "รีเซ็ตออฟเซ็ตวิดีโอ", "ออฟเซ็ตวิดีโอ %s");
+            case "vi":
+                return videoSyncOffsetStringsValues("Video", "Bù đồng bộ video", "Chỉnh video cho %s", "Không có bài hát hiện tại.", "Giá trị + đưa video tới thời điểm muộn hơn, giá trị - đưa về sớm hơn. Nó được cộng thêm vào bù đồng bộ lời.", "Đặt lại bù video", "Bù video %s");
+            case "id":
+                return videoSyncOffsetStringsValues("Video", "Offset sinkronisasi video", "Koreksi video %s", "Tidak ada lagu saat ini.", "Nilai + memindahkan video ke waktu yang lebih maju, nilai - ke waktu sebelumnya. Ini ditambahkan di atas offset sinkronisasi lirik.", "Reset offset video", "Offset video %s");
+            case "ms":
+                return videoSyncOffsetStringsValues("Video", "Offset penyegerakan video", "Pembetulan video %s", "Tiada lagu semasa.", "Nilai + mengalihkan video ke masa lebih lewat, nilai - ke masa lebih awal. Ia ditambah pada offset penyegerakan lirik.", "Tetapkan semula offset video", "Offset video %s");
+            case "tr":
+                return videoSyncOffsetStringsValues("Video", "Video Senkron Ofseti", "%s video düzeltmesi", "Geçerli şarkı yok.", "+ değerler videoyu daha sonraki zamana, - değerler daha önceki zamana taşır. Bu, söz senkron ofsetinin üzerine eklenir.", "Video Ofsetini Sıfırla", "Video ofseti %s");
+            default:
+                return videoSyncOffsetStringsValues("Video", "Video Sync Offset", "%s video adjustment", "No current song.", "+ values move the video to a later timestamp, while - values move it earlier. This is added on top of the lyric sync offset.", "Reset Video Offset", "Video offset %s");
+        }
+    }
+
+    private static String[] videoSyncOffsetStringsValues(String tab, String title, String trackScope, String noTrack, String help, String reset, String toast) {
+        return new String[]{
+                "lyrics.tab.video", tab,
+                "lyrics.video_sync.title", title,
+                "lyrics.video_sync.track_scope", trackScope,
+                "lyrics.video_sync.no_track", noTrack,
+                "lyrics.video_sync.help", help,
+                "lyrics.video_sync.reset", reset,
+                "toast.video_sync_offset_format", toast
+        };
+    }
+
+    private static Map<String, String> koStrings() {
+        return strings(
+                "button.close", "닫기",
+                "button.previous", "이전",
+                "button.save_start", "저장하고 시작",
+                "button.spotify_setup", "Spotify API 등록",
+                "status.waiting_spotify", "Spotify 재생 곡을 기다리는 중",
+                "status.lyrics_loading", "가사 불러오는 중",
+                "status.lyrics_waiting", "가사를 기다리는 중",
+                "status.spotify_required_title", "Spotify API 등록 필요",
+                "status.spotify_required_subtitle", "Client ID와 Secret을 먼저 저장하세요",
+                "status.spotify_required_detail", "설정 전에는 ISRC, sync-data, LRCLIB 가사를 조회하지 않습니다.",
+                "toast.spotify_required", "Spotify API 등록 후 사용할 수 있습니다",
+                "toast.setup_required", "초기 설정을 완료한 뒤 사용할 수 있습니다",
+                "toast.back_exit", "뒤로가기를 한 번 더 누르면 종료됩니다",
+                "toast.ui_language_saved", "앱 표시 언어 저장됨",
+                "settings.title", "설정",
+                "settings.subtitle", "가사, 화면, 전체화면, AI, 도구 설정",
+                "tab.lyrics", "가사",
+                "tab.display", "화면",
+                "tab.ai", "AI",
+                "tab.tools", "도구",
+                "section.language", "언어",
+                "section.language_desc", "발음 표기 언어와 곡별 번역 설정을 분리해서 관리합니다.",
+                "setting.ui_language", "앱 표시 언어",
+                "setting.ui_language_desc", "앱 화면에 사용할 언어입니다. 실제 번역 데이터가 있는 언어만 표시합니다.",
+                "setting.pronunciation_language", "발음 표기 언어",
+                "setting.pronunciation_language_desc", "발음을 어떤 문자/언어 기준으로 표기할지 정합니다. 이 값을 바꾸면 발음만 새 기준으로 다시 생성됩니다.",
+                "setting.metadata_translation", "곡 제목/아티스트 번역",
+                "setting.metadata_translation_desc", "현재 곡의 제목과 아티스트 이름도 선택한 번역 언어 기준으로 표시합니다.",
+                "setting.main_preview", "메인 하단 가사",
+                "setting.main_preview_desc", "표시할 원문/발음/번역을 여러 개 선택합니다. 긴 줄은 가사 시간에 맞춰 자연스럽게 이동합니다.",
+                "setting.auto_interlude", "전주/간주/후주 자동 감지",
+                "setting.auto_interlude_desc", "음표/공백 라인과 가사 종료 후 3.5초 이상 비는 구간을 원본 ivLyrics처럼 움직이는 표시로 바꿉니다.",
+                "setting.interlude_labels", "간주 라벨 표시",
+                "setting.interlude_labels_desc", "전주/간주/후주 표시에서 움직이는 아이콘은 유지하고 글자 라벨을 표시합니다.",
+                "setting.synced_karaoke_animation", "일반 싱크 가사 노래방 효과",
+                "setting.synced_karaoke_animation_desc", "sync-data가 없는 일반 LRCLIB 싱크 가사에 글자별 균등 채움을 적용합니다.",
+                "setting.karaoke_bounce_effect", "노래방 튐 효과",
+                "setting.karaoke_bounce_effect_desc", "글자가 채워질 때 통통 튀는 모션을 적용합니다.",
+                "setting.karaoke_motion_style", "노래방 모션 스타일",
+                "setting.karaoke_motion_style_desc", "클래식은 은은한 바운스를 유지합니다. 익스프레시브는 스프링 물리 효과를 사용해 부르는 단어가 커지고 떠오르며 빛나고, 아직 부르지 않은 단어는 조금 작게 대기하며, 길게 끄는 음은 글자 단위로 움직입니다.",
+                "karaoke.motion.classic", "클래식",
+                "karaoke.motion.expressive", "익스프레시브",
+                "setting.pronunciation_karaoke_fill", "발음 노래방 채우기",
+                "setting.pronunciation_karaoke_fill_desc", "발음 우선 모드가 꺼져 있어도 원문 아래 발음이 부르는 타이밍에 맞춰 노래방처럼 채워집니다. AI가 발음을 단어·글자 타이밍에 맞춰 나눕니다. 바운스·글로우 같은 다른 효과는 적용되지 않습니다.",
+                "setting.synced_pronunciation", "싱크 발음 사용",
+                "setting.synced_pronunciation_desc", "노래방 가사의 발음을 부르는 단어·글자 타이밍에 맞춰 받아옵니다. 켜면 발음 우선 모드와 발음 노래방 채우기를 쓸 수 있습니다. 끄면 발음을 줄 단위 평문으로 더 빠르게 받아옵니다.",
+                "section.player", "플레이어",
+                "section.player_desc", "화면 표시와 가로 모드 동작을 조정합니다.",
+                "setting.landscape_auto_hide", "가로모드 컨트롤 자동 숨김",
+                "setting.landscape_auto_hide_desc", "가로 화면에서 조작하지 않으면 재생바와 버튼을 숨깁니다.",
+                "section.background", "배경",
+                "section.background_desc", "앨범 커버, 블러 그라데이션, 단색 배경 중 하나를 사용합니다.",
+                "setting.background_mode", "배경 효과",
+                "setting.background_mode_desc", "현재 곡 분위기에 맞는 배경 방식을 선택합니다.",
+                "setting.brightness", "밝기",
+                "setting.brightness_desc", "앨범 커버와 그라데이션 배경의 밝기입니다.",
+                "setting.blur", "블러",
+                "setting.blur_desc", "앨범 커버와 그라데이션에 적용되는 블러 강도입니다. 영상 배경에는 이 값의 2배가 적용됩니다.",
+                "setting.video_scale", "영상 확대",
+                "setting.video_scale_desc", "영상 자체에 레터박스가 있거나 가장자리를 더 채우고 싶을 때 배경 영상을 확대합니다.",
+                "setting.noise", "노이즈 텍스처",
+                "setting.noise_desc", "원본 ivLyrics처럼 아주 약한 입자감을 배경에 얹습니다.",
+                "setting.reduce_motion", "움직임 줄이기",
+                "setting.reduce_motion_desc", "앨범/그라데이션 배경의 자동 움직임을 멈춥니다.",
+                "section.ai_lyrics", "가사 AI",
+                "section.ai_lyrics_desc", "원본 ivLyrics와 같은 프롬프트 규칙으로 현재 가사의 발음과 번역을 생성합니다.",
+                "section.provider", "제공자",
+                "field.api_key", "API 키",
+                "field.model", "모델",
+                "field.base_url", "기본 URL",
+                "button.save_regenerate", "저장 및 다시 생성",
+                "button.get_key", "키 받기",
+                "section.tools", "도구",
+                "section.tools_desc", "캐시와 디버그 화면을 관리합니다.",
+                "section.spotify_api", "Spotify API",
+                "section.spotify_api_desc", "Spotify 개발자 대시보드에서 직접 발급한 Client ID와 Client Secret으로 Web API 토큰을 요청합니다. 앱 내부에만 저장됩니다.",
+                "button.spotify_save", "Spotify API 저장",
+                "section.lyrics_cache", "가사 캐시",
+                "section.lyrics_cache_desc", "sync-data/LRCLIB 기본 가사와 AI 발음/번역 캐시를 삭제합니다. 삭제 후 현재 곡은 다시 조회됩니다.",
+                "button.clear_current", "현재 곡 삭제",
+                "button.clear_all", "전체 삭제",
+                "button.ai_cache_clear", "AI 캐시 초기화",
+                "button.debug_log", "디버그 / 로그",
+                "onboarding.subtitle", "현재 재생 중인 음악에 맞춰 노래방 가사, 번역, 발음을 보여줍니다.",
+                "onboarding.welcome_title", "ivLyrics 설정 시작",
+                "onboarding.welcome_desc", "처음에는 표시 언어를 고르고, 미디어 인식 권한과 직접 발급한 Spotify API 정보를 순서대로 설정합니다.",
+                "onboarding.app_language_en", "앱 언어",
+                "onboarding.app_language_native", "앱 표시 언어",
+                "onboarding.permission_title", "미디어 인식 권한",
+                "onboarding.permission_desc", "Spotify에서 현재 재생 중인 곡을 읽으려면 Android 알림 접근 권한이 필요합니다.",
+                "onboarding.permission_hint", "설정 화면에서 ivLyrics를 찾아 허용한 뒤 앱으로 돌아오세요.",
+                "onboarding.permission_status_enabled", "권한이 허용되었습니다. 현재 재생 중인 Spotify 곡을 감지할 수 있습니다.",
+                "onboarding.permission_status_required", "아직 권한이 없습니다. 권한 설정을 열어 ivLyrics를 허용하세요.",
+                "onboarding.spotify_title", "곡 정보 연결",
+                "onboarding.spotify_desc", "현재 재생 중인 곡의 ISRC와 고해상도 앨범 이미지를 가져오기 위해 Spotify Web API를 사용합니다.",
+                "onboarding.step_format", "%d / %d단계",
+                "spotify.status_configured", "Spotify API 등록 완료",
+                "spotify.status_required", "처음 사용 전에 Spotify API 정보를 등록하세요.",
+                "spotify.status_checking", "Spotify 토큰 발급 확인 중...",
+                "spotify.status_invalid_format", "Spotify 토큰 발급 실패: %s\nClient ID와 Secret을 다시 확인하세요.",
+                "button.next", "다음",
+                "button.restart", "처음으로",
+                "button.copy", "복사",
+                "button.open_browser", "브라우저로 열기",
+                "button.open_permission", "권한 설정 열기",
+                "button.prev_track", "이전 곡",
+                "button.next_track", "다음 곡",
+                "debug.title", "디버그",
+                "debug.permission", "미디어 접근 권한 열기",
+                "debug.previous", "이전",
+                "debug.play_pause", "재생/정지",
+                "debug.next", "다음",
+                "debug.refresh", "새로고침",
+                "debug.log", "로그",
+                "debug.log_waiting", "로그를 기다리는 중",
+                "lyrics.tab.language", "언어",
+                "lyrics.tab.sync", "싱크",
+                "lyrics.translation", "번역",
+                "lyrics.pronunciation", "발음",
+                "lyrics.sync.title", "현재 곡 싱크 오프셋",
+                "lyrics.sync.reset", "0ms로 초기화",
+                "lyrics.sync.no_track", "재생 중인 곡이 없으면 저장되지 않습니다.",
+                "lyrics.sync.track_scope", "\"%s\"에만 저장됩니다.",
+                "lyrics.sync.help", "+값은 가사를 더 일찍 보여주고, -값은 더 늦게 보여줍니다.",
+                "lyrics.menu_tip", "제목이나 아티스트를 길게 누르면 번역·발음 설정이 열립니다.",
+                "lyrics.rule.track_language", "곡 언어",
+                "lyrics.rule.save_target", "저장 대상",
+                "lyrics.rule.translation_language", "번역 언어",
+                "label.on", "켜짐",
+                "label.off", "꺼짐",
+                "label.auto", "자동",
+                "label.auto_target", "자동 (%s)",
+                "lyrics.button.translation_on", "번역 켬",
+                "lyrics.button.pronunciation_on", "발음 켬",
+                "lyrics.button.translation_plus", "번역+",
+                "field.api_key_desc", "단일 키, 줄바꿈 목록, JSON 배열을 지원합니다. 이 기기에만 저장됩니다.",
+                "field.model_desc", "제공자 모델을 직접 지정합니다.",
+                "field.base_url_desc", "OpenAI 호환 또는 제공자 API 기본 URL입니다.",
+                "field.max_tokens", "최대 토큰",
+                "field.temperature", "창의성",
+                "field.solid_color", "단색 배경 색상",
+                "field.solid_color_desc", "단색 모드에서 사용할 색상을 선택합니다.",
+                "field.spotify_client_id_desc", "Spotify 앱의 Client ID입니다.",
+                "field.spotify_client_secret_desc", "Spotify 앱의 Client Secret입니다.",
+                "preview.none", "표시안함",
+                "preview.original", "원어",
+                "preview.pronunciation", "발음",
+                "preview.translation", "번역",
+                "background.mode.gradient", "앨범 커버",
+                "background.mode.gradient_desc", "현재 앨범 커버를 크게 블러 처리해 배경으로 사용합니다.",
+                "background.mode.blur_gradient", "블러 그라데이션",
+                "background.mode.blur_gradient_desc", "앨범 색상을 추출해 움직이는 블러 그라데이션을 만듭니다.",
+                "background.mode.solid", "단색",
+                "background.mode.solid_desc", "사용자 지정 단색 배경을 사용합니다.",
+                "provider.desc.gemini", "Google AI Studio API 사용",
+                "provider.desc.chatgpt", "OpenAI 호환 API 지원",
+                "provider.desc.claude", "Claude Messages API 사용",
+                "provider.desc.openrouter", "여러 AI 모델 라우팅",
+                "provider.desc.groq", "빠른 OpenAI 호환 추론",
+                "provider.desc.perplexity", "Agent API 사용",
+                "provider.desc.pollinations", "Pollinations OpenAI 호환 API",
+                "spotify.step0.title", "Spotify 개발자 대시보드로 이동",
+                "spotify.step0.desc", "브라우저에서 Spotify Developer Dashboard를 여세요. 계정 로그인 후 앱을 새로 만들면 됩니다.",
+                "spotify.step1.title", "Create app에서 이름 입력",
+                "spotify.step1.desc", "Create app을 누른 뒤 App name에는 아래 값을 그대로 넣으세요. ivLyrics 또는 ivlyrics라고 적지 마세요.",
+                "spotify.step2.title", "설명 입력",
+                "spotify.step2.desc", "App description에도 아래 값을 그대로 넣으세요. 이 값은 의미 있는 값이 아니라 헷갈리지 않기 위한 예시입니다.",
+                "spotify.step3.title", "Redirect URI 입력",
+                "spotify.step3.desc", "Redirect URIs 항목에 아래 주소를 추가하세요. 끝의 슬래시까지 포함해야 합니다.",
+                "spotify.step4.title", "Web API 선택 후 저장",
+                "spotify.step4.desc", "하단 API 선택 영역에서 Web API를 선택하세요. 그 다음 동의 체크박스를 체크하고 Save 버튼을 누르세요.",
+                "spotify.step5.title", "Client ID와 Secret 복사",
+                "spotify.step5.desc", "생성된 앱의 Settings에서 Client ID와 Client Secret을 복사한 뒤, 아래 입력칸에 붙여넣고 Spotify API 저장을 누르세요.",
+                "toast.copied_format", "복사됨: %s",
+                "toast.provider_saved", "제공자 저장됨",
+                "toast.pronunciation_language_saved", "발음 표기 언어 저장됨",
+                "toast.preview_saved", "하단 가사 표시 저장됨",
+                "toast.background_saved", "배경 효과 저장됨",
+                "toast.metadata_translation_on", "곡 정보 번역 켜짐",
+                "toast.metadata_translation_off", "곡 정보 번역 꺼짐",
+                "toast.auto_interlude_on", "자동 간주 감지 켜짐",
+                "toast.auto_interlude_off", "자동 간주 감지 꺼짐",
+                "toast.landscape_auto_hide_on", "가로 컨트롤 자동 숨김 켜짐",
+                "toast.landscape_auto_hide_off", "가로 컨트롤 자동 숨김 꺼짐",
+                "toast.background_noise_on", "배경 노이즈 켜짐",
+                "toast.background_noise_off", "배경 노이즈 꺼짐",
+                "toast.reduce_motion_on", "배경 움직임 줄임",
+                "toast.reduce_motion_off", "배경 움직임 사용",
+                "toast.ai_cache_cleared", "AI 캐시 초기화됨",
+                "toast.language_rule_saved", "곡 언어 설정 저장됨",
+                "toast.settings_saved", "설정 저장됨",
+                "toast.spotify_missing", "Client ID와 Client Secret을 모두 입력하세요.",
+                "toast.spotify_checking", "Spotify 토큰 발급 확인 중...",
+                "toast.spotify_invalid", "Spotify API 정보를 다시 확인하세요.",
+                "toast.spotify_saved", "Spotify API 저장됨",
+                "toast.current_track_missing", "현재 곡 정보가 없습니다",
+                "toast.current_cache_cleared", "현재 곡 가사 캐시 삭제됨",
+                "toast.all_cache_cleared", "전체 가사 캐시 삭제됨",
+                "toast.sync_offset_format", "싱크 오프셋 %s",
+                "status.lyrics_request_failed", "가사 요청 실패",
+                "status.ai_applied", "번역/발음 적용됨",
+                "status.ai_failed_format", "AI 가사 실패: %s",
+                "status.ai_cache_cleared", "AI 캐시 초기화됨",
+                "status.ai_lyrics_active", "AI 가사 활성화됨",
+                "status.ai_key_needed", "API 키를 입력하면 AI 가사가 생성됩니다.",
+                "status.ai_disabled", "번역/발음이 꺼져 있습니다.",
+                "status.no_lyrics_to_apply", "적용할 가사가 없습니다.",
+                "status.ai_generating", "AI 가사 생성 중...",
+                "status.reload_after_spotify", "Spotify API 설정 적용 후 현재 곡의 ISRC, sync-data, LRCLIB 가사를 다시 조회합니다.",
+                "status.detecting_media", "미디어 세션을 감지하는 중",
+                "status.permission_required", "알림 접근 권한이 필요합니다",
+                "status.lyrics_lookup_spotify", "Spotify Web API로 ISRC를 찾은 뒤 sync-data와 LRCLIB를 조회합니다.",
+                "status.lyrics_lookup_player", "플레이어 ISRC로 sync-data와 LRCLIB를 조회합니다.",
+                "status.waiting_current_track", "재생 중인 곡을 기다리는 중",
+                "status.spotify_required_plain", "Spotify API 등록 필요",
+                "loading.generating", "생성중",
+                "loading.pronunciation", "발음 생성 중...",
+                "loading.translation", "번역 생성 중...",
+                "loading.word_sync", "단어 싱크 생성 중...",
+                "loading.word_sync_desc", "외부 가사 서버에서 단어 단위 싱크 데이터를 생성 중입니다.",
+                "status.word_sync_failed", "단어 싱크 실패",
+                "pronunciation_first.state_on", "발음 우선 켜짐. 눌러서 끄기",
+                "pronunciation_first.state_off", "발음 우선 꺼짐. 눌러서 켜기",
+                "loading.pronunciation_sync", "AI가 발음을 가사 싱크에 맞추는 중...",
+                "status.pronunciation_sync_failed", "발음 싱크 실패",
+                "lyrics.empty_none", "가사 없음",
+                "interlude.prelude", "전주",
+                "interlude.break", "간주",
+                "interlude.postlude", "후주",
+                "onboarding.preview.line1", "노래방 가사가 곡을 따라갑니다",
+                "onboarding.preview.line2", "발음과 번역이 여기에 표시됩니다",
+                "onboarding.preview.line3", "현재 곡에 맞춰 자동으로 갱신됩니다",
+                "repo.metadata_waiting", "곡 메타데이터를 기다리는 중",
+                "repo.lyrics_not_found", "LRCLIB 가사를 찾지 못했습니다",
+                "repo.instrumental", "연주곡입니다",
+                "repo.no_renderable_lyrics", "표시할 수 있는 LRCLIB 가사가 없습니다",
+                "repo.detail.sync_applied_direct", "노래방 sync-data가 적용되었습니다. sync-data 출처의 LRCLIB를 바로 불러왔습니다.",
+                "repo.detail.sync_applied_search", "노래방 sync-data가 적용되었습니다. 검색으로 LRCLIB를 선택했습니다.",
+                "repo.detail.no_spotify_isrc", "LRCLIB 라인 가사입니다. Spotify ISRC 조회를 사용할 수 없습니다.",
+                "repo.detail.no_sync_data", "LRCLIB 라인 가사입니다. 이 ISRC에 맞는 sync-data가 없습니다.",
+                "repo.detail.sync_apply_failed", "LRCLIB 라인 가사입니다. sync-data를 적용하지 못했습니다.",
+                "spotify.error.incomplete_credentials", "Spotify API Client ID 또는 Client Secret이 비어 있습니다.",
+                "spotify.error.credentials_not_configured", "Spotify API 정보가 등록되어 있지 않습니다.",
+                "spotify.error.no_access_token", "Spotify 토큰 응답에 access_token이 없습니다.",
+                "spotify.error.repository_unavailable", "가사 저장소를 사용할 수 없습니다.",
+                "lyrics.credit_sync_by_format", "싱크: %s",
+                "sync.type_line", "라인",
+                "sync.type_word", "단어",
+                "sync.type_character", "글자",
+                "sync.type_mixed", "혼합",
+                "sync.type_unknown", "이전 형식 싱크"
+        );
+    }
+
+    private static Map<String, String> enStrings() {
+        return strings(
+                "button.close", "Close",
+                "button.previous", "Back",
+                "button.save_start", "Save and Start",
+                "button.spotify_setup", "Set Up Spotify API",
+                "status.waiting_spotify", "Waiting for Spotify playback",
+                "status.lyrics_loading", "Loading lyrics",
+                "status.lyrics_waiting", "Waiting for lyrics",
+                "status.spotify_required_title", "Spotify API Required",
+                "status.spotify_required_subtitle", "Save your Client ID and Secret first",
+                "status.spotify_required_detail", "ISRC, sync-data, and LRCLIB lyrics are not loaded until setup is complete.",
+                "toast.spotify_required", "Register Spotify API first",
+                "toast.setup_required", "Complete initial setup first",
+                "toast.back_exit", "Press Back again to exit",
+                "toast.ui_language_saved", "App language saved",
+                "settings.title", "Settings",
+                "settings.subtitle", "Lyrics, display, fullscreen, AI, and tools",
+                "tab.lyrics", "Lyrics",
+                "tab.display", "Display",
+                "tab.ai", "AI",
+                "tab.tools", "Tools",
+                "section.language", "Language",
+                "section.language_desc", "Manage app language, pronunciation, and per-song translation rules separately.",
+                "setting.ui_language", "App Language",
+                "setting.ui_language_desc", "Language used for the app UI. Only languages with real UI translations are shown.",
+                "setting.pronunciation_language", "Pronunciation Language",
+                "setting.pronunciation_language_desc", "Choose which script/language pronunciation should be generated in.",
+                "setting.metadata_translation", "Translate title/artist",
+                "setting.metadata_translation_desc", "Also translate the current song title and artist using the selected target language.",
+                "setting.main_preview", "Main lyric preview",
+                "setting.main_preview_desc", "Choose original, pronunciation, and translation rows. Long rows slide with lyric timing.",
+                "setting.auto_interlude", "Auto detect intro/interlude/outro",
+                "setting.auto_interlude_desc", "Turns note/blank lines and long gaps after lyrics into animated interlude markers.",
+                "setting.interlude_labels", "Show interlude labels",
+                "setting.interlude_labels_desc", "Shows the text label next to intro/interlude/outro markers while keeping the animated icon.",
+                "setting.synced_karaoke_animation", "Line-synced karaoke effect",
+                "setting.synced_karaoke_animation_desc", "Apply evenly timed character fill to regular LRCLIB synced lyrics without sync-data.",
+                "setting.karaoke_bounce_effect", "Karaoke bounce effect",
+                "setting.karaoke_bounce_effect_desc", "Bounce text as characters fill during karaoke playback.",
+                "setting.karaoke_motion_style", "Karaoke Motion Style",
+                "setting.karaoke_motion_style_desc", "Classic keeps the subtle bounce. Expressive uses spring physics: sung words swell, lift and glow, words not yet sung rest slightly smaller, and long held notes animate letter by letter.",
+                "karaoke.motion.classic", "Classic",
+                "karaoke.motion.expressive", "Expressive",
+                "setting.pronunciation_karaoke_fill", "Fill pronunciation like karaoke",
+                "setting.pronunciation_karaoke_fill_desc", "Even with pronunciation-first mode off, the pronunciation row fills in time with the singing. AI splits the pronunciation across the word or character timing. Other effects such as bounce and glow are not applied.",
+                "setting.synced_pronunciation", "Synced pronunciation",
+                "setting.synced_pronunciation_desc", "Gets karaoke pronunciation split along the timing of each sung word or character. On, pronunciation-first mode and pronunciation fill become available. Off, pronunciation comes faster as plain line text.",
+                "section.player", "Player",
+                "section.player_desc", "Adjust display and landscape behavior.",
+                "setting.landscape_auto_hide", "Auto-hide landscape controls",
+                "setting.landscape_auto_hide_desc", "Hide the progress bar and buttons when inactive in landscape.",
+                "section.background", "Background",
+                "section.background_desc", "Choose album cover, blurred gradient, or solid color background.",
+                "setting.background_mode", "Background effect",
+                "setting.background_mode_desc", "Choose how the current song background is rendered.",
+                "setting.brightness", "Brightness",
+                "setting.brightness_desc", "Brightness for album cover and gradient backgrounds.",
+                "setting.blur", "Blur",
+                "setting.blur_desc", "Blur intensity for album cover and gradient backgrounds. Video backgrounds use twice this value.",
+                "setting.video_scale", "Video zoom",
+                "setting.video_scale_desc", "Zoom the video background when the source has letterboxing or needs to fill more of the screen.",
+                "setting.noise", "Noise texture",
+                "setting.noise_desc", "Adds a subtle grain texture like the original ivLyrics.",
+                "setting.reduce_motion", "Reduce motion",
+                "setting.reduce_motion_desc", "Stops automatic album/gradient background movement.",
+                "section.ai_lyrics", "Lyrics AI",
+                "section.ai_lyrics_desc", "Generate pronunciation and translations with prompts compatible with ivLyrics.",
+                "section.provider", "Provider",
+                "field.api_key", "API Key",
+                "field.model", "Model",
+                "field.base_url", "Base URL",
+                "button.save_regenerate", "Save and Regenerate",
+                "button.get_key", "Get Key",
+                "section.tools", "Tools",
+                "section.tools_desc", "Manage cache and debug logs.",
+                "section.spotify_api", "Spotify API",
+                "section.spotify_api_desc", "Use a Client ID and Client Secret from Spotify Developer Dashboard. Stored only on this device.",
+                "button.spotify_save", "Save Spotify API",
+                "section.lyrics_cache", "Lyrics Cache",
+                "section.lyrics_cache_desc", "Clear sync-data/LRCLIB base lyrics and AI pronunciation/translation cache. Current song reloads after clearing.",
+                "button.clear_current", "Clear Current",
+                "button.clear_all", "Clear All",
+                "button.ai_cache_clear", "Clear AI Cache",
+                "button.debug_log", "Debug / Logs",
+                "onboarding.subtitle", "Karaoke lyrics, translation, and pronunciation for the song currently playing.",
+                "onboarding.welcome_title", "Set Up ivLyrics",
+                "onboarding.welcome_desc", "Choose the app language first, then set media access permission and your own Spotify API credentials.",
+                "onboarding.app_language_en", "App Language",
+                "onboarding.app_language_native", "App Language",
+                "onboarding.permission_title", "Media Access Permission",
+                "onboarding.permission_desc", "Android notification access is required to read the song currently playing in Spotify.",
+                "onboarding.permission_hint", "Find ivLyrics in the settings screen, allow access, then return to the app.",
+                "onboarding.permission_status_enabled", "Permission is enabled. Spotify playback can now be detected.",
+                "onboarding.permission_status_required", "Permission is not enabled yet. Open permission settings and allow ivLyrics.",
+                "onboarding.spotify_title", "Connect Song Info",
+                "onboarding.spotify_desc", "Spotify Web API is used to load ISRC and high-resolution artwork for the current song.",
+                "onboarding.step_format", "Step %d / %d",
+                "spotify.status_configured", "Spotify API configured",
+                "spotify.status_required", "Register Spotify API before first use.",
+                "spotify.status_checking", "Checking Spotify token...",
+                "spotify.status_invalid_format", "Spotify token request failed: %s\nCheck your Client ID and Secret again.",
+                "button.next", "Next",
+                "button.restart", "Start Over",
+                "button.copy", "Copy",
+                "button.open_browser", "Open Browser",
+                "button.open_permission", "Open Permission Settings",
+                "button.prev_track", "Previous track",
+                "button.next_track", "Next track",
+                "debug.title", "Debug",
+                "debug.permission", "Open media access permission",
+                "debug.previous", "Previous",
+                "debug.play_pause", "Play/Pause",
+                "debug.next", "Next",
+                "debug.refresh", "Refresh",
+                "debug.log", "Log",
+                "debug.log_waiting", "Waiting for logs",
+                "lyrics.tab.language", "Language",
+                "lyrics.tab.sync", "Sync",
+                "lyrics.translation", "Translation",
+                "lyrics.pronunciation", "Pronunciation",
+                "lyrics.sync.title", "Current Song Sync Offset",
+                "lyrics.sync.reset", "Reset to 0ms",
+                "lyrics.sync.no_track", "No playing song, so this will not be saved.",
+                "lyrics.sync.track_scope", "Saved only for \"%s\".",
+                "lyrics.sync.help", "+ values show lyrics earlier; - values show them later.",
+                "lyrics.menu_tip", "Long-press the title or artist to open translation and pronunciation settings.",
+                "lyrics.rule.track_language", "Song language",
+                "lyrics.rule.save_target", "Save target",
+                "lyrics.rule.translation_language", "Translation language",
+                "label.on", "On",
+                "label.off", "Off",
+                "label.auto", "Auto",
+                "label.auto_target", "Auto (%s)",
+                "lyrics.button.translation_on", "Translation On",
+                "lyrics.button.pronunciation_on", "Pronunciation On",
+                "lyrics.button.translation_plus", "Translation+",
+                "field.api_key_desc", "Supports a single key, newline list, or JSON array. Stored only on this device.",
+                "field.model_desc", "Provider model override.",
+                "field.base_url_desc", "OpenAI-compatible or provider API base URL.",
+                "field.max_tokens", "Max tokens",
+                "field.temperature", "Creativity",
+                "field.solid_color", "Solid background color",
+                "field.solid_color_desc", "Choose the color used in solid background mode.",
+                "field.spotify_client_id_desc", "Client ID of your Spotify app.",
+                "field.spotify_client_secret_desc", "Client Secret of your Spotify app.",
+                "preview.none", "Hidden",
+                "preview.original", "Original",
+                "preview.pronunciation", "Pronunciation",
+                "preview.translation", "Translation",
+                "background.mode.gradient", "Album Cover",
+                "background.mode.gradient_desc", "Uses the current album cover as a large blurred background.",
+                "background.mode.blur_gradient", "Blurred Gradient",
+                "background.mode.blur_gradient_desc", "Builds a moving blurred gradient from the album colors.",
+                "background.mode.solid", "Solid Color",
+                "background.mode.solid_desc", "Uses a custom solid background color.",
+                "provider.desc.gemini", "Google AI Studio API",
+                "provider.desc.chatgpt", "OpenAI-compatible API",
+                "provider.desc.claude", "Claude Messages API",
+                "provider.desc.openrouter", "Routes multiple AI models",
+                "provider.desc.groq", "Fast OpenAI-compatible inference",
+                "provider.desc.perplexity", "Agent API",
+                "provider.desc.pollinations", "Pollinations OpenAI-compatible API",
+                "spotify.step0.title", "Go to Spotify Developer Dashboard",
+                "spotify.step0.desc", "Open Spotify Developer Dashboard in your browser. Sign in and create a new app.",
+                "spotify.step1.title", "Enter a name in Create app",
+                "spotify.step1.desc", "Press Create app and enter the value below for App name. Do not write ivLyrics or ivlyrics.",
+                "spotify.step2.title", "Enter the description",
+                "spotify.step2.desc", "Enter the value below for App description too. It is just an example to avoid confusion.",
+                "spotify.step3.title", "Enter Redirect URI",
+                "spotify.step3.desc", "Add the address below to Redirect URIs. Include the trailing slash.",
+                "spotify.step4.title", "Select Web API and save",
+                "spotify.step4.desc", "Select Web API in the API selection area, check the agreement box, then press Save.",
+                "spotify.step5.title", "Copy Client ID and Secret",
+                "spotify.step5.desc", "Copy Client ID and Client Secret from the app settings, paste them below, then save Spotify API.",
+                "toast.copied_format", "Copied: %s",
+                "toast.provider_saved", "Provider saved",
+                "toast.pronunciation_language_saved", "Pronunciation language saved",
+                "toast.preview_saved", "Main lyric preview saved",
+                "toast.background_saved", "Background effect saved",
+                "toast.metadata_translation_on", "Title/artist translation on",
+                "toast.metadata_translation_off", "Title/artist translation off",
+                "toast.auto_interlude_on", "Auto interlude detection on",
+                "toast.auto_interlude_off", "Auto interlude detection off",
+                "toast.landscape_auto_hide_on", "Landscape controls auto-hide on",
+                "toast.landscape_auto_hide_off", "Landscape controls auto-hide off",
+                "toast.background_noise_on", "Background noise on",
+                "toast.background_noise_off", "Background noise off",
+                "toast.reduce_motion_on", "Reduced background motion",
+                "toast.reduce_motion_off", "Background motion enabled",
+                "toast.ai_cache_cleared", "AI cache cleared",
+                "toast.language_rule_saved", "Song language settings saved",
+                "toast.settings_saved", "Settings saved",
+                "toast.spotify_missing", "Enter both Client ID and Client Secret.",
+                "toast.spotify_checking", "Checking Spotify token...",
+                "toast.spotify_invalid", "Check your Spotify API credentials again.",
+                "toast.spotify_saved", "Spotify API saved",
+                "toast.current_track_missing", "No current song information",
+                "toast.current_cache_cleared", "Current song lyrics cache cleared",
+                "toast.all_cache_cleared", "All lyrics cache cleared",
+                "toast.sync_offset_format", "Sync offset %s",
+                "status.lyrics_request_failed", "Lyrics request failed",
+                "status.ai_applied", "Translation/pronunciation applied",
+                "status.ai_failed_format", "AI lyrics failed: %s",
+                "status.ai_cache_cleared", "AI cache cleared",
+                "status.ai_lyrics_active", "AI lyrics enabled",
+                "status.ai_key_needed", "Enter an API key to generate AI lyrics.",
+                "status.ai_disabled", "Translation/pronunciation is off.",
+                "status.no_lyrics_to_apply", "No lyrics to apply.",
+                "status.ai_generating", "Generating AI lyrics...",
+                "status.reload_after_spotify", "Reloading this song's ISRC, sync-data, and LRCLIB lyrics after Spotify API settings changed.",
+                "status.detecting_media", "Detecting media session",
+                "status.permission_required", "Notification access permission required",
+                "status.lyrics_lookup_spotify", "Finding ISRC with Spotify Web API, then loading sync-data and LRCLIB.",
+                "status.lyrics_lookup_player", "Loading sync-data and LRCLIB with player ISRC.",
+                "status.waiting_current_track", "Waiting for the currently playing song",
+                "status.spotify_required_plain", "Spotify API required",
+                "loading.generating", "Generating",
+                "loading.pronunciation", "Generating pronunciation...",
+                "loading.translation", "Generating translation...",
+                "loading.word_sync", "Generating word timing...",
+                "loading.word_sync_desc", "Generating word-level timing on an external lyrics server.",
+                "status.word_sync_failed", "Word timing failed",
+                "pronunciation_first.state_on", "Pronunciation first on. Tap to turn off",
+                "pronunciation_first.state_off", "Pronunciation first off. Tap to turn on",
+                "loading.pronunciation_sync", "AI is matching the pronunciation to the lyric timing...",
+                "status.pronunciation_sync_failed", "Pronunciation timing failed",
+                "lyrics.empty_none", "No lyrics",
+                "interlude.prelude", "Intro",
+                "interlude.break", "Interlude",
+                "interlude.postlude", "Outro",
+                "onboarding.preview.line1", "Karaoke lyrics follow the song",
+                "onboarding.preview.line2", "Pronunciation and translation appear here",
+                "onboarding.preview.line3", "Everything updates with the current track",
+                "repo.metadata_waiting", "Waiting for song metadata",
+                "repo.lyrics_not_found", "LRCLIB lyrics were not found",
+                "repo.instrumental", "Instrumental track",
+                "repo.no_renderable_lyrics", "No displayable LRCLIB lyrics",
+                "repo.detail.sync_applied_direct", "Karaoke sync-data applied. LRCLIB was loaded directly from sync-data.",
+                "repo.detail.sync_applied_search", "Karaoke sync-data applied. LRCLIB was selected by search.",
+                "repo.detail.no_spotify_isrc", "LRCLIB line lyrics. Spotify ISRC lookup is unavailable.",
+                "repo.detail.no_sync_data", "LRCLIB line lyrics. No matching sync-data was found for this ISRC.",
+                "repo.detail.sync_apply_failed", "LRCLIB line lyrics. sync-data could not be applied.",
+                "spotify.error.incomplete_credentials", "Spotify API Client ID or Client Secret is missing.",
+                "spotify.error.credentials_not_configured", "Spotify API credentials are not configured.",
+                "spotify.error.no_access_token", "Spotify token response did not contain access_token.",
+                "spotify.error.repository_unavailable", "Lyrics repository is unavailable.",
+                "lyrics.credit_sync_by_format", "sync by %s",
+                "sync.type_line", "Line",
+                "sync.type_word", "Word",
+                "sync.type_character", "Character",
+                "sync.type_mixed", "Mixed",
+                "sync.type_unknown", "Legacy sync"
+        );
+    }
+
+    private static Map<String, String> zhCnStrings() {
+        return strings(
+                "button.close", "关闭",
+                "button.previous", "上一步",
+                "button.save_start", "保存并开始",
+                "button.spotify_setup", "设置 Spotify API",
+                "status.waiting_spotify", "正在等待 Spotify 播放歌曲",
+                "status.lyrics_loading", "正在加载歌词",
+                "status.lyrics_waiting", "等待歌词",
+                "status.spotify_required_title", "需要注册 Spotify API",
+                "status.spotify_required_subtitle", "请先保存 Client ID 和 Secret",
+                "status.spotify_required_detail", "设置完成前不会加载 ISRC、sync-data 和 LRCLIB 歌词。",
+                "toast.spotify_required", "请先注册 Spotify API",
+                "toast.setup_required", "请先完成初始设置",
+                "toast.back_exit", "再次返回即可退出",
+                "toast.ui_language_saved", "应用语言已保存",
+                "settings.title", "设置",
+                "settings.subtitle", "歌词、显示、全屏、AI 和工具设置",
+                "tab.lyrics", "歌词",
+                "tab.display", "显示",
+                "tab.ai", "AI",
+                "tab.tools", "工具",
+                "section.language", "语言",
+                "section.language_desc", "分别管理应用语言、发音标注和按歌曲语言的翻译设置。",
+                "setting.ui_language", "应用语言",
+                "setting.ui_language_desc", "应用界面使用的语言。只显示已有实际翻译数据的语言。",
+                "setting.pronunciation_language", "发音标注语言",
+                "setting.pronunciation_language_desc", "选择发音应使用哪种文字/语言标注。",
+                "setting.metadata_translation", "翻译曲名/艺人",
+                "setting.metadata_translation_desc", "也用所选翻译语言显示当前曲名和艺人名。",
+                "setting.main_preview", "主界面底部歌词",
+                "setting.main_preview_desc", "选择原文、发音、翻译行。较长内容会按歌词时间滑动。",
+                "setting.auto_interlude", "自动识别前奏/间奏/尾奏",
+                "setting.auto_interlude_desc", "将音符/空行和长时间无歌词区间转换成动画标记。",
+                "setting.interlude_labels", "显示间奏标签",
+                "setting.interlude_labels_desc", "在前奏/间奏/尾奏标记旁显示文字标签，同时保留动画图标。",
+                "setting.synced_karaoke_animation", "普通同步歌词卡拉 OK 效果",
+                "setting.synced_karaoke_animation_desc", "对没有 sync-data 的普通 LRCLIB 同步歌词应用均匀的逐字填色。",
+                "setting.karaoke_bounce_effect", "卡拉 OK 弹跳效果",
+                "setting.karaoke_bounce_effect_desc", "在歌词逐字填色时让文字轻微弹跳。",
+                "setting.karaoke_motion_style", "卡拉OK动效风格",
+                "setting.karaoke_motion_style_desc", "经典保留细微的弹跳效果。表现力使用弹簧物理：正在演唱的词会放大、上浮并发光，尚未演唱的词会略微缩小，长音会逐字动画。",
+                "karaoke.motion.classic", "经典",
+                "karaoke.motion.expressive", "表现力",
+                "setting.pronunciation_karaoke_fill", "发音卡拉OK填充",
+                "setting.pronunciation_karaoke_fill_desc", "即使关闭发音优先模式，原文下方的发音也会随演唱时间像卡拉OK一样填充。AI 会按单词或字符的时间拆分发音。不会应用弹跳、发光等其他效果。",
+                "setting.synced_pronunciation", "使用同步发音",
+                "setting.synced_pronunciation_desc", "按演唱的每个词或字的时间获取卡拉OK歌词的发音。开启后可使用发音优先模式和发音卡拉OK填充。关闭时，发音以整行纯文本更快获取。",
+                "section.player", "播放器",
+                "section.player_desc", "调整显示和横屏行为。",
+                "setting.landscape_auto_hide", "横屏自动隐藏控制",
+                "setting.landscape_auto_hide_desc", "横屏无操作时隐藏进度条和按钮。",
+                "section.background", "背景",
+                "section.background_desc", "选择专辑封面、模糊渐变或纯色背景。",
+                "setting.background_mode", "背景效果",
+                "setting.background_mode_desc", "选择当前歌曲背景的呈现方式。",
+                "setting.brightness", "亮度",
+                "setting.brightness_desc", "专辑封面和渐变背景的亮度。",
+                "setting.blur", "模糊",
+                "setting.blur_desc", "专辑封面和渐变背景的模糊强度。",
+                "setting.noise", "噪点纹理",
+                "setting.noise_desc", "加入类似原版 ivLyrics 的轻微颗粒感。",
+                "setting.reduce_motion", "减少动态效果",
+                "setting.reduce_motion_desc", "停止专辑/渐变背景的自动移动。",
+                "section.ai_lyrics", "歌词 AI",
+                "section.ai_lyrics_desc", "使用兼容 ivLyrics 的提示词生成发音和翻译。",
+                "section.provider", "提供商",
+                "field.api_key", "API 密钥",
+                "field.model", "模型",
+                "field.base_url", "基础 URL",
+                "button.save_regenerate", "保存并重新生成",
+                "button.get_key", "获取密钥",
+                "section.tools", "工具",
+                "section.tools_desc", "管理缓存和调试日志。",
+                "section.spotify_api", "Spotify API",
+                "section.spotify_api_desc", "使用 Spotify Developer Dashboard 生成的 Client ID 和 Client Secret。仅保存在本设备。",
+                "button.spotify_save", "保存 Spotify API",
+                "section.lyrics_cache", "歌词缓存",
+                "section.lyrics_cache_desc", "清除 sync-data/LRCLIB 基础歌词和 AI 发音/翻译缓存。清除后会重新加载当前歌曲。",
+                "button.clear_current", "清除当前歌曲",
+                "button.clear_all", "全部清除",
+                "button.ai_cache_clear", "清除 AI 缓存",
+                "button.debug_log", "调试 / 日志",
+                "onboarding.subtitle", "根据当前播放歌曲显示卡拉 OK 歌词、翻译和发音。",
+                "onboarding.welcome_title", "设置 ivLyrics",
+                "onboarding.welcome_desc", "先选择应用语言，然后依次设置媒体识别权限和你自己的 Spotify API 凭据。",
+                "onboarding.app_language_en", "应用程序语言",
+                "onboarding.app_language_native", "应用语言",
+                "onboarding.permission_title", "媒体识别权限",
+                "onboarding.permission_desc", "要读取 Spotify 当前播放的歌曲，需要 Android 通知访问权限。",
+                "onboarding.permission_hint", "在设置页面找到 ivLyrics 并允许访问，然后返回应用。",
+                "onboarding.permission_status_enabled", "权限已开启。现在可以检测 Spotify 正在播放的歌曲。",
+                "onboarding.permission_status_required", "权限尚未开启。请打开权限设置并允许 ivLyrics。",
+                "onboarding.spotify_title", "连接歌曲信息",
+                "onboarding.spotify_desc", "使用 Spotify Web API 获取当前歌曲的 ISRC 和高清封面。",
+                "onboarding.step_format", "第 %d / %d 步",
+                "spotify.status_configured", "Spotify API 已配置",
+                "spotify.status_required", "首次使用前请注册 Spotify API。",
+                "spotify.status_checking", "正在检查 Spotify 令牌...",
+                "spotify.status_invalid_format", "Spotify 令牌请求失败：%s\n请重新检查 Client ID 和 Secret。",
+                "button.next", "下一步",
+                "button.restart", "重新开始",
+                "button.copy", "复制",
+                "button.open_browser", "用浏览器打开",
+                "button.open_permission", "打开权限设置",
+                "button.prev_track", "上一首",
+                "button.next_track", "下一首",
+                "debug.title", "调试",
+                "debug.permission", "打开媒体访问权限",
+                "debug.previous", "上一首",
+                "debug.play_pause", "播放/暂停",
+                "debug.next", "下一首",
+                "debug.refresh", "刷新",
+                "debug.log", "日志",
+                "debug.log_waiting", "等待日志",
+                "lyrics.tab.language", "语言",
+                "lyrics.tab.sync", "同步",
+                "lyrics.translation", "翻译",
+                "lyrics.pronunciation", "发音",
+                "lyrics.sync.title", "当前歌曲同步偏移",
+                "lyrics.sync.reset", "重置为 0ms",
+                "lyrics.sync.no_track", "没有正在播放的歌曲，因此不会保存。",
+                "lyrics.sync.track_scope", "仅为“%s”保存。",
+                "lyrics.sync.help", "+ 值会更早显示歌词，- 值会更晚显示。",
+                "lyrics.menu_tip", "长按标题或艺人可打开翻译和发音设置。",
+                "lyrics.rule.track_language", "歌曲语言",
+                "lyrics.rule.save_target", "保存目标",
+                "lyrics.rule.translation_language", "翻译语言",
+                "label.on", "开启",
+                "label.off", "关闭",
+                "label.auto", "自动",
+                "label.auto_target", "自动 (%s)",
+                "lyrics.button.translation_on", "翻译开启",
+                "lyrics.button.pronunciation_on", "发音开启",
+                "lyrics.button.translation_plus", "翻译+",
+                "field.api_key_desc", "支持单键、换行列表或 JSON 数组。仅存储在此设备上。",
+                "field.model_desc", "覆盖提供商模型。",
+                "field.base_url_desc", "OpenAI 兼容或提供商 API 基础 URL。",
+                "field.max_tokens", "最大令牌",
+                "field.temperature", "创意度",
+                "field.solid_color", "纯色背景颜色",
+                "field.solid_color_desc", "选择纯色背景模式中使用的颜色。",
+                "field.spotify_client_id_desc", "Spotify 应用的 Client ID。",
+                "field.spotify_client_secret_desc", "Spotify 应用的 Client Secret。",
+                "preview.none", "不显示",
+                "preview.original", "原文",
+                "preview.pronunciation", "发音",
+                "preview.translation", "翻译",
+                "background.mode.gradient", "专辑封面",
+                "background.mode.gradient_desc", "将当前专辑封面大幅模糊后作为背景。",
+                "background.mode.blur_gradient", "模糊渐变",
+                "background.mode.blur_gradient_desc", "根据专辑颜色生成移动的模糊渐变。",
+                "background.mode.solid", "纯色",
+                "background.mode.solid_desc", "使用自定义纯色背景。",
+                "provider.desc.gemini", "使用 Google AI Studio API",
+                "provider.desc.chatgpt", "支持 OpenAI 兼容 API",
+                "provider.desc.claude", "使用 Claude Messages API",
+                "provider.desc.openrouter", "路由多个 AI 模型",
+                "provider.desc.groq", "快速 OpenAI 兼容推理",
+                "provider.desc.perplexity", "使用 Agent API",
+                "provider.desc.pollinations", "Pollinations OpenAI 兼容 API",
+                "spotify.step0.title", "前往 Spotify Developer Dashboard",
+                "spotify.step0.desc", "在浏览器中打开 Spotify Developer Dashboard。登录后创建新应用。",
+                "spotify.step1.title", "在 Create app 中输入名称",
+                "spotify.step1.desc", "点击 Create app，并在 App name 中直接输入下面的值。不要填写 ivLyrics 或 ivlyrics。",
+                "spotify.step2.title", "输入描述",
+                "spotify.step2.desc", "App description 也直接输入下面的值。这只是为了避免混淆的示例。",
+                "spotify.step3.title", "输入 Redirect URI",
+                "spotify.step3.desc", "将下面的地址添加到 Redirect URIs。请包含末尾斜杠。",
+                "spotify.step4.title", "选择 Web API 并保存",
+                "spotify.step4.desc", "在 API 选择区域选择 Web API，勾选同意复选框，然后点击 Save。",
+                "spotify.step5.title", "复制 Client ID 和 Secret",
+                "spotify.step5.desc", "从创建的应用 Settings 中复制 Client ID 和 Client Secret，粘贴到下面并保存 Spotify API。",
+                "toast.copied_format", "已复制：%s",
+                "toast.provider_saved", "提供商已保存",
+                "toast.pronunciation_language_saved", "发音标注语言已保存",
+                "toast.preview_saved", "主界面歌词预览已保存",
+                "toast.background_saved", "背景效果已保存",
+                "toast.metadata_translation_on", "曲名/艺人翻译已开启",
+                "toast.metadata_translation_off", "曲名/艺人翻译已关闭",
+                "toast.auto_interlude_on", "自动间奏识别已开启",
+                "toast.auto_interlude_off", "自动间奏识别已关闭",
+                "toast.landscape_auto_hide_on", "横屏控制自动隐藏已开启",
+                "toast.landscape_auto_hide_off", "横屏控制自动隐藏已关闭",
+                "toast.background_noise_on", "背景噪点已开启",
+                "toast.background_noise_off", "背景噪点已关闭",
+                "toast.reduce_motion_on", "背景动态已减少",
+                "toast.reduce_motion_off", "背景动态已开启",
+                "toast.ai_cache_cleared", "AI 缓存已清除",
+                "toast.language_rule_saved", "歌曲语言设置已保存",
+                "toast.settings_saved", "设置已保存",
+                "toast.spotify_missing", "请同时输入 Client ID 和 Client Secret。",
+                "toast.spotify_checking", "正在检查 Spotify 令牌...",
+                "toast.spotify_invalid", "请重新检查 Spotify API 凭据。",
+                "toast.spotify_saved", "Spotify API 已保存",
+                "toast.current_track_missing", "没有当前歌曲信息",
+                "toast.current_cache_cleared", "当前歌曲歌词缓存已清除",
+                "toast.all_cache_cleared", "全部歌词缓存已清除",
+                "toast.sync_offset_format", "同步偏移 %s",
+                "status.lyrics_request_failed", "歌词请求失败",
+                "status.ai_applied", "翻译/发音已应用",
+                "status.ai_failed_format", "AI 歌词失败：%s",
+                "status.ai_cache_cleared", "AI 缓存已清除",
+                "status.ai_lyrics_active", "AI 歌词已启用",
+                "status.ai_key_needed", "输入API密钥以生成AI歌词。",
+                "status.ai_disabled", "翻译/发音已关闭。",
+                "status.no_lyrics_to_apply", "没有可应用的歌词。",
+                "status.ai_generating", "正在生成 AI 歌词...",
+                "status.reload_after_spotify", "Spotify API 设置应用后，将重新加载当前歌曲的 ISRC、sync-data 和 LRCLIB 歌词。",
+                "status.detecting_media", "正在检测媒体会话",
+                "status.permission_required", "需要通知访问权限",
+                "status.lyrics_lookup_spotify", "先用 Spotify Web API 查找 ISRC，然后加载 sync-data 和 LRCLIB。",
+                "status.lyrics_lookup_player", "使用播放器 ISRC 加载 sync-data 和 LRCLIB。",
+                "status.waiting_current_track", "等待当前播放歌曲",
+                "status.spotify_required_plain", "需要注册 Spotify API",
+                "loading.generating", "生成中",
+                "loading.pronunciation", "正在生成发音...",
+                "loading.translation", "正在生成翻译...",
+                "loading.word_sync", "正在生成逐词同步...",
+                "loading.word_sync_desc", "正在外部歌词服务器上生成逐词同步数据。",
+                "status.word_sync_failed", "逐词同步失败",
+                "pronunciation_first.state_on", "发音优先已开启。点按关闭",
+                "pronunciation_first.state_off", "发音优先已关闭。点按开启",
+                "loading.pronunciation_sync", "AI 正在将发音与歌词时间对齐...",
+                "status.pronunciation_sync_failed", "发音同步失败",
+                "lyrics.empty_none", "没有歌词",
+                "interlude.prelude", "前奏",
+                "interlude.break", "间奏",
+                "interlude.postlude", "尾奏",
+                "onboarding.preview.line1", "卡拉 OK 歌词会跟随歌曲",
+                "onboarding.preview.line2", "发音和翻译会显示在这里",
+                "onboarding.preview.line3", "会根据当前歌曲自动更新",
+                "repo.metadata_waiting", "正在等待歌曲元数据",
+                "repo.lyrics_not_found", "未找到 LRCLIB 歌词",
+                "repo.instrumental", "纯音乐曲目",
+                "repo.no_renderable_lyrics", "没有可显示的 LRCLIB 歌词",
+                "repo.detail.sync_applied_direct", "已应用卡拉 OK sync-data，并直接加载 sync-data 来源的 LRCLIB。",
+                "repo.detail.sync_applied_search", "已应用卡拉 OK sync-data，并通过搜索选择 LRCLIB。",
+                "repo.detail.no_spotify_isrc", "LRCLIB 行歌词。无法使用 Spotify ISRC 查询。",
+                "repo.detail.no_sync_data", "LRCLIB 行歌词。未找到匹配此 ISRC 的 sync-data。",
+                "repo.detail.sync_apply_failed", "LRCLIB 行歌词。无法应用 sync-data。",
+                "spotify.error.incomplete_credentials", "缺少 Spotify API Client ID 或 Client Secret。",
+                "spotify.error.credentials_not_configured", "尚未配置 Spotify API 凭据。",
+                "spotify.error.no_access_token", "Spotify 令牌响应中没有 access_token。",
+                "spotify.error.repository_unavailable", "歌词存储库不可用。",
+                "lyrics.credit_sync_by_format", "同步制作：%s",
+                "sync.type_line", "行",
+                "sync.type_word", "词",
+                "sync.type_character", "字符",
+                "sync.type_mixed", "混合",
+                "sync.type_unknown", "旧版同步"
+        );
+    }
+
+    private static Map<String, String> zhTwStrings() {
+        return strings(
+                "button.close", "關閉",
+                "button.previous", "上一步",
+                "button.save_start", "Save 並開始",
+                "button.spotify_setup", "設定 Spotify API",
+                "status.waiting_spotify", "等待 Spotify 播放",
+                "status.lyrics_loading", "正在載入歌詞",
+                "status.lyrics_waiting", "等待歌詞",
+                "status.spotify_required_title", "需要 Spotify API",
+                "status.spotify_required_subtitle", "首先是 Save 你的 Client ID 和秘密",
+                "status.spotify_required_detail", "在設定完成之前，不會載入 ISRC、sync-data 和 LRCLIB 歌詞。",
+                "toast.spotify_required", "先註冊 Spotify API",
+                "toast.setup_required", "首先完成初始設定",
+                "toast.back_exit", "再次按返回退出",
+                "toast.ui_language_saved", "已儲存應用程式語言",
+                "settings.title", "設定",
+                "settings.subtitle", "歌詞、顯示、全螢幕、AI、工具",
+                "tab.lyrics", "歌詞",
+                "tab.display", "展示",
+                "tab.ai", "人工智慧",
+                "tab.tools", "工具",
+                "section.language", "語言",
+                "section.language_desc", "單獨管理應用程式語言、發音和每首歌曲的翻譯規則。",
+                "setting.ui_language", "應用程式語言",
+                "setting.ui_language_desc", "應用程式 UI 使用的語言。僅顯示具有真實 UI 翻譯的語言。",
+                "setting.pronunciation_language", "發音語言",
+                "setting.pronunciation_language_desc", "選擇應產生哪種腳本/語言發音。",
+                "setting.metadata_translation", "翻譯曲名/藝人",
+                "setting.metadata_translation_desc", "也使用所選目標語言翻譯當前歌曲標題和藝術家。",
+                "setting.main_preview", "主歌詞預覽",
+                "setting.main_preview_desc", "選擇原文、發音和翻譯行。長排隨著歌詞的節奏滑動。",
+                "setting.auto_interlude", "自動偵測前奏/間奏/尾奏",
+                "setting.auto_interlude_desc", "將歌詞後的音符/空白行和長間隙轉換為動畫間奏標記。",
+                "setting.interlude_labels", "顯示間奏標籤",
+                "setting.interlude_labels_desc", "在前奏/間奏/尾奏標記旁顯示文字標籤，同時保留動畫圖示。",
+                "setting.synced_karaoke_animation", "一般同步歌詞卡拉 OK 效果",
+                "setting.synced_karaoke_animation_desc", "對沒有 sync-data 的一般 LRCLIB 同步歌詞套用平均逐字填色。",
+                "setting.karaoke_bounce_effect", "卡拉 OK 彈跳效果",
+                "setting.karaoke_bounce_effect_desc", "在歌詞逐字填色時讓文字輕微彈跳。",
+                "setting.karaoke_motion_style", "卡拉OK動態風格",
+                "setting.karaoke_motion_style_desc", "經典保留細微的彈跳效果。表現力使用彈簧物理：正在演唱的詞會放大、上浮並發光，尚未演唱的詞會略微縮小，長音會逐字動畫。",
+                "karaoke.motion.classic", "經典",
+                "karaoke.motion.expressive", "表現力",
+                "setting.pronunciation_karaoke_fill", "發音卡拉OK填色",
+                "setting.pronunciation_karaoke_fill_desc", "即使關閉發音優先模式，原文下方的發音也會隨演唱時間像卡拉OK一樣填色。AI 會依單字或字元的時間拆分發音。不會套用彈跳、發光等其他效果。",
+                "setting.synced_pronunciation", "使用同步發音",
+                "setting.synced_pronunciation_desc", "依演唱的每個詞或字的時間取得卡拉OK歌詞的發音。開啟後可使用發音優先模式與發音卡拉OK填色。關閉時，發音會以整行純文字更快取得。",
+                "section.player", "播放器",
+                "section.player_desc", "調整顯示和橫向行為。",
+                "setting.landscape_auto_hide", "自動隱藏橫向控制項",
+                "setting.landscape_auto_hide_desc", "在橫向不活動時隱藏進度條和按鈕。",
+                "section.background", "背景",
+                "section.background_desc", "選擇專輯封面、模糊漸層或純色背景。",
+                "setting.background_mode", "背景效果",
+                "setting.background_mode_desc", "選擇目前歌曲背景的渲染方式。",
+                "setting.brightness", "亮度",
+                "setting.brightness_desc", "專輯封面和漸變背景的亮度。",
+                "setting.blur", "模糊",
+                "setting.blur_desc", "專輯封面和漸變背景的模糊強度。",
+                "setting.noise", "雜訊紋理",
+                "setting.noise_desc", "加入像原始 ivLyrics 一樣的微妙顆粒紋理。",
+                "setting.reduce_motion", "減少動態效果",
+                "setting.reduce_motion_desc", "停止專輯/漸層背景的自動移動。",
+                "section.ai_lyrics", "歌詞人工智慧",
+                "section.ai_lyrics_desc", "使用與 ivLyrics 相容的提示產生發音和翻譯。",
+                "section.provider", "提供者",
+                "field.api_key", "API 金鑰",
+                "field.model", "模型",
+                "field.base_url", "基礎 URL",
+                "button.save_regenerate", "Save 和重新產生",
+                "button.get_key", "取得金鑰",
+                "section.tools", "工具",
+                "section.tools_desc", "管理快取和除錯日誌。",
+                "section.spotify_api", "Spotify API",
+                "section.spotify_api_desc", "使用 Spotify 開發人員儀表板中的 Client ID 和 Client Secret。僅儲存在此裝置上。",
+                "button.spotify_save", "儲存 Spotify API",
+                "section.lyrics_cache", "歌詞緩存",
+                "section.lyrics_cache_desc", "清除 sync-data/LRCLIB 基礎歌詞和 AI 發音/翻譯緩存。清除後重新載入目前歌曲。",
+                "button.clear_current", "清除目前歌曲",
+                "button.clear_all", "清除全部",
+                "button.ai_cache_clear", "清除 AI 快取",
+                "button.debug_log", "調試/日誌",
+                "onboarding.subtitle", "目前播放歌曲的卡拉 OK 歌詞、翻譯和發音。",
+                "onboarding.welcome_title", "設定 ivLyrics",
+                "onboarding.welcome_desc", "先選擇應用程式語言，然後設定媒體存取權限和您自己的 Spotify API 憑證。",
+                "onboarding.app_language_en", "應用程式語言",
+                "onboarding.app_language_native", "應用程式語言",
+                "onboarding.permission_title", "媒體存取權限",
+                "onboarding.permission_desc", "需要 Android 通知存取權限才能讀取目前在 Spotify 中播放的歌曲。",
+                "onboarding.permission_hint", "在設定畫面中找到 ivLyrics，允許訪問，然後返回應用程式。",
+                "onboarding.permission_status_enabled", "權限已啟用。現在可以偵測到 Spotify 播放。",
+                "onboarding.permission_status_required", "權限尚未啟用。開啟權限設定並允許ivLyrics。",
+                "onboarding.spotify_title", "連結歌曲資訊",
+                "onboarding.spotify_desc", "Spotify Web API 用於載入目前歌曲的 ISRC 和高解析度插圖。",
+                "onboarding.step_format", "步驟 %d / %d",
+                "spotify.status_configured", "Spotify API 已設定",
+                "spotify.status_required", "首次使用前請註冊 Spotify API。",
+                "spotify.status_checking", "正在檢查 Spotify 令牌...",
+                "spotify.status_invalid_format", "Spotify 令牌請求失敗：%s\n再次檢查您的 Client ID 和 Secret。",
+                "button.next", "下一步",
+                "button.restart", "重新開始",
+                "button.copy", "複製",
+                "button.open_browser", "開啟瀏覽器",
+                "button.open_permission", "開啟權限 Settings",
+                "button.prev_track", "上一首",
+                "button.next_track", "下一首",
+                "debug.title", "調試",
+                "debug.permission", "開啟媒體存取權限",
+                "debug.previous", "上一個",
+                "debug.play_pause", "播放/暫停",
+                "debug.next", "下一個",
+                "debug.refresh", "刷新",
+                "debug.log", "日誌",
+                "debug.log_waiting", "等待日誌",
+                "lyrics.tab.language", "語言",
+                "lyrics.tab.sync", "同步",
+                "lyrics.translation", "翻譯",
+                "lyrics.pronunciation", "發音",
+                "lyrics.sync.title", "目前歌曲同步偏移量",
+                "lyrics.sync.reset", "重設為 0ms",
+                "lyrics.sync.no_track", "沒有播放歌曲，因此不會儲存。",
+                "lyrics.sync.track_scope", "僅為「%s」儲存。",
+                "lyrics.sync.help", "+ 值更早顯示歌詞； - 值稍後顯示。",
+                "lyrics.menu_tip", "長按標題或藝人即可開啟翻譯與發音設定。",
+                "lyrics.rule.track_language", "歌曲語言",
+                "lyrics.rule.save_target", "Save 目標",
+                "lyrics.rule.translation_language", "翻譯語言",
+                "label.on", "開",
+                "label.off", "關",
+                "label.auto", "自動",
+                "label.auto_target", "自動 (%s)",
+                "lyrics.button.translation_on", "翻譯開",
+                "lyrics.button.pronunciation_on", "發音開啟",
+                "lyrics.button.translation_plus", "翻譯+",
+                "field.api_key_desc", "支援單一金鑰、換行列表或 JSON 陣列。僅儲存在此裝置上。",
+                "field.model_desc", "提供者模型覆蓋。",
+                "field.base_url_desc", "OpenAI 相容或提供者 API 基礎 URL。",
+                "field.max_tokens", "最大 Token 數",
+                "field.temperature", "創造力",
+                "field.solid_color", "純色背景色",
+                "field.solid_color_desc", "選擇純色背景模式中使用的色彩。",
+                "field.spotify_client_id_desc", "Spotify 應用程式的 Client ID。",
+                "field.spotify_client_secret_desc", "Spotify 應用程式的 Client Secret。",
+                "preview.none", "隱藏",
+                "preview.original", "原始",
+                "preview.pronunciation", "發音",
+                "preview.translation", "翻譯",
+                "background.mode.gradient", "專輯封面",
+                "background.mode.gradient_desc", "使用當前專輯封面作為大的模糊背景。",
+                "background.mode.blur_gradient", "模糊漸層",
+                "background.mode.blur_gradient_desc", "從專輯色彩建構移動模糊漸層。",
+                "background.mode.solid", "純色",
+                "background.mode.solid_desc", "使用自訂純色背景色。",
+                "provider.desc.gemini", "Google AI Studio API",
+                "provider.desc.chatgpt", "OpenAI 相容 API",
+                "provider.desc.claude", "Claude Messages API",
+                "provider.desc.openrouter", "路由多個 AI 模型",
+                "provider.desc.groq", "快速 OpenAI 相容推理",
+                "provider.desc.perplexity", "Agent API",
+                "provider.desc.pollinations", "Pollinations OpenAI 相容 API",
+                "spotify.step0.title", "前往 Spotify 開發人員儀表板",
+                "spotify.step0.desc", "在瀏覽器中開啟 Spotify 開發人員儀表板。登入並建立一個新應用程式。",
+                "spotify.step1.title", "在 Create app 中輸入名稱",
+                "spotify.step1.desc", "按 Create app 並輸入下列 App name 值。不要寫 ivLyrics 或 ivlyrics。",
+                "spotify.step2.title", "輸入說明",
+                "spotify.step2.desc", "也為 App description 輸入以下值。這只是一個例子，以避免混淆。",
+                "spotify.step3.title", "輸入重定向 URI",
+                "spotify.step3.desc", "將下列位址新增至 Redirect URIs。包括尾部斜線。",
+                "spotify.step4.title", "選擇Web API 並儲存",
+                "spotify.step4.desc", "在API 選擇區域中選擇Web API，選取協議框，然後按Save。",
+                "spotify.step5.title", "複製 Client ID 和 Secret",
+                "spotify.step5.desc", "從應用程式設定複製 Client ID 和 Client Secret，將其貼到下面，然後儲存 Spotify API。",
+                "toast.copied_format", "已複製：%s",
+                "toast.provider_saved", "提供者已儲存",
+                "toast.pronunciation_language_saved", "發音語言已儲存",
+                "toast.preview_saved", "主歌詞預覽已儲存",
+                "toast.background_saved", "背景效果已儲存",
+                "toast.metadata_translation_on", "曲名/藝人翻譯已開啟",
+                "toast.metadata_translation_off", "曲名/藝人翻譯已關閉",
+                "toast.auto_interlude_on", "自動間奏偵測已開啟",
+                "toast.auto_interlude_off", "自動間奏偵測已關閉",
+                "toast.landscape_auto_hide_on", "橫向控制項自動隱藏已開啟",
+                "toast.landscape_auto_hide_off", "橫向控制項自動隱藏已關閉",
+                "toast.background_noise_on", "雜訊紋理已開啟",
+                "toast.background_noise_off", "雜訊紋理已關閉",
+                "toast.reduce_motion_on", "已減少背景動態",
+                "toast.reduce_motion_off", "背景動態已啟用",
+                "toast.ai_cache_cleared", "AI 快取已清除",
+                "toast.language_rule_saved", "歌曲語言設定已儲存",
+                "toast.settings_saved", "Settings 已儲存",
+                "toast.spotify_missing", "輸入 Client ID 和 Client Secret。",
+                "toast.spotify_checking", "正在檢查 Spotify 令牌...",
+                "toast.spotify_invalid", "再次檢查您的 Spotify API 憑證。",
+                "toast.spotify_saved", "Spotify API 已儲存",
+                "toast.current_track_missing", "沒有目前歌曲資訊",
+                "toast.current_cache_cleared", "當前歌曲歌詞快取已清除",
+                "toast.all_cache_cleared", "所有歌詞快取已清除",
+                "toast.sync_offset_format", "同步偏移 %s",
+                "status.lyrics_request_failed", "歌詞請求失敗",
+                "status.ai_applied", "應用翻譯/發音",
+                "status.ai_failed_format", "AI 歌詞失敗：%s",
+                "status.ai_cache_cleared", "AI 快取已清除",
+                "status.ai_lyrics_active", "AI 歌詞已啟用",
+                "status.ai_key_needed", "輸入 API 金鑰後即可產生 AI 歌詞。",
+                "status.ai_disabled", "翻譯/發音已關閉。",
+                "status.no_lyrics_to_apply", "沒有可應用的歌詞。",
+                "status.ai_generating", "正在產生 AI 歌詞...",
+                "status.reload_after_spotify", "在 Spotify API 設定變更後重新載入這首歌的 ISRC、sync-data 和 LRCLIB 歌詞。",
+                "status.detecting_media", "偵測媒體會話",
+                "status.permission_required", "需要通知存取權限",
+                "status.lyrics_lookup_spotify", "使用 Spotify Web API 尋找 ISRC，然後載入 sync-data 和 LRCLIB。",
+                "status.lyrics_lookup_player", "使用播放器 ISRC 載入 sync-data 和 LRCLIB。",
+                "status.waiting_current_track", "等待目前播放的歌曲",
+                "status.spotify_required_plain", "需要 Spotify API",
+                "loading.generating", "正在產生",
+                "loading.pronunciation", "正在產生發音...",
+                "loading.translation", "正在產生翻譯...",
+                "loading.word_sync", "正在產生逐詞同步...",
+                "loading.word_sync_desc", "正在外部歌詞伺服器上產生逐詞同步資料。",
+                "status.word_sync_failed", "逐詞同步失敗",
+                "pronunciation_first.state_on", "發音優先已開啟。點按關閉",
+                "pronunciation_first.state_off", "發音優先已關閉。點按開啟",
+                "loading.pronunciation_sync", "AI 正在將發音與歌詞時間對齊...",
+                "status.pronunciation_sync_failed", "發音同步失敗",
+                "lyrics.empty_none", "沒有歌詞",
+                "interlude.prelude", "前奏",
+                "interlude.break", "間奏",
+                "interlude.postlude", "尾奏",
+                "onboarding.preview.line1", "卡拉 OK 歌詞會跟隨歌曲",
+                "onboarding.preview.line2", "發音和翻譯會顯示在這裡",
+                "onboarding.preview.line3", "會根據目前歌曲自動更新",
+                "repo.metadata_waiting", "正在等待歌曲中繼資料",
+                "repo.lyrics_not_found", "找不到 LRCLIB 歌詞",
+                "repo.instrumental", "純音樂曲目",
+                "repo.no_renderable_lyrics", "沒有可顯示的 LRCLIB 歌詞",
+                "repo.detail.sync_applied_direct", "已套用卡拉 OK sync-data，並直接載入 sync-data 來源的 LRCLIB。",
+                "repo.detail.sync_applied_search", "已套用卡拉 OK sync-data，並透過搜尋選擇 LRCLIB。",
+                "repo.detail.no_spotify_isrc", "LRCLIB 行歌詞。無法使用 Spotify ISRC 查詢。",
+                "repo.detail.no_sync_data", "LRCLIB 行歌詞。找不到符合此 ISRC 的 sync-data。",
+                "repo.detail.sync_apply_failed", "LRCLIB 行歌詞。無法套用 sync-data。",
+                "spotify.error.incomplete_credentials", "缺少 Spotify API Client ID 或 Client Secret。",
+                "spotify.error.credentials_not_configured", "尚未設定 Spotify API 憑證。",
+                "spotify.error.no_access_token", "Spotify 權杖回應中沒有 access_token。",
+                "spotify.error.repository_unavailable", "歌詞儲存庫無法使用。",
+                "lyrics.credit_sync_by_format", "同步製作：%s",
+                "sync.type_line", "行",
+                "sync.type_word", "詞",
+                "sync.type_character", "字元",
+                "sync.type_mixed", "混合",
+                "sync.type_unknown", "舊版同步"
+        );
+    }
+
+    private static Map<String, String> jaStrings() {
+        return strings(
+                "button.close", "閉じる",
+                "button.previous", "戻る",
+                "button.save_start", "保存して開始",
+                "button.spotify_setup", "Spotify APIを設定",
+                "status.waiting_spotify", "Spotifyの再生曲を待機中",
+                "status.lyrics_loading", "歌詞を読み込み中",
+                "status.lyrics_waiting", "歌詞を待機中",
+                "status.spotify_required_title", "Spotify APIの登録が必要です",
+                "status.spotify_required_subtitle", "Client IDとSecretを先に保存してください",
+                "status.spotify_required_detail", "設定前はISRC、sync-data、LRCLIB歌詞を読み込みません。",
+                "toast.spotify_required", "先にSpotify APIを登録してください",
+                "toast.setup_required", "初期設定を完了してから使用できます",
+                "toast.back_exit", "もう一度戻ると終了します",
+                "toast.ui_language_saved", "アプリ表示言語を保存しました",
+                "settings.title", "設定",
+                "settings.subtitle", "歌詞、表示、全画面、AI、ツール設定",
+                "tab.lyrics", "歌詞",
+                "tab.display", "表示",
+                "tab.ai", "AI",
+                "tab.tools", "ツール",
+                "section.language", "言語",
+                "section.language_desc", "表示言語、発音表記、曲別翻訳設定を分けて管理します。",
+                "setting.ui_language", "アプリ表示言語",
+                "setting.ui_language_desc", "アプリ画面で使う言語です。実際の翻訳データがある言語だけ表示します。",
+                "setting.pronunciation_language", "発音表記言語",
+                "setting.pronunciation_language_desc", "発音をどの文字/言語基準で表記するか選択します。",
+                "setting.metadata_translation", "曲名/アーティストを翻訳",
+                "setting.metadata_translation_desc", "現在の曲名とアーティスト名も選択した翻訳言語で表示します。",
+                "setting.main_preview", "メイン下部の歌詞",
+                "setting.main_preview_desc", "原文、発音、翻訳の表示行を選択します。長い行は歌詞時間に合わせて移動します。",
+                "setting.auto_interlude", "前奏/間奏/後奏を自動検出",
+                "setting.auto_interlude_desc", "音符/空行と長い無歌詞区間をアニメーション表示に変換します。",
+                "setting.interlude_labels", "間奏ラベルを表示",
+                "setting.interlude_labels_desc", "前奏/間奏/後奏マーカーの横に文字ラベルを表示し、アニメーションアイコンは残します。",
+                "setting.synced_karaoke_animation", "通常同期歌詞のカラオケ効果",
+                "setting.synced_karaoke_animation_desc", "sync-dataのない通常のLRCLIB同期歌詞に、均等な文字ごとの塗りを適用します。",
+                "setting.karaoke_bounce_effect", "カラオケの跳ねる効果",
+                "setting.karaoke_bounce_effect_desc", "文字が塗られるときに軽く跳ねる動きを適用します。",
+                "setting.karaoke_motion_style", "カラオケモーションスタイル",
+                "setting.karaoke_motion_style_desc", "クラシックは控えめなバウンスを維持します。エクスプレッシブはスプリング物理を使い、歌っている単語が大きく浮き上がって光り、まだ歌われていない単語は少し小さく待機し、長く伸ばす音は一文字ずつアニメーションします。",
+                "karaoke.motion.classic", "クラシック",
+                "karaoke.motion.expressive", "エクスプレッシブ",
+                "setting.pronunciation_karaoke_fill", "発音をカラオケのように塗る",
+                "setting.pronunciation_karaoke_fill_desc", "発音優先モードがオフでも、原文の下の発音が歌うタイミングに合わせてカラオケのように塗られます。AIが発音を単語・文字のタイミングに合わせて分割します。バウンスやグローなどの他の効果は適用されません。",
+                "setting.synced_pronunciation", "同期発音を使う",
+                "setting.synced_pronunciation_desc", "カラオケ歌詞の発音を、歌う単語・文字のタイミングに合わせて取得します。オンにすると発音優先モードと発音のカラオケ塗りを使えます。オフにすると発音は行ごとのテキストとして、より速く取得されます。",
+                "section.player", "プレイヤー",
+                "section.player_desc", "表示と横画面の動作を調整します。",
+                "setting.landscape_auto_hide", "横画面コントロールを自動で隠す",
+                "setting.landscape_auto_hide_desc", "横画面で操作しないと進行バーとボタンを隠します。",
+                "section.background", "背景",
+                "section.background_desc", "アルバムカバー、ぼかしグラデーション、単色背景から選びます。",
+                "setting.background_mode", "背景効果",
+                "setting.background_mode_desc", "現在の曲に合わせた背景方式を選択します。",
+                "setting.brightness", "明るさ",
+                "setting.brightness_desc", "アルバムカバーとグラデーション背景の明るさです。",
+                "setting.blur", "ぼかし",
+                "setting.blur_desc", "アルバムカバーとグラデーション背景のぼかし強度です。",
+                "setting.noise", "ノイズテクスチャ",
+                "setting.noise_desc", "元のivLyricsのような控えめな粒状感を加えます。",
+                "setting.reduce_motion", "動きを減らす",
+                "setting.reduce_motion_desc", "アルバム/グラデーション背景の自動移動を止めます。",
+                "section.ai_lyrics", "歌詞AI",
+                "section.ai_lyrics_desc", "ivLyrics互換のプロンプトで発音と翻訳を生成します。",
+                "section.provider", "プロバイダー",
+                "field.api_key", "APIキー",
+                "field.model", "モデル",
+                "field.base_url", "基本URL",
+                "button.save_regenerate", "保存して再生成",
+                "button.get_key", "キーを取得",
+                "section.tools", "ツール",
+                "section.tools_desc", "キャッシュとデバッグログを管理します。",
+                "section.spotify_api", "Spotify API",
+                "section.spotify_api_desc", "Spotify Developer Dashboardで発行したClient IDとClient Secretを使います。端末内にのみ保存されます。",
+                "button.spotify_save", "Spotify APIを保存",
+                "section.lyrics_cache", "歌詞キャッシュ",
+                "section.lyrics_cache_desc", "sync-data/LRCLIBの基本歌詞とAI発音/翻訳キャッシュを削除します。削除後、現在の曲を再読み込みします。",
+                "button.clear_current", "現在の曲を削除",
+                "button.clear_all", "すべて削除",
+                "button.ai_cache_clear", "AIキャッシュ初期化",
+                "button.debug_log", "デバッグ / ログ",
+                "onboarding.subtitle", "再生中の曲に合わせてカラオケ歌詞、翻訳、発音を表示します。",
+                "onboarding.welcome_title", "ivLyricsの設定",
+                "onboarding.welcome_desc", "まず表示言語を選び、メディア認識権限と自分のSpotify API情報を順番に設定します。",
+                "onboarding.app_language_en", "アプリの言語",
+                "onboarding.app_language_native", "アプリ表示言語",
+                "onboarding.permission_title", "メディア認識権限",
+                "onboarding.permission_desc", "Spotifyで再生中の曲を読み取るにはAndroidの通知アクセス権限が必要です。",
+                "onboarding.permission_hint", "設定画面でivLyricsを見つけて許可し、アプリに戻ってください。",
+                "onboarding.permission_status_enabled", "権限が許可されました。Spotifyの再生曲を検出できます。",
+                "onboarding.permission_status_required", "まだ権限がありません。権限設定を開いてivLyricsを許可してください。",
+                "onboarding.spotify_title", "曲情報を接続",
+                "onboarding.spotify_desc", "現在の曲のISRCと高解像度アートワーク取得にSpotify Web APIを使用します。",
+                "onboarding.step_format", "ステップ %d / %d",
+                "spotify.status_configured", "Spotify API設定済み",
+                "spotify.status_required", "初回使用前にSpotify APIを登録してください。",
+                "spotify.status_checking", "Spotify トークンを確認しています...",
+                "spotify.status_invalid_format", "Spotifyトークン取得失敗: %s\nClient IDとSecretをもう一度確認してください。",
+                "button.next", "次へ",
+                "button.restart", "最初から",
+                "button.copy", "コピー",
+                "button.open_browser", "ブラウザで開く",
+                "button.open_permission", "権限設定を開く",
+                "button.prev_track", "前の曲",
+                "button.next_track", "次の曲",
+                "debug.title", "デバッグ",
+                "debug.permission", "メディアアクセス権限を開く",
+                "debug.previous", "前へ",
+                "debug.play_pause", "再生/停止",
+                "debug.next", "次へ",
+                "debug.refresh", "更新",
+                "debug.log", "ログ",
+                "debug.log_waiting", "ログを待機中",
+                "lyrics.tab.language", "言語",
+                "lyrics.tab.sync", "同期",
+                "lyrics.translation", "翻訳",
+                "lyrics.pronunciation", "発音",
+                "lyrics.sync.title", "現在の曲の同期オフセット",
+                "lyrics.sync.reset", "0msにリセット",
+                "lyrics.sync.no_track", "再生中の曲がないため保存されません。",
+                "lyrics.sync.track_scope", "「%s」のみに保存されました。",
+                "lyrics.sync.help", "+値は歌詞を早く表示し、-値は遅く表示します。",
+                "lyrics.menu_tip", "タイトルまたはアーティストを長押しすると翻訳・発音設定が開きます。",
+                "lyrics.rule.track_language", "曲の言語",
+                "lyrics.rule.save_target", "保存先",
+                "lyrics.rule.translation_language", "翻訳言語",
+                "label.on", "オン",
+                "label.off", "オフ",
+                "label.auto", "自動",
+                "label.auto_target", "自動 (%s)",
+                "lyrics.button.translation_on", "翻訳オン",
+                "lyrics.button.pronunciation_on", "発音オン",
+                "lyrics.button.translation_plus", "翻訳+",
+                "field.api_key_desc", "単一キー、改行リスト、または JSON 配列をサポートします。このデバイスにのみ保存されます。",
+                "field.model_desc", "プロバイダーのモデルを上書きします。",
+                "field.base_url_desc", "OpenAI互換またはプロバイダーAPIの基本URLです。",
+                "field.max_tokens", "最大トークン",
+                "field.temperature", "創造性",
+                "field.solid_color", "単色背景の色",
+                "field.solid_color_desc", "単色背景モードで使う色を選択します。",
+                "field.spotify_client_id_desc", "SpotifyアプリのClient IDです。",
+                "field.spotify_client_secret_desc", "SpotifyアプリのClient Secretです。",
+                "preview.none", "非表示",
+                "preview.original", "原文",
+                "preview.pronunciation", "発音",
+                "preview.translation", "翻訳",
+                "background.mode.gradient", "アルバムカバー",
+                "background.mode.gradient_desc", "現在のアルバムカバーを大きくぼかして背景に使います。",
+                "background.mode.blur_gradient", "ぼかしグラデーション",
+                "background.mode.blur_gradient_desc", "アルバム色から動くぼかしグラデーションを作ります。",
+                "background.mode.solid", "単色",
+                "background.mode.solid_desc", "指定した単色背景を使います。",
+                "provider.desc.gemini", "Google AI Studio APIを使用",
+                "provider.desc.chatgpt", "OpenAI互換APIに対応",
+                "provider.desc.claude", "Claude Messages APIを使用",
+                "provider.desc.openrouter", "複数のAIモデルをルーティング",
+                "provider.desc.groq", "高速なOpenAI互換推論",
+                "provider.desc.perplexity", "Agent APIを使用",
+                "provider.desc.pollinations", "Pollinations OpenAI互換API",
+                "spotify.step0.title", "Spotify Developer Dashboardへ移動",
+                "spotify.step0.desc", "ブラウザでSpotify Developer Dashboardを開きます。ログインして新しいアプリを作成してください。",
+                "spotify.step1.title", "Create appで名前を入力",
+                "spotify.step1.desc", "Create appを押し、App nameには下の値をそのまま入力してください。ivLyricsまたはivlyricsとは書かないでください。",
+                "spotify.step2.title", "説明を入力",
+                "spotify.step2.desc", "App descriptionにも下の値をそのまま入力してください。混乱を避けるための例です。",
+                "spotify.step3.title", "Redirect URIを入力",
+                "spotify.step3.desc", "Redirect URIsに下のアドレスを追加してください。末尾のスラッシュも含めます。",
+                "spotify.step4.title", "Web APIを選択して保存",
+                "spotify.step4.desc", "API選択エリアでWeb APIを選び、同意チェックボックスをオンにしてSaveを押してください。",
+                "spotify.step5.title", "Client IDとSecretをコピー",
+                "spotify.step5.desc", "作成したアプリのSettingsからClient IDとClient Secretをコピーし、下に貼り付けてSpotify APIを保存してください。",
+                "toast.copied_format", "コピーしました: %s",
+                "toast.provider_saved", "プロバイダーを保存しました",
+                "toast.pronunciation_language_saved", "発音表記言語を保存しました",
+                "toast.preview_saved", "メイン歌詞プレビューを保存しました",
+                "toast.background_saved", "背景効果を保存しました",
+                "toast.metadata_translation_on", "曲名/アーティスト翻訳オン",
+                "toast.metadata_translation_off", "曲名/アーティスト翻訳オフ",
+                "toast.auto_interlude_on", "自動間奏検出オン",
+                "toast.auto_interlude_off", "自動間奏検出オフ",
+                "toast.landscape_auto_hide_on", "横画面コントロール自動非表示オン",
+                "toast.landscape_auto_hide_off", "横画面コントロール自動非表示オフ",
+                "toast.background_noise_on", "背景ノイズオン",
+                "toast.background_noise_off", "背景ノイズオフ",
+                "toast.reduce_motion_on", "背景の動きを減らしました",
+                "toast.reduce_motion_off", "背景の動きを有効にしました",
+                "toast.ai_cache_cleared", "AIキャッシュを初期化しました",
+                "toast.language_rule_saved", "曲の言語設定を保存しました",
+                "toast.settings_saved", "設定を保存しました",
+                "toast.spotify_missing", "Client IDとClient Secretの両方を入力してください。",
+                "toast.spotify_checking", "Spotifyトークンを確認中...",
+                "toast.spotify_invalid", "Spotify API情報をもう一度確認してください。",
+                "toast.spotify_saved", "Spotify APIを保存しました",
+                "toast.current_track_missing", "現在の曲情報がありません",
+                "toast.current_cache_cleared", "現在の曲の歌詞キャッシュを削除しました",
+                "toast.all_cache_cleared", "すべての歌詞キャッシュを削除しました",
+                "toast.sync_offset_format", "同期オフセット %s",
+                "status.lyrics_request_failed", "歌詞リクエスト失敗",
+                "status.ai_applied", "翻訳/発音を適用しました",
+                "status.ai_failed_format", "AI歌詞失敗: %s",
+                "status.ai_cache_cleared", "AIキャッシュを初期化しました",
+                "status.ai_lyrics_active", "AI歌詞が有効です",
+                "status.ai_key_needed", "API キーを入力して AI 歌詞を生成します。",
+                "status.ai_disabled", "翻訳/発音がオフです。",
+                "status.no_lyrics_to_apply", "適用する歌詞がありません。",
+                "status.ai_generating", "AI歌詞を生成中...",
+                "status.reload_after_spotify", "Spotify API設定の適用後、現在の曲のISRC、sync-data、LRCLIB歌詞を再読み込みします。",
+                "status.detecting_media", "メディアセッションを検出中",
+                "status.permission_required", "通知アクセス権限が必要です",
+                "status.lyrics_lookup_spotify", "Spotify Web APIでISRCを探してからsync-dataとLRCLIBを読み込みます。",
+                "status.lyrics_lookup_player", "プレイヤーのISRCでsync-dataとLRCLIBを読み込みます。",
+                "status.waiting_current_track", "再生中の曲を待機中",
+                "status.spotify_required_plain", "Spotify APIの登録が必要です",
+                "loading.generating", "生成中",
+                "loading.pronunciation", "発音を生成中...",
+                "loading.translation", "翻訳を生成中...",
+                "loading.word_sync", "単語同期を生成中...",
+                "loading.word_sync_desc", "外部の歌詞サーバーで単語単位の同期データを生成しています。",
+                "status.word_sync_failed", "単語同期に失敗",
+                "pronunciation_first.state_on", "発音優先オン。タップでオフ",
+                "pronunciation_first.state_off", "発音優先オフ。タップでオン",
+                "loading.pronunciation_sync", "AIが発音を歌詞のタイミングに合わせています...",
+                "status.pronunciation_sync_failed", "発音の同期に失敗",
+                "lyrics.empty_none", "歌詞なし",
+                "interlude.prelude", "前奏",
+                "interlude.break", "間奏",
+                "interlude.postlude", "後奏",
+                "onboarding.preview.line1", "カラオケ歌詞が曲に合わせて進みます",
+                "onboarding.preview.line2", "発音と翻訳がここに表示されます",
+                "onboarding.preview.line3", "現在の曲に合わせて自動更新されます",
+                "repo.metadata_waiting", "曲のメタデータを待機中",
+                "repo.lyrics_not_found", "LRCLIBの歌詞が見つかりませんでした",
+                "repo.instrumental", "インストゥルメンタル曲です",
+                "repo.no_renderable_lyrics", "表示できるLRCLIB歌詞がありません",
+                "repo.detail.sync_applied_direct", "カラオケsync-dataを適用しました。sync-data元のLRCLIBを直接読み込みました。",
+                "repo.detail.sync_applied_search", "カラオケsync-dataを適用しました。検索でLRCLIBを選択しました。",
+                "repo.detail.no_spotify_isrc", "LRCLIBライン歌詞です。Spotify ISRC検索は使用できません。",
+                "repo.detail.no_sync_data", "LRCLIBライン歌詞です。このISRCに一致するsync-dataがありません。",
+                "repo.detail.sync_apply_failed", "LRCLIBライン歌詞です。sync-dataを適用できませんでした。",
+                "spotify.error.incomplete_credentials", "Spotify API Client IDまたはClient Secretが入力されていません。",
+                "spotify.error.credentials_not_configured", "Spotify API情報が設定されていません。",
+                "spotify.error.no_access_token", "Spotifyトークン応答にaccess_tokenが含まれていません。",
+                "spotify.error.repository_unavailable", "歌詞リポジトリを使用できません。",
+                "lyrics.credit_sync_by_format", "同期: %s",
+                "sync.type_line", "行",
+                "sync.type_word", "単語",
+                "sync.type_character", "文字",
+                "sync.type_mixed", "混合",
+                "sync.type_unknown", "旧形式同期"
+        );
+    }
+
+    private static Map<String, String> hiStrings() {
+        return strings(
+                "button.close", "बंद करें",
+                "button.previous", "वापस",
+                "button.save_start", "Save और प्रारंभ करें",
+                "button.spotify_setup", "Spotify API सेट करें",
+                "status.waiting_spotify", "Spotify प्लेबैक की प्रतीक्षा कर रहा है",
+                "status.lyrics_loading", "गीत लोड हो रहा है",
+                "status.lyrics_waiting", "गीत के लिए प्रतीक्षा कर रहा है",
+                "status.spotify_required_title", "Spotify API आवश्यक",
+                "status.spotify_required_subtitle", "Save आपका Client ID और गुप्त प्रथम",
+                "status.spotify_required_detail", "ISRC, sync-data, और LRCLIB गीत सेटअप पूर्ण होने तक लोड नहीं होते हैं।",
+                "toast.spotify_required", "पहले Spotify API रजिस्टर करें",
+                "toast.setup_required", "पहले आरंभिक सेटअप पूरा करें",
+                "toast.back_exit", "बाहर निकलने के लिए फिर से वापस दबाएँ",
+                "toast.ui_language_saved", "ऐप की भाषा सहेजी गई",
+                "settings.title", "सेटिंग्स",
+                "settings.subtitle", "गीत, डिस्प्ले, फ़ुलस्क्रीन, AI और उपकरण",
+                "tab.lyrics", "गीत",
+                "tab.display", "डिस्प्ले",
+                "tab.ai", "AI",
+                "tab.tools", "उपकरण",
+                "section.language", "भाषा",
+                "section.language_desc", "ऐप की भाषा, उच्चारण और प्रति-गीत अनुवाद नियमों को अलग से प्रबंधित करें।",
+                "setting.ui_language", "ऐप भाषा",
+                "setting.ui_language_desc", "भाषा ऐप यूआई के लिए उपयोग की जाती है। केवल वास्तविक यूआई अनुवाद वाली भाषाएँ दिखाई जाती हैं।",
+                "setting.pronunciation_language", "उच्चारण भाषा",
+                "setting.pronunciation_language_desc", "चुनें कि उच्चारण किस लिपि/भाषा में उत्पन्न होना चाहिए।",
+                "setting.metadata_translation", "शीर्षक/कलाकार का अनुवाद करें",
+                "setting.metadata_translation_desc", "चयनित लक्ष्य भाषा का उपयोग करके वर्तमान गीत शीर्षक और कलाकार का भी अनुवाद करें।",
+                "setting.main_preview", "मुख्य गीत पूर्वावलोकन",
+                "setting.main_preview_desc", "मूल, उच्चारण और अनुवाद पंक्तियाँ चुनें। लंबी पंक्तियाँ गीत के बोलों के समय के साथ खिसकती हैं।",
+                "setting.auto_interlude", "इंट्रो/इंटरल्यूड/आउट्रो का स्वत: पता लगाता है",
+                "setting.auto_interlude_desc", "गीत के बाद नोट/रिक्त पंक्तियों और लंबे अंतराल को एनिमेटेड इंटरल्यूड मार्कर में बदल देता है।",
+                "setting.interlude_labels", "इंटरल्यूड लेबल दिखाएं",
+                "setting.interlude_labels_desc", "एनिमेटेड आइकन रखते हुए इंट्रो/इंटरल्यूड/आउट्रो मार्कर के पास टेक्स्ट लेबल दिखाता है।",
+                "setting.synced_karaoke_animation", "लाइन-सिंक कराओके प्रभाव",
+                "setting.synced_karaoke_animation_desc", "sync-data के बिना सामान्य LRCLIB सिंक गीतों पर समान अक्षर भराव लागू करें।",
+                "setting.karaoke_bounce_effect", "कराओके उछाल प्रभाव",
+                "setting.karaoke_bounce_effect_desc", "अक्षर भरते समय टेक्स्ट को हल्का उछाल देता है।",
+                "setting.karaoke_motion_style", "कराओके मोशन शैली",
+                "setting.karaoke_motion_style_desc", "क्लासिक हल्का बाउंस बनाए रखता है। एक्सप्रेसिव स्प्रिंग फ़िज़िक्स का उपयोग करता है: गाए जा रहे शब्द बड़े होते हैं, ऊपर उठते हैं और चमकते हैं, जो शब्द अभी नहीं गाए गए वे थोड़े छोटे रहते हैं, और लंबे खिंचे सुर अक्षर-दर-अक्षर एनिमेट होते हैं।",
+                "karaoke.motion.classic", "क्लासिक",
+                "karaoke.motion.expressive", "एक्सप्रेसिव",
+                "setting.pronunciation_karaoke_fill", "उच्चारण को कराओके की तरह भरें",
+                "setting.pronunciation_karaoke_fill_desc", "उच्चारण-पहले मोड बंद होने पर भी उच्चारण की पंक्ति गाने की टाइमिंग के साथ भरती है। AI उच्चारण को हर शब्द या अक्षर की टाइमिंग के अनुसार बाँटता है। उछाल और चमक जैसे अन्य प्रभाव लागू नहीं होते।",
+                "setting.synced_pronunciation", "सिंक उच्चारण इस्तेमाल करें",
+                "setting.synced_pronunciation_desc", "कराओके बोलों का उच्चारण हर गाए गए शब्द या अक्षर की टाइमिंग के अनुसार बाँटकर लाता है। चालू करने पर उच्चारण पहले मोड और उच्चारण को कराओके की तरह भरना उपलब्ध होता है। बंद होने पर उच्चारण पंक्ति-वार सादे टेक्स्ट के रूप में तेज़ी से आता है।",
+                "section.player", "प्लेयर",
+                "section.player_desc", "डिस्प्ले और लैंडस्केप व्यवहार को समायोजित करें।",
+                "setting.landscape_auto_hide", "लैंडस्केप नियंत्रणों को स्वतः छिपाएँ",
+                "setting.landscape_auto_hide_desc", "लैंडस्केप में निष्क्रिय होने पर प्रगति पट्टी और बटन छिपाएँ।",
+                "section.background", "पृष्ठभूमि",
+                "section.background_desc", "एल्बम कवर, धुंधली ढाल, या ठोस रंग पृष्ठभूमि चुनें।",
+                "setting.background_mode", "पृष्ठभूमि प्रभाव",
+                "setting.background_mode_desc", "चुनें कि वर्तमान गीत की पृष्ठभूमि कैसे प्रस्तुत की जाती है।",
+                "setting.brightness", "चमक",
+                "setting.brightness_desc", "एल्बम कवर और ग्रेडिएंट पृष्ठभूमि के लिए चमक।",
+                "setting.blur", "धुंधला",
+                "setting.blur_desc", "एल्बम कवर और ग्रेडिएंट पृष्ठभूमि के लिए धुंधला तीव्रता।",
+                "setting.noise", "नॉइज़ टेक्सचर",
+                "setting.noise_desc", "मूल ivLyrics की तरह एक हल्का ग्रेन टेक्सचर जोड़ता है।",
+                "setting.reduce_motion", "गति कम करें",
+                "setting.reduce_motion_desc", "स्वचालित एल्बम/ग्रेडिएंट बैकग्राउंड मूवमेंट को रोकता है।",
+                "section.ai_lyrics", "गीत AI",
+                "section.ai_lyrics_desc", "ivLyrics के साथ संगत संकेतों के साथ उच्चारण और अनुवाद उत्पन्न करें।",
+                "section.provider", "प्रदाता",
+                "field.api_key", "API कुंजी",
+                "field.model", "मॉडल",
+                "field.base_url", "बेस URL",
+                "button.save_regenerate", "Save और",
+                "button.get_key", "कुंजी पाएँ",
+                "section.tools", "उपकरण",
+                "section.tools_desc", "कैश और डिबग लॉग प्रबंधित करें।",
+                "section.spotify_api", "Spotify API",
+                "section.spotify_api_desc", "Spotify डेवलपर डैशबोर्ड से Client ID और Client Secret का उपयोग करें। केवल इस डिवाइस पर संग्रहीत.",
+                "button.spotify_save", "Spotify API सहेजें",
+                "section.lyrics_cache", "गीत कैश",
+                "section.lyrics_cache_desc", "sync-data/LRCLIB आधार गीत और AI उच्चारण/अनुवाद कैश साफ़ करें। साफ़ करने के बाद वर्तमान गीत पुनः लोड होता है।",
+                "button.clear_current", "वर्तमान गीत साफ़ करें",
+                "button.clear_all", "सभी साफ़ करें",
+                "button.ai_cache_clear", "AI कैश साफ़ करें",
+                "button.debug_log", "डीबग/लॉग्स",
+                "onboarding.subtitle", "वर्तमान में चल रहे गाने के लिए कराओके गीत, अनुवाद और उच्चारण।",
+                "onboarding.welcome_title", "ivLyrics सेट अप करें",
+                "onboarding.welcome_desc", "पहले ऐप भाषा चुनें, फिर मीडिया एक्सेस अनुमति और अपना Spotify API क्रेडेंशियल सेट करें।",
+                "onboarding.app_language_en", "ऐप भाषा",
+                "onboarding.app_language_native", "ऐप भाषा",
+                "onboarding.permission_title", "मीडिया एक्सेस अनुमति",
+                "onboarding.permission_desc", "Android नोटिफिकेशन एक्सेस वर्तमान में Spotify में चल रहे गाने को पढ़ने के लिए आवश्यक है।",
+                "onboarding.permission_hint", "सेटिंग स्क्रीन में ivLyrics ढूंढें, एक्सेस की अनुमति दें, फिर ऐप पर वापस लौटें।",
+                "onboarding.permission_status_enabled", "अनुमति सक्षम है. Spotify प्लेबैक का अब पता लगाया जा सकता है।",
+                "onboarding.permission_status_required", "अनुमति अभी तक सक्षम नहीं है। अनुमति सेटिंग खोलें और ivLyrics को अनुमति दें।",
+                "onboarding.spotify_title", "गीत की जानकारी कनेक्ट करें",
+                "onboarding.spotify_desc", "Spotify Web API का उपयोग वर्तमान गीत के लिए ISRC और उच्च-रिज़ॉल्यूशन एल्बम चित्र लोड करने के लिए किया जाता है।",
+                "onboarding.step_format", "चरण %d / %d",
+                "spotify.status_configured", "Spotify API कॉन्फ़िगर किया गया",
+                "spotify.status_required", "पहले उपयोग से पहले Spotify API पंजीकृत करें।",
+                "spotify.status_checking", "Spotify टोकन की जाँच हो रही है...",
+                "spotify.status_invalid_format", "Spotify टोकन अनुरोध विफल: %s\nअपने Client ID और सीक्रेट की दोबारा जाँच करें।",
+                "button.next", "अगला",
+                "button.restart", "फिर से शुरू करें",
+                "button.copy", "कॉपी करें",
+                "button.open_browser", "ब्राउज़र खोलें",
+                "button.open_permission", "अनुमति खोलें Settings",
+                "button.prev_track", "पिछला ट्रैक",
+                "button.next_track", "अगला ट्रैक",
+                "debug.title", "डिबग",
+                "debug.permission", "मीडिया एक्सेस अनुमति खोलें",
+                "debug.previous", "पिछला",
+                "debug.play_pause", "चलाएँ/रोकें",
+                "debug.next", "अगला",
+                "debug.refresh", "रीफ़्रेश",
+                "debug.log", "लॉग",
+                "debug.log_waiting", "लॉग के लिए प्रतीक्षा कर रहा है",
+                "lyrics.tab.language", "भाषा",
+                "lyrics.tab.sync", "सिंक",
+                "lyrics.translation", "अनुवाद",
+                "lyrics.pronunciation", "उच्चारण",
+                "lyrics.sync.title", "वर्तमान गीत सिंक ऑफसेट",
+                "lyrics.sync.reset", "0ms पर रीसेट",
+                "lyrics.sync.no_track", "कोई गाना नहीं चल रहा है, इसलिए इसे सहेजा नहीं जाएगा।",
+                "lyrics.sync.track_scope", "केवल \"%s\" के लिए सहेजा गया।",
+                "lyrics.sync.help", "+ मान गीत को पहले दिखाते हैं; - मान उन्हें बाद में दिखाते हैं।",
+                "lyrics.menu_tip", "अनुवाद और उच्चारण सेटिंग खोलने के लिए शीर्षक या कलाकार को देर तक दबाएँ।",
+                "lyrics.rule.track_language", "गाने की भाषा",
+                "lyrics.rule.save_target", "Save लक्ष्य",
+                "lyrics.rule.translation_language", "अनुवाद भाषा",
+                "label.on", "चालू",
+                "label.off", "बंद",
+                "label.auto", "ऑटो",
+                "label.auto_target", "ऑटो (%s)",
+                "lyrics.button.translation_on", "अनुवाद चालू",
+                "lyrics.button.pronunciation_on", "उच्चारण चालू",
+                "lyrics.button.translation_plus", "अनुवाद+",
+                "field.api_key_desc", "एकल कुंजी, न्यूलाइन सूची या JSON सरणी का समर्थन करता है। केवल इस डिवाइस पर संग्रहीत.",
+                "field.model_desc", "प्रदाता मॉडल ओवरराइड।",
+                "field.base_url_desc", "OpenAI-संगत या प्रदाता API आधार URL।",
+                "field.max_tokens", "अधिकतम टोकन",
+                "field.temperature", "रचनात्मकता",
+                "field.solid_color", "ठोस पृष्ठभूमि रंग",
+                "field.solid_color_desc", "ठोस पृष्ठभूमि मोड में उपयोग होने वाला रंग चुनें।",
+                "field.spotify_client_id_desc", "आपके Spotify ऐप का Client ID।",
+                "field.spotify_client_secret_desc", "आपके Spotify ऐप का Client Secret।",
+                "preview.none", "छिपा हुआ",
+                "preview.original", "मूल",
+                "preview.pronunciation", "उच्चारण",
+                "preview.translation", "अनुवाद",
+                "background.mode.gradient", "एल्बम कवर",
+                "background.mode.gradient_desc", "वर्तमान एल्बम कवर को एक बड़े धुंधले बैकग्राउंड के रूप में उपयोग करता है।",
+                "background.mode.blur_gradient", "धुंधला ग्रेडिएंट",
+                "background.mode.blur_gradient_desc", "एल्बम रंगों से एक गतिशील धुंधला ग्रेडिएंट बनाता है।",
+                "background.mode.solid", "ठोस रंग",
+                "background.mode.solid_desc", "एक कस्टम ठोस पृष्ठभूमि रंग का उपयोग करता है।",
+                "provider.desc.gemini", "Google AI Studio API",
+                "provider.desc.chatgpt", "OpenAI-संगत API",
+                "provider.desc.claude", "Claude Messages API",
+                "provider.desc.openrouter", "कई AI मॉडलों को रूट करता है",
+                "provider.desc.groq", "तेज़ OpenAI-संगत इन्फ़रेंस",
+                "provider.desc.perplexity", "Agent API",
+                "provider.desc.pollinations", "Pollinations OpenAI-संगत API",
+                "spotify.step0.title", "Spotify डेवलपर डैशबोर्ड पर जाएं",
+                "spotify.step0.desc", "अपने ब्राउज़र में Spotify डेवलपर डैशबोर्ड खोलें। साइन इन करें और एक नया ऐप बनाएं।",
+                "spotify.step1.title", "Create app में एक नाम दर्ज करें",
+                "spotify.step1.desc", "Create app दबाएँ और App name के लिए नीचे मान दर्ज करें। ivLyrics या ivlyrics न लिखें।",
+                "spotify.step2.title", "विवरण दर्ज करें",
+                "spotify.step2.desc", "App description के लिए भी नीचे मान दर्ज करें। भ्रम से बचने के लिए यह सिर्फ एक उदाहरण है।",
+                "spotify.step3.title", "रीडायरेक्ट URI दर्ज करें",
+                "spotify.step3.desc", "नीचे दिए गए पते को Redirect URIs में जोड़ें। अनुगामी स्लैश शामिल करें.",
+                "spotify.step4.title", "Web API चुनें और सहेजें",
+                "spotify.step4.desc", "API चयन क्षेत्र में Web API चुनें, अनुबंध बॉक्स को चेक करें, फिर Save दबाएँ।",
+                "spotify.step5.title", "Client ID और सीक्रेट कॉपी करें",
+                "spotify.step5.desc", "ऐप सेटिंग से Client ID और Client Secret कॉपी करें, उन्हें नीचे पेस्ट करें, फिर Spotify API सेव करें।",
+                "toast.copied_format", "कॉपी किया गया: %s",
+                "toast.provider_saved", "प्रदाता सहेजा गया",
+                "toast.pronunciation_language_saved", "उच्चारण भाषा सहेजा गया",
+                "toast.preview_saved", "मुख्य गीत पूर्वावलोकन सहेजा गया",
+                "toast.background_saved", "पृष्ठभूमि प्रभाव सहेजा गया",
+                "toast.metadata_translation_on", "शीर्षक/कलाकार अनुवाद चालू",
+                "toast.metadata_translation_off", "शीर्षक/कलाकार अनुवाद बंद",
+                "toast.auto_interlude_on", "ऑटो इंटरल्यूड डिटेक्शन चालू",
+                "toast.auto_interlude_off", "ऑटो इंटरल्यूड डिटेक्शन बंद",
+                "toast.landscape_auto_hide_on", "लैंडस्केप में नियंत्रण अपने-आप छिपाना चालू",
+                "toast.landscape_auto_hide_off", "लैंडस्केप में नियंत्रण अपने-आप छिपाना बंद",
+                "toast.background_noise_on", "नॉइज़ टेक्सचर चालू",
+                "toast.background_noise_off", "नॉइज़ टेक्सचर बंद",
+                "toast.reduce_motion_on", "पृष्ठभूमि गति में कमी",
+                "toast.reduce_motion_off", "पृष्ठभूमि गति सक्षम",
+                "toast.ai_cache_cleared", "AI कैश साफ़",
+                "toast.language_rule_saved", "गीत भाषा सेटिंग्स सहेजी गई",
+                "toast.settings_saved", "Settings सहेजी गई",
+                "toast.spotify_missing", "Client ID और Client Secret दोनों दर्ज करें।",
+                "toast.spotify_checking", "Spotify टोकन की जाँच कर रहा है...",
+                "toast.spotify_invalid", "अपने Spotify API क्रेडेंशियल्स को फिर से जाँचें।",
+                "toast.spotify_saved", "Spotify API सहेजा गया",
+                "toast.current_track_missing", "वर्तमान गीत की कोई जानकारी नहीं",
+                "toast.current_cache_cleared", "वर्तमान गीत के बोल कैश साफ़ किए गए",
+                "toast.all_cache_cleared", "सभी गीत कैश साफ़ हो गए",
+                "toast.sync_offset_format", "सिंक ऑफसेट %s",
+                "status.lyrics_request_failed", "गीत अनुरोध विफल",
+                "status.ai_applied", "अनुवाद/उच्चारण लागू",
+                "status.ai_failed_format", "AI गीत विफल: %s",
+                "status.ai_cache_cleared", "AI कैश साफ़",
+                "status.ai_lyrics_active", "AI गीत सक्षम",
+                "status.ai_key_needed", "एआई गीत उत्पन्न करने के लिए एक एपीआई कुंजी दर्ज करें।",
+                "status.ai_disabled", "अनुवाद/उच्चारण बंद है।",
+                "status.no_lyrics_to_apply", "लागू करने के लिए कोई गीत नहीं।",
+                "status.ai_generating", "AI गीत उत्पन्न कर रहा है...",
+                "status.reload_after_spotify", "इस गीत के ISRC, sync-data, और LRCLIB बोलों को Spotify API सेटिंग बदलने के बाद पुनः लोड किया जा रहा है।",
+                "status.detecting_media", "मीडिया सत्र का पता लगाना",
+                "status.permission_required", "अधिसूचना पहुंच अनुमति आवश्यक",
+                "status.lyrics_lookup_spotify", "ISRC को Spotify Web API के साथ ढूंढना, फिर sync-data और LRCLIB को लोड करना।",
+                "status.lyrics_lookup_player", "प्लेयर ISRC के साथ sync-data और LRCLIB लोड हो रहा है।",
+                "status.waiting_current_track", "वर्तमान में चल रहे गीत की प्रतीक्षा की जा रही है",
+                "status.spotify_required_plain", "Spotify API आवश्यक है",
+                "loading.generating", "उत्पन्न हो रहा है",
+                "loading.pronunciation", "उच्चारण उत्पन्न हो रहा है...",
+                "loading.translation", "अनुवाद उत्पन्न कर रहा है...",
+                "loading.word_sync", "शब्द सिंक बनाया जा रहा है...",
+                "loading.word_sync_desc", "बाहरी गीत सर्वर पर शब्द-स्तर का सिंक डेटा तैयार किया जा रहा है।",
+                "status.word_sync_failed", "शब्द सिंक विफल",
+                "pronunciation_first.state_on", "उच्चारण पहले चालू। बंद करने के लिए टैप करें",
+                "pronunciation_first.state_off", "उच्चारण पहले बंद। चालू करने के लिए टैप करें",
+                "loading.pronunciation_sync", "AI उच्चारण को बोलों की टाइमिंग से मिला रहा है...",
+                "status.pronunciation_sync_failed", "उच्चारण टाइमिंग विफल",
+                "lyrics.empty_none", "कोई गीत नहीं",
+                "interlude.prelude", "प्रस्तावना",
+                "interlude.break", "अन्तराल",
+                "interlude.postlude", "उपसंहार",
+                "onboarding.preview.line1", "कराओके गीत गीत का अनुसरण करते हैं",
+                "onboarding.preview.line2", "उच्चारण और अनुवाद यहां दिखाई देते हैं",
+                "onboarding.preview.line3", "सब कुछ वर्तमान ट्रैक के साथ अपडेट होता है",
+                "repo.metadata_waiting", "गीत मेटाडेटा की प्रतीक्षा हो रही है",
+                "repo.lyrics_not_found", "LRCLIB गीत नहीं मिले",
+                "repo.instrumental", "वाद्य ट्रैक",
+                "repo.no_renderable_lyrics", "दिखाने योग्य LRCLIB गीत नहीं हैं",
+                "repo.detail.sync_applied_direct", "कराओके sync-data लागू हुआ। LRCLIB सीधे sync-data से लोड हुआ।",
+                "repo.detail.sync_applied_search", "कराओके sync-data लागू हुआ। LRCLIB खोज से चुना गया।",
+                "repo.detail.no_spotify_isrc", "LRCLIB पंक्ति गीत। Spotify ISRC lookup उपलब्ध नहीं है।",
+                "repo.detail.no_sync_data", "LRCLIB पंक्ति गीत। इस ISRC के लिए sync-data नहीं मिला।",
+                "repo.detail.sync_apply_failed", "LRCLIB पंक्ति गीत। sync-data लागू नहीं हो सका।",
+                "spotify.error.incomplete_credentials", "Spotify API Client ID या Client Secret गुम है।",
+                "spotify.error.credentials_not_configured", "Spotify API credentials सेट नहीं हैं।",
+                "spotify.error.no_access_token", "Spotify token response में access_token नहीं था।",
+                "spotify.error.repository_unavailable", "गीत repository उपलब्ध नहीं है।",
+                "lyrics.credit_sync_by_format", "सिंक: %s",
+                "sync.type_line", "पंक्ति",
+                "sync.type_word", "शब्द",
+                "sync.type_character", "अक्षर",
+                "sync.type_mixed", "मिश्रित",
+                "sync.type_unknown", "पुराना सिंक"
+        );
+    }
+
+    private static Map<String, String> esStrings() {
+        return strings(
+                "button.close", "Cerrar",
+                "button.previous", "Atrás",
+                "button.save_start", "Save e iniciar",
+                "button.spotify_setup", "Configurar Spotify API",
+                "status.waiting_spotify", "Esperando reproducción de Spotify",
+                "status.lyrics_loading", "Cargando letras",
+                "status.lyrics_waiting", "Esperando letras",
+                "status.spotify_required_title", "Spotify API Requerido",
+                "status.spotify_required_subtitle", "Save tu Client ID y secreto Las primeras letras de",
+                "status.spotify_required_detail", "ISRC, sync-data y LRCLIB no se cargan hasta que se completa la configuración.",
+                "toast.spotify_required", "Registre Spotify API primero",
+                "toast.setup_required", "Complete la configuración inicial primero",
+                "toast.back_exit", "Presione Atrás nuevamente para salir",
+                "toast.ui_language_saved", "Idioma de la aplicación guardado",
+                "settings.title", "Ajustes",
+                "settings.subtitle", "Letras, pantalla, pantalla completa, IA y herramientas",
+                "tab.lyrics", "Letras",
+                "tab.display", "Pantalla",
+                "tab.ai", "AI",
+                "tab.tools", "Herramientas",
+                "section.language", "Idioma",
+                "section.language_desc", "Administre el idioma de la aplicación, la pronunciación y las reglas de traducción por canción por separado.",
+                "setting.ui_language", "Idioma de la aplicación",
+                "setting.ui_language_desc", "Idioma utilizado para la interfaz de usuario de la aplicación. Solo se muestran los idiomas con traducciones reales de la interfaz de usuario.",
+                "setting.pronunciation_language", "Idioma de pronunciación",
+                "setting.pronunciation_language_desc", "Elija en qué escritura/idioma se debe generar la pronunciación.",
+                "setting.metadata_translation", "Traducir título/artista",
+                "setting.metadata_translation_desc", "También traduce el título de la canción actual y el artista utilizando el idioma de destino seleccionado.",
+                "setting.main_preview", "Vista previa de la letra principal",
+                "setting.main_preview_desc", "Elija filas de original, pronunciación y traducción. Las filas largas se deslizan al ritmo de la letra.",
+                "setting.auto_interlude", "Detección automática de introducción/interludio/final",
+                "setting.auto_interlude_desc", "Convierte notas/líneas en blanco y espacios largos después de la letra en marcadores de interludio animados.",
+                "setting.interlude_labels", "Mostrar etiquetas de interludio",
+                "setting.interlude_labels_desc", "Muestra la etiqueta de texto junto a los marcadores de introducción/interludio/final y conserva el icono animado.",
+                "setting.synced_karaoke_animation", "Efecto karaoke en letras sincronizadas",
+                "setting.synced_karaoke_animation_desc", "Aplica relleno por caracteres uniforme a letras LRCLIB sincronizadas normales sin sync-data.",
+                "setting.karaoke_bounce_effect", "Rebote de karaoke",
+                "setting.karaoke_bounce_effect_desc", "Hace que el texto rebote suavemente mientras se rellena por caracteres.",
+                "setting.karaoke_motion_style", "Estilo de movimiento del karaoke",
+                "setting.karaoke_motion_style_desc", "Clásico mantiene el rebote sutil. Expresivo usa física de resortes: las palabras cantadas crecen, se elevan y brillan, las que aún no se cantan esperan un poco más pequeñas y las notas largas se animan letra por letra.",
+                "karaoke.motion.classic", "Clásico",
+                "karaoke.motion.expressive", "Expresivo",
+                "setting.pronunciation_karaoke_fill", "Rellenar la pronunciación como karaoke",
+                "setting.pronunciation_karaoke_fill_desc", "Aunque el modo pronunciación primero esté desactivado, la fila de pronunciación se rellena al ritmo del canto. La IA reparte la pronunciación según el tiempo de cada palabra o carácter. No se aplican otros efectos como el rebote o el brillo.",
+                "setting.synced_pronunciation", "Pronunciación sincronizada",
+                "setting.synced_pronunciation_desc", "Obtiene la pronunciación de las letras de karaoke dividida según el tiempo de cada palabra o carácter cantado. Al activarla, están disponibles el modo de pronunciación primero y el relleno de la pronunciación como karaoke. Desactivada, la pronunciación llega más rápido como texto por líneas.",
+                "section.player", "Reproductor",
+                "section.player_desc", "Ajusta la visualización y el comportamiento horizontal.",
+                "setting.landscape_auto_hide", "Ocultar automáticamente los controles en horizontal",
+                "setting.landscape_auto_hide_desc", "Ocultar la barra de progreso y los botones cuando está inactivo en horizontal.",
+                "section.background", "Fondo",
+                "section.background_desc", "Elija la portada del álbum, un degradado borroso o un fondo de color sólido.",
+                "setting.background_mode", "Efecto de fondo",
+                "setting.background_mode_desc", "Elija cómo se representa el fondo de la canción actual.",
+                "setting.brightness", "Brillo",
+                "setting.brightness_desc", "Brillo para portada de álbum y fondos degradados.",
+                "setting.blur", "Desenfoque",
+                "setting.blur_desc", "Intensidad de desenfoque para portadas de álbumes y fondos degradados.",
+                "setting.noise", "Textura de ruido",
+                "setting.noise_desc", "Agrega una textura de grano sutil como el ivLyrics original.",
+                "setting.reduce_motion", "Reducir el movimiento",
+                "setting.reduce_motion_desc", "Detiene el movimiento automático del fondo del álbum/degradado.",
+                "section.ai_lyrics", "Letras AI",
+                "section.ai_lyrics_desc", "Genera pronunciación y traducciones con indicaciones compatibles con ivLyrics.",
+                "section.provider", "Proveedor",
+                "field.api_key", "Clave de API",
+                "field.model", "Modelo",
+                "field.base_url", "URL base",
+                "button.save_regenerate", "Save y regeneración",
+                "button.get_key", "Obtener clave",
+                "section.tools", "Herramientas",
+                "section.tools_desc", "Administrar caché y registros de depuración.",
+                "section.spotify_api", "Spotify API",
+                "section.spotify_api_desc", "Utilice Client ID y Client Secret de Spotify Developer Dashboard. Almacenado solo en este dispositivo.",
+                "button.spotify_save", "Guardar Spotify API",
+                "section.lyrics_cache", "Caché de letras",
+                "section.lyrics_cache_desc", "Borrar letras base sync-data/LRCLIB y caché de pronunciación/traducción AI. La canción actual se recarga después de borrarla.",
+                "button.clear_current", "Borrar canción actual",
+                "button.clear_all", "Borrar todo",
+                "button.ai_cache_clear", "Borrar caché AI",
+                "button.debug_log", "Depuración/registros",
+                "onboarding.subtitle", "Letras de karaoke, traducción y pronunciación de la canción que se reproduce actualmente.",
+                "onboarding.welcome_title", "Configurar ivLyrics",
+                "onboarding.welcome_desc", "Primero elija el idioma de la aplicación, luego configure el permiso de acceso a los medios y sus propias credenciales Spotify API.",
+                "onboarding.app_language_en", "Idioma de la aplicación",
+                "onboarding.app_language_native", "Idioma de la aplicación",
+                "onboarding.permission_title", "Permiso de acceso a medios",
+                "onboarding.permission_desc", "Se requiere acceso a la notificación Android para leer la canción que se reproduce actualmente en Spotify.",
+                "onboarding.permission_hint", "Busque ivLyrics en la pantalla de configuración, permita el acceso y luego regrese a la aplicación.",
+                "onboarding.permission_status_enabled", "El permiso está habilitado. Ahora se puede detectar la reproducción Spotify.",
+                "onboarding.permission_status_required", "El permiso aún no está habilitado. Abra la configuración de permisos y permita ivLyrics.",
+                "onboarding.spotify_title", "Conectar información de la canción",
+                "onboarding.spotify_desc", "Spotify Web API se utiliza para cargar ISRC y el arte de alta resolución de la canción actual.",
+                "onboarding.step_format", "Paso %d / %d",
+                "spotify.status_configured", "Spotify API configurado",
+                "spotify.status_required", "Registre Spotify API antes del primer uso.",
+                "spotify.status_checking", "Comprobando el token de Spotify...",
+                "spotify.status_invalid_format", "Error en la solicitud del token Spotify: %s\nVerifique su Client ID y su secreto nuevamente.",
+                "button.next", "Siguiente",
+                "button.restart", "Empezar de nuevo",
+                "button.copy", "Copiar",
+                "button.open_browser", "Abrir navegador",
+                "button.open_permission", "Abrir permiso Settings",
+                "button.prev_track", "Pista anterior",
+                "button.next_track", "Siguiente pista",
+                "debug.title", "Depurar",
+                "debug.permission", "Abrir permiso de acceso a medios",
+                "debug.previous", "Anterior",
+                "debug.play_pause", "Reproducir/Pausar",
+                "debug.next", "Siguiente",
+                "debug.refresh", "Actualizar",
+                "debug.log", "Registro",
+                "debug.log_waiting", "Esperando registros",
+                "lyrics.tab.language", "Idioma",
+                "lyrics.tab.sync", "Sincronización",
+                "lyrics.translation", "Traducción",
+                "lyrics.pronunciation", "Pronunciación",
+                "lyrics.sync.title", "Compensación de sincronización de la canción actual",
+                "lyrics.sync.reset", "Restablecer a 0 ms",
+                "lyrics.sync.no_track", "No se reproduce ninguna canción, por lo que no se guardará.",
+                "lyrics.sync.track_scope", "Guardado sólo para \"%s\".",
+                "lyrics.sync.help", "Los valores + muestran la letra antes; los valores - la muestran más tarde.",
+                "lyrics.menu_tip", "Mantén pulsado el título o el artista para abrir los ajustes de traducción y pronunciación.",
+                "lyrics.rule.track_language", "Idioma de la canción",
+                "lyrics.rule.save_target", "Save destino",
+                "lyrics.rule.translation_language", "Idioma de traducción",
+                "label.on", "Activado",
+                "label.off", "Desactivado",
+                "label.auto", "Automático",
+                "label.auto_target", "Automático (%s)",
+                "lyrics.button.translation_on", "Traducción Activada",
+                "lyrics.button.pronunciation_on", "Pronunciación Activada",
+                "lyrics.button.translation_plus", "Traducción+",
+                "field.api_key_desc", "Admite una única clave, lista de nueva línea o matriz JSON. Almacenado solo en este dispositivo.",
+                "field.model_desc", "Anulación del modelo de proveedor.",
+                "field.base_url_desc", "URL base de la API compatible con OpenAI o del proveedor.",
+                "field.max_tokens", "Tokens máximos",
+                "field.temperature", "Creatividad",
+                "field.solid_color", "Color de fondo sólido",
+                "field.solid_color_desc", "Elige el color utilizado en el modo de fondo sólido.",
+                "field.spotify_client_id_desc", "Client ID de su aplicación Spotify.",
+                "field.spotify_client_secret_desc", "Client Secret de su aplicación Spotify.",
+                "preview.none", "Oculto",
+                "preview.original", "Original",
+                "preview.pronunciation", "Pronunciación",
+                "preview.translation", "Traducción",
+                "background.mode.gradient", "Portada del álbum",
+                "background.mode.gradient_desc", "Utiliza la portada del álbum actual como un gran fondo borroso.",
+                "background.mode.blur_gradient", "Degradado borroso",
+                "background.mode.blur_gradient_desc", "Crea un degradado borroso en movimiento a partir de los colores del álbum.",
+                "background.mode.solid", "Color sólido",
+                "background.mode.solid_desc", "Utiliza un color de fondo sólido personalizado.",
+                "provider.desc.gemini", "Google AI Studio API",
+                "provider.desc.chatgpt", "API compatible con OpenAI",
+                "provider.desc.claude", "Claude Messages API",
+                "provider.desc.openrouter", "Enruta múltiples modelos de IA",
+                "provider.desc.groq", "Inferencia rápida compatible con OpenAI",
+                "provider.desc.perplexity", "Agent API",
+                "provider.desc.pollinations", "API de Pollinations compatible con OpenAI",
+                "spotify.step0.title", "Vaya a Spotify Developer Dashboard",
+                "spotify.step0.desc", "Abra Spotify Developer Dashboard en su navegador. Inicia sesión y crea una nueva aplicación.",
+                "spotify.step1.title", "Ingrese un nombre en Create app",
+                "spotify.step1.desc", "Presione Create app e ingrese el valor a continuación para App name. No escriba ivLyrics o ivlyrics.",
+                "spotify.step2.title", "Ingrese la descripción",
+                "spotify.step2.desc", "Ingrese el valor a continuación para App description también. Es sólo un ejemplo para evitar confusiones.",
+                "spotify.step3.title", "Ingrese el URI de redireccionamiento",
+                "spotify.step3.desc", "Agregue la siguiente dirección a Redirect URIs. Incluya la barra diagonal final.",
+                "spotify.step4.title", "Seleccione Web API y guarde",
+                "spotify.step4.desc", "Seleccione Web API en el área de selección API, marque la casilla de acuerdo y luego presione Save.",
+                "spotify.step5.title", "Copie Client ID y Secret",
+                "spotify.step5.desc", "Copie Client ID y Client Secret de la configuración de la aplicación, péguelos a continuación y luego guarde Spotify API.",
+                "toast.copied_format", "Copiado: %s",
+                "toast.provider_saved", "Proveedor guardado",
+                "toast.pronunciation_language_saved", "Idioma de pronunciación guardado",
+                "toast.preview_saved", "Vista previa de la letra principal guardada",
+                "toast.background_saved", "Efecto de fondo guardado",
+                "toast.metadata_translation_on", "Traducción de título/artista activada",
+                "toast.metadata_translation_off", "Traducción de título/artista desactivada",
+                "toast.auto_interlude_on", "Detección automática de interludio activada",
+                "toast.auto_interlude_off", "Detección automática de interludio desactivada",
+                "toast.landscape_auto_hide_on", "Ocultación automática de controles en horizontal activada",
+                "toast.landscape_auto_hide_off", "Ocultación automática de controles en horizontal desactivada",
+                "toast.background_noise_on", "Textura de ruido activada",
+                "toast.background_noise_off", "Textura de ruido desactivada",
+                "toast.reduce_motion_on", "Movimiento de fondo reducido",
+                "toast.reduce_motion_off", "Movimiento de fondo habilitado",
+                "toast.ai_cache_cleared", "Caché de IA borrada",
+                "toast.language_rule_saved", "Configuración del idioma de la canción guardada",
+                "toast.settings_saved", "Settings guardada",
+                "toast.spotify_missing", "Ingrese Client ID y Client Secret.",
+                "toast.spotify_checking", "Comprobando el token Spotify...",
+                "toast.spotify_invalid", "Verifique sus credenciales Spotify API nuevamente.",
+                "toast.spotify_saved", "Spotify API guardado",
+                "toast.current_track_missing", "No hay información de la canción actual",
+                "toast.current_cache_cleared", "Caché de letras de la canción actual borrado",
+                "toast.all_cache_cleared", "Se borró el caché de todas las letras",
+                "toast.sync_offset_format", "Desplazamiento de sincronización %s",
+                "status.lyrics_request_failed", "Error en la solicitud de letras",
+                "status.ai_applied", "Traducción/pronunciación aplicada",
+                "status.ai_failed_format", "Error en las letras de AI: %s",
+                "status.ai_cache_cleared", "Se borró la caché de IA",
+                "status.ai_lyrics_active", "Letras de AI habilitadas",
+                "status.ai_key_needed", "Ingrese una clave API para generar letras de IA.",
+                "status.ai_disabled", "La traducción/pronunciación está desactivada.",
+                "status.no_lyrics_to_apply", "No hay letras para aplicar.",
+                "status.ai_generating", "Generando letras de IA...",
+                "status.reload_after_spotify", "Recargando las letras de ISRC, sync-data y LRCLIB de esta canción después de cambiar la configuración de Spotify API.",
+                "status.detecting_media", "Detectando sesión de medios",
+                "status.permission_required", "Se requiere permiso de acceso a notificaciones",
+                "status.lyrics_lookup_spotify", "Buscando ISRC con Spotify Web API, luego cargando sync-data y LRCLIB.",
+                "status.lyrics_lookup_player", "Cargando sync-data y LRCLIB con el reproductor ISRC.",
+                "status.waiting_current_track", "Esperando la canción que se está reproduciendo actualmente",
+                "status.spotify_required_plain", "Spotify API requerido",
+                "loading.generating", "Generando",
+                "loading.pronunciation", "Generando pronunciación...",
+                "loading.translation", "Generando traducción...",
+                "loading.word_sync", "Generando sincronización por palabra...",
+                "loading.word_sync_desc", "Se están generando tiempos por palabra en un servidor externo de letras.",
+                "status.word_sync_failed", "Error al sincronizar palabras",
+                "pronunciation_first.state_on", "Pronunciación primero activada. Toca para desactivar",
+                "pronunciation_first.state_off", "Pronunciación primero desactivada. Toca para activar",
+                "loading.pronunciation_sync", "La IA está ajustando la pronunciación a los tiempos de la letra...",
+                "status.pronunciation_sync_failed", "Error en la sincronía de pronunciación",
+                "lyrics.empty_none", "Sin letras",
+                "interlude.prelude", "Intro",
+                "interlude.break", "Interludio",
+                "interlude.postlude", "Outro",
+                "onboarding.preview.line1", "Letras de karaoke siguen la canción.",
+                "onboarding.preview.line2", "La pronunciación y la traducción aparecen aquí.",
+                "onboarding.preview.line3", "Todo se actualiza con la pista actual.",
+                "repo.metadata_waiting", "Esperando metadatos de la canción",
+                "repo.lyrics_not_found", "No se encontraron letras en LRCLIB",
+                "repo.instrumental", "Pista instrumental",
+                "repo.no_renderable_lyrics", "No hay letras LRCLIB mostrables",
+                "repo.detail.sync_applied_direct", "sync-data de karaoke aplicado. LRCLIB se cargó directamente desde sync-data.",
+                "repo.detail.sync_applied_search", "sync-data de karaoke aplicado. LRCLIB se seleccionó por búsqueda.",
+                "repo.detail.no_spotify_isrc", "Letras por líneas de LRCLIB. La búsqueda Spotify ISRC no está disponible.",
+                "repo.detail.no_sync_data", "Letras por líneas de LRCLIB. No se encontró sync-data para este ISRC.",
+                "repo.detail.sync_apply_failed", "Letras por líneas de LRCLIB. No se pudo aplicar sync-data.",
+                "spotify.error.incomplete_credentials", "Falta el Client ID o Client Secret de Spotify API.",
+                "spotify.error.credentials_not_configured", "Las credenciales de Spotify API no están configuradas.",
+                "spotify.error.no_access_token", "La respuesta del token Spotify no contenía access_token.",
+                "spotify.error.repository_unavailable", "El repositorio de letras no está disponible.",
+                "lyrics.credit_sync_by_format", "sync por %s",
+                "sync.type_line", "Línea",
+                "sync.type_word", "Palabra",
+                "sync.type_character", "Carácter",
+                "sync.type_mixed", "Mixto",
+                "sync.type_unknown", "Sync anterior"
+        );
+    }
+
+    private static Map<String, String> frStrings() {
+        return strings(
+                "button.close", "Fermer",
+                "button.previous", "Retour",
+                "button.save_start", "Save et démarrer",
+                "button.spotify_setup", "Configurer Spotify API",
+                "status.waiting_spotify", "En attente de lecture Spotify",
+                "status.lyrics_loading", "Chargement des paroles",
+                "status.lyrics_waiting", "En attente des paroles",
+                "status.spotify_required_title", "Spotify API Obligatoire",
+                "status.spotify_required_subtitle", "Save votre Client ID et Secret first",
+                "status.spotify_required_detail", "Les paroles ISRC, sync-data et LRCLIB ne sont pas chargées tant que la configuration n'est pas terminée.",
+                "toast.spotify_required", "Enregistrez d'abord Spotify API",
+                "toast.setup_required", "Terminez d'abord la configuration initiale",
+                "toast.back_exit", "Appuyez à nouveau sur Retour pour quitter",
+                "toast.ui_language_saved", "Langue de l'application enregistrée",
+                "settings.title", "Paramètres",
+                "settings.subtitle", "Paroles, affichage, plein écran, IA et outils",
+                "tab.lyrics", "Paroles",
+                "tab.display", "Affichage",
+                "tab.ai", "AI",
+                "tab.tools", "Outils",
+                "section.language", "Langue",
+                "section.language_desc", "Gérez séparément la langue, la prononciation et les règles de traduction par chanson de l'application.",
+                "setting.ui_language", "Langue de l'application",
+                "setting.ui_language_desc", "Langue utilisée pour l'interface utilisateur de l'application. Seules les langues avec de véritables traductions de l'interface utilisateur sont affichées.",
+                "setting.pronunciation_language", "Langue de prononciation",
+                "setting.pronunciation_language_desc", "Choisissez dans quel script/langue la prononciation doit être générée.",
+                "setting.metadata_translation", "Traduire le titre/l'artiste",
+                "setting.metadata_translation_desc", "Traduisez également le titre de la chanson actuelle et l'artiste en utilisant la langue cible sélectionnée.",
+                "setting.main_preview", "Aperçu des paroles principales",
+                "setting.main_preview_desc", "Choisissez les lignes d'origine, de prononciation et de traduction. De longues rangées glissent avec le timing des paroles.",
+                "setting.auto_interlude", "Détection automatique d'intro/interlude/outro",
+                "setting.auto_interlude_desc", "Transforme les notes/lignes vierges et les longs espaces après les paroles en marqueurs d'interlude animés.",
+                "setting.interlude_labels", "Afficher les libellés d'interlude",
+                "setting.interlude_labels_desc", "Affiche le libellé texte près des marqueurs d'intro/interlude/outro tout en gardant l'icône animée.",
+                "setting.synced_karaoke_animation", "Effet karaoké des paroles synchronisées",
+                "setting.synced_karaoke_animation_desc", "Applique un remplissage par caractère régulier aux paroles LRCLIB synchronisées sans sync-data.",
+                "setting.karaoke_bounce_effect", "Rebond karaoké",
+                "setting.karaoke_bounce_effect_desc", "Fait légèrement rebondir le texte pendant le remplissage des caractères.",
+                "setting.karaoke_motion_style", "Style d'animation du karaoké",
+                "setting.karaoke_motion_style_desc", "Classique conserve le rebond discret. Expressif utilise une physique de ressort : les mots chantés grossissent, s'élèvent et brillent, les mots à venir restent un peu plus petits et les notes tenues s'animent lettre par lettre.",
+                "karaoke.motion.classic", "Classique",
+                "karaoke.motion.expressive", "Expressif",
+                "setting.pronunciation_karaoke_fill", "Remplir la prononciation comme au karaoké",
+                "setting.pronunciation_karaoke_fill_desc", "Même lorsque le mode prononciation d'abord est désactivé, la ligne de prononciation se remplit au rythme du chant. L'IA répartit la prononciation selon le minutage des mots ou des caractères. Les autres effets, comme le rebond et la lueur, ne sont pas appliqués.",
+                "setting.synced_pronunciation", "Prononciation synchronisée",
+                "setting.synced_pronunciation_desc", "Récupère la prononciation des paroles karaoké découpée selon le minutage de chaque mot ou caractère chanté. Activée, elle rend disponibles le mode Prononciation d'abord et le remplissage de la prononciation comme au karaoké. Désactivée, la prononciation arrive plus vite en texte simple par ligne.",
+                "section.player", "Lecteur",
+                "section.player_desc", "Ajuster l'affichage et le comportement en mode paysage.",
+                "setting.landscape_auto_hide", "Masquer automatiquement les commandes en mode paysage",
+                "setting.landscape_auto_hide_desc", "Masquer la barre de progression et les boutons lorsqu'ils sont inactifs en mode paysage.",
+                "section.background", "Arrière-plan",
+                "section.background_desc", "Choisissez une couverture d'album, un dégradé flou ou un arrière-plan de couleur unie.",
+                "setting.background_mode", "Effet d'arrière-plan",
+                "setting.background_mode_desc", "Choisissez la façon dont l'arrière-plan de la chanson actuelle est rendu.",
+                "setting.brightness", "Luminosité",
+                "setting.brightness_desc", "Luminosité pour la couverture de l'album et les arrière-plans dégradés.",
+                "setting.blur", "Flou",
+                "setting.blur_desc", "Intensité du flou pour la couverture de l'album et les arrière-plans dégradés.",
+                "setting.noise", "Texture de bruit",
+                "setting.noise_desc", "Ajoute une texture de grain subtile comme l'original ivLyrics.",
+                "setting.reduce_motion", "Réduire le mouvement",
+                "setting.reduce_motion_desc", "Arrête le mouvement automatique de l'arrière-plan de l'album/dégradé.",
+                "section.ai_lyrics", "Paroles AI",
+                "section.ai_lyrics_desc", "Générez la prononciation et les traductions avec des invites compatibles avec ivLyrics.",
+                "section.provider", "Fournisseur",
+                "field.api_key", "Clé API",
+                "field.model", "Modèle",
+                "field.base_url", "URL de base",
+                "button.save_regenerate", "Save et régénération",
+                "button.get_key", "Obtenir la clé",
+                "section.tools", "Outils",
+                "section.tools_desc", "Gérer le cache et les journaux de débogage.",
+                "section.spotify_api", "Spotify API",
+                "section.spotify_api_desc", "Utilisez un Client ID et Client Secret du tableau de bord du développeur Spotify. Stocké uniquement sur cet appareil.",
+                "button.spotify_save", "Enregistrer Spotify API",
+                "section.lyrics_cache", "Cache des paroles",
+                "section.lyrics_cache_desc", "Effacer les paroles de base sync-data/LRCLIB et le cache de prononciation/traduction de l'IA. La chanson actuelle se recharge après l'effacement.",
+                "button.clear_current", "Effacer le titre actuel",
+                "button.clear_all", "Effacer tout",
+                "button.ai_cache_clear", "Effacer le cache AI",
+                "button.debug_log", "Débogage/journaux",
+                "onboarding.subtitle", "Paroles, traduction et prononciation du karaoké pour la chanson en cours de lecture.",
+                "onboarding.welcome_title", "Configurer ivLyrics",
+                "onboarding.welcome_desc", "Choisissez d'abord la langue de l'application, puis définissez l'autorisation d'accès au média et vos propres informations d'identification Spotify API.",
+                "onboarding.app_language_en", "Langue de l'application",
+                "onboarding.app_language_native", "Langue de l'application",
+                "onboarding.permission_title", "Autorisation d'accès au média",
+                "onboarding.permission_desc", "L'accès aux notifications Android est requis pour lire la chanson en cours de lecture dans Spotify.",
+                "onboarding.permission_hint", "Recherchez ivLyrics dans l'écran des paramètres, autorisez l'accès, puis revenez à l'application.",
+                "onboarding.permission_status_enabled", "L'autorisation est activée. La lecture Spotify peut maintenant être détectée.",
+                "onboarding.permission_status_required", "L'autorisation n'est pas encore activée. Ouvrez les paramètres d'autorisation et autorisez ivLyrics.",
+                "onboarding.spotify_title", "Connecter les informations sur la chanson",
+                "onboarding.spotify_desc", "Spotify Web API est utilisé pour charger ISRC et une illustration haute résolution pour la chanson en cours.",
+                "onboarding.step_format", "Étape %d / %d",
+                "spotify.status_configured", "Spotify API configuré",
+                "spotify.status_required", "Enregistrez Spotify API avant la première utilisation.",
+                "spotify.status_checking", "Vérification du jeton Spotify...",
+                "spotify.status_invalid_format", "La demande de jeton Spotify a échoué : %s\nVérifiez à nouveau votre Client ID et votre secret.",
+                "button.next", "Suivant",
+                "button.restart", "Recommencer",
+                "button.copy", "Copier",
+                "button.open_browser", "Ouvrir le navigateur",
+                "button.open_permission", "Ouvrir l'autorisation Settings",
+                "button.prev_track", "Piste précédente",
+                "button.next_track", "Piste suivante",
+                "debug.title", "Débogage",
+                "debug.permission", "Ouvrir l'autorisation d'accès aux médias",
+                "debug.previous", "Précédent",
+                "debug.play_pause", "Lecture/Pause",
+                "debug.next", "Suivant",
+                "debug.refresh", "Actualiser",
+                "debug.log", "Journal",
+                "debug.log_waiting", "En attente des journaux",
+                "lyrics.tab.language", "Langue",
+                "lyrics.tab.sync", "Synchronisation",
+                "lyrics.translation", "Traduction",
+                "lyrics.pronunciation", "Prononciation",
+                "lyrics.sync.title", "Décalage de synchronisation de la chanson actuelle",
+                "lyrics.sync.reset", "Réinitialisation à 0 ms",
+                "lyrics.sync.no_track", "Aucune chanson en cours de lecture, ce réglage ne sera donc pas enregistré.",
+                "lyrics.sync.track_scope", "Enregistré uniquement pour \"%s\".",
+                "lyrics.sync.help", "Les valeurs + affichent les paroles plus tôt ; les valeurs - les affichent plus tard.",
+                "lyrics.menu_tip", "Appuyez longuement sur le titre ou l’artiste pour ouvrir les réglages de traduction et de prononciation.",
+                "lyrics.rule.track_language", "Langue du morceau",
+                "lyrics.rule.save_target", "Cible Save",
+                "lyrics.rule.translation_language", "Langue de traduction",
+                "label.on", "Sur",
+                "label.off", "Désactivé",
+                "label.auto", "Auto",
+                "label.auto_target", "Automatique (%s)",
+                "lyrics.button.translation_on", "Traduction On",
+                "lyrics.button.pronunciation_on", "Prononciation On",
+                "lyrics.button.translation_plus", "Traduction+",
+                "field.api_key_desc", "Prend en charge une clé unique, une liste de nouvelles lignes ou un tableau JSON. Stocké uniquement sur cet appareil.",
+                "field.model_desc", "Remplacement du modèle du fournisseur.",
+                "field.base_url_desc", "URL de base de l’API compatible OpenAI ou du fournisseur.",
+                "field.max_tokens", "Nombre maximum de jetons",
+                "field.temperature", "Créativité",
+                "field.solid_color", "Couleur de fond uni",
+                "field.solid_color_desc", "Choisissez la couleur utilisée en mode arrière-plan uni.",
+                "field.spotify_client_id_desc", "Client ID de votre application Spotify.",
+                "field.spotify_client_secret_desc", "Client Secret de votre application Spotify.",
+                "preview.none", "Caché",
+                "preview.original", "Original",
+                "preview.pronunciation", "Prononciation",
+                "preview.translation", "Traduction",
+                "background.mode.gradient", "Couverture de l'album",
+                "background.mode.gradient_desc", "Utilise la couverture de l'album actuel comme grand arrière-plan flou.",
+                "background.mode.blur_gradient", "Dégradé flou",
+                "background.mode.blur_gradient_desc", "Crée un dégradé flou en mouvement à partir des couleurs de l'album.",
+                "background.mode.solid", "Couleur unie",
+                "background.mode.solid_desc", "Utilise une couleur d'arrière-plan unie personnalisée.",
+                "provider.desc.gemini", "Google AI Studio API",
+                "provider.desc.chatgpt", "API compatible OpenAI",
+                "provider.desc.claude", "Claude Messages API",
+                "provider.desc.openrouter", "Achemine plusieurs modèles d'IA",
+                "provider.desc.groq", "Inférence rapide compatible OpenAI",
+                "provider.desc.perplexity", "Agent API",
+                "provider.desc.pollinations", "API Pollinations compatible OpenAI",
+                "spotify.step0.title", "Accédez au tableau de bord du développeur Spotify",
+                "spotify.step0.desc", "Ouvrez le tableau de bord du développeur Spotify dans votre navigateur. Connectez-vous et créez une nouvelle application.",
+                "spotify.step1.title", "Entrez un nom dans Create app",
+                "spotify.step1.desc", "Appuyez sur Create app et entrez la valeur ci-dessous pour App name. N'écrivez pas ivLyrics ou ivlyrics.",
+                "spotify.step2.title", "Saisissez la description",
+                "spotify.step2.desc", "Saisissez également la valeur ci-dessous pour App description. Ce n'est qu'un exemple pour éviter toute confusion.",
+                "spotify.step3.title", "Entrez l'URI de redirection",
+                "spotify.step3.desc", "Ajoutez l'adresse ci-dessous à Redirect URIs. Incluez la barre oblique finale.",
+                "spotify.step4.title", "Sélectionnez Web API et enregistrez",
+                "spotify.step4.desc", "Sélectionnez Web API dans la zone de sélection API, cochez la case d'accord, puis appuyez sur Save.",
+                "spotify.step5.title", "Copiez Client ID et Secret",
+                "spotify.step5.desc", "Copiez Client ID et Client Secret depuis les paramètres de l'application, collez-les ci-dessous, puis enregistrez Spotify API.",
+                "toast.copied_format", "Copié : %s",
+                "toast.provider_saved", "Fournisseur enregistré",
+                "toast.pronunciation_language_saved", "Langue de prononciation enregistrée",
+                "toast.preview_saved", "Aperçu des paroles principales enregistré",
+                "toast.background_saved", "Effet de fond enregistré",
+                "toast.metadata_translation_on", "Traduction titre/artiste activée",
+                "toast.metadata_translation_off", "Traduction titre/artiste désactivée",
+                "toast.auto_interlude_on", "Détection automatique d'interlude activée",
+                "toast.auto_interlude_off", "Détection automatique d'interlude désactivée",
+                "toast.landscape_auto_hide_on", "Masquage automatique des commandes en mode paysage activé",
+                "toast.landscape_auto_hide_off", "Masquage automatique des commandes en mode paysage désactivé",
+                "toast.background_noise_on", "Texture de bruit activée",
+                "toast.background_noise_off", "Texture de bruit désactivée",
+                "toast.reduce_motion_on", "Mouvement de fond réduit",
+                "toast.reduce_motion_off", "Mouvement d'arrière-plan activé",
+                "toast.ai_cache_cleared", "Cache AI effacé",
+                "toast.language_rule_saved", "Paramètres de langue du morceau enregistrés",
+                "toast.settings_saved", "Settings enregistré",
+                "toast.spotify_missing", "Saisissez à la fois Client ID et Client Secret.",
+                "toast.spotify_checking", "Vérification du jeton Spotify...",
+                "toast.spotify_invalid", "Vérifiez à nouveau vos informations d'identification Spotify API.",
+                "toast.spotify_saved", "Spotify API enregistré",
+                "toast.current_track_missing", "Aucune information sur la chanson actuelle",
+                "toast.current_cache_cleared", "Cache des paroles de la chanson actuelle effacé",
+                "toast.all_cache_cleared", "Cache de toutes les paroles effacé",
+                "toast.sync_offset_format", "Décalage de synchronisation %s",
+                "status.lyrics_request_failed", "Échec de la demande de paroles",
+                "status.ai_applied", "Traduction/prononciation appliquée",
+                "status.ai_failed_format", "Échec des paroles AI : %s",
+                "status.ai_cache_cleared", "Cache AI effacé",
+                "status.ai_lyrics_active", "Paroles AI activées",
+                "status.ai_key_needed", "Entrez une clé API pour générer des paroles IA.",
+                "status.ai_disabled", "La traduction/prononciation est désactivée.",
+                "status.no_lyrics_to_apply", "Aucune parole à appliquer.",
+                "status.ai_generating", "Génération des paroles AI...",
+                "status.reload_after_spotify", "Rechargement des paroles ISRC, sync-data et LRCLIB de cette chanson après la modification des paramètres Spotify API.",
+                "status.detecting_media", "Détection de la session multimédia",
+                "status.permission_required", "Autorisation d'accès aux notifications requise",
+                "status.lyrics_lookup_spotify", "Recherche de ISRC avec Spotify Web API, puis chargement de sync-data et LRCLIB.",
+                "status.lyrics_lookup_player", "Chargement de sync-data et LRCLIB avec le lecteur ISRC.",
+                "status.waiting_current_track", "En attente de la chanson en cours de lecture",
+                "status.spotify_required_plain", "Spotify API requis",
+                "loading.generating", "Génération",
+                "loading.pronunciation", "Génération de la prononciation...",
+                "loading.translation", "Génération de la traduction...",
+                "loading.word_sync", "Génération de la synchronisation mot par mot...",
+                "loading.word_sync_desc", "La synchronisation mot par mot est en cours de création sur un serveur de paroles externe.",
+                "status.word_sync_failed", "Échec de la synchronisation",
+                "pronunciation_first.state_on", "Prononciation d'abord activée. Touchez pour désactiver",
+                "pronunciation_first.state_off", "Prononciation d'abord désactivée. Touchez pour activer",
+                "loading.pronunciation_sync", "L'IA aligne la prononciation sur le minutage des paroles...",
+                "status.pronunciation_sync_failed", "Échec de la synchro de la prononciation",
+                "lyrics.empty_none", "Pas de paroles",
+                "interlude.prelude", "Intro",
+                "interlude.break", "Interlude",
+                "interlude.postlude", "Outro",
+                "onboarding.preview.line1", "Les paroles du karaoké suivent la chanson",
+                "onboarding.preview.line2", "La prononciation et la traduction apparaissent ici",
+                "onboarding.preview.line3", "Tout est mis à jour avec la piste actuelle",
+                "repo.metadata_waiting", "En attente des métadonnées du morceau",
+                "repo.lyrics_not_found", "Aucune parole LRCLIB trouvée",
+                "repo.instrumental", "Piste instrumentale",
+                "repo.no_renderable_lyrics", "Aucune parole LRCLIB affichable",
+                "repo.detail.sync_applied_direct", "sync-data karaoké appliqué. LRCLIB a été chargé directement depuis sync-data.",
+                "repo.detail.sync_applied_search", "sync-data karaoké appliqué. LRCLIB a été sélectionné par recherche.",
+                "repo.detail.no_spotify_isrc", "Paroles LRCLIB par ligne. La recherche Spotify ISRC est indisponible.",
+                "repo.detail.no_sync_data", "Paroles LRCLIB par ligne. Aucun sync-data ne correspond à cet ISRC.",
+                "repo.detail.sync_apply_failed", "Paroles LRCLIB par ligne. sync-data n’a pas pu être appliqué.",
+                "spotify.error.incomplete_credentials", "Le Client ID ou le Client Secret Spotify API manque.",
+                "spotify.error.credentials_not_configured", "Les identifiants Spotify API ne sont pas configurés.",
+                "spotify.error.no_access_token", "La réponse du jeton Spotify ne contenait pas access_token.",
+                "spotify.error.repository_unavailable", "Le dépôt de paroles est indisponible.",
+                "lyrics.credit_sync_by_format", "sync par %s",
+                "sync.type_line", "Ligne",
+                "sync.type_word", "Mot",
+                "sync.type_character", "Caractère",
+                "sync.type_mixed", "Mixte",
+                "sync.type_unknown", "Ancien sync"
+        );
+    }
+
+    private static Map<String, String> arStrings() {
+        return strings(
+                "button.close", "أغلق",
+                "button.previous", "رجوع",
+                "button.save_start", "Save وابدأ إعداد",
+                "button.spotify_setup", "إعداد Spotify API",
+                "status.waiting_spotify", "في انتظار تشغيل Spotify",
+                "status.lyrics_loading", "تحميل كلمات الأغاني",
+                "status.lyrics_waiting", "في انتظار كلمات الأغاني",
+                "status.spotify_required_title", "Spotify API مطلوب",
+                "status.spotify_required_subtitle", "Save Client ID و لا يتم تحميل كلمات الأغاني السرية الأولى",
+                "status.spotify_required_detail", "لن يتم تحميل ISRC وsync-data وكلمات LRCLIB حتى يكتمل الإعداد.",
+                "toast.spotify_required", "تسجيل Spotify API أولاً",
+                "toast.setup_required", "أكمل الإعداد الأولي أولاً",
+                "toast.back_exit", "اضغط على \"رجوع\" مرة أخرى للخروج",
+                "toast.ui_language_saved", "تم حفظ لغة التطبيق",
+                "settings.title", "إعدادات",
+                "settings.subtitle", "كلمات الأغاني والعرض وملء الشاشة والذكاء الاصطناعي والأدوات",
+                "tab.lyrics", "كلمات",
+                "tab.display", "العرض",
+                "tab.ai", "AI",
+                "tab.tools", "الأدوات",
+                "section.language", "لغة",
+                "section.language_desc", "إدارة لغة التطبيق والنطق وقواعد الترجمة لكل أغنية بشكل منفصل.",
+                "setting.ui_language", "لغة التطبيق",
+                "setting.ui_language_desc", "اللغة المستخدمة لواجهة مستخدم التطبيق. يتم عرض اللغات ذات الترجمات الحقيقية لواجهة المستخدم فقط.",
+                "setting.pronunciation_language", "لغة النطق",
+                "setting.pronunciation_language_desc", "اختر نطق النص/اللغة الذي يجب إنشاء نطقه به.",
+                "setting.metadata_translation", "ترجمة العنوان/الفنان",
+                "setting.metadata_translation_desc", "قم أيضًا بترجمة عنوان الأغنية الحالية والفنان باستخدام اللغة المستهدفة المحددة.",
+                "setting.main_preview", "المعاينة الرئيسية للكلمات",
+                "setting.main_preview_desc", "اختر الصفوف الأصلية والنطق والترجمة. تنزلق الصفوف الطويلة وفق توقيت الكلمات.",
+                "setting.auto_interlude", "اكتشاف تلقائي للمقدمة/الفاصل/الخاتمة",
+                "setting.auto_interlude_desc", "يحوّل أسطر النوتات والأسطر الفارغة والفجوات الطويلة بعد الكلمات إلى علامات فواصل متحركة.",
+                "setting.interlude_labels", "إظهار تسميات الفواصل",
+                "setting.interlude_labels_desc", "يعرض تسمية نصية بجانب علامات المقدمة/الفاصل/الخاتمة مع إبقاء الأيقونة المتحركة.",
+                "setting.synced_karaoke_animation", "تأثير كاريوكي للكلمات المتزامنة",
+                "setting.synced_karaoke_animation_desc", "تطبيق تعبئة أحرف منتظمة على كلمات LRCLIB المتزامنة العادية بدون sync-data.",
+                "setting.karaoke_bounce_effect", "ارتداد الكاريوكي",
+                "setting.karaoke_bounce_effect_desc", "يجعل النص يرتد برفق أثناء امتلاء الأحرف.",
+                "setting.karaoke_motion_style", "نمط حركة الكاريوكي",
+                "setting.karaoke_motion_style_desc", "يحافظ الكلاسيكي على الارتداد الخفيف. يستخدم التعبيري فيزياء النوابض: تكبر الكلمات المغنّاة وترتفع وتتوهج، وتبقى الكلمات التي لم تُغنَّ بعد أصغر قليلًا، وتتحرك النغمات الطويلة حرفًا حرفًا.",
+                "karaoke.motion.classic", "كلاسيكي",
+                "karaoke.motion.expressive", "تعبيري",
+                "setting.pronunciation_karaoke_fill", "تلوين النطق مثل الكاريوكي",
+                "setting.pronunciation_karaoke_fill_desc", "حتى عند إيقاف وضع النطق أولًا، يتلوّن سطر النطق مع توقيت الغناء. يقسّم الذكاء الاصطناعي النطق حسب توقيت كل كلمة أو حرف. لا تُطبَّق التأثيرات الأخرى مثل الارتداد والتوهج.",
+                "setting.synced_pronunciation", "استخدام النطق المتزامن",
+                "setting.synced_pronunciation_desc", "يجلب نطق كلمات الكاريوكي مقسّمًا حسب توقيت كل كلمة أو حرف يُغنّى. عند التشغيل يصبح وضع النطق أولًا وتلوين النطق مثل الكاريوكي متاحين. عند الإيقاف يأتي النطق أسرع كنص عادي لكل سطر.",
+                "section.player", "المشغل",
+                "section.player_desc", "ضبط العرض وسلوك الوضع الأفقي.",
+                "setting.landscape_auto_hide", "إخفاء عناصر التحكم الأفقية تلقائيًا",
+                "setting.landscape_auto_hide_desc", "إخفاء شريط التقدم والأزرار عندما تكون غير نشطة في الوضع الأفقي.",
+                "section.background", "الخلفية",
+                "section.background_desc", "اختر غلاف الألبوم، أو التدرج غير الواضح، أو خلفية الألوان الصلبة.",
+                "setting.background_mode", "تأثير الخلفية",
+                "setting.background_mode_desc", "اختر كيفية عرض خلفية الأغنية الحالية.",
+                "setting.brightness", "سطوع",
+                "setting.brightness_desc", "سطوع غلاف الألبوم والخلفيات المتدرجة.",
+                "setting.blur", "تمويه",
+                "setting.blur_desc", "شدة التمويه لغلاف الألبوم والخلفيات المتدرجة.",
+                "setting.noise", "نسيج الضوضاء",
+                "setting.noise_desc", "يضيف نسيجًا حبيبيًا دقيقًا مثل ivLyrics الأصلي.",
+                "setting.reduce_motion", "تقليل الحركة",
+                "setting.reduce_motion_desc", "يوقف حركة الخلفية التلقائية للألبوم/التدرج.",
+                "section.ai_lyrics", "الذكاء الاصطناعي للكلمات",
+                "section.ai_lyrics_desc", "قم بإنشاء النطق والترجمات باستخدام المطالبات المتوافقة مع ivLyrics.",
+                "section.provider", "المزوّد",
+                "field.api_key", "مفتاح API",
+                "field.model", "نموذج",
+                "field.base_url", "عنوان URL الأساسي",
+                "button.save_regenerate", "Save وإعادة إنشاء",
+                "button.get_key", "الحصول على المفتاح",
+                "section.tools", "الأدوات",
+                "section.tools_desc", "إدارة ذاكرة التخزين المؤقت وسجلات تصحيح الأخطاء.",
+                "section.spotify_api", "Spotify API",
+                "section.spotify_api_desc", "استخدم Client ID وClient Secret من Spotify Developer Dashboard. مخزنة فقط على هذا الجهاز.",
+                "button.spotify_save", "حفظ Spotify API",
+                "section.lyrics_cache", "ذاكرة التخزين المؤقت للكلمات",
+                "section.lyrics_cache_desc", "مسح الكلمات الأساسية من sync-data/LRCLIB وذاكرة التخزين المؤقت للنطق/الترجمة بالذكاء الاصطناعي. يُعاد تحميل الأغنية الحالية بعد المسح.",
+                "button.clear_current", "مسح الأغنية الحالية",
+                "button.clear_all", "مسح الكل",
+                "button.ai_cache_clear", "مسح ذاكرة التخزين المؤقت لـ AI",
+                "button.debug_log", "تصحيح / سجلات",
+                "onboarding.subtitle", "كلمات كاريوكي وترجمتها ونطقها للأغنية التي يتم تشغيلها حاليًا.",
+                "onboarding.welcome_title", "إعداد ivLyrics",
+                "onboarding.welcome_desc", "اختر لغة التطبيق أولاً، ثم قم بتعيين إذن الوصول إلى الوسائط وبيانات اعتماد Spotify API الخاصة بك.",
+                "onboarding.app_language_en", "لغة التطبيق",
+                "onboarding.app_language_native", "لغة عرض التطبيق",
+                "onboarding.permission_title", "إذن الوصول إلى الوسائط",
+                "onboarding.permission_desc", "Android مطلوب الوصول إلى الإشعارات لقراءة الأغنية التي يتم تشغيلها حاليًا في Spotify.",
+                "onboarding.permission_hint", "ابحث عن ivLyrics في شاشة الإعدادات، واسمح بالوصول، ثم ارجع إلى التطبيق.",
+                "onboarding.permission_status_enabled", "تم تمكين الإذن. يمكن الآن اكتشاف تشغيل Spotify.",
+                "onboarding.permission_status_required", "لم يتم تمكين الإذن بعد. افتح إعدادات الأذونات واسمح بـ ivLyrics.",
+                "onboarding.spotify_title", "ربط معلومات الأغنية",
+                "onboarding.spotify_desc", "Spotify Web API لتحميل ISRC وصورة الغلاف عالية الدقة للأغنية الحالية.",
+                "onboarding.step_format", "الخطوة %d / %d",
+                "spotify.status_configured", "تم إعداد Spotify API",
+                "spotify.status_required", "سجل Spotify API قبل الاستخدام الأول.",
+                "spotify.status_checking", "جارٍ التحقق من رمز Spotify...",
+                "spotify.status_invalid_format", "فشل طلب رمز Spotify: %s\nتحقق من Client ID والسر مرة أخرى.",
+                "button.next", "التالي",
+                "button.restart", "البدء من جديد",
+                "button.copy", "نسخ",
+                "button.open_browser", "فتح المتصفح",
+                "button.open_permission", "فتح الإذن Settings",
+                "button.prev_track", "المسار السابق",
+                "button.next_track", "المسار التالي",
+                "debug.title", "تصحيح",
+                "debug.permission", "فتح إذن الوصول إلى الوسائط",
+                "debug.previous", "السابق",
+                "debug.play_pause", "تشغيل/إيقاف مؤقت",
+                "debug.next", "التالي",
+                "debug.refresh", "تحديث",
+                "debug.log", "السجل",
+                "debug.log_waiting", "في انتظار السجلات",
+                "lyrics.tab.language", "اللغة",
+                "lyrics.tab.sync", "مزامنة",
+                "lyrics.translation", "الترجمة",
+                "lyrics.pronunciation", "النطق",
+                "lyrics.sync.title", "إزاحة مزامنة الأغنية الحالية",
+                "lyrics.sync.reset", "إعادة التعيين إلى 0 مللي ثانية",
+                "lyrics.sync.no_track", "لا توجد أغنية قيد التشغيل، لذلك لن يتم حفظ هذا الإعداد.",
+                "lyrics.sync.track_scope", "تم الحفظ لـ \"%s\" فقط.",
+                "lyrics.sync.help", "القيم + تُظهر الكلمات مبكرًا؛ والقيم - تُظهرها لاحقًا.",
+                "lyrics.menu_tip", "اضغط مطولًا على العنوان أو الفنان لفتح إعدادات الترجمة والنطق.",
+                "lyrics.rule.track_language", "لغة الأغنية",
+                "lyrics.rule.save_target", "Save الهدف",
+                "lyrics.rule.translation_language", "لغة الترجمة",
+                "label.on", "تشغيل",
+                "label.off", "إيقاف",
+                "label.auto", "تلقائي",
+                "label.auto_target", "تلقائي (%s)",
+                "lyrics.button.translation_on", "تشغيل",
+                "lyrics.button.pronunciation_on", "النطق تشغيل",
+                "lyrics.button.translation_plus", "ترجمة +",
+                "field.api_key_desc", "يدعم مفتاحًا واحدًا أو قائمة أسطر جديدة أو مصفوفة JSON. مخزنة فقط على هذا الجهاز.",
+                "field.model_desc", "تجاوز نموذج الموفر.",
+                "field.base_url_desc", "عنوان URL الأساسي لواجهة API المتوافقة مع OpenAI أو الخاصة بالمزوّد.",
+                "field.max_tokens", "الحد الأقصى من الرموز المميزة",
+                "field.temperature", "الإبداع",
+                "field.solid_color", "لون خلفية موحّد",
+                "field.solid_color_desc", "اختر اللون المستخدم في وضع الخلفية الموحّدة.",
+                "field.spotify_client_id_desc", "Client ID لتطبيق Spotify الخاص بك.",
+                "field.spotify_client_secret_desc", "Client Secret لتطبيق Spotify الخاص بك.",
+                "preview.none", "مخفي",
+                "preview.original", "النص الأصلي",
+                "preview.pronunciation", "النطق",
+                "preview.translation", "الترجمة",
+                "background.mode.gradient", "غلاف الألبوم",
+                "background.mode.gradient_desc", "يستخدم غلاف الألبوم الحالي كخلفية كبيرة غير واضحة.",
+                "background.mode.blur_gradient", "تدرّج ضبابي",
+                "background.mode.blur_gradient_desc", "ينشئ تدرجًا غير واضح ومتحرك من ألوان الألبوم.",
+                "background.mode.solid", "لون خالص",
+                "background.mode.solid_desc", "يستخدم لون خلفية خالص مخصص.",
+                "provider.desc.gemini", "Google AI Studio API",
+                "provider.desc.chatgpt", "واجهة API متوافقة مع OpenAI",
+                "provider.desc.claude", "Claude Messages API",
+                "provider.desc.openrouter", "يوجه نماذج الذكاء الاصطناعي المتعددة",
+                "provider.desc.groq", "الاستدلال السريع المتوافق مع OpenAI",
+                "provider.desc.perplexity", "Agent API",
+                "provider.desc.pollinations", "واجهة Pollinations المتوافقة مع OpenAI",
+                "spotify.step0.title", "انتقل إلى Spotify Developer Dashboard",
+                "spotify.step0.desc", "افتح Spotify Developer Dashboard في متصفحك. قم بتسجيل الدخول وإنشاء تطبيق جديد.",
+                "spotify.step1.title", "أدخل اسمًا في Create app",
+                "spotify.step1.desc", "اضغط على Create app وأدخل القيمة أدناه لـ App name. لا تكتب ivLyrics أو ivlyrics.",
+                "spotify.step2.title", "أدخل الوصف",
+                "spotify.step2.desc", "أدخل القيمة أدناه لـ App description أيضًا. إنه مجرد مثال لتجنب الارتباك.",
+                "spotify.step3.title", "أدخل URI لإعادة التوجيه",
+                "spotify.step3.desc", "أضف العنوان أدناه إلى Redirect URIs. قم بتضمين الشرطة المائلة اللاحقة.",
+                "spotify.step4.title", "حدد Web API واحفظ",
+                "spotify.step4.desc", "حدد Web API في منطقة التحديد API، حدد مربع الاتفاقية، ثم اضغط Save.",
+                "spotify.step5.title", "انسخ Client ID والسر",
+                "spotify.step5.desc", "انسخ Client ID وClient Secret من إعدادات التطبيق، والصقهما أدناه، ثم احفظ Spotify API.",
+                "toast.copied_format", "تم النسخ: %s",
+                "toast.provider_saved", "تم حفظ الموفر",
+                "toast.pronunciation_language_saved", "تم حفظ لغة النطق",
+                "toast.preview_saved", "تم حفظ المعاينة الرئيسية للكلمات الغنائية",
+                "toast.background_saved", "تم حفظ تأثير الخلفية",
+                "toast.metadata_translation_on", "تم تشغيل ترجمة العنوان/الفنان",
+                "toast.metadata_translation_off", "إيقاف ترجمة العنوان/الفنان",
+                "toast.auto_interlude_on", "تم تشغيل الكشف التلقائي عن الفواصل",
+                "toast.auto_interlude_off", "تم إيقاف الكشف التلقائي عن الفواصل",
+                "toast.landscape_auto_hide_on", "تم تشغيل الإخفاء التلقائي لعناصر التحكم في الوضع الأفقي",
+                "toast.landscape_auto_hide_off", "تم إيقاف الإخفاء التلقائي لعناصر التحكم في الوضع الأفقي",
+                "toast.background_noise_on", "تم تشغيل نسيج الضوضاء",
+                "toast.background_noise_off", "تم إيقاف نسيج الضوضاء",
+                "toast.reduce_motion_on", "حركة خلفية منخفضة",
+                "toast.reduce_motion_off", "تم تمكين حركة الخلفية",
+                "toast.ai_cache_cleared", "تم مسح ذاكرة التخزين المؤقت AI",
+                "toast.language_rule_saved", "تم حفظ إعدادات لغة الأغنية",
+                "toast.settings_saved", "Settings تم الحفظ",
+                "toast.spotify_missing", "أدخل كلاً من Client ID وClient Secret.",
+                "toast.spotify_checking", "جارٍ التحقق من الرمز المميز Spotify...",
+                "toast.spotify_invalid", "تحقق من بيانات اعتماد Spotify API مرة أخرى.",
+                "toast.spotify_saved", "تم حفظ Spotify API",
+                "toast.current_track_missing", "لا توجد معلومات الأغنية الحالية",
+                "toast.current_cache_cleared", "تم مسح ذاكرة التخزين المؤقت لكلمات الأغنية الحالية",
+                "toast.all_cache_cleared", "تم مسح ذاكرة التخزين المؤقت لجميع كلمات الأغاني",
+                "toast.sync_offset_format", "إزاحة المزامنة %s",
+                "status.lyrics_request_failed", "فشل طلب كلمات الأغاني",
+                "status.ai_applied", "تم تطبيق الترجمة/النطق",
+                "status.ai_failed_format", "فشلت كلمات AI: %s",
+                "status.ai_cache_cleared", "تم مسح ذاكرة التخزين المؤقت لـ AI",
+                "status.ai_lyrics_active", "تم تمكين كلمات AI",
+                "status.ai_key_needed", "أدخل مفتاح API لإنشاء كلمات AI.",
+                "status.ai_disabled", "الترجمة/النطق متوقف.",
+                "status.no_lyrics_to_apply", "لا توجد كلمات لتطبيقها.",
+                "status.ai_generating", "إنشاء كلمات AI...",
+                "status.reload_after_spotify", "إعادة تحميل كلمات هذه الأغنية ISRC، sync-data، وLRCLIB بعد تغيير إعدادات Spotify API.",
+                "status.detecting_media", "اكتشاف جلسة الوسائط",
+                "status.permission_required", "مطلوب إذن الوصول إلى الإشعارات",
+                "status.lyrics_lookup_spotify", "العثور على ISRC مع Spotify Web API، ثم تحميل sync-data وLRCLIB.",
+                "status.lyrics_lookup_player", "تحميل sync-data وLRCLIB مع المشغل ISRC.",
+                "status.waiting_current_track", "في انتظار الأغنية قيد التشغيل حاليًا",
+                "status.spotify_required_plain", "Spotify API مطلوب",
+                "loading.generating", "إنشاء",
+                "loading.pronunciation", "إنشاء النطق...",
+                "loading.translation", "جارٍ إنشاء الترجمة...",
+                "loading.word_sync", "جارٍ إنشاء مزامنة الكلمات...",
+                "loading.word_sync_desc", "يجري إنشاء بيانات مزامنة لكل كلمة على خادم خارجي لكلمات الأغاني.",
+                "status.word_sync_failed", "فشلت مزامنة الكلمات",
+                "pronunciation_first.state_on", "النطق أولًا مفعّل. انقر لإيقافه",
+                "pronunciation_first.state_off", "النطق أولًا متوقف. انقر لتفعيله",
+                "loading.pronunciation_sync", "يطابق الذكاء الاصطناعي النطق مع توقيت كلمات الأغنية...",
+                "status.pronunciation_sync_failed", "تعذّر توقيت النطق",
+                "lyrics.empty_none", "لا كلمات",
+                "interlude.prelude", "مقدمة",
+                "interlude.break", "فاصل",
+                "interlude.postlude", "خاتمة",
+                "onboarding.preview.line1", "كلمات الكاريوكي تتبع الأغنية",
+                "onboarding.preview.line2", "النطق والترجمة تظهر هنا",
+                "onboarding.preview.line3", "يتم تحديث كل شيء مع المسار الحالي",
+                "repo.metadata_waiting", "بانتظار بيانات الأغنية",
+                "repo.lyrics_not_found", "لم يتم العثور على كلمات LRCLIB",
+                "repo.instrumental", "مقطع موسيقي بلا غناء",
+                "repo.no_renderable_lyrics", "لا توجد كلمات LRCLIB قابلة للعرض",
+                "repo.detail.sync_applied_direct", "تم تطبيق sync-data للكاريوكي. تم تحميل LRCLIB مباشرة من sync-data.",
+                "repo.detail.sync_applied_search", "تم تطبيق sync-data للكاريوكي. تم اختيار LRCLIB عبر البحث.",
+                "repo.detail.no_spotify_isrc", "كلمات LRCLIB بسطور. بحث Spotify ISRC غير متاح.",
+                "repo.detail.no_sync_data", "كلمات LRCLIB بسطور. لم يتم العثور على sync-data مطابق لهذا ISRC.",
+                "repo.detail.sync_apply_failed", "كلمات LRCLIB بسطور. تعذر تطبيق sync-data.",
+                "spotify.error.incomplete_credentials", "Client ID أو Client Secret الخاص بـ Spotify API مفقود.",
+                "spotify.error.credentials_not_configured", "لم يتم إعداد بيانات Spotify API.",
+                "spotify.error.no_access_token", "استجابة رمز Spotify لا تحتوي على access_token.",
+                "spotify.error.repository_unavailable", "مستودع الكلمات غير متاح.",
+                "lyrics.credit_sync_by_format", "sync بواسطة %s",
+                "sync.type_line", "سطر",
+                "sync.type_word", "كلمة",
+                "sync.type_character", "حرف",
+                "sync.type_mixed", "مختلط",
+                "sync.type_unknown", "مزامنة قديمة"
+        );
+    }
+
+    private static Map<String, String> faStrings() {
+        return strings(
+                "button.close", "بستن",
+                "button.previous", "برگشت",
+                "button.save_start", "Save و شروع کنید",
+                "button.spotify_setup", "راه اندازی Spotify API",
+                "status.waiting_spotify", "در انتظار پخش Spotify",
+                "status.lyrics_loading", "در حال بارگذاری متن ترانه",
+                "status.lyrics_waiting", "منتظر متن آهنگ",
+                "status.spotify_required_title", "Spotify API لازم است",
+                "status.spotify_required_subtitle", "Save Client ID و راز خود را ابتدا",
+                "status.spotify_required_detail", "اشعار ISRC، sync-data، و LRCLIB تا زمانی که راه‌اندازی کامل نشود، بارگیری نمی‌شوند.",
+                "toast.spotify_required", "ابتدا Spotify API ثبت نام کنید",
+                "toast.setup_required", "ابتدا تنظیمات اولیه را کامل کنید",
+                "toast.back_exit", "برای خروج دوباره Back را فشار دهید",
+                "toast.ui_language_saved", "زبان برنامه ذخیره شد",
+                "settings.title", "تنظیمات",
+                "settings.subtitle", "متن ترانه، صفحه نمایش، تمام‌صفحه، هوش مصنوعی و ابزار",
+                "tab.lyrics", "متن ترانه",
+                "tab.display", "نمایش",
+                "tab.ai", "هوش مصنوعی",
+                "tab.tools", "ابزار",
+                "section.language", "زبان",
+                "section.language_desc", "زبان برنامه، تلفظ و قوانین ترجمه هر آهنگ را جداگانه مدیریت کنید.",
+                "setting.ui_language", "زبان برنامه",
+                "setting.ui_language_desc", "زبان مورد استفاده برای رابط کاربری برنامه. فقط زبان هایی با ترجمه UI واقعی نشان داده می شوند.",
+                "setting.pronunciation_language", "زبان تلفظ",
+                "setting.pronunciation_language_desc", "انتخاب کنید که در کدام اسکریپت/زبان تلفظ باید تولید شود.",
+                "setting.metadata_translation", "عنوان/هنرمند را ترجمه کنید",
+                "setting.metadata_translation_desc", "همچنین عنوان آهنگ و هنرمند فعلی را با استفاده از زبان مقصد انتخابی ترجمه کنید.",
+                "setting.main_preview", "پیش‌نمایش متن ترانه در صفحه اصلی",
+                "setting.main_preview_desc", "ردیف‌های متن اصلی، تلفظ و ترجمه را انتخاب کنید. ردیف‌های طولانی همگام با زمان‌بندی متن ترانه حرکت می‌کنند.",
+                "setting.auto_interlude", "تشخیص خودکار پیش‌درآمد/میان‌نوازی/پایان‌بندی",
+                "setting.auto_interlude_desc", "نت‌ها/خطوط خالی و فاصله‌های طولانی بعد از متن ترانه را به نشانگرهای متحرک میان‌نوازی تبدیل می‌کند.",
+                "setting.interlude_labels", "نمایش برچسب‌های میان‌نوازی",
+                "setting.interlude_labels_desc", "برچسب متنی را کنار نشانگرهای پیش‌درآمد/میان‌نوازی/پایان‌بندی نشان می‌دهد و آیکون متحرک را نگه می‌دارد.",
+                "setting.synced_karaoke_animation", "افکت کارائوکه متن همگام",
+                "setting.synced_karaoke_animation_desc", "برای متن‌های همگام LRCLIB معمولی بدون sync-data، پرشدن کاراکتری یکنواخت اعمال می‌کند.",
+                "setting.karaoke_bounce_effect", "پرش کارائوکه",
+                "setting.karaoke_bounce_effect_desc", "هنگام پر شدن حروف، متن را کمی جهشی نمایش می‌دهد.",
+                "setting.karaoke_motion_style", "سبک حرکت کارائوکه",
+                "setting.karaoke_motion_style_desc", "کلاسیک جهش ملایم را حفظ می‌کند. پرشور از فیزیک فنر استفاده می‌کند: کلمات در حال خواندن بزرگ‌تر می‌شوند، بالا می‌آیند و می‌درخشند، کلماتی که هنوز خوانده نشده‌اند کمی کوچک‌تر می‌مانند و نت‌های کشیده حرف به حرف متحرک می‌شوند.",
+                "karaoke.motion.classic", "کلاسیک",
+                "karaoke.motion.expressive", "پرشور",
+                "setting.pronunciation_karaoke_fill", "پر کردن تلفظ مانند کارائوکه",
+                "setting.pronunciation_karaoke_fill_desc", "حتی وقتی حالت اول تلفظ خاموش است، ردیف تلفظ هم‌زمان با خواندن پر می‌شود. هوش مصنوعی تلفظ را بر اساس زمان‌بندی هر کلمه یا نویسه تقسیم می‌کند. جلوه‌های دیگر مانند پرش و درخشش اعمال نمی‌شوند.",
+                "setting.synced_pronunciation", "استفاده از تلفظ همگام",
+                "setting.synced_pronunciation_desc", "تلفظ متن‌های کارائوکه را بر اساس زمان‌بندی هر واژه یا حرفی که خوانده می‌شود تقسیم‌شده دریافت می‌کند. با روشن کردن آن، حالت اول تلفظ و پر کردن تلفظ مانند کارائوکه در دسترس است. وقتی خاموش است، تلفظ سریع‌تر به‌صورت متن ساده هر خط دریافت می‌شود.",
+                "section.player", "پخش‌کننده",
+                "section.player_desc", "رفتار نمایش و حالت افقی را تنظیم کنید.",
+                "setting.landscape_auto_hide", "پنهان کردن خودکار کنترل‌ها در حالت افقی",
+                "setting.landscape_auto_hide_desc", "نوار پیشرفت و دکمه‌ها را در صورت غیرفعال بودن در حالت افقی پنهان کنید.",
+                "section.background", "پس‌زمینه",
+                "section.background_desc", "جلد آلبوم، گرادیان تار، یا پس‌زمینه تک رنگ را انتخاب کنید.",
+                "setting.background_mode", "جلوه پس‌زمینه",
+                "setting.background_mode_desc", "نحوه نمایش پس‌زمینه آهنگ فعلی را انتخاب کنید.",
+                "setting.brightness", "روشنایی",
+                "setting.brightness_desc", "روشنایی برای جلد آلبوم و پس‌زمینه گرادیان.",
+                "setting.blur", "محو کردن",
+                "setting.blur_desc", "شدت تاری برای جلد آلبوم و پس‌زمینه گرادیان.",
+                "setting.noise", "بافت نویز",
+                "setting.noise_desc", "یک بافت دانه ظریف مانند ivLyrics اصلی اضافه می کند.",
+                "setting.reduce_motion", "کاهش حرکت",
+                "setting.reduce_motion_desc", "حرکت خودکار آلبوم/ گرادیان پس زمینه را متوقف می کند.",
+                "section.ai_lyrics", "هوش مصنوعی متن ترانه",
+                "section.ai_lyrics_desc", "تلفظ و ترجمه را با دستورات سازگار با ivLyrics ایجاد کنید.",
+                "section.provider", "ارائه دهنده",
+                "field.api_key", "کلید API",
+                "field.model", "مدل",
+                "field.base_url", "URL پایه",
+                "button.save_regenerate", "Save و بازسازی کنید",
+                "button.get_key", "دریافت کلید",
+                "section.tools", "ابزار",
+                "section.tools_desc", "گزارش های حافظه پنهان و اشکال زدایی را مدیریت کنید.",
+                "section.spotify_api", "Spotify API",
+                "section.spotify_api_desc", "از Client ID و Client Secret از Spotify Developer Dashboard استفاده کنید. فقط در این دستگاه ذخیره می شود.",
+                "button.spotify_save", "ذخیره Spotify API",
+                "section.lyrics_cache", "کش متن آهنگ",
+                "section.lyrics_cache_desc", "اشعار پایه sync-data/LRCLIB و حافظه پنهان تلفظ/ترجمه هوش مصنوعی را پاک کنید. آهنگ فعلی پس از پاکسازی مجدداً بارگیری می شود.",
+                "button.clear_current", "پاک کردن آهنگ فعلی",
+                "button.clear_all", "پاک کردن همه",
+                "button.ai_cache_clear", "پاک کردن حافظه نهان AI",
+                "button.debug_log", "اشکال زدایی / گزارشات",
+                "onboarding.subtitle", "شعر کارائوکه، ترجمه و تلفظ آهنگ در حال پخش.",
+                "onboarding.welcome_title", "راه اندازی ivLyrics",
+                "onboarding.welcome_desc", "ابتدا زبان برنامه را انتخاب کنید، سپس مجوز دسترسی به رسانه و اعتبار Spotify API خود را تنظیم کنید.",
+                "onboarding.app_language_en", "زبان برنامه",
+                "onboarding.app_language_native", "زبان برنامه",
+                "onboarding.permission_title", "مجوز دسترسی به رسانه",
+                "onboarding.permission_desc", "دسترسی اعلان Android برای خواندن آهنگی که در حال پخش در Spotify است، لازم است.",
+                "onboarding.permission_hint", "ivLyrics را در صفحه تنظیمات پیدا کنید، اجازه دسترسی دهید، سپس به برنامه بازگردید.",
+                "onboarding.permission_status_enabled", "مجوز فعال است. پخش Spotify اکنون قابل شناسایی است.",
+                "onboarding.permission_status_required", "مجوز هنوز فعال نشده است. تنظیمات مجوز را باز کنید و به ivLyrics اجازه دهید.",
+                "onboarding.spotify_title", "اتصال اطلاعات آهنگ",
+                "onboarding.spotify_desc", "Spotify Web API برای بارگیری ISRC و تصویر آلبوم با وضوح بالا برای آهنگ فعلی استفاده می‌شود.",
+                "onboarding.step_format", "مرحله %d / %d",
+                "spotify.status_configured", "Spotify API پیکربندی شد",
+                "spotify.status_required", "قبل از اولین استفاده Spotify API را ثبت کنید.",
+                "spotify.status_checking", "در حال بررسی نشانه Spotify...",
+                "spotify.status_invalid_format", "درخواست توکن Spotify ناموفق بود: %s\nClient ID و Secret خود را دوباره بررسی کنید.",
+                "button.next", "بعدی",
+                "button.restart", "شروع دوباره",
+                "button.copy", "کپی",
+                "button.open_browser", "باز کردن مرورگر",
+                "button.open_permission", "مجوز باز Settings",
+                "button.prev_track", "تراک قبلی",
+                "button.next_track", "آهنگ بعدی",
+                "debug.title", "اشکال‌زدایی",
+                "debug.permission", "باز کردن مجوز دسترسی به رسانه",
+                "debug.previous", "قبلی",
+                "debug.play_pause", "پخش/مکث",
+                "debug.next", "بعدی",
+                "debug.refresh", "بازخوانی",
+                "debug.log", "گزارش",
+                "debug.log_waiting", "در انتظار گزارش‌ها",
+                "lyrics.tab.language", "زبان",
+                "lyrics.tab.sync", "همگام سازی",
+                "lyrics.translation", "ترجمه",
+                "lyrics.pronunciation", "تلفظ",
+                "lyrics.sync.title", "افست همگام‌سازی آهنگ فعلی",
+                "lyrics.sync.reset", "بازنشانی به 0ms",
+                "lyrics.sync.no_track", "آهنگ پخش نمی شود، بنابراین ذخیره نمی شود.",
+                "lyrics.sync.track_scope", "فقط برای \"%s\" ذخیره شد.",
+                "lyrics.sync.help", "+ مقادیر اشعار را زودتر نشان می دهد. - مقادیر بعداً آنها را نشان می دهد.",
+                "lyrics.menu_tip", "برای باز کردن تنظیمات ترجمه و تلفظ، عنوان یا هنرمند را نگه دارید.",
+                "lyrics.rule.track_language", "زبان آهنگ",
+                "lyrics.rule.save_target", "Save هدف",
+                "lyrics.rule.translation_language", "زبان ترجمه",
+                "label.on", "روشن",
+                "label.off", "خاموش",
+                "label.auto", "خودکار",
+                "label.auto_target", "خودکار (%s)",
+                "lyrics.button.translation_on", "ترجمه در",
+                "lyrics.button.pronunciation_on", "تلفظ در",
+                "lyrics.button.translation_plus", "ترجمه+",
+                "field.api_key_desc", "از یک کلید واحد، لیست خط جدید یا آرایه JSON پشتیبانی می کند. فقط در این دستگاه ذخیره می شود.",
+                "field.model_desc", "مدل ارائه‌دهنده را مستقیماً تعیین کنید.",
+                "field.base_url_desc", "URL پایهٔ API سازگار با OpenAI یا API ارائه‌دهنده.",
+                "field.max_tokens", "حداکثر توکن",
+                "field.temperature", "خلاقیت",
+                "field.solid_color", "رنگ یکدست پس‌زمینه",
+                "field.solid_color_desc", "رنگ مورد استفاده در حالت پس‌زمینه ثابت را انتخاب کنید.",
+                "field.spotify_client_id_desc", "Client ID برنامه Spotify شما.",
+                "field.spotify_client_secret_desc", "Client Secret برنامه Spotify شما.",
+                "preview.none", "پنهان",
+                "preview.original", "متن اصلی",
+                "preview.pronunciation", "تلفظ",
+                "preview.translation", "ترجمه",
+                "background.mode.gradient", "جلد آلبوم",
+                "background.mode.gradient_desc", "از جلد آلبوم فعلی به عنوان پس‌زمینه تار بزرگ استفاده می‌کند.",
+                "background.mode.blur_gradient", "گرادیان تار",
+                "background.mode.blur_gradient_desc", "یک گرادیان تار متحرک از رنگ های آلبوم ایجاد می کند.",
+                "background.mode.solid", "رنگ یکدست",
+                "background.mode.solid_desc", "از یک رنگ پس‌زمینه ثابت سفارشی استفاده می‌کند.",
+                "provider.desc.gemini", "Google AI Studio API",
+                "provider.desc.chatgpt", "API سازگار با OpenAI",
+                "provider.desc.claude", "Claude Messages API",
+                "provider.desc.openrouter", "چندین مدل هوش مصنوعی را مسیریابی می کند",
+                "provider.desc.groq", "استنتاج سریع سازگار با OpenAI",
+                "provider.desc.perplexity", "Agent API",
+                "provider.desc.pollinations", "API سازگار با OpenAI در Pollinations",
+                "spotify.step0.title", "به Spotify Developer Dashboard بروید",
+                "spotify.step0.desc", "Spotify Developer Dashboard را در مرورگر خود باز کنید. وارد شوید و یک برنامه جدید ایجاد کنید.",
+                "spotify.step1.title", "یک نام در Create app وارد کنید",
+                "spotify.step1.desc", "Create app را فشار دهید و مقدار زیر را برای App name وارد کنید. ivLyrics یا ivlyrics را ننویسید.",
+                "spotify.step2.title", "توضیحات را وارد کنید",
+                "spotify.step2.desc", "مقدار زیر را برای App description نیز وارد کنید. این فقط یک مثال برای جلوگیری از سردرگمی است.",
+                "spotify.step3.title", "Redirect URI را وارد کنید",
+                "spotify.step3.desc", "آدرس زیر را به Redirect URIs اضافه کنید. اسلش انتهایی را لحاظ کنید.",
+                "spotify.step4.title", "Web API را انتخاب و ذخیره کنید",
+                "spotify.step4.desc", "Web API را در ناحیه انتخاب API انتخاب کنید، کادر توافق را علامت بزنید، سپس Save را فشار دهید.",
+                "spotify.step5.title", "Client ID و Secret را کپی کنید",
+                "spotify.step5.desc", "Client ID و Client Secret را از تنظیمات برنامه کپی کنید، آنها را در زیر جایگذاری کنید، سپس Spotify API را ذخیره کنید.",
+                "toast.copied_format", "کپی شد: %s",
+                "toast.provider_saved", "ارائه دهنده ذخیره شد",
+                "toast.pronunciation_language_saved", "زبان تلفظ ذخیره شد",
+                "toast.preview_saved", "پیش نمایش متن اصلی ذخیره شد",
+                "toast.background_saved", "جلوه پس زمینه ذخیره شد",
+                "toast.metadata_translation_on", "ترجمه عنوان/هنرمند روشن است",
+                "toast.metadata_translation_off", "ترجمه عنوان/هنرمند خاموش است",
+                "toast.auto_interlude_on", "تشخیص خودکار میان‌نوازی روشن است",
+                "toast.auto_interlude_off", "تشخیص خودکار میان‌نوازی خاموش است",
+                "toast.landscape_auto_hide_on", "پنهان‌سازی خودکار کنترل‌ها در حالت افقی روشن است",
+                "toast.landscape_auto_hide_off", "پنهان‌سازی خودکار کنترل‌ها در حالت افقی خاموش است",
+                "toast.background_noise_on", "بافت نویز روشن است",
+                "toast.background_noise_off", "بافت نویز خاموش است",
+                "toast.reduce_motion_on", "کاهش حرکت پس زمینه",
+                "toast.reduce_motion_off", "حرکت پس‌زمینه فعال شد",
+                "toast.ai_cache_cleared", "حافظه پنهان هوش مصنوعی پاک شد",
+                "toast.language_rule_saved", "تنظیمات زبان آهنگ ذخیره شد",
+                "toast.settings_saved", "Settings ذخیره شد",
+                "toast.spotify_missing", "هم Client ID و هم Client Secret را وارد کنید.",
+                "toast.spotify_checking", "در حال بررسی توکن Spotify...",
+                "toast.spotify_invalid", "اعتبار Spotify API خود را دوباره بررسی کنید.",
+                "toast.spotify_saved", "Spotify API ذخیره شد",
+                "toast.current_track_missing", "اطلاعات آهنگ فعلی وجود ندارد",
+                "toast.current_cache_cleared", "اشعار آهنگ فعلی کش پاک شد",
+                "toast.all_cache_cleared", "تمام حافظه پنهان اشعار پاک شد",
+                "toast.sync_offset_format", "افست همگام‌سازی %s",
+                "status.lyrics_request_failed", "درخواست متن ترانه انجام نشد",
+                "status.ai_applied", "ترجمه/تلفظ اعمال شد",
+                "status.ai_failed_format", "اشعار AI شکست خورد: %s",
+                "status.ai_cache_cleared", "حافظه پنهان هوش مصنوعی پاک شد",
+                "status.ai_lyrics_active", "اشعار هوش مصنوعی فعال شد",
+                "status.ai_key_needed", "یک کلید API برای تولید اشعار AI وارد کنید.",
+                "status.ai_disabled", "ترجمه/تلفظ خاموش است.",
+                "status.no_lyrics_to_apply", "متنی برای اعمال وجود ندارد.",
+                "status.ai_generating", "در حال تولید متن ترانه با هوش مصنوعی...",
+                "status.reload_after_spotify", "بارگیری مجدد اشعار ISRC، sync-data، و LRCLIB این آهنگ پس از تغییر تنظیمات Spotify API.",
+                "status.detecting_media", "تشخیص جلسه رسانه",
+                "status.permission_required", "مجوز دسترسی به اعلان مورد نیاز است",
+                "status.lyrics_lookup_spotify", "یافتن ISRC با Spotify Web API، سپس بارگیری sync-data و LRCLIB.",
+                "status.lyrics_lookup_player", "در حال بارگیری sync-data و LRCLIB با پخش کننده ISRC.",
+                "status.waiting_current_track", "در حال انتظار برای آهنگ در حال پخش",
+                "status.spotify_required_plain", "Spotify API مورد نیاز است",
+                "loading.generating", "تولید",
+                "loading.pronunciation", "در حال تولید تلفظ...",
+                "loading.translation", "ایجاد ترجمه...",
+                "loading.word_sync", "در حال ایجاد همگام‌سازی واژه‌ها...",
+                "loading.word_sync_desc", "داده‌های همگام‌سازی واژه‌به‌واژه در یک سرور خارجی متن ترانه در حال تولید است.",
+                "status.word_sync_failed", "همگام‌سازی واژه‌ها ناموفق بود",
+                "pronunciation_first.state_on", "اول تلفظ روشن است. برای خاموش کردن ضربه بزنید",
+                "pronunciation_first.state_off", "اول تلفظ خاموش است. برای روشن کردن ضربه بزنید",
+                "loading.pronunciation_sync", "هوش مصنوعی در حال تطبیق تلفظ با زمان‌بندی متن آهنگ است...",
+                "status.pronunciation_sync_failed", "زمان‌بندی تلفظ ناموفق بود",
+                "lyrics.empty_none", "بدون شعر",
+                "interlude.prelude", "پیش‌درآمد",
+                "interlude.break", "میان‌نوازی",
+                "interlude.postlude", "پایان‌بندی",
+                "onboarding.preview.line1", "اشعار کارائوکه به دنبال آهنگ می آید",
+                "onboarding.preview.line2", "تلفظ و ترجمه در اینجا ظاهر می شود",
+                "onboarding.preview.line3", "همه چیز با آهنگ فعلی به روز می شود",
+                "repo.metadata_waiting", "در انتظار فراداده آهنگ",
+                "repo.lyrics_not_found", "متن LRCLIB پیدا نشد",
+                "repo.instrumental", "قطعه بی‌کلام",
+                "repo.no_renderable_lyrics", "متن LRCLIB قابل نمایش وجود ندارد",
+                "repo.detail.sync_applied_direct", "sync-data کارائوکه اعمال شد. LRCLIB مستقیماً از sync-data بارگذاری شد.",
+                "repo.detail.sync_applied_search", "sync-data کارائوکه اعمال شد. LRCLIB با جستجو انتخاب شد.",
+                "repo.detail.no_spotify_isrc", "متن خطی LRCLIB. جستجوی Spotify ISRC در دسترس نیست.",
+                "repo.detail.no_sync_data", "متن خطی LRCLIB. sync-data مطابق این ISRC پیدا نشد.",
+                "repo.detail.sync_apply_failed", "متن خطی LRCLIB. sync-data قابل اعمال نبود.",
+                "spotify.error.incomplete_credentials", "Client ID یا Client Secret در Spotify API وارد نشده است.",
+                "spotify.error.credentials_not_configured", "اطلاعات Spotify API تنظیم نشده است.",
+                "spotify.error.no_access_token", "پاسخ توکن Spotify شامل access_token نبود.",
+                "spotify.error.repository_unavailable", "مخزن متن آهنگ در دسترس نیست.",
+                "lyrics.credit_sync_by_format", "sync توسط %s",
+                "sync.type_line", "خط",
+                "sync.type_word", "واژه",
+                "sync.type_character", "نویسه",
+                "sync.type_mixed", "ترکیبی",
+                "sync.type_unknown", "همگام‌سازی قدیمی"
+        );
+    }
+
+    private static Map<String, String> deStrings() {
+        return strings(
+                "button.close", "Schließen",
+                "button.previous", "Zurück",
+                "button.save_start", "Save und Start",
+                "button.spotify_setup", "Spotify API einrichten",
+                "status.waiting_spotify", "Warten auf die Wiedergabe von Spotify",
+                "status.lyrics_loading", "Liedtext wird geladen",
+                "status.lyrics_waiting", "Warten auf Liedtext",
+                "status.spotify_required_title", "Spotify API Erforderlich",
+                "status.spotify_required_subtitle", "Save Ihr Client ID und Secret zuerst",
+                "status.spotify_required_detail", "Die Liedtexte ISRC, sync-data und LRCLIB werden erst geladen, wenn die Einrichtung abgeschlossen ist.",
+                "toast.spotify_required", "Registrieren Sie zuerst die Spotify API",
+                "toast.setup_required", "Schließen Sie zuerst die Ersteinrichtung ab.",
+                "toast.back_exit", "Drücken Sie erneut „Zurück“, um die App zu beenden.",
+                "toast.ui_language_saved", "App-Sprache gespeichert",
+                "settings.title", "Einstellungen",
+                "settings.subtitle", "Liedtext, Anzeige, Vollbild, KI und Werkzeuge.",
+                "tab.lyrics", "Liedtext.",
+                "tab.display", "Anzeige.",
+                "tab.ai", "AI.",
+                "tab.tools", "Werkzeuge",
+                "section.language", "Sprache",
+                "section.language_desc", "App-Sprache, Aussprache und Übersetzungsregeln pro Lied separat verwalten.",
+                "setting.ui_language", "App-Sprache",
+                "setting.ui_language_desc", "Sprache, die für die App-Benutzeroberfläche verwendet wird. Es werden nur Sprachen mit echten UI-Übersetzungen angezeigt.",
+                "setting.pronunciation_language", "Aussprachesprache",
+                "setting.pronunciation_language_desc", "Wählen Sie aus, in welcher Schrift/Sprache die Aussprache generiert werden soll.",
+                "setting.metadata_translation", "Titel/Künstler übersetzen",
+                "setting.metadata_translation_desc", "Übersetzen Sie auch den aktuellen Songtitel und Interpreten in der ausgewählten Zielsprache.",
+                "setting.main_preview", "Haupttextvorschau",
+                "setting.main_preview_desc", "Wählen Sie Original-, Aussprache- und Übersetzungszeilen aus. Lange Zeilen gleiten im Takt des Liedtexts.",
+                "setting.auto_interlude", "Automatische Erkennung von Intro/Zwischenspiel/Outro",
+                "setting.auto_interlude_desc", "Wandelt Noten/Leerzeilen und lange Lücken nach Liedtexten in animierte Zwischenspielmarkierungen um.",
+                "setting.interlude_labels", "Zwischenspiel-Labels anzeigen",
+                "setting.interlude_labels_desc", "Zeigt den Text neben Intro-/Zwischenspiel-/Outro-Markern an und behält das animierte Symbol bei.",
+                "setting.synced_karaoke_animation", "Karaoke-Effekt für synchronisierte Zeilen",
+                "setting.synced_karaoke_animation_desc", "Wendet gleichmäßige Zeichenfüllung auf normale LRCLIB-Sync-Texte ohne sync-data an.",
+                "setting.karaoke_bounce_effect", "Karaoke-Sprungbewegung",
+                "setting.karaoke_bounce_effect_desc", "Lässt den Text leicht springen, während Zeichen gefüllt werden.",
+                "setting.karaoke_motion_style", "Karaoke-Bewegungsstil",
+                "setting.karaoke_motion_style_desc", "Klassisch behält das dezente Hüpfen bei. Ausdrucksstark nutzt Federphysik: gesungene Wörter wachsen, heben sich und leuchten, noch nicht gesungene Wörter bleiben etwas kleiner, und lang gehaltene Töne werden Buchstabe für Buchstabe animiert.",
+                "karaoke.motion.classic", "Klassisch",
+                "karaoke.motion.expressive", "Ausdrucksstark",
+                "setting.pronunciation_karaoke_fill", "Aussprache wie Karaoke füllen",
+                "setting.pronunciation_karaoke_fill_desc", "Auch wenn der Aussprache-zuerst-Modus aus ist, füllt sich die Aussprachezeile im Takt des Gesangs. Die KI verteilt die Aussprache auf das Wort- oder Zeichentiming. Andere Effekte wie Hüpfen und Leuchten werden nicht angewendet.",
+                "setting.synced_pronunciation", "Synchronisierte Aussprache",
+                "setting.synced_pronunciation_desc", "Lädt die Aussprache von Karaoke-Texten aufgeteilt nach dem Timing jedes gesungenen Worts oder Zeichens. Eingeschaltet stehen der Modus „Aussprache zuerst“ und das Füllen der Aussprache wie Karaoke zur Verfügung. Ausgeschaltet kommt die Aussprache schneller als einfacher Zeilentext.",
+                "section.player", "Player",
+                "section.player_desc", "Passen Sie das Anzeige- und Querformatverhalten an.",
+                "setting.landscape_auto_hide", "Steuerelemente im Querformat automatisch ausblenden",
+                "setting.landscape_auto_hide_desc", "Fortschrittsbalken und Schaltflächen ausblenden, wenn sie im Querformat inaktiv sind.",
+                "section.background", "Hintergrund",
+                "section.background_desc", "Wählen Sie Albumcover, unscharfen Farbverlauf oder einfarbigen Hintergrund.",
+                "setting.background_mode", "Hintergrundeffekt",
+                "setting.background_mode_desc", "Wählen Sie, wie der Hintergrund des aktuellen Songs gerendert wird.",
+                "setting.brightness", "Helligkeit",
+                "setting.brightness_desc", "Helligkeit für Albumcover und Verlaufshintergründe.",
+                "setting.blur", "Unschärfe",
+                "setting.blur_desc", "Unschärfeintensität für Albumcover und Verlaufshintergründe.",
+                "setting.noise", "Rauschtextur",
+                "setting.noise_desc", "Fügt eine subtile Körnungstextur wie beim Original ivLyrics hinzu.",
+                "setting.reduce_motion", "Bewegung reduzieren",
+                "setting.reduce_motion_desc", "Stoppt die automatische Album-/Verlaufshintergrundbewegung.",
+                "section.ai_lyrics", "Songtext AI",
+                "section.ai_lyrics_desc", "Generieren Sie Aussprache und Übersetzungen mit Eingabeaufforderungen, die mit ivLyrics kompatibel sind.",
+                "section.provider", "Anbieter",
+                "field.api_key", "API-Schlüssel",
+                "field.model", "Modell",
+                "field.base_url", "Basis-URL",
+                "button.save_regenerate", "Save und neu generieren",
+                "button.get_key", "Schlüssel abrufen",
+                "section.tools", "Werkzeuge",
+                "section.tools_desc", "Cache- und Debug-Protokolle verwalten.",
+                "section.spotify_api", "Spotify API",
+                "section.spotify_api_desc", "Verwenden Sie ein Client ID und Client Secret aus dem Spotify Developer Dashboard. Nur auf diesem Gerät gespeichert.",
+                "button.spotify_save", "Spotify API speichern",
+                "section.lyrics_cache", "Liedtext-Cache",
+                "section.lyrics_cache_desc", "Basistext- und AI-Aussprache-/Übersetzungs-Cache für sync-data/LRCLIB löschen. Der aktuelle Song wird nach dem Löschen neu geladen.",
+                "button.clear_current", "Aktuellen Titel löschen",
+                "button.clear_all", "Alle löschen",
+                "button.ai_cache_clear", "AI-Cache löschen",
+                "button.debug_log", "Debug / Protokolle",
+                "onboarding.subtitle", "Karaoke-Texte, Übersetzung und Aussprache für das aktuell abgespielte Lied.",
+                "onboarding.welcome_title", "ivLyrics einrichten",
+                "onboarding.welcome_desc", "Wählen Sie zuerst die App-Sprache und legen Sie dann die Medienzugriffsberechtigung und Ihre eigenen Spotify API Anmeldeinformationen fest.",
+                "onboarding.app_language_en", "App-Sprache",
+                "onboarding.app_language_native", "App-Sprache",
+                "onboarding.permission_title", "Medienzugriffsberechtigung",
+                "onboarding.permission_desc", "Android-Benachrichtigungszugriff ist erforderlich, um den Song zu lesen, der aktuell in Spotify abgespielt wird.",
+                "onboarding.permission_hint", "Suchen Sie im Einstellungsbildschirm nach ivLyrics, erlauben Sie den Zugriff und kehren Sie dann zur App zurück.",
+                "onboarding.permission_status_enabled", "Berechtigung ist aktiviert. Die Wiedergabe von Spotify kann jetzt erkannt werden.",
+                "onboarding.permission_status_required", "Berechtigung ist noch nicht aktiviert. Öffnen Sie die Berechtigungseinstellungen und erlauben Sie ivLyrics.",
+                "onboarding.spotify_title", "Song-Info verbinden",
+                "onboarding.spotify_desc", "Spotify Web API wird zum Laden von ISRC und hochauflösenden Grafiken für den aktuellen Song verwendet.",
+                "onboarding.step_format", "Schritt %d / %d",
+                "spotify.status_configured", "Spotify API konfiguriert",
+                "spotify.status_required", "Registrieren Sie Spotify API vor der ersten Verwendung.",
+                "spotify.status_checking", "Spotify-Token wird überprüft...",
+                "spotify.status_invalid_format", "Spotify-Tokenanforderung fehlgeschlagen: %s\nÜberprüfen Sie Ihre Client ID und Ihr Client Secret erneut.",
+                "button.next", "Weiter",
+                "button.restart", "Von vorne beginnen",
+                "button.copy", "Kopieren",
+                "button.open_browser", "Browser öffnen",
+                "button.open_permission", "Erlaubnis öffnen Settings",
+                "button.prev_track", "Vorheriger Titel",
+                "button.next_track", "Nächster Titel",
+                "debug.title", "Debuggen",
+                "debug.permission", "Medienzugriffsberechtigung öffnen",
+                "debug.previous", "Vorheriger",
+                "debug.play_pause", "Abspielen/Pause",
+                "debug.next", "Nächster",
+                "debug.refresh", "Aktualisieren",
+                "debug.log", "Protokoll",
+                "debug.log_waiting", "Warten auf Protokolle",
+                "lyrics.tab.language", "Sprache",
+                "lyrics.tab.sync", "Synchronisierung",
+                "lyrics.translation", "Übersetzung",
+                "lyrics.pronunciation", "Aussprache",
+                "lyrics.sync.title", "Aktueller Song-Sync-Offset",
+                "lyrics.sync.reset", "Zurücksetzen auf 0 ms",
+                "lyrics.sync.no_track", "Kein Song wird abgespielt, daher wird dieser nicht gespeichert.",
+                "lyrics.sync.track_scope", "Nur für „%s“ gespeichert.",
+                "lyrics.sync.help", "+ Werte zeigen Liedtext früher an; - Werte zeigen sie später an.",
+                "lyrics.menu_tip", "Halte Titel oder Künstler gedrückt, um Übersetzung und Aussprache zu öffnen.",
+                "lyrics.rule.track_language", "Songsprache",
+                "lyrics.rule.save_target", "Save Ziel",
+                "lyrics.rule.translation_language", "Übersetzungssprache",
+                "label.on", "Ein",
+                "label.off", "Aus",
+                "label.auto", "Automatisch",
+                "label.auto_target", "Automatisch (%s)",
+                "lyrics.button.translation_on", "Übersetzung Ein",
+                "lyrics.button.pronunciation_on", "Aussprache Ein",
+                "lyrics.button.translation_plus", "Übersetzung+",
+                "field.api_key_desc", "Unterstützt einen einzelnen Schlüssel, eine Zeilenumbruchliste oder ein JSON-Array. Nur auf diesem Gerät gespeichert.",
+                "field.model_desc", "Anbietermodellüberschreibung.",
+                "field.base_url_desc", "Basis-URL der OpenAI-kompatiblen oder Anbieter-API.",
+                "field.max_tokens", "Max. Token",
+                "field.temperature", "Kreativität",
+                "field.solid_color", "Feste Hintergrundfarbe",
+                "field.solid_color_desc", "Wahlen Sie die Farbe fur den einfarbigen Hintergrundmodus.",
+                "field.spotify_client_id_desc", "Client ID Ihrer Spotify App.",
+                "field.spotify_client_secret_desc", "Client Secret Ihrer Spotify App.",
+                "preview.none", "Versteckt",
+                "preview.original", "Original",
+                "preview.pronunciation", "Aussprache",
+                "preview.translation", "Übersetzung",
+                "background.mode.gradient", "Albumcover",
+                "background.mode.gradient_desc", "Verwendet das aktuelle Albumcover als großen unscharfen Hintergrund.",
+                "background.mode.blur_gradient", "Unscharfer Farbverlauf",
+                "background.mode.blur_gradient_desc", "Erstellt einen beweglichen, unscharfen Farbverlauf aus den Albumfarben.",
+                "background.mode.solid", "Volltonfarbe",
+                "background.mode.solid_desc", "Verwendet eine benutzerdefinierte Volltonhintergrundfarbe.",
+                "provider.desc.gemini", "Google AI Studio API",
+                "provider.desc.chatgpt", "OpenAI-kompatible API",
+                "provider.desc.claude", "Claude Messages API",
+                "provider.desc.openrouter", "Leitet mehrere KI-Modelle weiter",
+                "provider.desc.groq", "Schnelle OpenAI-kompatible Inferenz",
+                "provider.desc.perplexity", "Agent API",
+                "provider.desc.pollinations", "OpenAI-kompatible Pollinations-API",
+                "spotify.step0.title", "Gehen Sie zum Spotify-Entwickler-Dashboard",
+                "spotify.step0.desc", "Öffnen Sie das Spotify-Entwickler-Dashboard in Ihrem Browser. Melden Sie sich an und erstellen Sie eine neue App.",
+                "spotify.step1.title", "Geben Sie einen Namen in Create app ein.",
+                "spotify.step1.desc", "Drücken Sie Create app und geben Sie den folgenden Wert für App name ein. Schreiben Sie keine ivLyrics oder ivlyrics.",
+                "spotify.step2.title", "Geben Sie die Beschreibung ein.",
+                "spotify.step2.desc", "Geben Sie auch den folgenden Wert für App description ein. Es handelt sich lediglich um ein Beispiel, um Verwirrung zu vermeiden.",
+                "spotify.step3.title", "Geben Sie den Umleitungs-URI ein.",
+                "spotify.step3.desc", "Fügen Sie die Adresse unten zu Redirect URIs hinzu. Fügen Sie den abschließenden Schrägstrich ein.",
+                "spotify.step4.title", "Wählen Sie Web API und speichern Sie",
+                "spotify.step4.desc", "Wählen Sie Web API im Auswahlbereich API aus, aktivieren Sie das Vereinbarungskästchen und drücken Sie dann Save.",
+                "spotify.step5.title", "Kopieren Sie Client ID und Secret.",
+                "spotify.step5.desc", "Kopieren Sie Client ID und Client Secret aus den App-Einstellungen, fügen Sie sie unten ein und speichern Sie dann Spotify API.",
+                "toast.copied_format", "Kopiert: %s",
+                "toast.provider_saved", "Anbieter gespeichert",
+                "toast.pronunciation_language_saved", "Aussprachesprache gespeichert",
+                "toast.preview_saved", "Haupttextvorschau gespeichert",
+                "toast.background_saved", "Hintergrundeffekt gespeichert",
+                "toast.metadata_translation_on", "Titel-/Künstlerübersetzung aktiviert",
+                "toast.metadata_translation_off", "Titel-/Künstlerübersetzung deaktiviert",
+                "toast.auto_interlude_on", "Automatische Zwischenspielerkennung aktiviert",
+                "toast.auto_interlude_off", "Automatische Zwischenspielerkennung ausgeschaltet",
+                "toast.landscape_auto_hide_on", "Automatisches Ausblenden der Steuerelemente im Querformat an",
+                "toast.landscape_auto_hide_off", "Automatisches Ausblenden der Steuerelemente im Querformat aus",
+                "toast.background_noise_on", "Rauschtextur an",
+                "toast.background_noise_off", "Rauschtextur aus",
+                "toast.reduce_motion_on", "Reduzierte Hintergrundbewegung",
+                "toast.reduce_motion_off", "Hintergrundbewegung aktiviert",
+                "toast.ai_cache_cleared", "AI-Cache gelöscht",
+                "toast.language_rule_saved", "Song-Spracheinstellungen gespeichert",
+                "toast.settings_saved", "Settings gespeichert",
+                "toast.spotify_missing", "Geben Sie sowohl Client ID als auch Client Secret ein.",
+                "toast.spotify_checking", "Spotify-Token wird überprüft...",
+                "toast.spotify_invalid", "Überprüfen Sie Ihre Spotify API-Anmeldeinformationen erneut.",
+                "toast.spotify_saved", "Spotify API gespeichert",
+                "toast.current_track_missing", "Keine aktuellen Songinformationen",
+                "toast.current_cache_cleared", "Aktueller Songtext-Cache geleert",
+                "toast.all_cache_cleared", "Gesamter Liedtext-Cache gelöscht",
+                "toast.sync_offset_format", "Synchronisierungsoffset %s",
+                "status.lyrics_request_failed", "Liedtextanforderung fehlgeschlagen",
+                "status.ai_applied", "Übersetzung/Aussprache angewendet",
+                "status.ai_failed_format", "AI-Liedtext fehlgeschlagen: %s",
+                "status.ai_cache_cleared", "AI-Cache gelöscht",
+                "status.ai_lyrics_active", "AI-Liedtext aktiviert",
+                "status.ai_key_needed", "Geben Sie einen API-Schlüssel ein, um AI-Texte zu generieren.",
+                "status.ai_disabled", "Übersetzung/Aussprache ist deaktiviert.",
+                "status.no_lyrics_to_apply", "Kein Text zum Anwenden.",
+                "status.ai_generating", "AI-Texte werden generiert...",
+                "status.reload_after_spotify", "Die Liedtexte ISRC, sync-data und LRCLIB dieses Songs werden neu geladen, nachdem sich die Einstellungen für Spotify API geändert haben.",
+                "status.detecting_media", "Mediensitzung wird erkannt.",
+                "status.permission_required", "Benachrichtigungszugriffsberechtigung erforderlich.",
+                "status.lyrics_lookup_spotify", "ISRC wird über die Spotify Web API gesucht, dann werden sync-data und LRCLIB geladen.",
+                "status.lyrics_lookup_player", "sync-data und LRCLIB werden mit der ISRC des Players geladen.",
+                "status.waiting_current_track", "Warten auf das aktuell abgespielte Lied",
+                "status.spotify_required_plain", "Spotify API erforderlich",
+                "loading.generating", "Generieren",
+                "loading.pronunciation", "Generieren der Aussprache...",
+                "loading.translation", "Übersetzung wird generiert...",
+                "loading.word_sync", "Wortsynchronisierung wird erstellt...",
+                "loading.word_sync_desc", "Auf einem externen Liedtextserver werden Zeitdaten für einzelne Wörter erstellt.",
+                "status.word_sync_failed", "Wortsynchronisierung fehlgeschlagen",
+                "pronunciation_first.state_on", "Aussprache zuerst an. Tippen zum Ausschalten",
+                "pronunciation_first.state_off", "Aussprache zuerst aus. Tippen zum Einschalten",
+                "loading.pronunciation_sync", "KI passt die Aussprache an das Liedtext-Timing an...",
+                "status.pronunciation_sync_failed", "Aussprache-Timing fehlgeschlagen",
+                "lyrics.empty_none", "Keine Texte",
+                "interlude.prelude", "Intro",
+                "interlude.break", "Zwischenspiel",
+                "interlude.postlude", "Outro",
+                "onboarding.preview.line1", "Karaoke-Texte folgen dem Lied",
+                "onboarding.preview.line2", "Aussprache und Übersetzung erscheinen hier",
+                "onboarding.preview.line3", "Alles wird mit dem aktuellen Titel aktualisiert",
+                "repo.metadata_waiting", "Warte auf Song-Metadaten",
+                "repo.lyrics_not_found", "LRCLIB-Texte wurden nicht gefunden",
+                "repo.instrumental", "Instrumentaltitel",
+                "repo.no_renderable_lyrics", "Keine anzeigbaren LRCLIB-Texte",
+                "repo.detail.sync_applied_direct", "Karaoke sync-data angewendet. LRCLIB wurde direkt aus sync-data geladen.",
+                "repo.detail.sync_applied_search", "Karaoke sync-data angewendet. LRCLIB wurde per Suche ausgewählt.",
+                "repo.detail.no_spotify_isrc", "LRCLIB-Zeilentexte. Spotify-ISRC-Suche ist nicht verfügbar.",
+                "repo.detail.no_sync_data", "LRCLIB-Zeilentexte. Keine passenden sync-data für diesen ISRC gefunden.",
+                "repo.detail.sync_apply_failed", "LRCLIB-Zeilentexte. sync-data konnte nicht angewendet werden.",
+                "spotify.error.incomplete_credentials", "Spotify API Client ID oder Client Secret fehlt.",
+                "spotify.error.credentials_not_configured", "Spotify API-Zugangsdaten sind nicht konfiguriert.",
+                "spotify.error.no_access_token", "Die Spotify-Token-Antwort enthielt kein access_token.",
+                "spotify.error.repository_unavailable", "Das Lyrics-Repository ist nicht verfügbar.",
+                "lyrics.credit_sync_by_format", "sync von %s",
+                "sync.type_line", "Zeile",
+                "sync.type_word", "Wort",
+                "sync.type_character", "Zeichen",
+                "sync.type_mixed", "Gemischt",
+                "sync.type_unknown", "Legacy-Sync"
+        );
+    }
+
+    private static Map<String, String> ruStrings() {
+        return strings(
+                "button.close", "Закрыть",
+                "button.previous", "Назад",
+                "button.save_start", "Save и начать",
+                "button.spotify_setup", "Настройка Spotify API",
+                "status.waiting_spotify", "Ожидание воспроизведения Spotify",
+                "status.lyrics_loading", "Загрузка текста",
+                "status.lyrics_waiting", "Ожидание текста",
+                "status.spotify_required_title", "Требуется Spotify API",
+                "status.spotify_required_subtitle", "Save ваш Client ID и секрет первые тексты песен",
+                "status.spotify_required_detail", "ISRC, sync-data и LRCLIB не загружаются до завершения настройки.",
+                "toast.spotify_required", "Сначала зарегистрируйте Spotify API",
+                "toast.setup_required", "Сначала завершите первоначальную настройку",
+                "toast.back_exit", "Нажмите «Назад» еще раз, чтобы выйти",
+                "toast.ui_language_saved", "Язык приложения сохранен",
+                "settings.title", "Настройки",
+                "settings.subtitle", "Тексты, дисплей, полноэкранный режим, искусственный интеллект и инструменты",
+                "tab.lyrics", "Текст",
+                "tab.display", "Отображение",
+                "tab.ai", "AI",
+                "tab.tools", "Инструменты",
+                "section.language", "Язык",
+                "section.language_desc", "Управляйте языком приложения, произношением и правилами перевода для каждой песни отдельно.",
+                "setting.ui_language", "Язык приложения",
+                "setting.ui_language_desc", "Язык, используемый для пользовательского интерфейса приложения. Показаны только языки с реальными переводами пользовательского интерфейса.",
+                "setting.pronunciation_language", "Язык произношения",
+                "setting.pronunciation_language_desc", "Выберите сценарий/язык, на котором будет генерироваться произношение.",
+                "setting.metadata_translation", "Переводить название/исполнителя",
+                "setting.metadata_translation_desc", "Также переведите текущее название песни и исполнителя, используя выбранный целевой язык.",
+                "setting.main_preview", "Превью основного текста",
+                "setting.main_preview_desc", "Выберите строки оригинала, произношения и перевода. Длинные строки прокручиваются синхронно с текстом песни.",
+                "setting.auto_interlude", "Автоматическое определение вступления/интерлюдии/завершения",
+                "setting.auto_interlude_desc", "Превращает ноты/пустые строки и длинные паузы после текста в анимированные маркеры интерлюдии.",
+                "setting.interlude_labels", "Показывать подписи интерлюдий",
+                "setting.interlude_labels_desc", "Показывает текст рядом с маркерами вступления/интерлюдии/завершения, сохраняя анимированный значок.",
+                "setting.synced_karaoke_animation", "Караоке-эффект для синхронных строк",
+                "setting.synced_karaoke_animation_desc", "Применяет равномерную посимвольную заливку к обычным синхронным текстам LRCLIB без sync-data.",
+                "setting.karaoke_bounce_effect", "Подпрыгивание караоке",
+                "setting.karaoke_bounce_effect_desc", "Слегка подпрыгивает текст во время посимвольной заливки.",
+                "setting.karaoke_motion_style", "Стиль анимации караоке",
+                "setting.karaoke_motion_style_desc", "Классический сохраняет мягкое подпрыгивание. Выразительный использует пружинную физику: исполняемые слова увеличиваются, приподнимаются и светятся, ещё не спетые слова остаются чуть меньше, а долгие ноты анимируются по буквам.",
+                "karaoke.motion.classic", "Классический",
+                "karaoke.motion.expressive", "Выразительный",
+                "setting.pronunciation_karaoke_fill", "Заполнять произношение как в караоке",
+                "setting.pronunciation_karaoke_fill_desc", "Даже когда режим «сначала произношение» выключен, строка произношения заполняется в такт пению. ИИ распределяет произношение по таймингу слов или символов. Другие эффекты, например подпрыгивание и свечение, не применяются.",
+                "setting.synced_pronunciation", "Синхронное произношение",
+                "setting.synced_pronunciation_desc", "Получает произношение караоке-текстов, разбитое по таймингу каждого пропеваемого слова или символа. Когда включено, доступны режим «Сначала произношение» и заполнение произношения как в караоке. Когда выключено, произношение приходит быстрее обычным текстом по строкам.",
+                "section.player", "Плеер",
+                "section.player_desc", "Настройте отображение и поведение в альбомной ориентации.",
+                "setting.landscape_auto_hide", "Автоматически скрывать элементы управления в альбомной ориентации",
+                "setting.landscape_auto_hide_desc", "Скрытие индикатора выполнения и кнопок, когда они неактивны в альбомной ориентации.",
+                "section.background", "Фон",
+                "section.background_desc", "Выберите обложку альбома, размытый градиент или сплошной цвет фона.",
+                "setting.background_mode", "Фоновый эффект",
+                "setting.background_mode_desc", "Выберите, как будет отображаться фон текущей песни.",
+                "setting.brightness", "Яркость",
+                "setting.brightness_desc", "Яркость обложки альбома и градиентного фона.",
+                "setting.blur", "Размытие",
+                "setting.blur_desc", "Интенсивность размытия обложки альбома и градиентного фона.",
+                "setting.noise", "Текстура шума",
+                "setting.noise_desc", "Добавляет тонкую текстуру зерна, как в оригинальной ivLyrics.",
+                "setting.reduce_motion", "Уменьшение движения",
+                "setting.reduce_motion_desc", "Останавливает автоматическое перемещение альбома/градиентного фона.",
+                "section.ai_lyrics", "Текст AI",
+                "section.ai_lyrics_desc", "Генерация произношения и переводов с помощью подсказок, совместимых с ivLyrics.",
+                "section.provider", "Провайдер",
+                "field.api_key", "API-ключ",
+                "field.model", "Модель",
+                "field.base_url", "Базовый URL",
+                "button.save_regenerate", "Save и повторное создание",
+                "button.get_key", "Получить ключ",
+                "section.tools", "Инструменты",
+                "section.tools_desc", "Управление кэшем и журналами отладки.",
+                "section.spotify_api", "Spotify API",
+                "section.spotify_api_desc", "Используйте Client ID и Client Secret из Spotify Developer Dashboard. Хранится только на этом устройстве.",
+                "button.spotify_save", "Сохранить Spotify API",
+                "section.lyrics_cache", "Кэш текстов",
+                "section.lyrics_cache_desc", "Очистить базовые тексты sync-data/LRCLIB и кэш произношения/перевода AI. Текущая песня перезагружается после очистки.",
+                "button.clear_current", "Очистить текущую песню",
+                "button.clear_all", "Очистить все",
+                "button.ai_cache_clear", "Очистить кэш AI",
+                "button.debug_log", "Отладка/журналы",
+                "onboarding.subtitle", "Текст караоке, перевод и произношение для воспроизводимой в данный момент песни.",
+                "onboarding.welcome_title", "Настройка ivLyrics",
+                "onboarding.welcome_desc", "Сначала выберите язык приложения, затем установите разрешение на доступ к мультимедиа и свои собственные учетные данные Spotify API.",
+                "onboarding.app_language_en", "Язык приложения",
+                "onboarding.app_language_native", "Язык приложения",
+                "onboarding.permission_title", "Разрешение на доступ к мультимедиа",
+                "onboarding.permission_desc", "Доступ к уведомлению Android необходим для чтения песни, воспроизводимой в данный момент в Spotify.",
+                "onboarding.permission_hint", "Найдите ivLyrics на экране настроек, разрешите доступ, затем вернитесь в приложение.",
+                "onboarding.permission_status_enabled", "Разрешение включено. Теперь можно обнаружить воспроизведение Spotify.",
+                "onboarding.permission_status_required", "Разрешение еще не включено. Откройте настройки разрешений и разрешите ivLyrics.",
+                "onboarding.spotify_title", "Подключение информации о песне",
+                "onboarding.spotify_desc", "Spotify Web API используется для загрузки ISRC и обложки в высоком разрешении для текущей песни.",
+                "onboarding.step_format", "Шаг %d / %d",
+                "spotify.status_configured", "Spotify API настроен",
+                "spotify.status_required", "Зарегистрируйте Spotify API перед первым использованием.",
+                "spotify.status_checking", "Проверка токена Spotify...",
+                "spotify.status_invalid_format", "Запрос токена Spotify не удался: %s\nПроверьте свой Client ID и секрет еще раз.",
+                "button.next", "Далее",
+                "button.restart", "Начать заново",
+                "button.copy", "Копировать",
+                "button.open_browser", "Открыть браузер",
+                "button.open_permission", "Открыть разрешение Settings",
+                "button.prev_track", "Предыдущий трек",
+                "button.next_track", "Следующий трек",
+                "debug.title", "Отладка",
+                "debug.permission", "Открыть разрешение на доступ к медиа",
+                "debug.previous", "Предыдущий",
+                "debug.play_pause", "Воспроизведение/пауза",
+                "debug.next", "Следующий",
+                "debug.refresh", "Обновить",
+                "debug.log", "Журнал",
+                "debug.log_waiting", "Ожидание журналов",
+                "lyrics.tab.language", "Язык",
+                "lyrics.tab.sync", "Синхронизация",
+                "lyrics.translation", "Перевод",
+                "lyrics.pronunciation", "Произношение",
+                "lyrics.sync.title", "Смещение синхронизации текущей песни",
+                "lyrics.sync.reset", "Сброс на 0 мс",
+                "lyrics.sync.no_track", "Сейчас ничего не воспроизводится, поэтому значение не будет сохранено.",
+                "lyrics.sync.track_scope", "Сохранено только для \"%s\".",
+                "lyrics.sync.help", "Значения + показывают текст раньше, значения - позже.",
+                "lyrics.menu_tip", "Нажмите и удерживайте название или исполнителя, чтобы открыть настройки перевода и произношения.",
+                "lyrics.rule.track_language", "Язык песни",
+                "lyrics.rule.save_target", "Save цель",
+                "lyrics.rule.translation_language", "Язык перевода",
+                "label.on", "Вкл.",
+                "label.off", "Выкл.",
+                "label.auto", "Авто",
+                "label.auto_target", "Авто (%s)",
+                "lyrics.button.translation_on", "Перевод Вкл.",
+                "lyrics.button.pronunciation_on", "Произношение Вкл.",
+                "lyrics.button.translation_plus", "Перевод+",
+                "field.api_key_desc", "Поддерживает один ключ, список новой строки или массив JSON. Хранится только на этом устройстве.",
+                "field.model_desc", "Переопределение модели поставщика.",
+                "field.base_url_desc", "Базовый URL OpenAI-совместимого API или API поставщика.",
+                "field.max_tokens", "Максимальное количество токенов",
+                "field.temperature", "Креативность",
+                "field.solid_color", "Сплошной цвет фона",
+                "field.solid_color_desc", "Выберите цвет для режима сплошного фона.",
+                "field.spotify_client_id_desc", "Client ID вашего приложения Spotify.",
+                "field.spotify_client_secret_desc", "Client Secret вашего приложения Spotify.",
+                "preview.none", "Скрыто",
+                "preview.original", "Оригинал",
+                "preview.pronunciation", "Произношение",
+                "preview.translation", "Перевод",
+                "background.mode.gradient", "Обложка альбома",
+                "background.mode.gradient_desc", "Использует обложку текущего альбома в качестве большого размытого фона.",
+                "background.mode.blur_gradient", "Размытый градиент",
+                "background.mode.blur_gradient_desc", "Создает движущийся размытый градиент из цветов альбома.",
+                "background.mode.solid", "Сплошной цвет",
+                "background.mode.solid_desc", "Использует пользовательский сплошной цвет фона.",
+                "provider.desc.gemini", "Google AI Studio API",
+                "provider.desc.chatgpt", "OpenAI-совместимый API",
+                "provider.desc.claude", "Claude Messages API",
+                "provider.desc.openrouter", "Маршрутизирует несколько моделей искусственного интеллекта",
+                "provider.desc.groq", "Быстрый OpenAI-совместимый вывод",
+                "provider.desc.perplexity", "Agent API",
+                "provider.desc.pollinations", "OpenAI-совместимый API Pollinations",
+                "spotify.step0.title", "Перейдите в Spotify Developer Dashboard",
+                "spotify.step0.desc", "Откройте Spotify Developer Dashboard в браузере. Войдите в систему и создайте новое приложение.",
+                "spotify.step1.title", "Введите имя в Create app",
+                "spotify.step1.desc", "Нажмите Create app и введите значение ниже для App name. Не пишите ivLyrics или ivlyrics.",
+                "spotify.step2.title", "Введите описание",
+                "spotify.step2.desc", "Введите также значение ниже для App description. Это просто пример, чтобы избежать путаницы.",
+                "spotify.step3.title", "Введите URI перенаправления",
+                "spotify.step3.desc", "Добавьте указанный ниже адрес в Redirect URIs. Включите косую черту в конце.",
+                "spotify.step4.title", "Выберите Web API и сохраните",
+                "spotify.step4.desc", "Выберите Web API в области выбора API, установите флажок соглашения, затем нажмите Save.",
+                "spotify.step5.title", "Скопируйте Client ID и секрет",
+                "spotify.step5.desc", "Скопируйте Client ID и Client Secret из настроек приложения, вставьте их ниже, затем сохраните Spotify API.",
+                "toast.copied_format", "Скопировано: %s",
+                "toast.provider_saved", "Поставщик сохранен",
+                "toast.pronunciation_language_saved", "Язык произношения сохранен",
+                "toast.preview_saved", "Основной предварительный просмотр текста сохранен",
+                "toast.background_saved", "Фоновый эффект сохранен",
+                "toast.metadata_translation_on", "Перевод названия/исполнителя включен",
+                "toast.metadata_translation_off", "Перевод названия/исполнителя выключен",
+                "toast.auto_interlude_on", "Автоматическое определение интерлюдий включено",
+                "toast.auto_interlude_off", "Автоматическое определение интерлюдий выключено",
+                "toast.landscape_auto_hide_on", "Автоскрытие элементов управления в альбомной ориентации включено",
+                "toast.landscape_auto_hide_off", "Автоскрытие элементов управления в альбомной ориентации отключено",
+                "toast.background_noise_on", "Текстура шума включена",
+                "toast.background_noise_off", "Текстура шума выключена",
+                "toast.reduce_motion_on", "Уменьшение фонового движения",
+                "toast.reduce_motion_off", "Фоновое движение включено",
+                "toast.ai_cache_cleared", "Кэш AI очищен",
+                "toast.language_rule_saved", "Настройки языка песни сохранены",
+                "toast.settings_saved", "Settings сохранены",
+                "toast.spotify_missing", "Введите Client ID и Client Secret.",
+                "toast.spotify_checking", "Проверка токена Spotify...",
+                "toast.spotify_invalid", "Еще раз проверьте свои учетные данные Spotify API.",
+                "toast.spotify_saved", "Spotify API сохранено",
+                "toast.current_track_missing", "Нет информации о текущей песне",
+                "toast.current_cache_cleared", "Кэш текстов текущей песни очищен",
+                "toast.all_cache_cleared", "Весь кеш песен очищен",
+                "toast.sync_offset_format", "Смещение синхронизации %s",
+                "status.lyrics_request_failed", "Запрос текста не удался",
+                "status.ai_applied", "Применен перевод/произношение",
+                "status.ai_failed_format", "Текст AI не удался: %s",
+                "status.ai_cache_cleared", "Кэш ИИ очищен",
+                "status.ai_lyrics_active", "Тексты песен с искусственным интеллектом включены",
+                "status.ai_key_needed", "Введите ключ API для создания текстов AI.",
+                "status.ai_disabled", "Перевод/произношение отключены.",
+                "status.no_lyrics_to_apply", "Нет текстов, которые можно было бы применить.",
+                "status.ai_generating", "Генерация текстов AI...",
+                "status.reload_after_spotify", "Перезагрузка текстов ISRC, sync-data и LRCLIB этой песни после изменения настроек Spotify API.",
+                "status.detecting_media", "Обнаружение сеанса мультимедиа",
+                "status.permission_required", "Требуется разрешение на доступ к уведомлениям",
+                "status.lyrics_lookup_spotify", "Поиск ISRC с помощью Spotify Web API, затем загрузка sync-data и LRCLIB.",
+                "status.lyrics_lookup_player", "Загрузка sync-data и LRCLIB с помощью проигрывателя ISRC.",
+                "status.waiting_current_track", "Ожидание воспроизводимой в данный момент песни",
+                "status.spotify_required_plain", "Требуется Spotify API",
+                "loading.generating", "Генерация",
+                "loading.pronunciation", "Генерация произношения...",
+                "loading.translation", "Генерация перевода...",
+                "loading.word_sync", "Создание синхронизации по словам...",
+                "loading.word_sync_desc", "На внешнем сервере текстов создаётся синхронизация по словам.",
+                "status.word_sync_failed", "Не удалось синхронизировать слова",
+                "pronunciation_first.state_on", "Сначала произношение: вкл. Нажмите, чтобы выключить",
+                "pronunciation_first.state_off", "Сначала произношение: выкл. Нажмите, чтобы включить",
+                "loading.pronunciation_sync", "ИИ подгоняет произношение под тайминг текста...",
+                "status.pronunciation_sync_failed", "Не удалось синхронизировать произношение",
+                "lyrics.empty_none", "Нет текстов",
+                "interlude.prelude", "Вступление",
+                "interlude.break", "Интерлюдия",
+                "interlude.postlude", "Аутро",
+                "onboarding.preview.line1", "Текст караоке следует за песней",
+                "onboarding.preview.line2", "Произношение и перевод представлены здесь.",
+                "onboarding.preview.line3", "Все обновляется с текущим треком",
+                "repo.metadata_waiting", "Ожидание метаданных песни",
+                "repo.lyrics_not_found", "Текст LRCLIB не найден",
+                "repo.instrumental", "Инструментальный трек",
+                "repo.no_renderable_lyrics", "Нет отображаемого текста LRCLIB",
+                "repo.detail.sync_applied_direct", "Karaoke sync-data применены. LRCLIB загружен напрямую из sync-data.",
+                "repo.detail.sync_applied_search", "Karaoke sync-data применены. LRCLIB выбран через поиск.",
+                "repo.detail.no_spotify_isrc", "Построчный текст LRCLIB. Поиск Spotify ISRC недоступен.",
+                "repo.detail.no_sync_data", "Построчный текст LRCLIB. sync-data для этого ISRC не найдены.",
+                "repo.detail.sync_apply_failed", "Построчный текст LRCLIB. Не удалось применить sync-data.",
+                "spotify.error.incomplete_credentials", "Отсутствует Spotify API Client ID или Client Secret.",
+                "spotify.error.credentials_not_configured", "Учетные данные Spotify API не настроены.",
+                "spotify.error.no_access_token", "Ответ токена Spotify не содержал access_token.",
+                "spotify.error.repository_unavailable", "Репозиторий текстов недоступен.",
+                "lyrics.credit_sync_by_format", "sync от %s",
+                "sync.type_line", "Строка",
+                "sync.type_word", "Слово",
+                "sync.type_character", "Символ",
+                "sync.type_mixed", "Смешанный",
+                "sync.type_unknown", "Старая синхронизация"
+        );
+    }
+
+    private static Map<String, String> svStrings() {
+        return strings(
+                "button.close", "Nära",
+                "button.previous", "Tillbaka",
+                "button.save_start", "Save och Start",
+                "button.spotify_setup", "Konfigurera Spotify API",
+                "status.waiting_spotify", "Väntar på uppspelning i Spotify",
+                "status.lyrics_loading", "Laddar texter",
+                "status.lyrics_waiting", "Väntar på texten",
+                "status.spotify_required_title", "Spotify API Krävs",
+                "status.spotify_required_subtitle", "Save din Client ID och hemlighet först",
+                "status.spotify_required_detail", "ISRC, sync-data och LRCLIB-texter laddas inte förrän konfigurationen är klar.",
+                "toast.spotify_required", "Registrera Spotify API först",
+                "toast.setup_required", "Slutför den första konfigurationen först",
+                "toast.back_exit", "Tryck på Tillbaka igen för att avsluta",
+                "toast.ui_language_saved", "Appens språk har sparats",
+                "settings.title", "Inställningar",
+                "settings.subtitle", "Texter, display, helskärm, AI och verktyg",
+                "tab.lyrics", "Text",
+                "tab.display", "Visa",
+                "tab.ai", "AI",
+                "tab.tools", "Verktyg",
+                "section.language", "Språk",
+                "section.language_desc", "Hantera appens språk, uttal och översättningsregler per låt separat.",
+                "setting.ui_language", "Appspråk",
+                "setting.ui_language_desc", "Språk som används för appens användargränssnitt. Endast språk med riktiga UI-översättningar visas.",
+                "setting.pronunciation_language", "Uttalsspråk",
+                "setting.pronunciation_language_desc", "Välj vilket skript-/språkuttal som ska genereras i.",
+                "setting.metadata_translation", "Översätt titel/artist",
+                "setting.metadata_translation_desc", "Översätt även aktuell låttitel och artist med det valda målspråket.",
+                "setting.main_preview", "Förhandsvisning av låttext i huvudvyn",
+                "setting.main_preview_desc", "Välj original-, uttals- och översättningsrader. Långa rader glider i takt med låttexten.",
+                "setting.auto_interlude", "Automatisk identifiering av intro/mellanspel/outro",
+                "setting.auto_interlude_desc", "Förvandlar toner/tomma rader och långa mellanrum efter sångtexter till animerade mellanspelsmarkörer.",
+                "setting.interlude_labels", "Visa mellanspelsetiketter",
+                "setting.interlude_labels_desc", "Visar textetiketten bredvid intro-/mellanspels-/outro-markörer och behåller den animerade ikonen.",
+                "setting.synced_karaoke_animation", "Karaokeeffekt för synkad text",
+                "setting.synced_karaoke_animation_desc", "Använder jämn teckenfyllning på vanliga LRCLIB-synktexter utan sync-data.",
+                "setting.karaoke_bounce_effect", "Karaokestuds",
+                "setting.karaoke_bounce_effect_desc", "Låter texten studsa lätt medan tecknen fylls.",
+                "setting.karaoke_motion_style", "Rörelsestil för karaoke",
+                "setting.karaoke_motion_style_desc", "Klassisk behåller den diskreta studsen. Uttrycksfull använder fjäderfysik: sjungna ord växer, lyfts och lyser, ord som inte sjungits än vilar lite mindre och långa toner animeras bokstav för bokstav.",
+                "karaoke.motion.classic", "Klassisk",
+                "karaoke.motion.expressive", "Uttrycksfull",
+                "setting.pronunciation_karaoke_fill", "Fyll uttalet som karaoke",
+                "setting.pronunciation_karaoke_fill_desc", "Även när läget uttal först är av fylls uttalsraden i takt med sången. AI delar upp uttalet efter ord- eller teckentimingen. Andra effekter som studs och glöd används inte.",
+                "setting.synced_pronunciation", "Synkroniserat uttal",
+                "setting.synced_pronunciation_desc", "Hämtar uttalet för karaoketexter uppdelat efter tidpunkten för varje sjunget ord eller tecken. När det är på blir läget Uttal först och fyllning av uttalet som karaoke tillgängliga. När det är av kommer uttalet snabbare som vanlig text per rad.",
+                "section.player", "Spelare",
+                "section.player_desc", "Justera visning och beteende i liggande läge.",
+                "setting.landscape_auto_hide", "Dölj kontroller automatiskt i liggande läge",
+                "setting.landscape_auto_hide_desc", "Dölj förloppsindikatorn och knapparna när de är inaktiva i liggande läge.",
+                "section.background", "Bakgrund",
+                "section.background_desc", "Välj skivomslag, suddig gradient eller enfärgad bakgrund.",
+                "setting.background_mode", "Bakgrundseffekt",
+                "setting.background_mode_desc", "Välj hur den aktuella sångbakgrunden ska renderas.",
+                "setting.brightness", "Ljusstyrka",
+                "setting.brightness_desc", "Ljusstyrka för skivomslag och övertonade bakgrunder.",
+                "setting.blur", "Oskärpa",
+                "setting.blur_desc", "Oskärpa intensitet för skivomslag och övertonade bakgrunder.",
+                "setting.noise", "Brusstruktur",
+                "setting.noise_desc", "Lägger till en subtil kornstruktur som originalet ivLyrics.",
+                "setting.reduce_motion", "Minska rörelse",
+                "setting.reduce_motion_desc", "Stoppar automatisk bakgrundsrörelse för album/gradient.",
+                "section.ai_lyrics", "Lyrics AI",
+                "section.ai_lyrics_desc", "Generera uttal och översättningar med uppmaningar som är kompatibla med ivLyrics.",
+                "section.provider", "Leverantör",
+                "field.api_key", "API-nyckel",
+                "field.model", "Modell",
+                "field.base_url", "Bas-URL",
+                "button.save_regenerate", "Save och återskapa",
+                "button.get_key", "Hämta nyckel",
+                "section.tools", "Verktyg",
+                "section.tools_desc", "Hantera cache- och felsökningsloggar.",
+                "section.spotify_api", "Spotify API",
+                "section.spotify_api_desc", "Använd en Client ID och Client Secret från Spotify Developer Dashboard. Lagras endast på den här enheten.",
+                "button.spotify_save", "Spara Spotify API",
+                "section.lyrics_cache", "Textcache",
+                "section.lyrics_cache_desc", "Rensa sync-data/LRCLIB bastexter och AI-uttal/översättningscache. Aktuell låt laddas om efter rensning.",
+                "button.clear_current", "Rensa aktuell låt",
+                "button.clear_all", "Rensa alla",
+                "button.ai_cache_clear", "Rensa AI-cache",
+                "button.debug_log", "Felsökning / loggar",
+                "onboarding.subtitle", "Karaoketexter, översättning och uttal för låten som spelas för närvarande.",
+                "onboarding.welcome_title", "Konfigurera ivLyrics",
+                "onboarding.welcome_desc", "Välj appens språk först, ställ sedan in medieåtkomstbehörighet och dina egna Spotify API-uppgifter.",
+                "onboarding.app_language_en", "Appens språk",
+                "onboarding.app_language_native", "Appspråk",
+                "onboarding.permission_title", "Mediaåtkomstbehörighet",
+                "onboarding.permission_desc", "Android-aviseringsåtkomst krävs för att läsa låten som spelas i Spotify.",
+                "onboarding.permission_hint", "Hitta ivLyrics på inställningsskärmen, tillåt åtkomst och återgå sedan till appen.",
+                "onboarding.permission_status_enabled", "Behörighet är aktiverad. Spotify uppspelning kan nu detekteras.",
+                "onboarding.permission_status_required", "Behörighet är inte aktiverad ännu. Öppna behörighetsinställningar och tillåt ivLyrics.",
+                "onboarding.spotify_title", "Anslut låtinfo",
+                "onboarding.spotify_desc", "Spotify Web API används för att ladda ISRC och högupplöst albumomslag för den aktuella låten.",
+                "onboarding.step_format", "Steg %d / %d",
+                "spotify.status_configured", "Spotify API konfigurerad",
+                "spotify.status_required", "Registrera Spotify API före första användningen.",
+                "spotify.status_checking", "Kontrollerar Spotify-token...",
+                "spotify.status_invalid_format", "Spotify token begäran misslyckades: %s\nKontrollera din Client ID och hemlighet igen.",
+                "button.next", "Nästa",
+                "button.restart", "Börja om",
+                "button.copy", "Kopiera",
+                "button.open_browser", "Öppna webbläsaren",
+                "button.open_permission", "Öppna tillstånd Settings",
+                "button.prev_track", "Föregående spår",
+                "button.next_track", "Nästa spår",
+                "debug.title", "Felsökning",
+                "debug.permission", "Öppna mediaåtkomstbehörighet",
+                "debug.previous", "Föregående",
+                "debug.play_pause", "Spela/Paus",
+                "debug.next", "Nästa",
+                "debug.refresh", "Uppdatera",
+                "debug.log", "Logg",
+                "debug.log_waiting", "Väntar på loggar",
+                "lyrics.tab.language", "Språk",
+                "lyrics.tab.sync", "Synkronisering",
+                "lyrics.translation", "Översättning",
+                "lyrics.pronunciation", "Uttal",
+                "lyrics.sync.title", "Synkförskjutning för aktuell låt",
+                "lyrics.sync.reset", "Återställ till 0ms",
+                "lyrics.sync.no_track", "Ingen låt spelas, så denna kommer inte att sparas.",
+                "lyrics.sync.track_scope", "Sparad endast för \"%s\".",
+                "lyrics.sync.help", "+ värden visar texter tidigare; - värden visar dem senare.",
+                "lyrics.menu_tip", "Håll titel eller artist intryckt för att öppna översättning och uttal.",
+                "lyrics.rule.track_language", "Låtspråk",
+                "lyrics.rule.save_target", "Save mål",
+                "lyrics.rule.translation_language", "Översättningsspråk",
+                "label.on", "På",
+                "label.off", "Av",
+                "label.auto", "Auto",
+                "label.auto_target", "Automatiskt (%s)",
+                "lyrics.button.translation_on", "Översättning På",
+                "lyrics.button.pronunciation_on", "Uttal på",
+                "lyrics.button.translation_plus", "Översättning+",
+                "field.api_key_desc", "Stöder en enda nyckel, nyradslista eller JSON-array. Lagras endast på den här enheten.",
+                "field.model_desc", "Åsidosättande av leverantörsmodell.",
+                "field.base_url_desc", "Bas-URL för ett OpenAI-kompatibelt API eller leverantörens API.",
+                "field.max_tokens", "Max antal tokens",
+                "field.temperature", "Kreativitet",
+                "field.solid_color", "Enfärgad bakgrundsfärg",
+                "field.solid_color_desc", "Välj färgen som används i enfärgat bakgrundsläge.",
+                "field.spotify_client_id_desc", "Client ID av din Spotify-app.",
+                "field.spotify_client_secret_desc", "Client Secret av din Spotify-app.",
+                "preview.none", "Dold",
+                "preview.original", "Original",
+                "preview.pronunciation", "Uttal",
+                "preview.translation", "Översättning",
+                "background.mode.gradient", "Albumomslag",
+                "background.mode.gradient_desc", "Använder det aktuella skivomslaget som en stor suddig bakgrund.",
+                "background.mode.blur_gradient", "Suddig gradient",
+                "background.mode.blur_gradient_desc", "Bygger en rörlig suddig gradient från albumets färger.",
+                "background.mode.solid", "Enfärgad",
+                "background.mode.solid_desc", "Använder en anpassad solid bakgrundsfärg.",
+                "provider.desc.gemini", "Google AI Studio API",
+                "provider.desc.chatgpt", "OpenAI-kompatibelt API",
+                "provider.desc.claude", "Claude Messages API",
+                "provider.desc.openrouter", "Leder flera AI-modeller",
+                "provider.desc.groq", "Snabb OpenAI-kompatibel inferens",
+                "provider.desc.perplexity", "Agent API",
+                "provider.desc.pollinations", "Pollinations OpenAI-kompatibla API",
+                "spotify.step0.title", "Gå till Spotify Developer Dashboard",
+                "spotify.step0.desc", "Öppna Spotify Developer Dashboard i din webbläsare. Logga in och skapa en ny app.",
+                "spotify.step1.title", "Ange ett namn i Create app",
+                "spotify.step1.desc", "Tryck på Create app och ange värdet nedan för App name. Skriv inte ivLyrics eller ivlyrics.",
+                "spotify.step2.title", "Ange beskrivningen",
+                "spotify.step2.desc", "Ange värdet nedan för App description också. Det är bara ett exempel för att undvika förvirring.",
+                "spotify.step3.title", "Ange omdirigerings-URI",
+                "spotify.step3.desc", "Lägg till adressen nedan till Redirect URIs. Inkludera det avslutande snedstrecket.",
+                "spotify.step4.title", "Välj Web API och spara",
+                "spotify.step4.desc", "Välj Web API i urvalsområdet API, markera avtalsrutan och tryck sedan på Save.",
+                "spotify.step5.title", "Kopiera Client ID och hemlighet",
+                "spotify.step5.desc", "Kopiera Client ID och Client Secret från appinställningarna, klistra in dem nedan och spara sedan Spotify API.",
+                "toast.copied_format", "Kopierat: %s",
+                "toast.provider_saved", "Leverantör sparad",
+                "toast.pronunciation_language_saved", "Uttalsspråk sparat",
+                "toast.preview_saved", "Huvudförhandsgranskning av sångtexten sparad",
+                "toast.background_saved", "Bakgrundseffekten har sparats",
+                "toast.metadata_translation_on", "Titel/artistöversättning på",
+                "toast.metadata_translation_off", "Titel/artistöversättning av",
+                "toast.auto_interlude_on", "Automatisk mellanspelsdetektering på",
+                "toast.auto_interlude_off", "Automatisk mellanspelsdetektering av",
+                "toast.landscape_auto_hide_on", "Automatisk döljning av kontroller i liggande läge på",
+                "toast.landscape_auto_hide_off", "Automatisk döljning av kontroller i liggande läge av",
+                "toast.background_noise_on", "Brusstruktur på",
+                "toast.background_noise_off", "Brusstruktur av",
+                "toast.reduce_motion_on", "Minskad bakgrundsrörelse",
+                "toast.reduce_motion_off", "Bakgrundsrörelse aktiverad",
+                "toast.ai_cache_cleared", "AI-cache rensad",
+                "toast.language_rule_saved", "Språkinställningar för låt sparade",
+                "toast.settings_saved", "Settings sparade",
+                "toast.spotify_missing", "Ange både Client ID och Client Secret.",
+                "toast.spotify_checking", "Kontrollerar Spotify-token...",
+                "toast.spotify_invalid", "Kontrollera dina Spotify API-uppgifter igen.",
+                "toast.spotify_saved", "Spotify API sparad",
+                "toast.current_track_missing", "Ingen aktuell låtinformation",
+                "toast.current_cache_cleared", "Aktuell låttextcache rensad",
+                "toast.all_cache_cleared", "Hela textcachen har rensats",
+                "toast.sync_offset_format", "Synkroniseringsförskjutning %s",
+                "status.lyrics_request_failed", "Textbegäran misslyckades",
+                "status.ai_applied", "Översättning/uttal tillämpat",
+                "status.ai_failed_format", "AI-texter misslyckades: %s",
+                "status.ai_cache_cleared", "AI-cache rensades",
+                "status.ai_lyrics_active", "AI-texter aktiverade",
+                "status.ai_key_needed", "Ange en API-nyckel för att generera AI-texter.",
+                "status.ai_disabled", "Översättning/uttal är avstängt.",
+                "status.no_lyrics_to_apply", "Inga texter att applicera.",
+                "status.ai_generating", "Genererar AI-texter...",
+                "status.reload_after_spotify", "Laddar om den här låtens ISRC, sync-data och LRCLIB texter efter att inställningarna för Spotify API har ändrats.",
+                "status.detecting_media", "Upptäcker mediasession",
+                "status.permission_required", "Behörighet för meddelandeåtkomst krävs",
+                "status.lyrics_lookup_spotify", "Hittar ISRC med Spotify Web API och laddar sedan sync-data och LRCLIB.",
+                "status.lyrics_lookup_player", "Laddar sync-data och LRCLIB med spelare ISRC.",
+                "status.waiting_current_track", "Väntar på låten som spelas för närvarande",
+                "status.spotify_required_plain", "Spotify API krävs",
+                "loading.generating", "Genererar",
+                "loading.pronunciation", "Genererar uttal...",
+                "loading.translation", "Genererar översättning...",
+                "loading.word_sync", "Skapar ordsynkronisering...",
+                "loading.word_sync_desc", "Synkronisering ord för ord skapas på en extern låttextserver.",
+                "status.word_sync_failed", "Ordsynkronisering misslyckades",
+                "pronunciation_first.state_on", "Uttal först på. Tryck för att stänga av",
+                "pronunciation_first.state_off", "Uttal först av. Tryck för att slå på",
+                "loading.pronunciation_sync", "AI anpassar uttalet till låttextens timing...",
+                "status.pronunciation_sync_failed", "Uttalstiming misslyckades",
+                "lyrics.empty_none", "Inga texter",
+                "interlude.prelude", "Intro",
+                "interlude.break", "Mellanspel",
+                "interlude.postlude", "Outro",
+                "onboarding.preview.line1", "Karaoketexter följer låten",
+                "onboarding.preview.line2", "Uttal och översättning visas här",
+                "onboarding.preview.line3", "Allt uppdateras med det aktuella spåret",
+                "repo.metadata_waiting", "Väntar på låtmetadata",
+                "repo.lyrics_not_found", "LRCLIB-texter hittades inte",
+                "repo.instrumental", "Instrumental låt",
+                "repo.no_renderable_lyrics", "Inga visningsbara LRCLIB-texter",
+                "repo.detail.sync_applied_direct", "Karaoke sync-data tillämpades. LRCLIB lästes direkt från sync-data.",
+                "repo.detail.sync_applied_search", "Karaoke sync-data tillämpades. LRCLIB valdes via sökning.",
+                "repo.detail.no_spotify_isrc", "LRCLIB-radtexter. Spotify ISRC-sökning är inte tillgänglig.",
+                "repo.detail.no_sync_data", "LRCLIB-radtexter. Inga matchande sync-data hittades för detta ISRC.",
+                "repo.detail.sync_apply_failed", "LRCLIB-radtexter. sync-data kunde inte tillämpas.",
+                "spotify.error.incomplete_credentials", "Spotify API Client ID eller Client Secret saknas.",
+                "spotify.error.credentials_not_configured", "Spotify API-uppgifter är inte konfigurerade.",
+                "spotify.error.no_access_token", "Spotify-tokenresponsen innehöll inte access_token.",
+                "spotify.error.repository_unavailable", "Lyrics-repositoryt är inte tillgängligt.",
+                "lyrics.credit_sync_by_format", "sync av %s",
+                "sync.type_line", "Rad",
+                "sync.type_word", "Ord",
+                "sync.type_character", "Tecken",
+                "sync.type_mixed", "Blandad",
+                "sync.type_unknown", "Äldre synk"
+        );
+    }
+
+    private static Map<String, String> ptStrings() {
+        return strings(
+                "button.close", "Fechar",
+                "button.previous", "Voltar",
+                "button.save_start", "Save e iniciar",
+                "button.spotify_setup", "Configurar Spotify API",
+                "status.waiting_spotify", "Aguardando reprodução do Spotify",
+                "status.lyrics_loading", "Carregando letras",
+                "status.lyrics_waiting", "Aguardando letras",
+                "status.spotify_required_title", "Spotify API Obrigatório",
+                "status.spotify_required_subtitle", "Save seu Client ID e segredo primeiro",
+                "status.spotify_required_detail", "As letras de ISRC, sync-data e LRCLIB não são carregadas até que a configuração seja concluída.",
+                "toast.spotify_required", "Registrar Spotify API primeiro",
+                "toast.setup_required", "Concluir a configuração inicial primeiro",
+                "toast.back_exit", "Pressione Voltar novamente para sair",
+                "toast.ui_language_saved", "Idioma do aplicativo salvo",
+                "settings.title", "Configurações",
+                "settings.subtitle", "Letras, exibição, tela cheia, IA e ferramentas",
+                "tab.lyrics", "Letras",
+                "tab.display", "Exibir",
+                "tab.ai", "AI",
+                "tab.tools", "Ferramentas",
+                "section.language", "Idioma",
+                "section.language_desc", "Gerencie o idioma do aplicativo, a pronúncia e as regras de tradução por música separadamente.",
+                "setting.ui_language", "Idioma do aplicativo",
+                "setting.ui_language_desc", "Idioma usado para a UI do aplicativo. Somente idiomas com traduções reais da IU são mostrados.",
+                "setting.pronunciation_language", "Idioma de pronúncia",
+                "setting.pronunciation_language_desc", "Escolha em qual script/idioma a pronúncia deve ser gerada.",
+                "setting.metadata_translation", "Traduzir título/artista",
+                "setting.metadata_translation_desc", "Traduza também o título da música atual e o artista usando o idioma de destino selecionado.",
+                "setting.main_preview", "Visualização principal da letra",
+                "setting.main_preview_desc", "Escolha as linhas original, pronúncia e tradução. Linhas longas deslizam no ritmo da letra.",
+                "setting.auto_interlude", "Detecção automática de introdução/interlúdio/outro",
+                "setting.auto_interlude_desc", "Transforma notas/linhas em branco e longos intervalos após a letra em marcadores de interlúdio animados.",
+                "setting.interlude_labels", "Mostrar rótulos de interlúdio",
+                "setting.interlude_labels_desc", "Mostra o rótulo de texto ao lado dos marcadores de introdução/interlúdio/outro e mantém o ícone animado.",
+                "setting.synced_karaoke_animation", "Efeito karaokê em letras sincronizadas",
+                "setting.synced_karaoke_animation_desc", "Aplica preenchimento por caractere uniforme a letras LRCLIB sincronizadas comuns sem sync-data.",
+                "setting.karaoke_bounce_effect", "Salto de karaokê",
+                "setting.karaoke_bounce_effect_desc", "Faz o texto saltar suavemente enquanto os caracteres são preenchidos.",
+                "setting.karaoke_motion_style", "Estilo de movimento do karaokê",
+                "setting.karaoke_motion_style_desc", "Clássico mantém o salto sutil. Expressivo usa física de mola: as palavras cantadas crescem, sobem e brilham, as ainda não cantadas ficam um pouco menores e as notas longas são animadas letra por letra.",
+                "karaoke.motion.classic", "Clássico",
+                "karaoke.motion.expressive", "Expressivo",
+                "setting.pronunciation_karaoke_fill", "Preencher a pronúncia como karaokê",
+                "setting.pronunciation_karaoke_fill_desc", "Mesmo com o modo pronúncia primeiro desativado, a linha de pronúncia é preenchida no ritmo do canto. A IA divide a pronúncia conforme o tempo de cada palavra ou caractere. Outros efeitos, como salto e brilho, não são aplicados.",
+                "setting.synced_pronunciation", "Pronúncia sincronizada",
+                "setting.synced_pronunciation_desc", "Obtém a pronúncia das letras de karaokê dividida conforme o tempo de cada palavra ou caractere cantado. Ativada, ficam disponíveis o modo pronúncia primeiro e o preenchimento da pronúncia como karaokê. Desativada, a pronúncia chega mais rápido como texto simples por linha.",
+                "section.player", "Reprodutor",
+                "section.player_desc", "Ajuste a exibição e o comportamento no modo horizontal.",
+                "setting.landscape_auto_hide", "Ocultar automaticamente os controles no modo horizontal",
+                "setting.landscape_auto_hide_desc", "Ocultar a barra de progresso e os botões quando inativos no modo horizontal.",
+                "section.background", "Plano de fundo",
+                "section.background_desc", "Escolha capa do álbum, gradiente desfocado ou fundo de cor sólida.",
+                "setting.background_mode", "Efeito de fundo",
+                "setting.background_mode_desc", "Escolha como o fundo da música atual será renderizado.",
+                "setting.brightness", "Brilho",
+                "setting.brightness_desc", "Brilho para capa de álbum e fundos gradientes.",
+                "setting.blur", "Desfoque",
+                "setting.blur_desc", "Intensidade de desfoque para capa de álbum e fundos gradientes.",
+                "setting.noise", "Textura de ruído",
+                "setting.noise_desc", "Adiciona uma textura de grão sutil como o ivLyrics original.",
+                "setting.reduce_motion", "Reduzir movimento",
+                "setting.reduce_motion_desc", "Interrompe o movimento automático do fundo do álbum/gradiente.",
+                "section.ai_lyrics", "Letras AI",
+                "section.ai_lyrics_desc", "Gere pronúncia e traduções com prompts compatíveis com ivLyrics.",
+                "section.provider", "Provedor",
+                "field.api_key", "Chave de API",
+                "field.model", "Modelo",
+                "field.base_url", "URL base",
+                "button.save_regenerate", "Save e Regenerar",
+                "button.get_key", "Obter chave",
+                "section.tools", "Ferramentas",
+                "section.tools_desc", "Gerenciar logs de cache e depuração.",
+                "section.spotify_api", "Spotify API",
+                "section.spotify_api_desc", "Use um Client ID e Client Secret do Spotify Developer Dashboard. Armazenado apenas neste dispositivo.",
+                "button.spotify_save", "Salvar Spotify API",
+                "section.lyrics_cache", "Cache de letras",
+                "section.lyrics_cache_desc", "Limpar letras de base sync-data/LRCLIB e cache de pronúncia/tradução de IA. A música atual é recarregada após a limpeza.",
+                "button.clear_current", "Limpar música atual",
+                "button.clear_all", "Limpar tudo",
+                "button.ai_cache_clear", "Limpar cache de IA",
+                "button.debug_log", "Depuração / registros",
+                "onboarding.subtitle", "Letras de karaokê, tradução e pronúncia da música atualmente tocando.",
+                "onboarding.welcome_title", "Configurar ivLyrics",
+                "onboarding.welcome_desc", "Escolha primeiro o idioma do aplicativo e, em seguida, defina a permissão de acesso à mídia e suas próprias credenciais Spotify API.",
+                "onboarding.app_language_en", "Idioma do aplicativo",
+                "onboarding.app_language_native", "Idioma do aplicativo",
+                "onboarding.permission_title", "Permissão de acesso à mídia",
+                "onboarding.permission_desc", "O acesso à notificação Android é necessário para ler a música atualmente tocando em Spotify.",
+                "onboarding.permission_hint", "Encontre ivLyrics na tela de configurações, permita o acesso e retorne ao aplicativo.",
+                "onboarding.permission_status_enabled", "A permissão está habilitada. A reprodução de Spotify agora pode ser detectada.",
+                "onboarding.permission_status_required", "A permissão ainda não está habilitada. Abra as configurações de permissão e permita ivLyrics.",
+                "onboarding.spotify_title", "Conectar informações da música",
+                "onboarding.spotify_desc", "Spotify Web API é usado para carregar ISRC e arte de alta resolução para a música atual.",
+                "onboarding.step_format", "Etapa %d / %d",
+                "spotify.status_configured", "Spotify API configurado",
+                "spotify.status_required", "Registrar Spotify API antes do primeiro uso.",
+                "spotify.status_checking", "Verificando o token do Spotify...",
+                "spotify.status_invalid_format", "Falha na solicitação de token Spotify: %s\nVerifique seu Client ID e segredo novamente.",
+                "button.next", "Próximo",
+                "button.restart", "Recomeçar",
+                "button.copy", "Copiar",
+                "button.open_browser", "Abrir navegador",
+                "button.open_permission", "Abrir permissão Settings",
+                "button.prev_track", "Faixa anterior",
+                "button.next_track", "Próxima faixa",
+                "debug.title", "Depurar",
+                "debug.permission", "Abrir permissão de acesso à mídia",
+                "debug.previous", "Anterior",
+                "debug.play_pause", "Reproduzir/Pausar",
+                "debug.next", "Próximo",
+                "debug.refresh", "Atualizar",
+                "debug.log", "Registro",
+                "debug.log_waiting", "Aguardando logs",
+                "lyrics.tab.language", "Idioma",
+                "lyrics.tab.sync", "Sincronização",
+                "lyrics.translation", "Tradução",
+                "lyrics.pronunciation", "Pronúncia",
+                "lyrics.sync.title", "Deslocamento de sincronização da música atual",
+                "lyrics.sync.reset", "Redefinir para 0ms",
+                "lyrics.sync.no_track", "Nenhuma música sendo reproduzida, portanto, esta não será salva.",
+                "lyrics.sync.track_scope", "Salvo apenas para \"%s\".",
+                "lyrics.sync.help", "Valores + mostram a letra mais cedo; valores - mostram mais tarde.",
+                "lyrics.menu_tip", "Mantenha título ou artista pressionado para abrir tradução e pronúncia.",
+                "lyrics.rule.track_language", "Idioma da música",
+                "lyrics.rule.save_target", "Save alvo",
+                "lyrics.rule.translation_language", "Idioma de tradução",
+                "label.on", "Sobre",
+                "label.off", "Desligado",
+                "label.auto", "Auto",
+                "label.auto_target", "Automático (%s)",
+                "lyrics.button.translation_on", "Tradução On",
+                "lyrics.button.pronunciation_on", "Pronúncia On",
+                "lyrics.button.translation_plus", "Tradução+",
+                "field.api_key_desc", "Suporta uma única chave, lista de nova linha ou matriz JSON. Armazenado apenas neste dispositivo.",
+                "field.model_desc", "Substituição do modelo do provedor.",
+                "field.base_url_desc", "URL base da API compatível com OpenAI ou do provedor.",
+                "field.max_tokens", "Máximo de tokens",
+                "field.temperature", "Criatividade",
+                "field.solid_color", "Cor de fundo sólida",
+                "field.solid_color_desc", "Escolha a cor usada no modo de fundo sólido.",
+                "field.spotify_client_id_desc", "Client ID do seu aplicativo Spotify.",
+                "field.spotify_client_secret_desc", "Client Secret do seu aplicativo Spotify.",
+                "preview.none", "Oculto",
+                "preview.original", "Original",
+                "preview.pronunciation", "Pronúncia",
+                "preview.translation", "Tradução",
+                "background.mode.gradient", "Capa do álbum",
+                "background.mode.gradient_desc", "Usa a capa do álbum atual como um grande fundo desfocado.",
+                "background.mode.blur_gradient", "Gradiente desfocado",
+                "background.mode.blur_gradient_desc", "Cria um gradiente desfocado em movimento a partir das cores do álbum.",
+                "background.mode.solid", "Cor sólida",
+                "background.mode.solid_desc", "Usa uma cor de fundo sólida personalizada.",
+                "provider.desc.gemini", "Google AI Studio API",
+                "provider.desc.chatgpt", "API compatível com OpenAI",
+                "provider.desc.claude", "Claude Messages API",
+                "provider.desc.openrouter", "Roteia vários modelos de IA",
+                "provider.desc.groq", "Inferência rápida compatível com OpenAI",
+                "provider.desc.perplexity", "Agent API",
+                "provider.desc.pollinations", "API Pollinations compatível com OpenAI",
+                "spotify.step0.title", "Acesse o Spotify Developer Dashboard",
+                "spotify.step0.desc", "Abra o Spotify Developer Dashboard em seu navegador. Faça login e crie um novo aplicativo.",
+                "spotify.step1.title", "Insira um nome em Create app",
+                "spotify.step1.desc", "Pressione Create app e insira o valor abaixo para App name. Não escreva ivLyrics ou ivlyrics.",
+                "spotify.step2.title", "Insira a descrição",
+                "spotify.step2.desc", "Insira o valor abaixo para App description também. É apenas um exemplo para evitar confusão.",
+                "spotify.step3.title", "Insira o URI de redirecionamento",
+                "spotify.step3.desc", "Adicione o endereço abaixo a Redirect URIs. Inclua a barra final.",
+                "spotify.step4.title", "Selecione Web API e salve",
+                "spotify.step4.desc", "Selecione Web API na área de seleção API, marque a caixa de acordo e pressione Save.",
+                "spotify.step5.title", "Copie Client ID e segredo",
+                "spotify.step5.desc", "Copie Client ID e Client Secret das configurações do aplicativo, cole-os abaixo e salve Spotify API.",
+                "toast.copied_format", "Copiado: %s",
+                "toast.provider_saved", "Provedor salvo",
+                "toast.pronunciation_language_saved", "Idioma de pronúncia salvo",
+                "toast.preview_saved", "Visualização da letra principal salva",
+                "toast.background_saved", "Efeito de fundo salvo",
+                "toast.metadata_translation_on", "Tradução de título/artista ativada",
+                "toast.metadata_translation_off", "Tradução de título/artista desativada",
+                "toast.auto_interlude_on", "Detecção automática de interlúdio ativada",
+                "toast.auto_interlude_off", "Detecção automática de interlúdio desativada",
+                "toast.landscape_auto_hide_on", "Ocultação automática dos controles no modo horizontal ativada",
+                "toast.landscape_auto_hide_off", "Ocultação automática dos controles no modo horizontal desativada",
+                "toast.background_noise_on", "Textura de ruído ativada",
+                "toast.background_noise_off", "Textura de ruído desativada",
+                "toast.reduce_motion_on", "Movimento de fundo reduzido",
+                "toast.reduce_motion_off", "Movimento de fundo ativado",
+                "toast.ai_cache_cleared", "Cache AI limpo",
+                "toast.language_rule_saved", "Configurações de idioma da música salvas",
+                "toast.settings_saved", "Settings salvas",
+                "toast.spotify_missing", "Insira Client ID e Client Secret.",
+                "toast.spotify_checking", "Verificando token Spotify...",
+                "toast.spotify_invalid", "Verifique suas credenciais Spotify API novamente.",
+                "toast.spotify_saved", "Spotify API salvo",
+                "toast.current_track_missing", "Nenhuma informação da música atual",
+                "toast.current_cache_cleared", "Cache da letra da música atual limpo",
+                "toast.all_cache_cleared", "Cache de todas as letras limpo",
+                "toast.sync_offset_format", "Deslocamento de sincronização %s",
+                "status.lyrics_request_failed", "Falha na solicitação de letras",
+                "status.ai_applied", "Tradução/pronúncia aplicada",
+                "status.ai_failed_format", "Falha nas letras AI: %s",
+                "status.ai_cache_cleared", "Cache AI limpo",
+                "status.ai_lyrics_active", "Letras AI habilitadas",
+                "status.ai_key_needed", "Insira uma chave de API para gerar letras de IA.",
+                "status.ai_disabled", "A tradução/pronúncia está desativada.",
+                "status.no_lyrics_to_apply", "Nenhuma letra a ser aplicada.",
+                "status.ai_generating", "Gerando letras AI...",
+                "status.reload_after_spotify", "Recarregando as letras ISRC, sync-data e LRCLIB desta música depois que as configurações de Spotify API foram alteradas.",
+                "status.detecting_media", "Detectando sessão de mídia",
+                "status.permission_required", "É necessária permissão de acesso à notificação",
+                "status.lyrics_lookup_spotify", "Localizando ISRC com Spotify Web API e, em seguida, carregando sync-data e LRCLIB.",
+                "status.lyrics_lookup_player", "Carregando sync-data e LRCLIB com o ISRC do player.",
+                "status.waiting_current_track", "Aguardando a música atualmente sendo reproduzida",
+                "status.spotify_required_plain", "Spotify API necessário",
+                "loading.generating", "Gerando",
+                "loading.pronunciation", "Gerando pronúncia...",
+                "loading.translation", "Gerando tradução...",
+                "loading.word_sync", "Gerando sincronização por palavra...",
+                "loading.word_sync_desc", "Gerando sincronização por palavra em um servidor externo de letras.",
+                "status.word_sync_failed", "Falha ao sincronizar palavras",
+                "pronunciation_first.state_on", "Pronúncia primeiro ativada. Toque para desativar",
+                "pronunciation_first.state_off", "Pronúncia primeiro desativada. Toque para ativar",
+                "loading.pronunciation_sync", "A IA está ajustando a pronúncia ao tempo da letra...",
+                "status.pronunciation_sync_failed", "Falha na sincronia da pronúncia",
+                "lyrics.empty_none", "Sem letras",
+                "interlude.prelude", "Introdução",
+                "interlude.break", "Interlúdio",
+                "interlude.postlude", "Outro",
+                "onboarding.preview.line1", "A letra do karaokê segue a música",
+                "onboarding.preview.line2", "A pronúncia e a tradução aparecem aqui",
+                "onboarding.preview.line3", "Tudo é atualizado com a faixa atual",
+                "repo.metadata_waiting", "Aguardando metadados da música",
+                "repo.lyrics_not_found", "Letras LRCLIB não foram encontradas",
+                "repo.instrumental", "Faixa instrumental",
+                "repo.no_renderable_lyrics", "Não há letras LRCLIB exibíveis",
+                "repo.detail.sync_applied_direct", "sync-data de karaokê aplicado. LRCLIB foi carregado diretamente de sync-data.",
+                "repo.detail.sync_applied_search", "sync-data de karaokê aplicado. LRCLIB foi selecionado pela busca.",
+                "repo.detail.no_spotify_isrc", "Letras por linha LRCLIB. A busca Spotify ISRC está indisponível.",
+                "repo.detail.no_sync_data", "Letras por linha LRCLIB. Nenhum sync-data corresponde a este ISRC.",
+                "repo.detail.sync_apply_failed", "Letras por linha LRCLIB. Não foi possível aplicar sync-data.",
+                "spotify.error.incomplete_credentials", "Spotify API Client ID ou Client Secret está ausente.",
+                "spotify.error.credentials_not_configured", "As credenciais da Spotify API não estão configuradas.",
+                "spotify.error.no_access_token", "A resposta do token Spotify não continha access_token.",
+                "spotify.error.repository_unavailable", "O repositório de letras está indisponível.",
+                "lyrics.credit_sync_by_format", "sync por %s",
+                "sync.type_line", "Linha",
+                "sync.type_word", "Palavra",
+                "sync.type_character", "Caractere",
+                "sync.type_mixed", "Misto",
+                "sync.type_unknown", "Sync antigo"
+        );
+    }
+
+    private static Map<String, String> bnStrings() {
+        return strings(
+                "button.close", "বন্ধ",
+                "button.previous", "ফিরে যান",
+                "button.save_start", "Save এবং শুরু করুন",
+                "button.spotify_setup", "Spotify API সেট আপ করুন",
+                "status.waiting_spotify", "Spotify প্লেব্যাকের জন্য অপেক্ষা করা হচ্ছে৷",
+                "status.lyrics_loading", "গানের কথা লোড হচ্ছে",
+                "status.lyrics_waiting", "গানের কথার জন্য অপেক্ষা করছি",
+                "status.spotify_required_title", "Spotify API আবশ্যক",
+                "status.spotify_required_subtitle", "Save আপনার Client ID এবং গোপন প্রথম",
+                "status.spotify_required_detail", "সেটআপ সম্পূর্ণ না হওয়া পর্যন্ত ISRC, sync-data, এবং LRCLIB গান লোড করা হয় না।",
+                "toast.spotify_required", "প্রথমে Spotify API নিবন্ধন করুন",
+                "toast.setup_required", "প্রথমে প্রাথমিক সেটআপ সম্পূর্ণ করুন",
+                "toast.back_exit", "প্রস্থান করতে আবার ব্যাক টিপুন",
+                "toast.ui_language_saved", "অ্যাপের ভাষা সংরক্ষিত",
+                "settings.title", "সেটিংস",
+                "settings.subtitle", "লিরিক্স, ডিসপ্লে, পূর্ণস্ক্রিন, এআই এবং টুলস",
+                "tab.lyrics", "গানের কথা",
+                "tab.display", "প্রদর্শন",
+                "tab.ai", "এআই",
+                "tab.tools", "টুলস",
+                "section.language", "ভাষা",
+                "section.language_desc", "অ্যাপের ভাষা, উচ্চারণ, এবং প্রতি-গান অনুবাদের নিয়মগুলি আলাদাভাবে পরিচালনা করুন।",
+                "setting.ui_language", "অ্যাপের ভাষা",
+                "setting.ui_language_desc", "অ্যাপ UI-এর জন্য ব্যবহৃত ভাষা। শুধুমাত্র বাস্তব UI অনুবাদ সহ ভাষাগুলি দেখানো হয়৷",
+                "setting.pronunciation_language", "উচ্চারণ ভাষা",
+                "setting.pronunciation_language_desc", "কোন স্ক্রিপ্ট/ভাষা উচ্চারণ তৈরি করা উচিত তা চয়ন করুন৷",
+                "setting.metadata_translation", "শিরোনাম/শিল্পীর নাম অনুবাদ করুন",
+                "setting.metadata_translation_desc", "এছাড়াও নির্বাচিত লক্ষ্য ভাষা ব্যবহার করে বর্তমান গানের শিরোনাম এবং শিল্পী অনুবাদ করুন৷",
+                "setting.main_preview", "প্রধান লিরিক প্রিভিউ",
+                "setting.main_preview_desc", "আসল, উচ্চারণ এবং অনুবাদ সারি বেছে নিন। লিরিক টাইমিং সহ লম্বা সারি স্লাইড।",
+                "setting.auto_interlude", "স্বয়ংক্রিয়ভাবে ইন্ট্রো/ইন্টারলুড/আউটরো সনাক্ত করে",
+                "setting.auto_interlude_desc", "অ্যানিমেটেড ইন্টারলিউড মার্কারগুলিতে গানের পরে নোট/ফাঁকা লাইন এবং দীর্ঘ ফাঁকগুলিকে পরিণত করে৷",
+                "setting.interlude_labels", "ইন্টারলিউড লেবেল দেখান",
+                "setting.interlude_labels_desc", "অ্যানিমেটেড আইকন রেখে ইন্ট্রো/ইন্টারলিউড/আউটরো মার্কারের পাশে টেক্সট লেবেল দেখায়।",
+                "setting.synced_karaoke_animation", "লাইন-সিঙ্ক কারাওকে প্রভাব",
+                "setting.synced_karaoke_animation_desc", "sync-data ছাড়া সাধারণ LRCLIB সিঙ্ক গানে সমান অক্ষর ভরাট প্রয়োগ করে।",
+                "setting.karaoke_bounce_effect", "কারাওকে বাউন্স প্রভাব",
+                "setting.karaoke_bounce_effect_desc", "অক্ষর ভরাট হওয়ার সময় লেখাকে হালকা বাউন্স করায়।",
+                "setting.karaoke_motion_style", "কারাওকে মোশন স্টাইল",
+                "setting.karaoke_motion_style_desc", "ক্লাসিক হালকা বাউন্স বজায় রাখে। এক্সপ্রেসিভ স্প্রিং পদার্থবিদ্যা ব্যবহার করে: গাওয়া শব্দগুলো বড় হয়, উপরে ওঠে ও উজ্জ্বল হয়, যে শব্দগুলো এখনো গাওয়া হয়নি সেগুলো একটু ছোট থাকে, আর দীর্ঘ সুর অক্ষর ধরে ধরে অ্যানিমেট হয়।",
+                "karaoke.motion.classic", "ক্লাসিক",
+                "karaoke.motion.expressive", "এক্সপ্রেসিভ",
+                "setting.pronunciation_karaoke_fill", "উচ্চারণ কারাওকের মতো ভরাট করুন",
+                "setting.pronunciation_karaoke_fill_desc", "উচ্চারণ-আগে মোড বন্ধ থাকলেও উচ্চারণের সারি গানের সময়ের সাথে ভরাট হয়। AI প্রতিটি শব্দ বা অক্ষরের সময় অনুযায়ী উচ্চারণ ভাগ করে। লাফানো ও আভার মতো অন্য প্রভাব প্রয়োগ হয় না।",
+                "setting.synced_pronunciation", "সিঙ্ক করা উচ্চারণ ব্যবহার করুন",
+                "setting.synced_pronunciation_desc", "কারাওকে লিরিকের উচ্চারণ প্রতিটি গাওয়া শব্দ বা অক্ষরের সময় অনুযায়ী ভাগ করে আনে। চালু করলে উচ্চারণ আগে মোড এবং উচ্চারণ কারাওকের মতো ভরাট ব্যবহার করা যায়। বন্ধ থাকলে উচ্চারণ লাইনভিত্তিক সাধারণ লেখা হিসেবে দ্রুত আসে।",
+                "section.player", "প্লেয়ার",
+                "section.player_desc", "ডিসপ্লে এবং ল্যান্ডস্কেপ আচরণ সামঞ্জস্য করুন।",
+                "setting.landscape_auto_hide", "ল্যান্ডস্কেপে নিয়ন্ত্রণ স্বয়ংক্রিয়ভাবে লুকান",
+                "setting.landscape_auto_hide_desc", "যখন ল্যান্ডস্কেপে নিষ্ক্রিয় থাকে তখন অগ্রগতি বার এবং বোতামগুলি লুকান৷",
+                "section.background", "ব্যাকগ্রাউন্ড",
+                "section.background_desc", "অ্যালবাম কভার, ঝাপসা গ্রেডিয়েন্ট বা কঠিন রঙের পটভূমি বেছে নিন।",
+                "setting.background_mode", "ব্যাকগ্রাউন্ড ইফেক্ট",
+                "setting.background_mode_desc", "বর্তমান গানের পটভূমি কীভাবে রেন্ডার করা হয় তা বেছে নিন।",
+                "setting.brightness", "উজ্জ্বলতা",
+                "setting.brightness_desc", "অ্যালবাম কভার এবং গ্রেডিয়েন্ট ব্যাকগ্রাউন্ডের জন্য উজ্জ্বলতা।",
+                "setting.blur", "ব্লার",
+                "setting.blur_desc", "অ্যালবাম কভার এবং গ্রেডিয়েন্ট ব্যাকগ্রাউন্ডের জন্য ব্লার তীব্রতা।",
+                "setting.noise", "নয়েজ টেক্সচার",
+                "setting.noise_desc", "আসল ivLyrics এর মতো একটি সূক্ষ্ম দানা টেক্সচার যোগ করে।",
+                "setting.reduce_motion", "গতি হ্রাস করুন",
+                "setting.reduce_motion_desc", "স্বয়ংক্রিয় অ্যালবাম/গ্রেডিয়েন্ট ব্যাকগ্রাউন্ড চলাচল বন্ধ করে।",
+                "section.ai_lyrics", "লিরিক্স AI",
+                "section.ai_lyrics_desc", "ivLyrics এর সাথে সামঞ্জস্যপূর্ণ প্রম্পট সহ উচ্চারণ এবং অনুবাদ তৈরি করুন।",
+                "section.provider", "প্রদানকারী",
+                "field.api_key", "API কী",
+                "field.model", "মডেল",
+                "field.base_url", "বেস URL",
+                "button.save_regenerate", "Save এবং",
+                "button.get_key", "কী নিন",
+                "section.tools", "সরঞ্জাম",
+                "section.tools_desc", "ক্যাশে এবং ডিবাগ লগ পরিচালনা করুন।",
+                "section.spotify_api", "Spotify API",
+                "section.spotify_api_desc", "Spotify বিকাশকারী ড্যাশবোর্ড থেকে একটি Client ID এবং Client Secret ব্যবহার করুন। শুধুমাত্র এই ডিভাইসে সংরক্ষিত.",
+                "button.spotify_save", "Spotify API সংরক্ষণ করুন",
+                "section.lyrics_cache", "লিরিক্স ক্যাশে",
+                "section.lyrics_cache_desc", "sync-data/LRCLIB বেস লিরিক্স এবং এআই উচ্চারণ/অনুবাদ ক্যাশে সাফ করুন। সাফ করার পরে বর্তমান গান পুনরায় লোড হয়।",
+                "button.clear_current", "বর্তমান গান মুছুন",
+                "button.clear_all", "সমস্ত সাফ করুন",
+                "button.ai_cache_clear", "AI ক্যাশে সাফ করুন",
+                "button.debug_log", "ডিবাগ / লগস",
+                "onboarding.subtitle", "বর্তমানে চলমান গানের জন্য কারাওকে লিরিক্স, অনুবাদ ও উচ্চারণ।",
+                "onboarding.welcome_title", "ivLyrics সেট আপ করুন",
+                "onboarding.welcome_desc", "প্রথমে অ্যাপের ভাষা চয়ন করুন, তারপর মিডিয়া অ্যাক্সেসের অনুমতি এবং আপনার নিজস্ব Spotify API শংসাপত্র সেট করুন৷",
+                "onboarding.app_language_en", "অ্যাপের ভাষা",
+                "onboarding.app_language_native", "অ্যাপের ভাষা",
+                "onboarding.permission_title", "মিডিয়া অ্যাক্সেসের অনুমতি",
+                "onboarding.permission_desc", "Android Spotify এ বর্তমানে যে গানটি চলছে তা পড়ার জন্য বিজ্ঞপ্তি অ্যাক্সেস প্রয়োজন।",
+                "onboarding.permission_hint", "সেটিংস স্ক্রিনে ivLyrics খুঁজুন, অ্যাক্সেসের অনুমতি দিন, তারপর অ্যাপে ফিরে যান।",
+                "onboarding.permission_status_enabled", "অনুমতি সক্ষম করা হয়েছে৷ Spotify প্লেব্যাক এখন সনাক্ত করা যেতে পারে।",
+                "onboarding.permission_status_required", "অনুমতি এখনও সক্রিয় করা হয়নি৷ অনুমতি সেটিংস খুলুন এবং ivLyrics অনুমতি দিন।",
+                "onboarding.spotify_title", "গানের তথ্য সংযুক্ত করুন",
+                "onboarding.spotify_desc", "Spotify Web API বর্তমান গানের জন্য ISRC এবং উচ্চ-রেজোলিউশন আর্টওয়ার্ক লোড করতে ব্যবহৃত হয়।",
+                "onboarding.step_format", "ধাপ %d / %d",
+                "spotify.status_configured", "Spotify API কনফিগার করা হয়েছে",
+                "spotify.status_required", "প্রথম ব্যবহারের আগে Spotify API নিবন্ধন করুন।",
+                "spotify.status_checking", "Spotify টোকেন পরীক্ষা করা হচ্ছে...",
+                "spotify.status_invalid_format", "Spotify টোকেন অনুরোধ ব্যর্থ হয়েছে: %s\nআপনার Client ID এবং সিক্রেট আবার চেক করুন।",
+                "button.next", "পরবর্তী",
+                "button.restart", "আবার শুরু করুন",
+                "button.copy", "কপি করুন",
+                "button.open_browser", "ব্রাউজার খুলুন",
+                "button.open_permission", "খোলার অনুমতি Settings",
+                "button.prev_track", "আগের ট্র্যাক",
+                "button.next_track", "পরবর্তী ট্র্যাক",
+                "debug.title", "ডিবাগ",
+                "debug.permission", "মিডিয়া অ্যাক্সেসের অনুমতি খুলুন",
+                "debug.previous", "আগের",
+                "debug.play_pause", "প্লে/পজ করুন",
+                "debug.next", "পরবর্তী",
+                "debug.refresh", "রিফ্রেশ",
+                "debug.log", "লগ",
+                "debug.log_waiting", "লগের জন্য অপেক্ষা করা হচ্ছে",
+                "lyrics.tab.language", "ভাষা",
+                "lyrics.tab.sync", "সিঙ্ক",
+                "lyrics.translation", "অনুবাদ",
+                "lyrics.pronunciation", "উচ্চারণ",
+                "lyrics.sync.title", "বর্তমান গান সিঙ্ক অফসেট",
+                "lyrics.sync.reset", "0ms-এ রিসেট করুন",
+                "lyrics.sync.no_track", "কোনো গান বাজছে না, তাই এটি সংরক্ষণ করা হবে না।",
+                "lyrics.sync.track_scope", "শুধুমাত্র \"%s\" এর জন্য সংরক্ষিত।",
+                "lyrics.sync.help", "+ মান আগে গান দেখায়; - মান তাদের পরে দেখায়।",
+                "lyrics.menu_tip", "অনুবাদ ও উচ্চারণ সেটিংস খুলতে শিরোনাম বা শিল্পীর নাম ধরে চাপুন।",
+                "lyrics.rule.track_language", "গানের ভাষা",
+                "lyrics.rule.save_target", "Save টার্গেট",
+                "lyrics.rule.translation_language", "অনুবাদের ভাষা",
+                "label.on", "অন",
+                "label.off", "অফ",
+                "label.auto", "অটো",
+                "label.auto_target", "অটো (%s)",
+                "lyrics.button.translation_on", "অনুবাদ",
+                "lyrics.button.pronunciation_on", "উচ্চারণ অন",
+                "lyrics.button.translation_plus", "অনুবাদ+",
+                "field.api_key_desc", "একটি একক কী, নতুন লাইনের তালিকা বা JSON অ্যারে সমর্থন করে। শুধু এই ডিভাইসে সংরক্ষিত হয়।",
+                "field.model_desc", "প্রদানকারী মডেল ওভাররাইড।",
+                "field.base_url_desc", "OpenAI-সামঞ্জস্যপূর্ণ বা প্রদানকারী API বেস URL।",
+                "field.max_tokens", "সর্বোচ্চ টোকেন",
+                "field.temperature", "সৃজনশীলতা",
+                "field.solid_color", "সলিড ব্যাকগ্রাউন্ড কালার",
+                "field.solid_color_desc", "সলিড ব্যাকগ্রাউন্ড মোডে ব্যবহৃত রঙ নির্বাচন করুন।",
+                "field.spotify_client_id_desc", "আপনার Spotify অ্যাপের Client ID।",
+                "field.spotify_client_secret_desc", "আপনার Spotify অ্যাপের Client Secret।",
+                "preview.none", "লুকানো",
+                "preview.original", "আসল",
+                "preview.pronunciation", "উচ্চারণ",
+                "preview.translation", "অনুবাদ",
+                "background.mode.gradient", "অ্যালবাম কভার",
+                "background.mode.gradient_desc", "বর্তমান অ্যালবাম কভারটি একটি বড় অস্পষ্ট পটভূমি হিসাবে ব্যবহার করে৷",
+                "background.mode.blur_gradient", "ঝাপসা গ্রেডিয়েন্ট",
+                "background.mode.blur_gradient_desc", "অ্যালবামের রঙ থেকে একটি চলমান অস্পষ্ট গ্রেডিয়েন্ট তৈরি করে।",
+                "background.mode.solid", "সলিড কালার",
+                "background.mode.solid_desc", "একটি কাস্টম কঠিন পটভূমির রঙ ব্যবহার করে।",
+                "provider.desc.gemini", "Google AI Studio API",
+                "provider.desc.chatgpt", "OpenAI-সামঞ্জস্যপূর্ণ API",
+                "provider.desc.claude", "Claude Messages API",
+                "provider.desc.openrouter", "একাধিক AI মডেলে রাউট করে",
+                "provider.desc.groq", "দ্রুত OpenAI-সামঞ্জস্যপূর্ণ ইনফারেন্স",
+                "provider.desc.perplexity", "Agent API",
+                "provider.desc.pollinations", "Pollinations OpenAI-সামঞ্জস্যপূর্ণ API",
+                "spotify.step0.title", "Spotify বিকাশকারী ড্যাশবোর্ডে যান",
+                "spotify.step0.desc", "আপনার ব্রাউজারে Spotify বিকাশকারী ড্যাশবোর্ড খুলুন। সাইন ইন করুন এবং একটি নতুন অ্যাপ তৈরি করুন।",
+                "spotify.step1.title", "Create app এ একটি নাম লিখুন",
+                "spotify.step1.desc", "Create app টিপুন এবং App name এর জন্য নীচের মানটি লিখুন। ivLyrics বা ivlyrics লিখবেন না।",
+                "spotify.step2.title", "বিবরণ লিখুন",
+                "spotify.step2.desc", "App description এর জন্যও নিচের মানটি লিখুন। বিভ্রান্তি এড়াতে এটি একটি উদাহরণ মাত্র।",
+                "spotify.step3.title", "রিডাইরেক্ট URI লিখুন",
+                "spotify.step3.desc", "নিচের ঠিকানাটি Redirect URIs এ যোগ করুন। ট্রেলিং স্ল্যাশ অন্তর্ভুক্ত করুন।",
+                "spotify.step4.title", "Web API নির্বাচন করুন এবং সংরক্ষণ করুন",
+                "spotify.step4.desc", "API নির্বাচন এলাকায় Web API নির্বাচন করুন, চুক্তি বাক্সটি চেক করুন, তারপর Save টিপুন।",
+                "spotify.step5.title", "Client ID এবং Secret কপি করুন",
+                "spotify.step5.desc", "অ্যাপ সেটিংস থেকে Client ID এবং Client Secret কপি করুন, সেগুলি নীচে পেস্ট করুন, তারপর Spotify API সংরক্ষণ করুন৷",
+                "toast.copied_format", "অনুলিপি করা হয়েছে: %s",
+                "toast.provider_saved", "প্রদানকারী সংরক্ষিত",
+                "toast.pronunciation_language_saved", "উচ্চারণ ভাষা সংরক্ষিত",
+                "toast.preview_saved", "প্রধান গানের পূর্বরূপ সংরক্ষিত",
+                "toast.background_saved", "পটভূমি প্রভাব সংরক্ষিত",
+                "toast.metadata_translation_on", "শিরোনাম/শিল্পী অনুবাদ চালু আছে",
+                "toast.metadata_translation_off", "শিরোনাম/শিল্পী অনুবাদ বন্ধ",
+                "toast.auto_interlude_on", "অটো ইন্টারলিউড সনাক্তকরণ চালু আছে",
+                "toast.auto_interlude_off", "অটো ইন্টারলিউড সনাক্তকরণ বন্ধ",
+                "toast.landscape_auto_hide_on", "ল্যান্ডস্কেপে নিয়ন্ত্রণ স্বয়ংক্রিয়ভাবে লুকানো চালু",
+                "toast.landscape_auto_hide_off", "ল্যান্ডস্কেপে নিয়ন্ত্রণ স্বয়ংক্রিয়ভাবে লুকানো বন্ধ",
+                "toast.background_noise_on", "নয়েজ টেক্সচার চালু",
+                "toast.background_noise_off", "নয়েজ টেক্সচার বন্ধ",
+                "toast.reduce_motion_on", "ব্যাকগ্রাউন্ডের গতি কমানো হয়েছে",
+                "toast.reduce_motion_off", "ব্যাকগ্রাউন্ড মোশন সক্ষম",
+                "toast.ai_cache_cleared", "AI ক্যাশে সাফ করা হয়েছে",
+                "toast.language_rule_saved", "গানের ভাষা সেটিংস সংরক্ষিত",
+                "toast.settings_saved", "Settings সংরক্ষিত",
+                "toast.spotify_missing", "Client ID এবং Client Secret উভয়ই লিখুন৷",
+                "toast.spotify_checking", "Spotify টোকেন চেক করা হচ্ছে...",
+                "toast.spotify_invalid", "আবার আপনার Spotify API শংসাপত্র পরীক্ষা করুন।",
+                "toast.spotify_saved", "Spotify API সংরক্ষিত",
+                "toast.current_track_missing", "কোনো বর্তমান গানের তথ্য নেই",
+                "toast.current_cache_cleared", "বর্তমান গানের লিরিক্স ক্যাশে সাফ করা হয়েছে",
+                "toast.all_cache_cleared", "সমস্ত গানের ক্যাশে সাফ করা হয়েছে৷",
+                "toast.sync_offset_format", "সিঙ্ক অফসেট %s",
+                "status.lyrics_request_failed", "গানের কথার অনুরোধ ব্যর্থ হয়েছে৷",
+                "status.ai_applied", "অনুবাদ/উচ্চারণ প্রয়োগ করা হয়েছে",
+                "status.ai_failed_format", "এআই লিরিক্স ব্যর্থ হয়েছে: %s",
+                "status.ai_cache_cleared", "AI ক্যাশে সাফ করা হয়েছে",
+                "status.ai_lyrics_active", "এআই লিরিক্স সক্রিয়",
+                "status.ai_key_needed", "AI লিরিক্স তৈরি করতে একটি API কী লিখুন।",
+                "status.ai_disabled", "অনুবাদ/উচ্চারণ বন্ধ।",
+                "status.no_lyrics_to_apply", "প্রয়োগ করার মতো কোনো লিরিক্স নেই।",
+                "status.ai_generating", "AI লিরিক্স তৈরি করা হচ্ছে...",
+                "status.reload_after_spotify", "এই গানের ISRC, sync-data, এবং LRCLIB লিরিক্স Spotify API সেটিংস পরিবর্তন করার পরে পুনরায় লোড করা হচ্ছে।",
+                "status.detecting_media", "মিডিয়া সেশন সনাক্ত করা হচ্ছে",
+                "status.permission_required", "বিজ্ঞপ্তি অ্যাক্সেসের অনুমতি প্রয়োজন",
+                "status.lyrics_lookup_spotify", "ISRCকে Spotify Web API এর সাথে খুঁজে বের করা, তারপর sync-data এবং LRCLIB লোড করা হচ্ছে।",
+                "status.lyrics_lookup_player", "প্লেয়ারের ISRC দিয়ে sync-data এবং LRCLIB লোড হচ্ছে।",
+                "status.waiting_current_track", "বর্তমানে বাজানো গানের জন্য অপেক্ষা করছে",
+                "status.spotify_required_plain", "Spotify API প্রয়োজনীয়",
+                "loading.generating", "তৈরি হচ্ছে",
+                "loading.pronunciation", "উচ্চারণ তৈরি হচ্ছে...",
+                "loading.translation", "অনুবাদ তৈরি করা হচ্ছে...",
+                "loading.word_sync", "শব্দভিত্তিক সিঙ্ক তৈরি করা হচ্ছে...",
+                "loading.word_sync_desc", "বাহ্যিক গানের কথা সার্ভারে শব্দভিত্তিক সিঙ্ক ডেটা তৈরি করা হচ্ছে।",
+                "status.word_sync_failed", "শব্দভিত্তিক সিঙ্ক ব্যর্থ",
+                "pronunciation_first.state_on", "উচ্চারণ আগে চালু। বন্ধ করতে ট্যাপ করুন",
+                "pronunciation_first.state_off", "উচ্চারণ আগে বন্ধ। চালু করতে ট্যাপ করুন",
+                "loading.pronunciation_sync", "AI উচ্চারণকে গানের কথার টাইমিংয়ের সঙ্গে মেলাচ্ছে...",
+                "status.pronunciation_sync_failed", "উচ্চারণের টাইমিং ব্যর্থ",
+                "lyrics.empty_none", "কোন গানের কথা নেই",
+                "interlude.prelude", "প্রারম্ভ",
+                "interlude.break", "ইন্টারলিউড",
+                "interlude.postlude", "আউটরো",
+                "onboarding.preview.line1", "কারাওকে লিরিক্স গানের সাথে সাথে এগোয়",
+                "onboarding.preview.line2", "উচ্চারণ এবং অনুবাদ এখানে প্রদর্শিত হবে",
+                "onboarding.preview.line3", "বর্তমান ট্র্যাকের সাথে সবকিছু আপডেট হয়",
+                "repo.metadata_waiting", "গানের মেটাডেটার জন্য অপেক্ষা করা হচ্ছে",
+                "repo.lyrics_not_found", "LRCLIB লিরিক্স পাওয়া যায়নি",
+                "repo.instrumental", "বাদ্যযন্ত্র ট্র্যাক",
+                "repo.no_renderable_lyrics", "প্রদর্শনযোগ্য LRCLIB লিরিক্স নেই",
+                "repo.detail.sync_applied_direct", "কারাওকে sync-data প্রয়োগ হয়েছে। LRCLIB সরাসরি sync-data থেকে লোড হয়েছে।",
+                "repo.detail.sync_applied_search", "কারাওকে sync-data প্রয়োগ হয়েছে। LRCLIB অনুসন্ধান থেকে নির্বাচিত হয়েছে।",
+                "repo.detail.no_spotify_isrc", "LRCLIB লাইন লিরিক্স। Spotify ISRC অনুসন্ধান উপলভ্য নয়।",
+                "repo.detail.no_sync_data", "LRCLIB লাইন লিরিক্স। এই ISRC এর জন্য মিল থাকা sync-data পাওয়া যায়নি।",
+                "repo.detail.sync_apply_failed", "LRCLIB লাইন লিরিক্স। sync-data প্রয়োগ করা যায়নি।",
+                "spotify.error.incomplete_credentials", "Spotify API Client ID বা Client Secret অনুপস্থিত।",
+                "spotify.error.credentials_not_configured", "Spotify API credentials সেট করা নেই।",
+                "spotify.error.no_access_token", "Spotify token response-এ access_token ছিল না।",
+                "spotify.error.repository_unavailable", "লিরিক্স repository উপলভ্য নয়।",
+                "lyrics.credit_sync_by_format", "সিঙ্ক: %s",
+                "sync.type_line", "লাইন",
+                "sync.type_word", "শব্দ",
+                "sync.type_character", "অক্ষর",
+                "sync.type_mixed", "মিশ্র",
+                "sync.type_unknown", "পুরোনো সিঙ্ক"
+        );
+    }
+
+    private static Map<String, String> itStrings() {
+        return strings(
+                "button.close", "Chiudi",
+                "button.previous", "Indietro",
+                "button.save_start", "Save e avvia",
+                "button.spotify_setup", "Imposta Spotify API",
+                "status.waiting_spotify", "In attesa della riproduzione di Spotify",
+                "status.lyrics_loading", "Caricamento del testo",
+                "status.lyrics_waiting", "In attesa del testo",
+                "status.spotify_required_title", "Spotify API Richiesto",
+                "status.spotify_required_subtitle", "Save il tuo Client ID e il tuo segreto prima",
+                "status.spotify_required_detail", "I testi ISRC, sync-data e LRCLIB non vengono caricati fino al completamento della configurazione.",
+                "toast.spotify_required", "Registra prima Spotify API",
+                "toast.setup_required", "Completa prima la configurazione iniziale",
+                "toast.back_exit", "Premi di nuovo Indietro per uscire",
+                "toast.ui_language_saved", "Lingua dell'app salvata",
+                "settings.title", "Impostazioni",
+                "settings.subtitle", "Testi, display, schermo intero, IA e strumenti",
+                "tab.lyrics", "Testi",
+                "tab.display", "Display",
+                "tab.ai", "AI",
+                "tab.tools", "Strumenti",
+                "section.language", "Lingua",
+                "section.language_desc", "Gestisci separatamente la lingua dell'app, la pronuncia e le regole di traduzione per brano.",
+                "setting.ui_language", "Lingua app",
+                "setting.ui_language_desc", "Lingua utilizzata per l'interfaccia utente dell'app. Vengono mostrate solo le lingue con traduzioni dell'interfaccia utente reali.",
+                "setting.pronunciation_language", "Lingua di pronuncia",
+                "setting.pronunciation_language_desc", "Scegli in quale scrittura/lingua deve essere generata la pronuncia.",
+                "setting.metadata_translation", "Traduci titolo/artista",
+                "setting.metadata_translation_desc", "Traduci anche il titolo e l'artista del brano corrente utilizzando la lingua di destinazione selezionata.",
+                "setting.main_preview", "Anteprima del testo principale",
+                "setting.main_preview_desc", "Scegli le righe originali, pronuncia e traduzione. Le righe lunghe scorrono a tempo con il testo.",
+                "setting.auto_interlude", "Rilevamento automatico intro/interludio/outro",
+                "setting.auto_interlude_desc", "Trasforma note/linee vuote e lunghi spazi vuoti dopo il testo in marcatori di intermezzo animati.",
+                "setting.interlude_labels", "Mostra etichette interludio",
+                "setting.interlude_labels_desc", "Mostra l'etichetta di testo accanto ai marcatori di intro/interludio/outro mantenendo l'icona animata.",
+                "setting.synced_karaoke_animation", "Effetto karaoke per testi sincronizzati",
+                "setting.synced_karaoke_animation_desc", "Applica riempimento uniforme per carattere ai testi LRCLIB sincronizzati senza sync-data.",
+                "setting.karaoke_bounce_effect", "Rimbalzo karaoke",
+                "setting.karaoke_bounce_effect_desc", "Fa rimbalzare leggermente il testo mentre i caratteri si riempiono.",
+                "setting.karaoke_motion_style", "Stile di animazione karaoke",
+                "setting.karaoke_motion_style_desc", "Classico mantiene il rimbalzo discreto. Espressivo usa una fisica a molla: le parole cantate si ingrandiscono, si sollevano e brillano, quelle non ancora cantate restano leggermente più piccole e le note lunghe si animano lettera per lettera.",
+                "karaoke.motion.classic", "Classico",
+                "karaoke.motion.expressive", "Espressivo",
+                "setting.pronunciation_karaoke_fill", "Riempi la pronuncia come nel karaoke",
+                "setting.pronunciation_karaoke_fill_desc", "Anche con la modalità prima la pronuncia disattivata, la riga della pronuncia si riempie a tempo con il canto. L'IA suddivide la pronuncia secondo i tempi di parole o caratteri. Altri effetti come rimbalzo e bagliore non vengono applicati.",
+                "setting.synced_pronunciation", "Pronuncia sincronizzata",
+                "setting.synced_pronunciation_desc", "Ottiene la pronuncia dei testi karaoke suddivisa secondo il tempo di ogni parola o carattere cantato. Se attiva, sono disponibili la modalità Prima la pronuncia e il riempimento della pronuncia come nel karaoke. Se disattivata, la pronuncia arriva più velocemente come testo semplice per riga.",
+                "section.player", "Lettore",
+                "section.player_desc", "Regola la visualizzazione e il comportamento in orizzontale.",
+                "setting.landscape_auto_hide", "Nascondi automaticamente i controlli in orizzontale",
+                "setting.landscape_auto_hide_desc", "Nascondi la barra di avanzamento e i pulsanti quando inattivi in orizzontale.",
+                "section.background", "Sfondo",
+                "section.background_desc", "Scegli la copertina dell'album, la sfumatura sfocata o lo sfondo in tinta unita.",
+                "setting.background_mode", "Effetto sfondo",
+                "setting.background_mode_desc", "Scegli come viene reso lo sfondo del brano corrente.",
+                "setting.brightness", "Luminosità",
+                "setting.brightness_desc", "Luminosità per copertine di album e sfondi sfumati.",
+                "setting.blur", "Sfocatura",
+                "setting.blur_desc", "Intensità di sfocatura per copertine di album e sfondi sfumati.",
+                "setting.noise", "Texture di rumore",
+                "setting.noise_desc", "Aggiunge una texture a grana sottile come l'originale ivLyrics.",
+                "setting.reduce_motion", "Riduci movimento",
+                "setting.reduce_motion_desc", "Interrompe il movimento automatico dell'album/dello sfondo sfumato.",
+                "section.ai_lyrics", "Testi AI",
+                "section.ai_lyrics_desc", "Genera pronuncia e traduzioni con istruzioni compatibili con ivLyrics.",
+                "section.provider", "Fornitore",
+                "field.api_key", "Chiave API",
+                "field.model", "Modello",
+                "field.base_url", "URL di base",
+                "button.save_regenerate", "Save e Rigenera",
+                "button.get_key", "Ottieni chiave",
+                "section.tools", "Strumenti",
+                "section.tools_desc", "Gestisci cache e registri di debug.",
+                "section.spotify_api", "Spotify API",
+                "section.spotify_api_desc", "Utilizza Client ID e Client Secret dalla Spotify Developer Dashboard. Memorizzato solo su questo dispositivo.",
+                "button.spotify_save", "Salva Spotify API",
+                "section.lyrics_cache", "Cache dei testi",
+                "section.lyrics_cache_desc", "Cancella i testi di base di sync-data/LRCLIB e la cache di pronuncia/traduzione AI. Il brano corrente si ricarica dopo la cancellazione.",
+                "button.clear_current", "Cancella brano corrente",
+                "button.clear_all", "Cancella tutto",
+                "button.ai_cache_clear", "Cancella cache AI",
+                "button.debug_log", "Debug/registri",
+                "onboarding.subtitle", "Testi karaoke, traduzione e pronuncia per il brano attualmente in riproduzione.",
+                "onboarding.welcome_title", "Configura ivLyrics",
+                "onboarding.welcome_desc", "Scegli prima la lingua dell'app, quindi imposta l'autorizzazione di accesso ai contenuti multimediali e le tue credenziali Spotify API.",
+                "onboarding.app_language_en", "Lingua dell'app",
+                "onboarding.app_language_native", "Lingua app",
+                "onboarding.permission_title", "Autorizzazione accesso multimediale",
+                "onboarding.permission_desc", "È necessario l'accesso alle notifiche Android per leggere il brano attualmente in riproduzione in Spotify.",
+                "onboarding.permission_hint", "Trova ivLyrics nella schermata delle impostazioni, consenti l'accesso, quindi torna all'app.",
+                "onboarding.permission_status_enabled", "L'autorizzazione è abilitata. Ora è possibile rilevare la riproduzione Spotify.",
+                "onboarding.permission_status_required", "L'autorizzazione non è ancora abilitata. Apri le impostazioni delle autorizzazioni e consenti ivLyrics.",
+                "onboarding.spotify_title", "Connetti informazioni sul brano",
+                "onboarding.spotify_desc", "Spotify Web API viene utilizzato per caricare ISRC e la grafica ad alta risoluzione per il brano corrente.",
+                "onboarding.step_format", "Passo %d / %d",
+                "spotify.status_configured", "Spotify API configurato",
+                "spotify.status_required", "Registrare Spotify API prima del primo utilizzo.",
+                "spotify.status_checking", "Controllo del token Spotify in corso...",
+                "spotify.status_invalid_format", "Richiesta token Spotify non riuscita: %s\nControlla nuovamente Client ID e Secret.",
+                "button.next", "Avanti",
+                "button.restart", "Ricomincia",
+                "button.copy", "Copia",
+                "button.open_browser", "Apri browser",
+                "button.open_permission", "Apri autorizzazione Settings",
+                "button.prev_track", "Traccia precedente",
+                "button.next_track", "Traccia successiva",
+                "debug.title", "Debug",
+                "debug.permission", "Apri autorizzazione di accesso ai media",
+                "debug.previous", "Precedente",
+                "debug.play_pause", "Riproduci/Pausa",
+                "debug.next", "Successivo",
+                "debug.refresh", "Aggiorna",
+                "debug.log", "Registro",
+                "debug.log_waiting", "In attesa di registri",
+                "lyrics.tab.language", "Lingua",
+                "lyrics.tab.sync", "Sincronizzazione",
+                "lyrics.translation", "Traduzione",
+                "lyrics.pronunciation", "Pronuncia",
+                "lyrics.sync.title", "Offset sincronizzazione brano corrente",
+                "lyrics.sync.reset", "Ripristina a 0 ms",
+                "lyrics.sync.no_track", "Nessun brano in riproduzione, quindi non verrà salvato.",
+                "lyrics.sync.track_scope", "Salvato solo per \"%s\".",
+                "lyrics.sync.help", "I valori + mostrano il testo prima; i valori - lo mostrano dopo.",
+                "lyrics.menu_tip", "Tieni premuto titolo o artista per aprire traduzione e pronuncia.",
+                "lyrics.rule.track_language", "Lingua della canzone",
+                "lyrics.rule.save_target", "Save destinazione",
+                "lyrics.rule.translation_language", "Lingua di traduzione",
+                "label.on", "SU",
+                "label.off", "Spento",
+                "label.auto", "Automatico",
+                "label.auto_target", "Automatico (%s)",
+                "lyrics.button.translation_on", "Traduzione On",
+                "lyrics.button.pronunciation_on", "Pronuncia On",
+                "lyrics.button.translation_plus", "Traduzione+",
+                "field.api_key_desc", "Supporta una chiave singola, un elenco di nuova riga o un array JSON. Memorizzato solo su questo dispositivo.",
+                "field.model_desc", "Sostituzione del modello del fornitore.",
+                "field.base_url_desc", "URL di base dell'API compatibile con OpenAI o del provider.",
+                "field.max_tokens", "Token massimi",
+                "field.temperature", "Creatività",
+                "field.solid_color", "Colore di sfondo a tinta unita",
+                "field.solid_color_desc", "Scegli il colore usato in modalità sfondo solido.",
+                "field.spotify_client_id_desc", "Client ID della tua app Spotify.",
+                "field.spotify_client_secret_desc", "Client Secret della tua app Spotify.",
+                "preview.none", "Nascosto",
+                "preview.original", "Originale",
+                "preview.pronunciation", "Pronuncia",
+                "preview.translation", "Traduzione",
+                "background.mode.gradient", "Copertina dell'album",
+                "background.mode.gradient_desc", "Utilizza la copertina dell'album corrente come un grande sfondo sfocato.",
+                "background.mode.blur_gradient", "Gradiente sfocato",
+                "background.mode.blur_gradient_desc", "Crea un gradiente sfocato in movimento dai colori dell'album.",
+                "background.mode.solid", "Colore solido",
+                "background.mode.solid_desc", "Utilizza un colore di sfondo solido personalizzato.",
+                "provider.desc.gemini", "Google AI Studio API",
+                "provider.desc.chatgpt", "API compatibile con OpenAI",
+                "provider.desc.claude", "Claude Messages API",
+                "provider.desc.openrouter", "Instrada più modelli AI",
+                "provider.desc.groq", "Inferenza veloce compatibile con OpenAI",
+                "provider.desc.perplexity", "Agent API",
+                "provider.desc.pollinations", "API Pollinations compatibile con OpenAI",
+                "spotify.step0.title", "Vai alla Spotify Developer Dashboard",
+                "spotify.step0.desc", "Apri la Spotify Developer Dashboard nel tuo browser. Accedi e crea una nuova app.",
+                "spotify.step1.title", "Immettere un nome in Create app",
+                "spotify.step1.desc", "Premere Create app e immettere il valore di seguito per App name. Non scrivere ivLyrics o ivlyrics.",
+                "spotify.step2.title", "Inserisci la descrizione",
+                "spotify.step2.desc", "Inserisci il valore qui sotto anche per App description. È solo un esempio per evitare confusione.",
+                "spotify.step3.title", "Inserisci l'URI di reindirizzamento",
+                "spotify.step3.desc", "Aggiungi l'indirizzo seguente a Redirect URIs. Includere la barra finale.",
+                "spotify.step4.title", "Seleziona Web API e salva",
+                "spotify.step4.desc", "Seleziona Web API nell'area di selezione API, seleziona la casella dell'accordo, quindi premi Save.",
+                "spotify.step5.title", "Copia Client ID e Secret",
+                "spotify.step5.desc", "Copia Client ID e Client Secret dalle impostazioni dell'app, incollali di seguito, quindi salva Spotify API.",
+                "toast.copied_format", "Copiato: %s",
+                "toast.provider_saved", "Fornitore salvato",
+                "toast.pronunciation_language_saved", "Lingua di pronuncia salvata",
+                "toast.preview_saved", "Anteprima del testo principale salvata",
+                "toast.background_saved", "Effetto sfondo salvato",
+                "toast.metadata_translation_on", "Traduzione titolo/artista attiva",
+                "toast.metadata_translation_off", "Traduzione titolo/artista disattivata",
+                "toast.auto_interlude_on", "Rilevamento automatico intermezzo attivato",
+                "toast.auto_interlude_off", "Rilevamento automatico intermezzo disattivato",
+                "toast.landscape_auto_hide_on", "Occultamento automatico dei controlli in orizzontale attivato",
+                "toast.landscape_auto_hide_off", "Occultamento automatico dei controlli in orizzontale disattivato",
+                "toast.background_noise_on", "Texture di rumore attivata",
+                "toast.background_noise_off", "Texture di rumore disattivata",
+                "toast.reduce_motion_on", "Movimento di sfondo ridotto",
+                "toast.reduce_motion_off", "Movimento dello sfondo attivato",
+                "toast.ai_cache_cleared", "Cache AI cancellata",
+                "toast.language_rule_saved", "Impostazioni della lingua del brano salvate",
+                "toast.settings_saved", "Settings salvate",
+                "toast.spotify_missing", "Immettere sia Client ID che Client Secret.",
+                "toast.spotify_checking", "Controllo del token Spotify...",
+                "toast.spotify_invalid", "Controlla nuovamente le tue credenziali Spotify API.",
+                "toast.spotify_saved", "Spotify API salvato",
+                "toast.current_track_missing", "Nessuna informazione sul brano corrente",
+                "toast.current_cache_cleared", "Cache dei testi del brano corrente cancellata",
+                "toast.all_cache_cleared", "Cache di tutti i testi cancellata",
+                "toast.sync_offset_format", "Offset sincronizzazione %s",
+                "status.lyrics_request_failed", "Richiesta di testo non riuscita",
+                "status.ai_applied", "Traduzione/pronuncia applicata",
+                "status.ai_failed_format", "Testi AI non riusciti: %s",
+                "status.ai_cache_cleared", "Cache AI cancellata",
+                "status.ai_lyrics_active", "Testi AI abilitati",
+                "status.ai_key_needed", "Inserisci una chiave API per generare testi AI.",
+                "status.ai_disabled", "La traduzione/pronuncia è disattivata.",
+                "status.no_lyrics_to_apply", "Nessun testo da applicare.",
+                "status.ai_generating", "Generazione testi AI...",
+                "status.reload_after_spotify", "Ricaricamento dei testi ISRC, sync-data e LRCLIB di questo brano dopo la modifica delle impostazioni Spotify API.",
+                "status.detecting_media", "Rilevamento sessione multimediale",
+                "status.permission_required", "Autorizzazione di accesso alle notifiche richiesta",
+                "status.lyrics_lookup_spotify", "Ricerca di ISRC con Spotify Web API, quindi caricamento di sync-data e LRCLIB.",
+                "status.lyrics_lookup_player", "Caricamento sync-data e LRCLIB con il lettore ISRC.",
+                "status.waiting_current_track", "In attesa del brano attualmente in riproduzione",
+                "status.spotify_required_plain", "Spotify API richiesto",
+                "loading.generating", "Generazione",
+                "loading.pronunciation", "Generazione pronuncia in corso...",
+                "loading.translation", "Generazione traduzione in corso...",
+                "loading.word_sync", "Generazione sincronizzazione parole...",
+                "loading.word_sync_desc", "Generazione della sincronizzazione parola per parola su un server esterno di testi.",
+                "status.word_sync_failed", "Sincronizzazione parole fallita",
+                "pronunciation_first.state_on", "Prima la pronuncia attiva. Tocca per disattivare",
+                "pronunciation_first.state_off", "Prima la pronuncia disattivata. Tocca per attivare",
+                "loading.pronunciation_sync", "L'IA sta allineando la pronuncia ai tempi del testo...",
+                "status.pronunciation_sync_failed", "Sincronia della pronuncia non riuscita",
+                "lyrics.empty_none", "Nessun testo",
+                "interlude.prelude", "Intro",
+                "interlude.break", "Interludio",
+                "interlude.postlude", "Outro",
+                "onboarding.preview.line1", "I testi del karaoke seguono la canzone",
+                "onboarding.preview.line2", "Pronuncia e traduzione appaiono qui",
+                "onboarding.preview.line3", "Tutto si aggiorna con la traccia corrente",
+                "repo.metadata_waiting", "In attesa dei metadati del brano",
+                "repo.lyrics_not_found", "Testi LRCLIB non trovati",
+                "repo.instrumental", "Traccia strumentale",
+                "repo.no_renderable_lyrics", "Nessun testo LRCLIB visualizzabile",
+                "repo.detail.sync_applied_direct", "sync-data karaoke applicato. LRCLIB è stato caricato direttamente da sync-data.",
+                "repo.detail.sync_applied_search", "sync-data karaoke applicato. LRCLIB è stato scelto dalla ricerca.",
+                "repo.detail.no_spotify_isrc", "Testi LRCLIB per riga. La ricerca Spotify ISRC non è disponibile.",
+                "repo.detail.no_sync_data", "Testi LRCLIB per riga. Nessun sync-data corrisponde a questo ISRC.",
+                "repo.detail.sync_apply_failed", "Testi LRCLIB per riga. Impossibile applicare sync-data.",
+                "spotify.error.incomplete_credentials", "Manca il Client ID o Client Secret della Spotify API.",
+                "spotify.error.credentials_not_configured", "Le credenziali Spotify API non sono configurate.",
+                "spotify.error.no_access_token", "La risposta del token Spotify non conteneva access_token.",
+                "spotify.error.repository_unavailable", "Il repository dei testi non è disponibile.",
+                "lyrics.credit_sync_by_format", "sync di %s",
+                "sync.type_line", "Riga",
+                "sync.type_word", "Parola",
+                "sync.type_character", "Carattere",
+                "sync.type_mixed", "Misto",
+                "sync.type_unknown", "Sync precedente"
+        );
+    }
+
+    private static Map<String, String> thStrings() {
+        return strings(
+                "button.close", "ปิด",
+                "button.previous", "กลับ",
+                "button.save_start", "Save และเริ่มการตั้งค่า",
+                "button.spotify_setup", "ตั้งค่า Spotify API",
+                "status.waiting_spotify", "กำลังรอการเล่นจาก Spotify",
+                "status.lyrics_loading", "กำลังโหลดเนื้อเพลง",
+                "status.lyrics_waiting", "กำลังรอเนื้อเพลง",
+                "status.spotify_required_title", "ต้องใช้ Spotify API",
+                "status.spotify_required_subtitle", "Save Client ID ของคุณและความลับก่อน",
+                "status.spotify_required_detail", "เนื้อเพลง ISRC, sync-data และ LRCLIB จะไม่ถูกโหลดจนกว่าการตั้งค่าจะเสร็จสมบูรณ์",
+                "toast.spotify_required", "ลงทะเบียน Spotify API ก่อน",
+                "toast.setup_required", "ตั้งค่าเริ่มต้นให้เสร็จสิ้นก่อน",
+                "toast.back_exit", "กดย้อนกลับอีกครั้งเพื่อออกจากแอป",
+                "toast.ui_language_saved", "บันทึกภาษาของแอปแล้ว",
+                "settings.title", "การตั้งค่า",
+                "settings.subtitle", "เนื้อเพลง การแสดงผล เต็มหน้าจอ AI และเครื่องมือ",
+                "tab.lyrics", "เนื้อเพลง",
+                "tab.display", "จอแสดงผล",
+                "tab.ai", "AI",
+                "tab.tools", "เครื่องมือ",
+                "section.language", "ภาษา",
+                "section.language_desc", "จัดการภาษาของแอป การออกเสียง และกฎการแปลต่อเพลงแยกกัน",
+                "setting.ui_language", "ภาษาของแอป",
+                "setting.ui_language_desc", "ภาษาที่ใช้สำหรับ UI ของแอป แสดงเฉพาะภาษาที่มีการแปล UI จริงเท่านั้น",
+                "setting.pronunciation_language", "ภาษาการออกเสียง",
+                "setting.pronunciation_language_desc", "เลือกว่าควรจะสร้างการออกเสียงสคริปต์/ภาษาใด",
+                "setting.metadata_translation", "แปลชื่อเพลง/ศิลปิน",
+                "setting.metadata_translation_desc", "แปลชื่อเพลงและศิลปินปัจจุบันโดยใช้ภาษาเป้าหมายที่เลือกด้วย",
+                "setting.main_preview", "ตัวอย่างเนื้อเพลงหลัก",
+                "setting.main_preview_desc", "เลือกแถวต้นฉบับ การออกเสียง และการแปล สไลด์แถวยาวพร้อมจังหวะเนื้อเพลง",
+                "setting.auto_interlude", "ตรวจจับช่วงนำ/ช่วงพัก/ช่วงท้ายอัตโนมัติ",
+                "setting.auto_interlude_desc", "เปลี่ยนโน้ต/บรรทัดว่าง และช่วงว่างยาวหลังเนื้อเพลงให้เป็นเครื่องหมายช่วงพักแบบเคลื่อนไหว",
+                "setting.interlude_labels", "แสดงป้ายกำกับอินเทอร์ลูด",
+                "setting.interlude_labels_desc", "แสดงข้อความกำกับข้างเครื่องหมายช่วงนำ/ช่วงพัก/ช่วงท้าย โดยยังคงไอคอนเคลื่อนไหวไว้",
+                "setting.synced_karaoke_animation", "เอฟเฟกต์คาราโอเกะเนื้อเพลงซิงก์",
+                "setting.synced_karaoke_animation_desc", "ใช้การเติมตัวอักษรแบบสม่ำเสมอกับเนื้อเพลง LRCLIB ที่ซิงก์ปกติซึ่งไม่มี sync-data",
+                "setting.karaoke_bounce_effect", "เอฟเฟกต์เด้งคาราโอเกะ",
+                "setting.karaoke_bounce_effect_desc", "ทำให้ข้อความเด้งเบา ๆ ขณะเติมสีตัวอักษร",
+                "setting.karaoke_motion_style", "สไตล์การเคลื่อนไหวคาราโอเกะ",
+                "setting.karaoke_motion_style_desc", "แบบคลาสสิกคงการเด้งเบา ๆ ไว้ แบบเอ็กซ์เพรสซีฟใช้ฟิสิกส์สปริง: คำที่กำลังร้องจะขยาย ลอยขึ้น และเรืองแสง คำที่ยังไม่ได้ร้องจะเล็กลงเล็กน้อย และโน้ตที่ลากยาวจะเคลื่อนไหวทีละตัวอักษร",
+                "karaoke.motion.classic", "คลาสสิก",
+                "karaoke.motion.expressive", "เอ็กซ์เพรสซีฟ",
+                "setting.pronunciation_karaoke_fill", "เติมสีคำอ่านแบบคาราโอเกะ",
+                "setting.pronunciation_karaoke_fill_desc", "แม้ปิดโหมดเน้นคำอ่าน บรรทัดคำอ่านก็จะเติมสีตามจังหวะการร้อง AI จะแบ่งคำอ่านตามจังหวะของแต่ละคำหรือตัวอักษร โดยไม่ใช้เอฟเฟกต์อื่น เช่น การเด้งและการเรืองแสง",
+                "setting.synced_pronunciation", "ใช้คำอ่านแบบซิงก์",
+                "setting.synced_pronunciation_desc", "ดึงคำอ่านของเนื้อเพลงคาราโอเกะโดยแบ่งตามจังหวะของแต่ละคำหรือตัวอักษรที่ร้อง เมื่อเปิด จะใช้โหมดเน้นคำอ่านและการเติมสีคำอ่านแบบคาราโอเกะได้ เมื่อปิด คำอ่านจะมาเร็วขึ้นเป็นข้อความธรรมดาทีละบรรทัด",
+                "section.player", "เครื่องเล่น",
+                "section.player_desc", "ปรับพฤติกรรมการแสดงผลและแนวนอน",
+                "setting.landscape_auto_hide", "ซ่อนตัวควบคุมแนวนอนอัตโนมัติ",
+                "setting.landscape_auto_hide_desc", "ซ่อนแถบความคืบหน้าและปุ่มเมื่อไม่ได้ใช้งานในแนวนอน",
+                "section.background", "พื้นหลัง",
+                "section.background_desc", "เลือกปกอัลบั้ม การไล่ระดับสีแบบเบลอ หรือพื้นหลังสีทึบ",
+                "setting.background_mode", "เอฟเฟกต์พื้นหลัง",
+                "setting.background_mode_desc", "เลือกวิธีแสดงพื้นหลังเพลงปัจจุบัน",
+                "setting.brightness", "ความสว่าง",
+                "setting.brightness_desc", "ความสว่างสำหรับปกอัลบั้มและพื้นหลังแบบไล่ระดับสี",
+                "setting.blur", "เบลอ",
+                "setting.blur_desc", "ความเข้มของการเบลอสำหรับปกอัลบั้มและพื้นหลังแบบไล่ระดับสี",
+                "setting.noise", "เนื้อนอยส์",
+                "setting.noise_desc", "เพิ่มเนื้อเกรนที่ละเอียดอ่อนเหมือนต้นฉบับ ivLyrics",
+                "setting.reduce_motion", "ลดการเคลื่อนไหว",
+                "setting.reduce_motion_desc", "หยุดการเคลื่อนไหวของพื้นหลังอัลบั้ม/การไล่ระดับสีอัตโนมัติ",
+                "section.ai_lyrics", "เนื้อเพลง AI",
+                "section.ai_lyrics_desc", "สร้างการออกเสียงและการแปลพร้อมข้อความแจ้งที่เข้ากันได้กับ ivLyrics",
+                "section.provider", "ผู้ให้บริการ",
+                "field.api_key", "คีย์ API",
+                "field.model", "โมเดล",
+                "field.base_url", "URL หลัก",
+                "button.save_regenerate", "Save และสร้างใหม่",
+                "button.get_key", "รับคีย์",
+                "section.tools", "เครื่องมือ",
+                "section.tools_desc", "จัดการแคชและบันทึกการแก้ไขข้อบกพร่อง",
+                "section.spotify_api", "Spotify API",
+                "section.spotify_api_desc", "ใช้ Client ID และ Client Secret จาก Spotify Developer Dashboard เก็บไว้ในอุปกรณ์นี้เท่านั้น",
+                "button.spotify_save", "บันทึก Spotify API",
+                "section.lyrics_cache", "แคชเนื้อเพลง",
+                "section.lyrics_cache_desc", "ล้างเนื้อเพลงพื้นฐานจาก sync-data/LRCLIB และแคชการออกเสียง/การแปลของ AI เพลงปัจจุบันจะโหลดซ้ำหลังจากการเคลียร์",
+                "button.clear_current", "ล้างเพลงปัจจุบัน",
+                "button.clear_all", "ล้างทั้งหมด",
+                "button.ai_cache_clear", "ล้างแคช AI",
+                "button.debug_log", "ดีบัก / บันทึก",
+                "onboarding.subtitle", "เนื้อเพลงคาราโอเกะ การแปล และการออกเสียงสำหรับเพลงที่กำลังเล่นอยู่",
+                "onboarding.welcome_title", "ตั้งค่า ivLyrics",
+                "onboarding.welcome_desc", "เลือกภาษาของแอปก่อน จากนั้นตั้งค่าการอนุญาตการเข้าถึงสื่อและข้อมูลรับรอง Spotify API ของคุณเอง",
+                "onboarding.app_language_en", "ภาษาของแอป",
+                "onboarding.app_language_native", "ภาษาของแอป",
+                "onboarding.permission_title", "สิทธิ์การเข้าถึงสื่อ",
+                "onboarding.permission_desc", "Android จำเป็นต้องเข้าถึงการแจ้งเตือนเพื่ออ่านเพลงที่กำลังเล่นใน Spotify",
+                "onboarding.permission_hint", "ค้นหา ivLyrics ในหน้าจอการตั้งค่า อนุญาตการเข้าถึง จากนั้นกลับสู่แอป",
+                "onboarding.permission_status_enabled", "เปิดใช้งานการอนุญาตแล้ว ตอนนี้สามารถตรวจจับการเล่นเพลงใน Spotify ได้แล้ว",
+                "onboarding.permission_status_required", "ยังไม่ได้เปิดใช้งานการอนุญาต เปิดการตั้งค่าการอนุญาตและอนุญาต ivLyrics",
+                "onboarding.spotify_title", "เชื่อมต่อข้อมูลเพลง",
+                "onboarding.spotify_desc", "Spotify Web API ใช้เพื่อโหลด ISRC และอาร์ตเวิร์กที่มีความละเอียดสูงสำหรับเพลงปัจจุบัน",
+                "onboarding.step_format", "ขั้นตอน %d / %d",
+                "spotify.status_configured", "กำหนดค่า Spotify API แล้ว",
+                "spotify.status_required", "ลงทะเบียน Spotify API ก่อนใช้งานครั้งแรก",
+                "spotify.status_checking", "กำลังตรวจสอบโทเค็น Spotify...",
+                "spotify.status_invalid_format", "คำขอโทเค็น Spotify ล้มเหลว: %s\nตรวจสอบ Client ID และความลับของคุณอีกครั้ง",
+                "button.next", "ถัดไป",
+                "button.restart", "เริ่มใหม่",
+                "button.copy", "คัดลอก",
+                "button.open_browser", "เปิดเบราว์เซอร์",
+                "button.open_permission", "เปิดสิทธิ์ Settings",
+                "button.prev_track", "แทร็กก่อนหน้า",
+                "button.next_track", "แทร็กถัดไป",
+                "debug.title", "ดีบัก",
+                "debug.permission", "เปิดสิทธิ์การเข้าถึงสื่อ",
+                "debug.previous", "ก่อนหน้า",
+                "debug.play_pause", "เล่น/หยุดชั่วคราว",
+                "debug.next", "ถัดไป",
+                "debug.refresh", "รีเฟรช",
+                "debug.log", "บันทึก",
+                "debug.log_waiting", "กำลังรอบันทึก",
+                "lyrics.tab.language", "ภาษา",
+                "lyrics.tab.sync", "ซิงค์",
+                "lyrics.translation", "การแปล",
+                "lyrics.pronunciation", "การออกเสียง",
+                "lyrics.sync.title", "ออฟเซ็ตการซิงค์เพลงปัจจุบัน",
+                "lyrics.sync.reset", "รีเซ็ตเป็น 0ms",
+                "lyrics.sync.no_track", "ไม่มีการเล่นเพลง ดังนั้นสิ่งนี้จะไม่ถูกบันทึก",
+                "lyrics.sync.track_scope", "บันทึกเฉพาะสำหรับ \"%s\"",
+                "lyrics.sync.help", "ค่า + จะแสดงเนื้อเพลงเร็วขึ้น ค่า - จะแสดงช้าลง",
+                "lyrics.menu_tip", "กดชื่อเพลงหรือศิลปินค้างไว้เพื่อเปิดการตั้งค่าคำแปลและการออกเสียง",
+                "lyrics.rule.track_language", "ภาษาเพลง",
+                "lyrics.rule.save_target", "Save เป้าหมาย",
+                "lyrics.rule.translation_language", "ภาษาการแปล",
+                "label.on", "เปิด",
+                "label.off", "ปิด",
+                "label.auto", "อัตโนมัติ",
+                "label.auto_target", "อัตโนมัติ (%s)",
+                "lyrics.button.translation_on", "การแปลบน",
+                "lyrics.button.pronunciation_on", "การออกเสียงบน",
+                "lyrics.button.translation_plus", "การแปล +",
+                "field.api_key_desc", "รองรับคีย์เดียว รายการขึ้นบรรทัดใหม่ หรืออาร์เรย์ JSON เก็บไว้ในอุปกรณ์นี้เท่านั้น",
+                "field.model_desc", "การแทนที่โมเดลผู้ให้บริการ",
+                "field.base_url_desc", "URL หลักของ API ที่เข้ากันได้กับ OpenAI หรือ API ของผู้ให้บริการ",
+                "field.max_tokens", "โทเค็นสูงสุด",
+                "field.temperature", "ความคิดสร้างสรรค์",
+                "field.solid_color", "สีพื้นหลังทึบ",
+                "field.solid_color_desc", "เลือกสีที่จะใช้ในโหมดพื้นหลังทึบ",
+                "field.spotify_client_id_desc", "Client ID ของแอป Spotify ของคุณ",
+                "field.spotify_client_secret_desc", "Client Secret ของแอป Spotify ของคุณ",
+                "preview.none", "ซ่อน",
+                "preview.original", "ต้นฉบับ",
+                "preview.pronunciation", "การออกเสียง",
+                "preview.translation", "การแปล",
+                "background.mode.gradient", "ปกอัลบั้ม",
+                "background.mode.gradient_desc", "ใช้ปกอัลบั้มปัจจุบันเป็นพื้นหลังเบลอขนาดใหญ่",
+                "background.mode.blur_gradient", "การไล่ระดับสีแบบเบลอ",
+                "background.mode.blur_gradient_desc", "สร้างการไล่ระดับสีแบบเบลอที่เคลื่อนไหวจากสีของอัลบั้ม",
+                "background.mode.solid", "สีทึบ",
+                "background.mode.solid_desc", "ใช้สีพื้นหลังสีทึบแบบกำหนดเอง",
+                "provider.desc.gemini", "Google AI Studio API",
+                "provider.desc.chatgpt", "API ที่เข้ากันได้กับ OpenAI",
+                "provider.desc.claude", "Claude Messages API",
+                "provider.desc.openrouter", "กำหนดเส้นทางโมเดล AI หลายรุ่น",
+                "provider.desc.groq", "การอนุมานที่เข้ากันได้กับ OpenAI ที่รวดเร็ว",
+                "provider.desc.perplexity", "Agent API",
+                "provider.desc.pollinations", "Pollinations API ที่เข้ากันได้กับ OpenAI",
+                "spotify.step0.title", "ไปที่ Spotify Developer Dashboard",
+                "spotify.step0.desc", "เปิด Spotify Developer Dashboard ในเบราว์เซอร์ของคุณ ลงชื่อเข้าใช้และสร้างแอปใหม่",
+                "spotify.step1.title", "ป้อนชื่อใน Create app",
+                "spotify.step1.desc", "กด Create app และป้อนค่าด้านล่างสำหรับ App name ห้ามเขียน ivLyrics หรือ ivlyrics",
+                "spotify.step2.title", "ป้อนคำอธิบาย",
+                "spotify.step2.desc", "ป้อนค่าด้านล่างสำหรับ App description ด้วย มันเป็นเพียงตัวอย่างเพื่อหลีกเลี่ยงความสับสน",
+                "spotify.step3.title", "ป้อน URI เปลี่ยนเส้นทาง",
+                "spotify.step3.desc", "เพิ่มที่อยู่ด้านล่างใน Redirect URIs รวมเครื่องหมายทับต่อท้าย",
+                "spotify.step4.title", "เลือก Web API และบันทึก",
+                "spotify.step4.desc", "เลือก Web API ในพื้นที่การเลือก API ทำเครื่องหมายที่ช่องข้อตกลง จากนั้นกด Save",
+                "spotify.step5.title", "คัดลอก Client ID และความลับ",
+                "spotify.step5.desc", "คัดลอก Client ID และ Client Secret จากการตั้งค่าแอป วางไว้ด้านล่าง จากนั้นบันทึก Spotify API",
+                "toast.copied_format", "คัดลอก: %s",
+                "toast.provider_saved", "บันทึกผู้ให้บริการแล้ว",
+                "toast.pronunciation_language_saved", "บันทึกภาษาการออกเสียงแล้ว",
+                "toast.preview_saved", "บันทึกตัวอย่างเนื้อเพลงหลักแล้ว",
+                "toast.background_saved", "บันทึกเอฟเฟกต์พื้นหลังแล้ว",
+                "toast.metadata_translation_on", "เปิดการแปลชื่อเพลง/ศิลปิน",
+                "toast.metadata_translation_off", "ปิดการแปลชื่อเพลง/ศิลปิน",
+                "toast.auto_interlude_on", "เปิดการตรวจจับช่วงพักอัตโนมัติ",
+                "toast.auto_interlude_off", "ปิดการตรวจจับช่วงพักอัตโนมัติ",
+                "toast.landscape_auto_hide_on", "เปิดการซ่อนตัวควบคุมแนวนอนอัตโนมัติ",
+                "toast.landscape_auto_hide_off", "ปิดการซ่อนตัวควบคุมแนวนอนอัตโนมัติ",
+                "toast.background_noise_on", "เปิดเนื้อนอยส์",
+                "toast.background_noise_off", "ปิดเนื้อนอยส์",
+                "toast.reduce_motion_on", "ลดการเคลื่อนไหวของพื้นหลัง",
+                "toast.reduce_motion_off", "เปิดใช้งานการเคลื่อนไหวพื้นหลัง",
+                "toast.ai_cache_cleared", "ล้างแคช AI แล้ว",
+                "toast.language_rule_saved", "บันทึกการตั้งค่าภาษาของเพลงแล้ว",
+                "toast.settings_saved", "Settings บันทึกแล้ว",
+                "toast.spotify_missing", "ป้อนทั้ง Client ID และ Client Secret",
+                "toast.spotify_checking", "กำลังตรวจสอบโทเค็น Spotify...",
+                "toast.spotify_invalid", "ตรวจสอบข้อมูลรับรอง Spotify API ของคุณอีกครั้ง",
+                "toast.spotify_saved", "บันทึก Spotify API แล้ว",
+                "toast.current_track_missing", "ไม่มีข้อมูลเพลงปัจจุบัน",
+                "toast.current_cache_cleared", "ล้างแคชเนื้อเพลงปัจจุบันแล้ว",
+                "toast.all_cache_cleared", "ล้างแคชเนื้อเพลงทั้งหมดแล้ว",
+                "toast.sync_offset_format", "ชดเชยการซิงค์ %s",
+                "status.lyrics_request_failed", "คำขอเนื้อเพลงล้มเหลว",
+                "status.ai_applied", "ใช้การแปล/การออกเสียงแล้ว",
+                "status.ai_failed_format", "เนื้อเพลง AI ล้มเหลว: %s",
+                "status.ai_cache_cleared", "ล้างแคช AI แล้ว",
+                "status.ai_lyrics_active", "เปิดใช้งานเนื้อเพลง AI แล้ว",
+                "status.ai_key_needed", "ป้อนคีย์ API เพื่อสร้างเนื้อเพลง AI",
+                "status.ai_disabled", "การแปล/การออกเสียงปิดอยู่",
+                "status.no_lyrics_to_apply", "ไม่มีเนื้อเพลงให้ใช้",
+                "status.ai_generating", "กำลังสร้างเนื้อเพลง AI...",
+                "status.reload_after_spotify", "กำลังโหลดเนื้อเพลง ISRC, sync-data และ LRCLIB ของเพลงนี้อีกครั้ง หลังจากที่การตั้งค่า Spotify API มีการเปลี่ยนแปลง",
+                "status.detecting_media", "การตรวจจับเซสชันสื่อ",
+                "status.permission_required", "จำเป็นต้องมีสิทธิ์การเข้าถึงการแจ้งเตือน",
+                "status.lyrics_lookup_spotify", "ค้นหา ISRC ด้วย Spotify Web API จากนั้นโหลด sync-data และ LRCLIB",
+                "status.lyrics_lookup_player", "กำลังโหลด sync-data และ LRCLIB ด้วย ISRC จากเครื่องเล่น",
+                "status.waiting_current_track", "กำลังรอเพลงที่กำลังเล่นอยู่",
+                "status.spotify_required_plain", "ต้องใช้ Spotify API",
+                "loading.generating", "กำลังสร้าง",
+                "loading.pronunciation", "กำลังสร้างการออกเสียง...",
+                "loading.translation", "กำลังสร้างการแปล...",
+                "loading.word_sync", "กำลังสร้างซิงก์ระดับคำ...",
+                "loading.word_sync_desc", "กำลังสร้างข้อมูลซิงก์ระดับคำบนเซิร์ฟเวอร์เนื้อเพลงภายนอก",
+                "status.word_sync_failed", "ซิงก์ระดับคำไม่สำเร็จ",
+                "pronunciation_first.state_on", "เน้นคำอ่านเปิดอยู่ แตะเพื่อปิด",
+                "pronunciation_first.state_off", "เน้นคำอ่านปิดอยู่ แตะเพื่อเปิด",
+                "loading.pronunciation_sync", "AI กำลังจัดคำอ่านให้ตรงกับจังหวะเนื้อเพลง...",
+                "status.pronunciation_sync_failed", "จัดจังหวะคำอ่านไม่สำเร็จ",
+                "lyrics.empty_none", "ไม่มีเนื้อเพลง",
+                "interlude.prelude", "ช่วงนำ",
+                "interlude.break", "ช่วงพัก",
+                "interlude.postlude", "ช่วงท้าย",
+                "onboarding.preview.line1", "เนื้อเพลงคาราโอเกะตามเพลง",
+                "onboarding.preview.line2", "การออกเสียงและการแปลปรากฏที่นี่",
+                "onboarding.preview.line3", "ทุกอย่างอัปเดตด้วยแทร็กปัจจุบัน",
+                "repo.metadata_waiting", "กำลังรอข้อมูลเพลง",
+                "repo.lyrics_not_found", "ไม่พบเนื้อเพลง LRCLIB",
+                "repo.instrumental", "แทร็กบรรเลง",
+                "repo.no_renderable_lyrics", "ไม่มีเนื้อเพลง LRCLIB ที่แสดงได้",
+                "repo.detail.sync_applied_direct", "ใช้ sync-data คาราโอเกะแล้ว โหลด LRCLIB โดยตรงจาก sync-data",
+                "repo.detail.sync_applied_search", "ใช้ sync-data คาราโอเกะแล้ว เลือก LRCLIB จากการค้นหา",
+                "repo.detail.no_spotify_isrc", "เนื้อเพลงรายบรรทัด LRCLIB ไม่สามารถค้นหา Spotify ISRC ได้",
+                "repo.detail.no_sync_data", "เนื้อเพลงรายบรรทัด LRCLIB ไม่พบ sync-data ที่ตรงกับ ISRC นี้",
+                "repo.detail.sync_apply_failed", "เนื้อเพลงรายบรรทัด LRCLIB ไม่สามารถใช้ sync-data ได้",
+                "spotify.error.incomplete_credentials", "ขาด Spotify API Client ID หรือ Client Secret",
+                "spotify.error.credentials_not_configured", "ยังไม่ได้ตั้งค่า Spotify API credentials",
+                "spotify.error.no_access_token", "การตอบกลับ token ของ Spotify ไม่มี access_token",
+                "spotify.error.repository_unavailable", "ไม่สามารถใช้คลังเนื้อเพลงได้",
+                "lyrics.credit_sync_by_format", "sync โดย %s",
+                "sync.type_line", "บรรทัด",
+                "sync.type_word", "คำ",
+                "sync.type_character", "อักขระ",
+                "sync.type_mixed", "ผสม",
+                "sync.type_unknown", "ซิงก์รูปแบบเดิม"
+        );
+    }
+
+    private static Map<String, String> viStrings() {
+        return strings(
+                "button.close", "Đóng",
+                "button.previous", "Quay lại",
+                "button.save_start", "Save và bắt đầu",
+                "button.spotify_setup", "Thiết lập Spotify API",
+                "status.waiting_spotify", "Đang chờ Spotify phát nhạc",
+                "status.lyrics_loading", "Đang tải lời bài hát",
+                "status.lyrics_waiting", "Đang chờ lời bài hát",
+                "status.spotify_required_title", "Spotify API Bắt buộc",
+                "status.spotify_required_subtitle", "Save your Client ID và Bí mật đầu tiên",
+                "status.spotify_required_detail", "ISRC, sync-data và lời bài hát LRCLIB không được tải cho đến khi quá trình thiết lập hoàn tất.",
+                "toast.spotify_required", "Hãy đăng ký Spotify API trước",
+                "toast.setup_required", "Hoàn thành thiết lập ban đầu trước",
+                "toast.back_exit", "Nhấn Quay lại lần nữa để thoát",
+                "toast.ui_language_saved", "Đã lưu ngôn ngữ ứng dụng",
+                "settings.title", "Cài đặt",
+                "settings.subtitle", "Lời bài hát, màn hình, toàn màn hình, AI và công cụ",
+                "tab.lyrics", "Lời bài hát",
+                "tab.display", "Hiển thị",
+                "tab.ai", "AI",
+                "tab.tools", "Công cụ",
+                "section.language", "Ngôn ngữ",
+                "section.language_desc", "Quản lý ngôn ngữ ứng dụng, cách phát âm và quy tắc dịch từng bài hát một cách riêng biệt. Ngôn ngữ ứng dụng",
+                "setting.ui_language", "Ngôn ngữ ứng dụng",
+                "setting.ui_language_desc", "Ngôn ngữ dùng cho giao diện ứng dụng. Chỉ hiển thị những ngôn ngữ có bản dịch giao diện thực sự.",
+                "setting.pronunciation_language", "Ngôn ngữ phát âm",
+                "setting.pronunciation_language_desc", "Chọn cách phát âm tập lệnh/ngôn ngữ sẽ được tạo.",
+                "setting.metadata_translation", "Dịch tiêu đề/nghệ sĩ",
+                "setting.metadata_translation_desc", "Đồng thời dịch tên bài hát và nghệ sĩ hiện tại bằng ngôn ngữ đích đã chọn.",
+                "setting.main_preview", "Xem trước lời bài hát chính",
+                "setting.main_preview_desc", "Chọn hàng gốc, phát âm và dịch. Hàng dài trượt với thời gian lời bài hát.",
+                "setting.auto_interlude", "Tự động phát hiện dạo đầu/dạo giữa/dạo cuối",
+                "setting.auto_interlude_desc", "Biến các nốt nhạc/dòng trống và khoảng trống dài sau lời bài hát thành dấu đoạn dạo nhạc có hiệu ứng động.",
+                "setting.interlude_labels", "Hiện nhãn đoạn dạo",
+                "setting.interlude_labels_desc", "Hiển thị nhãn chữ cạnh các mốc dạo đầu/dạo giữa/dạo cuối và vẫn giữ biểu tượng động.",
+                "setting.synced_karaoke_animation", "Hiệu ứng karaoke cho lời đồng bộ",
+                "setting.synced_karaoke_animation_desc", "Áp dụng tô từng ký tự đều cho lời LRCLIB đồng bộ thông thường không có sync-data.",
+                "setting.karaoke_bounce_effect", "Hiệu ứng nảy karaoke",
+                "setting.karaoke_bounce_effect_desc", "Làm chữ nảy nhẹ khi phần tô karaoke chạy qua từng ký tự.",
+                "setting.karaoke_motion_style", "Kiểu chuyển động karaoke",
+                "setting.karaoke_motion_style_desc", "Cổ điển giữ hiệu ứng nảy nhẹ. Biểu cảm dùng vật lý lò xo: từ đang hát phóng to, nâng lên và phát sáng, từ chưa hát nhỏ hơn một chút, và các nốt ngân dài chuyển động theo từng chữ cái.",
+                "karaoke.motion.classic", "Cổ điển",
+                "karaoke.motion.expressive", "Biểu cảm",
+                "setting.pronunciation_karaoke_fill", "Tô phát âm như karaoke",
+                "setting.pronunciation_karaoke_fill_desc", "Ngay cả khi chế độ ưu tiên phát âm đang tắt, dòng phát âm vẫn được tô theo nhịp hát. AI chia phát âm theo thời gian của từng từ hoặc ký tự. Không áp dụng các hiệu ứng khác như nảy và phát sáng.",
+                "setting.synced_pronunciation", "Dùng phát âm đồng bộ",
+                "setting.synced_pronunciation_desc", "Lấy phát âm của lời karaoke được chia theo thời điểm của từng từ hoặc ký tự được hát. Khi bật, có thể dùng chế độ ưu tiên phát âm và tô phát âm như karaoke. Khi tắt, phát âm được lấy nhanh hơn dưới dạng văn bản thường theo từng dòng.",
+                "section.player", "Trình phát",
+                "section.player_desc", "Điều chỉnh hiển thị và hoạt động ở chế độ ngang.",
+                "setting.landscape_auto_hide", "Tự động ẩn điều khiển ngang",
+                "setting.landscape_auto_hide_desc", "Ẩn thanh tiến trình và các nút khi không hoạt động ở chế độ ngang.",
+                "section.background", "Nền",
+                "section.background_desc", "Chọn bìa album, chuyển màu mờ hoặc nền đồng màu.",
+                "setting.background_mode", "Hiệu ứng nền",
+                "setting.background_mode_desc", "Chọn cách hiển thị nền bài hát hiện tại.",
+                "setting.brightness", "Độ sáng",
+                "setting.brightness_desc", "Độ sáng cho bìa album và nền chuyển màu.",
+                "setting.blur", "Làm mờ",
+                "setting.blur_desc", "Cường độ mờ cho bìa album và nền chuyển màu.",
+                "setting.noise", "Kết cấu nhiễu",
+                "setting.noise_desc", "Thêm kết cấu hạt tinh tế giống như ivLyrics ban đầu.",
+                "setting.reduce_motion", "Giảm chuyển động",
+                "setting.reduce_motion_desc", "Dừng chuyển động nền album/gradient tự động.",
+                "section.ai_lyrics", "Lời bài hát AI",
+                "section.ai_lyrics_desc", "Tạo phát âm và bản dịch với lời nhắc tương thích với ivLyrics.",
+                "section.provider", "Nhà cung cấp",
+                "field.api_key", "Khóa API",
+                "field.model", "Mô hình",
+                "field.base_url", "URL cơ sở",
+                "button.save_regenerate", "Save và tạo lại",
+                "button.get_key", "Nhận khóa",
+                "section.tools", "Công cụ",
+                "section.tools_desc", "Quản lý bộ đệm và nhật ký gỡ lỗi.",
+                "section.spotify_api", "Spotify API",
+                "section.spotify_api_desc", "Sử dụng Client ID và Client Secret từ Spotify Developer Dashboard. Chỉ được lưu trữ trên thiết bị này.",
+                "button.spotify_save", "Lưu Spotify API",
+                "section.lyrics_cache", "Bộ nhớ đệm lời bài hát",
+                "section.lyrics_cache_desc", "Xóa lời bài hát cơ bản sync-data/LRCLIB và bộ nhớ đệm phát âm/dịch thuật AI. Bài hát hiện tại tải lại sau khi xóa.",
+                "button.clear_current", "Xóa bài hiện tại",
+                "button.clear_all", "Xóa tất cả",
+                "button.ai_cache_clear", "Xóa bộ nhớ cache AI",
+                "button.debug_log", "Gỡ lỗi / Nhật ký",
+                "onboarding.subtitle", "Lời bài hát karaoke, bản dịch và cách phát âm cho bài hát đang phát.",
+                "onboarding.welcome_title", "Thiết lập ivLyrics",
+                "onboarding.welcome_desc", "Trước tiên hãy chọn ngôn ngữ ứng dụng, sau đó đặt quyền truy cập phương tiện và thông tin xác thực Spotify API của riêng bạn.",
+                "onboarding.app_language_en", "Ngôn ngữ ứng dụng",
+                "onboarding.app_language_native", "Ngôn ngữ ứng dụng",
+                "onboarding.permission_title", "Quyền truy cập phương tiện",
+                "onboarding.permission_desc", "Android cần có quyền truy cập thông báo để đọc bài hát hiện đang phát trong Spotify.",
+                "onboarding.permission_hint", "Tìm ivLyrics trong màn hình cài đặt, cho phép truy cập rồi quay lại ứng dụng.",
+                "onboarding.permission_status_enabled", "Quyền đã được bật. Giờ đây có thể phát hiện nội dung đang phát trên Spotify.",
+                "onboarding.permission_status_required", "Quyền chưa được bật. Mở cài đặt quyền và cho phép ivLyrics.",
+                "onboarding.spotify_title", "Kết nối thông tin bài hát",
+                "onboarding.spotify_desc", "Spotify Web API được sử dụng để tải ISRC và ảnh minh họa có độ phân giải cao cho bài hát hiện tại.",
+                "onboarding.step_format", "Bước %d / %d",
+                "spotify.status_configured", "Spotify API đã định cấu hình",
+                "spotify.status_required", "Đăng ký Spotify API trước khi sử dụng lần đầu.",
+                "spotify.status_checking", "Đang kiểm tra mã thông báo Spotify...",
+                "spotify.status_invalid_format", "Yêu cầu mã thông báo Spotify không thành công: %s\nKiểm tra lại Client ID và Bí mật của bạn.",
+                "button.next", "Tiếp theo",
+                "button.restart", "Bắt đầu lại",
+                "button.copy", "Sao chép",
+                "button.open_browser", "Mở trình duyệt",
+                "button.open_permission", "Quyền mở Settings",
+                "button.prev_track", "Bài hát trước",
+                "button.next_track", "Bài tiếp theo",
+                "debug.title", "Gỡ lỗi",
+                "debug.permission", "Mở quyền truy cập phương tiện",
+                "debug.previous", "Trước",
+                "debug.play_pause", "Phát/Tạm dừng",
+                "debug.next", "Tiếp theo",
+                "debug.refresh", "Làm mới",
+                "debug.log", "Nhật ký",
+                "debug.log_waiting", "Đang chờ nhật ký",
+                "lyrics.tab.language", "Ngôn ngữ",
+                "lyrics.tab.sync", "Đồng bộ hóa",
+                "lyrics.translation", "Dịch",
+                "lyrics.pronunciation", "Phát âm",
+                "lyrics.sync.title", "Bù đồng bộ hóa bài hát hiện tại",
+                "lyrics.sync.reset", "Đặt lại về 0ms",
+                "lyrics.sync.no_track", "Không có bài hát nào đang phát nên giá trị này sẽ không được lưu.",
+                "lyrics.sync.track_scope", "Chỉ được lưu cho \"%s\".",
+                "lyrics.sync.help", "Giá trị + hiển thị lời sớm hơn; giá trị - hiển thị muộn hơn.",
+                "lyrics.menu_tip", "Nhấn giữ tiêu đề hoặc nghệ sĩ để mở cài đặt dịch và phát âm.",
+                "lyrics.rule.track_language", "Ngôn ngữ bài hát",
+                "lyrics.rule.save_target", "Save mục tiêu",
+                "lyrics.rule.translation_language", "Ngôn ngữ dịch",
+                "label.on", "Bật",
+                "label.off", "Tắt",
+                "label.auto", "Tự động",
+                "label.auto_target", "Tự động (%s)",
+                "lyrics.button.translation_on", "Dịch On",
+                "lyrics.button.pronunciation_on", "Phát âm Bật",
+                "lyrics.button.translation_plus", "Dịch+",
+                "field.api_key_desc", "Hỗ trợ một khóa duy nhất, danh sách dòng mới hoặc mảng JSON. Chỉ được lưu trữ trên thiết bị này.",
+                "field.model_desc", "Chỉ định trực tiếp mô hình của nhà cung cấp.",
+                "field.base_url_desc", "URL cơ sở của API tương thích OpenAI hoặc API của nhà cung cấp.",
+                "field.max_tokens", "Số token tối đa",
+                "field.temperature", "Sáng tạo",
+                "field.solid_color", "Màu nền đồng nhất",
+                "field.solid_color_desc", "Chon mau dung o che do nen dong nhat.",
+                "field.spotify_client_id_desc", "Client ID trong ứng dụng Spotify của bạn.",
+                "field.spotify_client_secret_desc", "Client Secret trong ứng dụng Spotify của bạn.",
+                "preview.none", "Ẩn",
+                "preview.original", "Bản gốc",
+                "preview.pronunciation", "Phát âm",
+                "preview.translation", "Bản dịch",
+                "background.mode.gradient", "Bìa album",
+                "background.mode.gradient_desc", "Sử dụng bìa album hiện tại làm nền mờ lớn.",
+                "background.mode.blur_gradient", "Chuyển màu mờ",
+                "background.mode.blur_gradient_desc", "Tạo độ chuyển màu mờ chuyển động từ các màu của album.",
+                "background.mode.solid", "Màu đặc",
+                "background.mode.solid_desc", "Sử dụng màu nền đồng nhất tùy chỉnh.",
+                "provider.desc.gemini", "Google AI Studio API",
+                "provider.desc.chatgpt", "API tương thích OpenAI",
+                "provider.desc.claude", "Claude Messages API",
+                "provider.desc.openrouter", "Định tuyến nhiều mô hình AI",
+                "provider.desc.groq", "Suy luận nhanh tương thích OpenAI",
+                "provider.desc.perplexity", "Agent API",
+                "provider.desc.pollinations", "API Pollinations tương thích OpenAI",
+                "spotify.step0.title", "Đi tới Spotify Developer Dashboard",
+                "spotify.step0.desc", "Mở Spotify Developer Dashboard trong trình duyệt của bạn. Đăng nhập và tạo một ứng dụng mới.",
+                "spotify.step1.title", "Nhập tên vào Create app",
+                "spotify.step1.desc", "Nhấn Create app và nhập giá trị bên dưới cho App name. Không viết ivLyrics hoặc ivlyrics.",
+                "spotify.step2.title", "Nhập mô tả",
+                "spotify.step2.desc", "Nhập giá trị bên dưới cho App description. Đây chỉ là một ví dụ để tránh nhầm lẫn.",
+                "spotify.step3.title", "Nhập URI chuyển hướng",
+                "spotify.step3.desc", "Thêm địa chỉ bên dưới vào Redirect URIs. Bao gồm dấu gạch chéo ở cuối.",
+                "spotify.step4.title", "Chọn Web API và lưu",
+                "spotify.step4.desc", "Chọn Web API trong vùng chọn API, đánh dấu vào ô thỏa thuận rồi nhấn Save.",
+                "spotify.step5.title", "Sao chép Client ID và Bí mật",
+                "spotify.step5.desc", "Sao chép Client ID và Client Secret từ cài đặt ứng dụng, dán chúng vào bên dưới, sau đó lưu Spotify API.",
+                "toast.copied_format", "Đã sao chép: %s",
+                "toast.provider_saved", "Đã lưu nhà cung cấp",
+                "toast.pronunciation_language_saved", "Đã lưu ngôn ngữ phát âm",
+                "toast.preview_saved", "Đã lưu bản xem trước lời bài hát chính",
+                "toast.background_saved", "Đã lưu hiệu ứng nền",
+                "toast.metadata_translation_on", "Đã bật bản dịch tiêu đề/nghệ sĩ",
+                "toast.metadata_translation_off", "Đã tắt bản dịch tiêu đề/nghệ sĩ",
+                "toast.auto_interlude_on", "Đã bật tự động phát hiện đoạn dạo nhạc",
+                "toast.auto_interlude_off", "Đã tắt tự động phát hiện đoạn dạo nhạc",
+                "toast.landscape_auto_hide_on", "Đã bật tự động ẩn điều khiển ngang",
+                "toast.landscape_auto_hide_off", "Đã tắt tự động ẩn điều khiển ngang",
+                "toast.background_noise_on", "Đã bật kết cấu nhiễu",
+                "toast.background_noise_off", "Đã tắt kết cấu nhiễu",
+                "toast.reduce_motion_on", "Giảm chuyển động nền",
+                "toast.reduce_motion_off", "Đã bật chuyển động nền",
+                "toast.ai_cache_cleared", "Đã xóa bộ nhớ đệm AI",
+                "toast.language_rule_saved", "Đã lưu cài đặt ngôn ngữ bài hát",
+                "toast.settings_saved", "Settings đã lưu",
+                "toast.spotify_missing", "Nhập cả Client ID và Client Secret.",
+                "toast.spotify_checking", "Đang kiểm tra mã thông báo Spotify...",
+                "toast.spotify_invalid", "Kiểm tra lại thông tin xác thực Spotify API của bạn.",
+                "toast.spotify_saved", "Đã lưu Spotify API",
+                "toast.current_track_missing", "Không có thông tin bài hát hiện tại",
+                "toast.current_cache_cleared", "Đã xóa bộ nhớ đệm lời bài hát hiện tại",
+                "toast.all_cache_cleared", "Đã xóa tất cả bộ nhớ đệm lời bài hát",
+                "toast.sync_offset_format", "Bù đồng bộ hóa %s",
+                "status.lyrics_request_failed", "Yêu cầu lời bài hát không thành công",
+                "status.ai_applied", "Đã áp dụng dịch/phát âm",
+                "status.ai_failed_format", "Lời bài hát AI không thành công: %s",
+                "status.ai_cache_cleared", "Đã xóa bộ nhớ đệm AI",
+                "status.ai_lyrics_active", "Đã bật lời bài hát AI",
+                "status.ai_key_needed", "Nhập khóa API để tạo lời bài hát AI.",
+                "status.ai_disabled", "Dịch/phát âm bị tắt.",
+                "status.no_lyrics_to_apply", "Không có lời bài hát để áp dụng.",
+                "status.ai_generating", "Đang tạo lời bài hát AI...",
+                "status.reload_after_spotify", "Đang tải lại lời bài hát ISRC, sync-data và LRCLIB của bài hát này sau khi cài đặt Spotify API thay đổi.",
+                "status.detecting_media", "Phát hiện phiên truyền thông",
+                "status.permission_required", "Cần có quyền truy cập thông báo",
+                "status.lyrics_lookup_spotify", "Tìm ISRC với Spotify Web API, sau đó tải sync-data và LRCLIB.",
+                "status.lyrics_lookup_player", "Đang tải sync-data và LRCLIB bằng ISRC từ trình phát.",
+                "status.waiting_current_track", "Đang chờ bài hát đang phát",
+                "status.spotify_required_plain", "Spotify API bắt buộc",
+                "loading.generating", "Đang tạo",
+                "loading.pronunciation", "Đang tạo phát âm...",
+                "loading.translation", "Đang tạo bản dịch...",
+                "loading.word_sync", "Đang tạo đồng bộ từng từ...",
+                "loading.word_sync_desc", "Đang tạo dữ liệu đồng bộ từng từ trên máy chủ lời bài hát bên ngoài.",
+                "status.word_sync_failed", "Đồng bộ từng từ thất bại",
+                "pronunciation_first.state_on", "Ưu tiên phát âm đang bật. Chạm để tắt",
+                "pronunciation_first.state_off", "Ưu tiên phát âm đang tắt. Chạm để bật",
+                "loading.pronunciation_sync", "AI đang khớp phát âm với thời gian lời bài hát...",
+                "status.pronunciation_sync_failed", "Đồng bộ phát âm thất bại",
+                "lyrics.empty_none", "Không có lời bài hát",
+                "interlude.prelude", "Dạo đầu",
+                "interlude.break", "Dạo giữa",
+                "interlude.postlude", "Dạo cuối",
+                "onboarding.preview.line1", "Lời bài hát karaoke theo bài hát",
+                "onboarding.preview.line2", "Phát âm và dịch thuật xuất hiện ở đây",
+                "onboarding.preview.line3", "Mọi thứ đều cập nhật với bản nhạc hiện tại",
+                "repo.metadata_waiting", "Đang chờ siêu dữ liệu bài hát",
+                "repo.lyrics_not_found", "Không tìm thấy lời bài hát LRCLIB",
+                "repo.instrumental", "Bản nhạc không lời",
+                "repo.no_renderable_lyrics", "Không có lời LRCLIB có thể hiển thị",
+                "repo.detail.sync_applied_direct", "Đã áp dụng sync-data karaoke. LRCLIB được tải trực tiếp từ sync-data.",
+                "repo.detail.sync_applied_search", "Đã áp dụng sync-data karaoke. LRCLIB được chọn bằng tìm kiếm.",
+                "repo.detail.no_spotify_isrc", "Lời LRCLIB theo dòng. Không thể tra cứu Spotify ISRC.",
+                "repo.detail.no_sync_data", "Lời LRCLIB theo dòng. Không tìm thấy sync-data khớp ISRC này.",
+                "repo.detail.sync_apply_failed", "Lời LRCLIB theo dòng. Không thể áp dụng sync-data.",
+                "spotify.error.incomplete_credentials", "Thiếu Spotify API Client ID hoặc Client Secret.",
+                "spotify.error.credentials_not_configured", "Chưa cấu hình thông tin Spotify API.",
+                "spotify.error.no_access_token", "Phản hồi token Spotify không chứa access_token.",
+                "spotify.error.repository_unavailable", "Kho lời bài hát không khả dụng.",
+                "lyrics.credit_sync_by_format", "sync bởi %s",
+                "sync.type_line", "Dòng",
+                "sync.type_word", "Từ",
+                "sync.type_character", "Ký tự",
+                "sync.type_mixed", "Hỗn hợp",
+                "sync.type_unknown", "Đồng bộ kiểu cũ"
+        );
+    }
+
+    private static Map<String, String> idStrings() {
+        return strings(
+                "button.close", "Tutup",
+                "button.previous", "Kembali",
+                "button.save_start", "Save dan Mulai",
+                "button.spotify_setup", "Pengaturan Spotify API",
+                "status.waiting_spotify", "Menunggu pemutaran Spotify",
+                "status.lyrics_loading", "Memuat lirik",
+                "status.lyrics_waiting", "Menunggu lirik",
+                "status.spotify_required_title", "Spotify API Diperlukan",
+                "status.spotify_required_subtitle", "Save Client ID dan Rahasia Anda lirik",
+                "status.spotify_required_detail", "ISRC, sync-data, dan lirik LRCLIB tidak dimuat hingga pengaturan selesai.",
+                "toast.spotify_required", "Daftarkan Spotify API terlebih dahulu",
+                "toast.setup_required", "Selesaikan pengaturan awal terlebih dahulu",
+                "toast.back_exit", "Tekan Kembali lagi untuk keluar",
+                "toast.ui_language_saved", "Bahasa aplikasi disimpan",
+                "settings.title", "Pengaturan",
+                "settings.subtitle", "Lirik, tampilan, layar penuh, AI, dan alat",
+                "tab.lyrics", "Lirik",
+                "tab.display", "Tampilan",
+                "tab.ai", "AI",
+                "tab.tools", "Alat",
+                "section.language", "Bahasa",
+                "section.language_desc", "Kelola bahasa aplikasi, pengucapan, dan aturan terjemahan per lagu secara terpisah.",
+                "setting.ui_language", "Bahasa Aplikasi",
+                "setting.ui_language_desc", "Bahasa yang digunakan untuk UI aplikasi. Hanya bahasa dengan terjemahan UI asli yang ditampilkan.",
+                "setting.pronunciation_language", "Bahasa Pengucapan",
+                "setting.pronunciation_language_desc", "Pilih skrip/pelafalan bahasa mana yang akan dihasilkan.",
+                "setting.metadata_translation", "Terjemahkan judul/artis",
+                "setting.metadata_translation_desc", "Terjemahkan juga judul lagu dan artis saat ini menggunakan bahasa target yang dipilih.",
+                "setting.main_preview", "Pratinjau lirik utama",
+                "setting.main_preview_desc", "Pilih baris asli, pengucapan, dan terjemahan. Baris panjang meluncur dengan pengaturan waktu lirik.",
+                "setting.auto_interlude", "Deteksi otomatis intro/interlude/outro",
+                "setting.auto_interlude_desc", "Mengubah not/baris kosong dan jeda panjang setelah lirik menjadi penanda selingan animasi.",
+                "setting.interlude_labels", "Tampilkan label selingan",
+                "setting.interlude_labels_desc", "Menampilkan label teks di samping penanda intro/selingan/outro sambil mempertahankan ikon animasi.",
+                "setting.synced_karaoke_animation", "Efek karaoke lirik sinkron",
+                "setting.synced_karaoke_animation_desc", "Menerapkan isi karakter merata ke lirik LRCLIB sinkron biasa tanpa sync-data.",
+                "setting.karaoke_bounce_effect", "Efek pantulan karaoke",
+                "setting.karaoke_bounce_effect_desc", "Membuat teks memantul halus saat karakter terisi.",
+                "setting.karaoke_motion_style", "Gaya gerakan karaoke",
+                "setting.karaoke_motion_style_desc", "Klasik mempertahankan pantulan halus. Ekspresif menggunakan fisika pegas: kata yang sedang dinyanyikan membesar, terangkat, dan bersinar, kata yang belum dinyanyikan sedikit lebih kecil, dan nada panjang dianimasikan huruf demi huruf.",
+                "karaoke.motion.classic", "Klasik",
+                "karaoke.motion.expressive", "Ekspresif",
+                "setting.pronunciation_karaoke_fill", "Isi pelafalan seperti karaoke",
+                "setting.pronunciation_karaoke_fill_desc", "Meski mode pelafalan dulu nonaktif, baris pelafalan terisi mengikuti waktu nyanyian. AI membagi pelafalan sesuai waktu tiap kata atau karakter. Efek lain seperti pantulan dan kilau tidak diterapkan.",
+                "setting.synced_pronunciation", "Gunakan pelafalan tersinkron",
+                "setting.synced_pronunciation_desc", "Mengambil pelafalan lirik karaoke yang dibagi sesuai waktu setiap kata atau karakter yang dinyanyikan. Jika aktif, mode pelafalan dulu dan isi pelafalan seperti karaoke dapat digunakan. Jika nonaktif, pelafalan diambil lebih cepat sebagai teks biasa per baris.",
+                "section.player", "Pemutar",
+                "section.player_desc", "Menyesuaikan tampilan dan perilaku lanskap.",
+                "setting.landscape_auto_hide", "Sembunyikan kontrol lanskap secara otomatis",
+                "setting.landscape_auto_hide_desc", "Menyembunyikan bilah kemajuan dan tombol saat tidak aktif dalam lanskap.",
+                "section.background", "Latar Belakang",
+                "section.background_desc", "Pilih sampul album, gradien buram, atau latar belakang warna solid.",
+                "setting.background_mode", "Efek latar belakang",
+                "setting.background_mode_desc", "Pilih bagaimana latar belakang lagu saat ini ditampilkan.",
+                "setting.brightness", "Kecerahan",
+                "setting.brightness_desc", "Kecerahan untuk sampul album dan latar belakang gradien.",
+                "setting.blur", "Buram",
+                "setting.blur_desc", "Intensitas blur untuk sampul album dan latar belakang gradien.",
+                "setting.noise", "Tekstur derau",
+                "setting.noise_desc", "Menambahkan tekstur butiran halus seperti ivLyrics asli.",
+                "setting.reduce_motion", "Kurangi gerakan",
+                "setting.reduce_motion_desc", "Menghentikan gerakan latar belakang album/gradien otomatis.",
+                "section.ai_lyrics", "AI Lirik",
+                "section.ai_lyrics_desc", "Hasilkan pengucapan dan terjemahan dengan petunjuk yang kompatibel dengan ivLyrics.",
+                "section.provider", "Penyedia",
+                "field.api_key", "Kunci API",
+                "field.model", "Model",
+                "field.base_url", "URL dasar",
+                "button.save_regenerate", "Save dan Regenerasi",
+                "button.get_key", "Dapatkan Kunci",
+                "section.tools", "Alat",
+                "section.tools_desc", "Kelola cache dan log debug.",
+                "section.spotify_api", "Spotify API",
+                "section.spotify_api_desc", "Gunakan Client ID dan Client Secret dari Spotify Developer Dashboard. Hanya disimpan di perangkat ini.",
+                "button.spotify_save", "Simpan Spotify API",
+                "section.lyrics_cache", "Cache Lirik",
+                "section.lyrics_cache_desc", "Hapus lirik dasar sync-data/LRCLIB dan cache pengucapan/terjemahan AI. Lagu saat ini dimuat ulang setelah dibersihkan.",
+                "button.clear_current", "Hapus Lagu Saat Ini",
+                "button.clear_all", "Hapus Semua",
+                "button.ai_cache_clear", "Hapus Cache AI",
+                "button.debug_log", "Debug / Log",
+                "onboarding.subtitle", "Lirik karaoke, terjemahan, dan pengucapan untuk lagu yang sedang diputar.",
+                "onboarding.welcome_title", "Siapkan ivLyrics",
+                "onboarding.welcome_desc", "Pilih bahasa aplikasi terlebih dahulu, lalu atur izin akses media dan kredensial Spotify API Anda sendiri.",
+                "onboarding.app_language_en", "Bahasa Aplikasi",
+                "onboarding.app_language_native", "Bahasa Aplikasi",
+                "onboarding.permission_title", "Izin Akses Media",
+                "onboarding.permission_desc", "Android akses notifikasi diperlukan untuk membaca lagu yang sedang diputar di Spotify.",
+                "onboarding.permission_hint", "Temukan ivLyrics di layar pengaturan, izinkan akses, lalu kembali ke aplikasi.",
+                "onboarding.permission_status_enabled", "Izin diaktifkan. Pemutaran Spotify sekarang dapat dideteksi.",
+                "onboarding.permission_status_required", "Izin belum diaktifkan. Buka pengaturan izin dan izinkan ivLyrics.",
+                "onboarding.spotify_title", "Hubungkan Info Lagu",
+                "onboarding.spotify_desc", "Spotify Web API digunakan untuk memuat ISRC dan sampul album resolusi tinggi untuk lagu saat ini.",
+                "onboarding.step_format", "Langkah %d / %d",
+                "spotify.status_configured", "Spotify API dikonfigurasi",
+                "spotify.status_required", "Daftarkan Spotify API sebelum penggunaan pertama.",
+                "spotify.status_checking", "Memeriksa token Spotify...",
+                "spotify.status_invalid_format", "Permintaan token Spotify gagal: %s\nPeriksa Client ID dan Rahasia Anda lagi.",
+                "button.next", "Berikutnya",
+                "button.restart", "Mulai dari Awal",
+                "button.copy", "Salin",
+                "button.open_browser", "Buka Browser",
+                "button.open_permission", "Buka Izin Settings",
+                "button.prev_track", "Lagu sebelumnya",
+                "button.next_track", "Lagu berikutnya",
+                "debug.title", "Men-debug",
+                "debug.permission", "Buka izin akses media",
+                "debug.previous", "Sebelumnya",
+                "debug.play_pause", "Putar/Jeda",
+                "debug.next", "Berikutnya",
+                "debug.refresh", "Segarkan",
+                "debug.log", "Log",
+                "debug.log_waiting", "Menunggu log",
+                "lyrics.tab.language", "Bahasa",
+                "lyrics.tab.sync", "Sinkronisasi",
+                "lyrics.translation", "Terjemahan",
+                "lyrics.pronunciation", "Pengucapan",
+                "lyrics.sync.title", "Offset Sinkronisasi Lagu Saat Ini",
+                "lyrics.sync.reset", "Reset ke 0ms",
+                "lyrics.sync.no_track", "Tidak ada lagu yang diputar, jadi ini tidak akan disimpan.",
+                "lyrics.sync.track_scope", "Disimpan hanya untuk \"%s\".",
+                "lyrics.sync.help", "Nilai + menampilkan lirik lebih awal; nilai - menampilkannya lebih lambat.",
+                "lyrics.menu_tip", "Tekan lama judul atau artis untuk membuka pengaturan terjemahan dan pengucapan.",
+                "lyrics.rule.track_language", "Bahasa lagu",
+                "lyrics.rule.save_target", "Save sasaran",
+                "lyrics.rule.translation_language", "Bahasa terjemahan",
+                "label.on", "Aktif",
+                "label.off", "Mati",
+                "label.auto", "Otomatis",
+                "label.auto_target", "Otomatis (%s)",
+                "lyrics.button.translation_on", "Terjemahan Aktif",
+                "lyrics.button.pronunciation_on", "Pengucapan Aktif",
+                "lyrics.button.translation_plus", "Terjemahan+",
+                "field.api_key_desc", "Mendukung satu kunci, daftar baris baru, atau array JSON. Hanya disimpan di perangkat ini.",
+                "field.model_desc", "Tentukan model penyedia secara langsung.",
+                "field.base_url_desc", "URL dasar API yang kompatibel dengan OpenAI atau API penyedia.",
+                "field.max_tokens", "Token maksimal",
+                "field.temperature", "Kreativitas",
+                "field.solid_color", "Warna latar belakang solid",
+                "field.solid_color_desc", "Pilih warna yang digunakan dalam mode latar belakang solid.",
+                "field.spotify_client_id_desc", "Client ID dari aplikasi Spotify Anda.",
+                "field.spotify_client_secret_desc", "Client Secret dari aplikasi Spotify Anda.",
+                "preview.none", "Tersembunyi",
+                "preview.original", "Asli",
+                "preview.pronunciation", "Pengucapan",
+                "preview.translation", "Terjemahan",
+                "background.mode.gradient", "Sampul Album",
+                "background.mode.gradient_desc", "Menggunakan sampul album saat ini sebagai latar belakang buram besar.",
+                "background.mode.blur_gradient", "Gradien Kabur",
+                "background.mode.blur_gradient_desc", "Membuat gradien buram bergerak dari warna album.",
+                "background.mode.solid", "Warna Solid",
+                "background.mode.solid_desc", "Menggunakan warna latar belakang solid khusus.",
+                "provider.desc.gemini", "Google AI Studio API",
+                "provider.desc.chatgpt", "API yang kompatibel dengan OpenAI",
+                "provider.desc.claude", "Claude Messages API",
+                "provider.desc.openrouter", "Merutekan beberapa model AI",
+                "provider.desc.groq", "Inferensi cepat yang kompatibel dengan OpenAI",
+                "provider.desc.perplexity", "Agent API",
+                "provider.desc.pollinations", "API Pollinations yang kompatibel dengan OpenAI",
+                "spotify.step0.title", "Buka Spotify Developer Dashboard",
+                "spotify.step0.desc", "Buka Spotify Developer Dashboard di browser Anda. Masuk dan buat aplikasi baru.",
+                "spotify.step1.title", "Masukkan nama di Create app",
+                "spotify.step1.desc", "Tekan Create app dan masukkan nilai di bawah untuk App name. Jangan menulis ivLyrics atau ivlyrics.",
+                "spotify.step2.title", "Masukkan deskripsi",
+                "spotify.step2.desc", "Masukkan juga nilai di bawah untuk App description. Ini hanyalah sebuah contoh untuk menghindari kebingungan.",
+                "spotify.step3.title", "Masukkan Redirect URI",
+                "spotify.step3.desc", "Tambahkan alamat di bawah ini ke Redirect URIs. Sertakan garis miring di akhir.",
+                "spotify.step4.title", "Pilih Web API dan simpan",
+                "spotify.step4.desc", "Pilih Web API di area pilihan API, centang kotak perjanjian, lalu tekan Save.",
+                "spotify.step5.title", "Salin Client ID dan Rahasia",
+                "spotify.step5.desc", "Salin Client ID dan Client Secret dari pengaturan aplikasi, tempel di bawah, lalu simpan Spotify API.",
+                "toast.copied_format", "Disalin: %s",
+                "toast.provider_saved", "Penyedia disimpan",
+                "toast.pronunciation_language_saved", "Bahasa pengucapan disimpan",
+                "toast.preview_saved", "Pratinjau lirik utama disimpan",
+                "toast.background_saved", "Efek latar belakang disimpan",
+                "toast.metadata_translation_on", "Terjemahan judul/artis aktif",
+                "toast.metadata_translation_off", "Terjemahan judul/artis nonaktif",
+                "toast.auto_interlude_on", "Deteksi selingan otomatis aktif",
+                "toast.auto_interlude_off", "Deteksi selingan otomatis nonaktif",
+                "toast.landscape_auto_hide_on", "Penyembunyian otomatis kontrol lanskap aktif",
+                "toast.landscape_auto_hide_off", "Penyembunyian otomatis kontrol lanskap nonaktif",
+                "toast.background_noise_on", "Tekstur derau aktif",
+                "toast.background_noise_off", "Tekstur derau nonaktif",
+                "toast.reduce_motion_on", "Gerakan latar belakang berkurang",
+                "toast.reduce_motion_off", "Gerakan latar belakang diaktifkan",
+                "toast.ai_cache_cleared", "Cache AI dibersihkan",
+                "toast.language_rule_saved", "Pengaturan bahasa lagu disimpan",
+                "toast.settings_saved", "Settings disimpan",
+                "toast.spotify_missing", "Masukkan Client ID dan Client Secret.",
+                "toast.spotify_checking", "Memeriksa token Spotify...",
+                "toast.spotify_invalid", "Periksa kembali kredensial Spotify API Anda.",
+                "toast.spotify_saved", "Spotify API disimpan",
+                "toast.current_track_missing", "Tidak ada informasi lagu saat ini",
+                "toast.current_cache_cleared", "Cache lirik lagu saat ini telah dibersihkan",
+                "toast.all_cache_cleared", "Semua cache lirik dihapus",
+                "toast.sync_offset_format", "Offset sinkronisasi %s",
+                "status.lyrics_request_failed", "Permintaan lirik gagal",
+                "status.ai_applied", "Terjemahan/pengucapan diterapkan",
+                "status.ai_failed_format", "Lirik AI gagal: %s",
+                "status.ai_cache_cleared", "Cache AI dibersihkan",
+                "status.ai_lyrics_active", "Lirik AI diaktifkan",
+                "status.ai_key_needed", "Masukkan kunci API untuk menghasilkan lirik AI.",
+                "status.ai_disabled", "Terjemahan/pengucapan tidak aktif.",
+                "status.no_lyrics_to_apply", "Tidak ada lirik untuk diterapkan.",
+                "status.ai_generating", "Menghasilkan lirik AI...",
+                "status.reload_after_spotify", "Memuat ulang lirik ISRC, sync-data, dan LRCLIB lagu ini setelah pengaturan Spotify API diubah.",
+                "status.detecting_media", "Mendeteksi sesi media",
+                "status.permission_required", "Izin akses notifikasi diperlukan",
+                "status.lyrics_lookup_spotify", "Menemukan ISRC dengan Spotify Web API, lalu memuat sync-data dan LRCLIB.",
+                "status.lyrics_lookup_player", "Memuat sync-data dan LRCLIB dengan ISRC dari pemutar.",
+                "status.waiting_current_track", "Menunggu lagu yang sedang diputar",
+                "status.spotify_required_plain", "Spotify API diperlukan",
+                "loading.generating", "Menghasilkan",
+                "loading.pronunciation", "Menghasilkan pengucapan...",
+                "loading.translation", "Menghasilkan terjemahan...",
+                "loading.word_sync", "Membuat sinkronisasi kata...",
+                "loading.word_sync_desc", "Sedang membuat data sinkronisasi per kata di server lirik eksternal.",
+                "status.word_sync_failed", "Sinkronisasi kata gagal",
+                "pronunciation_first.state_on", "Pelafalan dulu aktif. Ketuk untuk menonaktifkan",
+                "pronunciation_first.state_off", "Pelafalan dulu nonaktif. Ketuk untuk mengaktifkan",
+                "loading.pronunciation_sync", "AI sedang menyesuaikan pelafalan dengan waktu lirik...",
+                "status.pronunciation_sync_failed", "Sinkron pelafalan gagal",
+                "lyrics.empty_none", "Tidak ada lirik",
+                "interlude.prelude", "Intro",
+                "interlude.break", "Selingan",
+                "interlude.postlude", "Outro",
+                "onboarding.preview.line1", "Lirik karaoke mengikuti lagunya",
+                "onboarding.preview.line2", "Pengucapan dan terjemahan muncul di sini",
+                "onboarding.preview.line3", "Semuanya diperbarui dengan trek saat ini",
+                "repo.metadata_waiting", "Menunggu metadata lagu",
+                "repo.lyrics_not_found", "Lirik LRCLIB tidak ditemukan",
+                "repo.instrumental", "Trek instrumental",
+                "repo.no_renderable_lyrics", "Tidak ada lirik LRCLIB yang dapat ditampilkan",
+                "repo.detail.sync_applied_direct", "sync-data karaoke diterapkan. LRCLIB dimuat langsung dari sync-data.",
+                "repo.detail.sync_applied_search", "sync-data karaoke diterapkan. LRCLIB dipilih lewat pencarian.",
+                "repo.detail.no_spotify_isrc", "Lirik baris LRCLIB. Pencarian Spotify ISRC tidak tersedia.",
+                "repo.detail.no_sync_data", "Lirik baris LRCLIB. Tidak ada sync-data yang cocok untuk ISRC ini.",
+                "repo.detail.sync_apply_failed", "Lirik baris LRCLIB. sync-data tidak dapat diterapkan.",
+                "spotify.error.incomplete_credentials", "Spotify API Client ID atau Client Secret belum diisi.",
+                "spotify.error.credentials_not_configured", "Credential Spotify API belum dikonfigurasi.",
+                "spotify.error.no_access_token", "Respons token Spotify tidak berisi access_token.",
+                "spotify.error.repository_unavailable", "Repositori lirik tidak tersedia.",
+                "lyrics.credit_sync_by_format", "sync oleh %s",
+                "sync.type_line", "Baris",
+                "sync.type_word", "Kata",
+                "sync.type_character", "Karakter",
+                "sync.type_mixed", "Campuran",
+                "sync.type_unknown", "Sinkron lama"
+        );
+    }
+
+    private static Map<String, String> msStrings() {
+        return strings(
+                "button.close", "tutup",
+                "button.previous", "Kembali",
+                "button.save_start", "Save dan Mula",
+                "button.spotify_setup", "Sediakan Spotify API",
+                "status.waiting_spotify", "Menunggu Spotify main balik",
+                "status.lyrics_loading", "Memuatkan lirik",
+                "status.lyrics_waiting", "Menunggu lirik",
+                "status.spotify_required_title", "Spotify API Diperlukan",
+                "status.spotify_required_subtitle", "Save Client ID dan Rahsia anda dahulu",
+                "status.spotify_required_detail", "Lirik ISRC, sync-data dan LRCLIB tidak dimuatkan sehingga persediaan selesai.",
+                "toast.spotify_required", "Daftar Spotify API dahulu",
+                "toast.setup_required", "Lengkapkan persediaan awal dahulu",
+                "toast.back_exit", "Tekan Kembali sekali lagi untuk keluar",
+                "toast.ui_language_saved", "Bahasa apl disimpan",
+                "settings.title", "tetapan",
+                "settings.subtitle", "Lirik, paparan, skrin penuh, AI dan alatan",
+                "tab.lyrics", "Lirik",
+                "tab.display", "Paparan",
+                "tab.ai", "AI",
+                "tab.tools", "Alatan",
+                "section.language", "Bahasa",
+                "section.language_desc", "Urus peraturan bahasa apl, sebutan dan terjemahan setiap lagu secara berasingan.",
+                "setting.ui_language", "Bahasa Apl",
+                "setting.ui_language_desc", "Bahasa yang digunakan untuk UI apl. Hanya bahasa dengan terjemahan UI sebenar dipaparkan.",
+                "setting.pronunciation_language", "Bahasa Sebutan",
+                "setting.pronunciation_language_desc", "Pilih skrip/sebutan bahasa mana yang patut dijana.",
+                "setting.metadata_translation", "Terjemah tajuk/artis",
+                "setting.metadata_translation_desc", "Terjemah juga tajuk lagu dan artis semasa menggunakan bahasa sasaran yang dipilih.",
+                "setting.main_preview", "Pratonton lirik utama",
+                "setting.main_preview_desc", "Pilih baris asal, sebutan dan terjemahan. Baris panjang meluncur dengan pemasaan lirik.",
+                "setting.auto_interlude", "Auto mengesan intro/interlude/outro",
+                "setting.auto_interlude_desc", "Menukar nota/baris kosong dan celah panjang selepas lirik menjadi penanda selingan animasi.",
+                "setting.interlude_labels", "Tunjukkan label selingan",
+                "setting.interlude_labels_desc", "Menunjukkan label teks di sebelah penanda intro/selingan/outro sambil mengekalkan ikon animasi.",
+                "setting.synced_karaoke_animation", "Kesan karaoke lirik segerak",
+                "setting.synced_karaoke_animation_desc", "Menggunakan isian aksara sekata pada lirik LRCLIB segerak biasa tanpa sync-data.",
+                "setting.karaoke_bounce_effect", "Kesan lantunan karaoke",
+                "setting.karaoke_bounce_effect_desc", "Membuat teks melantun perlahan semasa aksara diisi.",
+                "setting.karaoke_motion_style", "Gaya pergerakan karaoke",
+                "setting.karaoke_motion_style_desc", "Klasik mengekalkan lantunan halus. Ekspresif menggunakan fizik spring: perkataan yang sedang dinyanyikan membesar, terangkat dan bercahaya, perkataan yang belum dinyanyikan kekal sedikit lebih kecil, dan not panjang dianimasikan huruf demi huruf.",
+                "karaoke.motion.classic", "Klasik",
+                "karaoke.motion.expressive", "Ekspresif",
+                "setting.pronunciation_karaoke_fill", "Isi sebutan seperti karaoke",
+                "setting.pronunciation_karaoke_fill_desc", "Walaupun mod sebutan dahulu dimatikan, baris sebutan diisi mengikut masa nyanyian. AI membahagikan sebutan mengikut masa setiap perkataan atau aksara. Kesan lain seperti lantunan dan cahaya tidak digunakan.",
+                "setting.synced_pronunciation", "Guna sebutan disegerakkan",
+                "setting.synced_pronunciation_desc", "Mendapatkan sebutan lirik karaoke yang dibahagikan mengikut masa setiap perkataan atau aksara yang dinyanyikan. Apabila dihidupkan, mod sebutan dahulu dan isi sebutan seperti karaoke boleh digunakan. Apabila dimatikan, sebutan diperoleh lebih cepat sebagai teks biasa mengikut baris.",
+                "section.player", "Pemain",
+                "section.player_desc", "Laraskan kelakuan paparan dan landskap.",
+                "setting.landscape_auto_hide", "Autosembunyikan kawalan landskap",
+                "setting.landscape_auto_hide_desc", "Sembunyikan bar kemajuan dan butang apabila tidak aktif dalam landskap.",
+                "section.background", "Latar Belakang",
+                "section.background_desc", "Pilih kulit album, kecerunan kabur atau latar belakang warna pepejal.",
+                "setting.background_mode", "Kesan latar belakang",
+                "setting.background_mode_desc", "Pilih cara latar belakang lagu semasa dipaparkan.",
+                "setting.brightness", "Kecerahan",
+                "setting.brightness_desc", "Kecerahan untuk kulit album dan latar belakang kecerunan.",
+                "setting.blur", "Kabur",
+                "setting.blur_desc", "Keamatan kabur untuk kulit album dan latar belakang kecerunan.",
+                "setting.noise", "Tekstur hingar",
+                "setting.noise_desc", "Menambah tekstur butiran halus seperti ivLyrics asal.",
+                "setting.reduce_motion", "Kurangkan gerakan",
+                "setting.reduce_motion_desc", "Menghentikan pergerakan latar belakang album/kecerunan automatik.",
+                "section.ai_lyrics", "Lirik AI",
+                "section.ai_lyrics_desc", "Hasilkan sebutan dan terjemahan dengan gesaan yang serasi dengan ivLyrics.",
+                "section.provider", "Pembekal",
+                "field.api_key", "Kunci API",
+                "field.model", "Model",
+                "field.base_url", "URL asas",
+                "button.save_regenerate", "Save dan Jana Semula",
+                "button.get_key", "Dapatkan Kunci",
+                "section.tools", "Alatan",
+                "section.tools_desc", "Urus log cache dan nyahpepijat.",
+                "section.spotify_api", "Spotify API",
+                "section.spotify_api_desc", "Gunakan Client ID dan Client Secret daripada Spotify Developer Dashboard. Hanya disimpan pada peranti ini.",
+                "button.spotify_save", "Simpan Spotify API",
+                "section.lyrics_cache", "Cache Lirik",
+                "section.lyrics_cache_desc", "Kosongkan lirik asas sync-data/LRCLIB dan cache sebutan/terjemahan AI. Lagu semasa dimuat semula selepas dibersihkan.",
+                "button.clear_current", "Kosongkan Lagu Semasa",
+                "button.clear_all", "Kosongkan Semua",
+                "button.ai_cache_clear", "Kosongkan Cache AI",
+                "button.debug_log", "Nyahpepijat / Log",
+                "onboarding.subtitle", "Lirik karaoke, terjemahan dan sebutan untuk lagu yang sedang dimainkan.",
+                "onboarding.welcome_title", "Sediakan ivLyrics",
+                "onboarding.welcome_desc", "Pilih bahasa apl dahulu, kemudian tetapkan kebenaran akses media dan bukti kelayakan Spotify API anda sendiri.",
+                "onboarding.app_language_en", "Bahasa Apl",
+                "onboarding.app_language_native", "Bahasa Apl",
+                "onboarding.permission_title", "Kebenaran Akses Media",
+                "onboarding.permission_desc", "Android akses pemberitahuan diperlukan untuk membaca lagu yang sedang dimainkan dalam Spotify.",
+                "onboarding.permission_hint", "Cari ivLyrics dalam skrin tetapan, benarkan akses, kemudian kembali ke apl.",
+                "onboarding.permission_status_enabled", "Kebenaran didayakan. Main balik Spotify kini boleh dikesan.",
+                "onboarding.permission_status_required", "Kebenaran belum didayakan lagi. Buka tetapan kebenaran dan benarkan ivLyrics.",
+                "onboarding.spotify_title", "Sambung Maklumat Lagu",
+                "onboarding.spotify_desc", "Spotify Web API digunakan untuk memuatkan ISRC dan kulit album resolusi tinggi untuk lagu semasa.",
+                "onboarding.step_format", "Langkah %d / %d",
+                "spotify.status_configured", "Spotify API dikonfigurasikan",
+                "spotify.status_required", "Daftar Spotify API sebelum penggunaan pertama.",
+                "spotify.status_checking", "Menyemak token Spotify...",
+                "spotify.status_invalid_format", "Permintaan token Spotify gagal: %s\nSemak Client ID dan Rahsia anda sekali lagi.",
+                "button.next", "Seterusnya",
+                "button.restart", "Mulakan Semula",
+                "button.copy", "Salin",
+                "button.open_browser", "Buka Pelayar",
+                "button.open_permission", "Kebenaran Buka Settings",
+                "button.prev_track", "Trek sebelumnya",
+                "button.next_track", "Lagu seterusnya",
+                "debug.title", "Nyahpepijat",
+                "debug.permission", "Buka kebenaran akses media",
+                "debug.previous", "Sebelumnya",
+                "debug.play_pause", "Main/Jeda",
+                "debug.next", "Seterusnya",
+                "debug.refresh", "Muat semula",
+                "debug.log", "Log",
+                "debug.log_waiting", "Menunggu log",
+                "lyrics.tab.language", "Bahasa",
+                "lyrics.tab.sync", "Penyegerakan",
+                "lyrics.translation", "Terjemahan",
+                "lyrics.pronunciation", "Sebutan",
+                "lyrics.sync.title", "Offset Penyegerakan Lagu Semasa",
+                "lyrics.sync.reset", "Set semula kepada 0ms",
+                "lyrics.sync.no_track", "Tiada lagu dimainkan, jadi ini tidak akan disimpan.",
+                "lyrics.sync.track_scope", "Disimpan hanya untuk \"%s\".",
+                "lyrics.sync.help", "+ nilai menunjukkan lirik lebih awal; - nilai menunjukkannya kemudian.",
+                "lyrics.menu_tip", "Tekan lama tajuk atau artis untuk membuka tetapan terjemahan dan sebutan.",
+                "lyrics.rule.track_language", "Bahasa lagu",
+                "lyrics.rule.save_target", "Save sasaran",
+                "lyrics.rule.translation_language", "Bahasa terjemahan",
+                "label.on", "Hidup",
+                "label.off", "Mati",
+                "label.auto", "Auto",
+                "label.auto_target", "Automatik (%s)",
+                "lyrics.button.translation_on", "Terjemahan Hidup",
+                "lyrics.button.pronunciation_on", "Sebutan Pada",
+                "lyrics.button.translation_plus", "Terjemahan+",
+                "field.api_key_desc", "Menyokong satu kunci, senarai baris baharu atau tatasusunan JSON. Hanya disimpan pada peranti ini.",
+                "field.model_desc", "Tentukan model penyedia secara terus.",
+                "field.base_url_desc", "URL asas API serasi OpenAI atau API penyedia.",
+                "field.max_tokens", "Token maksimum",
+                "field.temperature", "Kreativiti",
+                "field.solid_color", "Warna latar belakang rata",
+                "field.solid_color_desc", "Pilih warna yang digunakan dalam mod latar belakang pepejal.",
+                "field.spotify_client_id_desc", "Client ID apl Spotify anda.",
+                "field.spotify_client_secret_desc", "Client Secret apl Spotify anda.",
+                "preview.none", "Tersembunyi",
+                "preview.original", "Asal",
+                "preview.pronunciation", "Sebutan",
+                "preview.translation", "Terjemahan",
+                "background.mode.gradient", "Kulit Album",
+                "background.mode.gradient_desc", "Menggunakan kulit album semasa sebagai latar belakang kabur yang besar.",
+                "background.mode.blur_gradient", "Gradien Kabur",
+                "background.mode.blur_gradient_desc", "Membina kecerunan kabur bergerak daripada warna album.",
+                "background.mode.solid", "Warna Rata",
+                "background.mode.solid_desc", "Menggunakan warna latar belakang pepejal tersuai.",
+                "provider.desc.gemini", "Google AI Studio API",
+                "provider.desc.chatgpt", "API serasi OpenAI",
+                "provider.desc.claude", "Claude Messages API",
+                "provider.desc.openrouter", "Halakan berbilang model AI",
+                "provider.desc.groq", "Inferens pantas serasi OpenAI",
+                "provider.desc.perplexity", "Agent API",
+                "provider.desc.pollinations", "API Pollinations serasi OpenAI",
+                "spotify.step0.title", "Pergi ke Spotify Developer Dashboard",
+                "spotify.step0.desc", "Buka Spotify Developer Dashboard dalam pelayar anda. Log masuk dan buat apl baharu.",
+                "spotify.step1.title", "Masukkan nama dalam Create app",
+                "spotify.step1.desc", "Tekan Create app dan masukkan nilai di bawah untuk App name. Jangan tulis ivLyrics atau ivlyrics.",
+                "spotify.step2.title", "Masukkan huraian",
+                "spotify.step2.desc", "Masukkan nilai di bawah untuk App description juga. Ia sekadar contoh untuk mengelakkan kekeliruan.",
+                "spotify.step3.title", "Masukkan Redirect URI",
+                "spotify.step3.desc", "Tambahkan alamat di bawah pada Redirect URIs. Sertakan garis miring mengekor.",
+                "spotify.step4.title", "Pilih Web API dan simpan",
+                "spotify.step4.desc", "Pilih Web API dalam kawasan pemilihan API, tandakan kotak perjanjian, kemudian tekan Save.",
+                "spotify.step5.title", "Salin Client ID dan Rahsia",
+                "spotify.step5.desc", "Salin Client ID dan Client Secret daripada tetapan apl, tampalkannya di bawah, kemudian simpan Spotify API.",
+                "toast.copied_format", "Disalin: %s",
+                "toast.provider_saved", "Penyedia disimpan",
+                "toast.pronunciation_language_saved", "Bahasa sebutan disimpan",
+                "toast.preview_saved", "Pratonton lirik utama disimpan",
+                "toast.background_saved", "Kesan latar belakang disimpan",
+                "toast.metadata_translation_on", "Terjemahan tajuk/artis dihidupkan",
+                "toast.metadata_translation_off", "Terjemahan tajuk/artis dimatikan",
+                "toast.auto_interlude_on", "Pengesanan selingan automatik dihidupkan",
+                "toast.auto_interlude_off", "Pengesanan selingan automatik dimatikan",
+                "toast.landscape_auto_hide_on", "Autosembunyi kawalan landskap dihidupkan",
+                "toast.landscape_auto_hide_off", "Autosembunyi kawalan landskap dimatikan",
+                "toast.background_noise_on", "Tekstur hingar dihidupkan",
+                "toast.background_noise_off", "Tekstur hingar dimatikan",
+                "toast.reduce_motion_on", "Pergerakan latar belakang yang dikurangkan",
+                "toast.reduce_motion_off", "Pergerakan latar belakang didayakan",
+                "toast.ai_cache_cleared", "Cache AI dikosongkan",
+                "toast.language_rule_saved", "Tetapan bahasa lagu disimpan",
+                "toast.settings_saved", "Settings disimpan",
+                "toast.spotify_missing", "Masukkan kedua-dua Client ID dan Client Secret.",
+                "toast.spotify_checking", "Menyemak token Spotify...",
+                "toast.spotify_invalid", "Semak semula bukti kelayakan Spotify API anda.",
+                "toast.spotify_saved", "Spotify API disimpan",
+                "toast.current_track_missing", "Tiada maklumat lagu semasa",
+                "toast.current_cache_cleared", "Cache lirik lagu semasa dikosongkan",
+                "toast.all_cache_cleared", "Semua cache lirik dikosongkan",
+                "toast.sync_offset_format", "Ofset penyegerakan %s",
+                "status.lyrics_request_failed", "Permintaan lirik gagal",
+                "status.ai_applied", "Terjemahan/sebutan digunakan",
+                "status.ai_failed_format", "Lirik AI gagal: %s",
+                "status.ai_cache_cleared", "Cache AI dikosongkan",
+                "status.ai_lyrics_active", "AI lirik didayakan",
+                "status.ai_key_needed", "Masukkan kunci API untuk menjana lirik AI.",
+                "status.ai_disabled", "Terjemahan/sebutan dimatikan.",
+                "status.no_lyrics_to_apply", "Tiada lirik untuk digunakan.",
+                "status.ai_generating", "Menjana lirik AI...",
+                "status.reload_after_spotify", "Memuatkan semula lirik ISRC, sync-data dan LRCLIB lagu ini selepas tetapan Spotify API ditukar.",
+                "status.detecting_media", "Mengesan sesi media",
+                "status.permission_required", "Kebenaran capaian pemberitahuan diperlukan",
+                "status.lyrics_lookup_spotify", "Mencari ISRC dengan Spotify Web API, kemudian memuatkan sync-data dan LRCLIB.",
+                "status.lyrics_lookup_player", "Memuatkan sync-data dan LRCLIB dengan pemain ISRC.",
+                "status.waiting_current_track", "Menunggu lagu yang sedang dimainkan",
+                "status.spotify_required_plain", "Spotify API diperlukan",
+                "loading.generating", "Menjana",
+                "loading.pronunciation", "Menjana sebutan...",
+                "loading.translation", "Menjana terjemahan...",
+                "loading.word_sync", "Menjana penyegerakan perkataan...",
+                "loading.word_sync_desc", "Data penyegerakan setiap perkataan sedang dijana pada pelayan lirik luaran.",
+                "status.word_sync_failed", "Penyegerakan perkataan gagal",
+                "pronunciation_first.state_on", "Sebutan dahulu hidup. Ketik untuk mematikan",
+                "pronunciation_first.state_off", "Sebutan dahulu mati. Ketik untuk menghidupkan",
+                "loading.pronunciation_sync", "AI sedang menyelaraskan sebutan dengan masa lirik...",
+                "status.pronunciation_sync_failed", "Penyegerakan sebutan gagal",
+                "lyrics.empty_none", "Tiada lirik",
+                "interlude.prelude", "Intro",
+                "interlude.break", "Selingan",
+                "interlude.postlude", "Outro",
+                "onboarding.preview.line1", "Lirik karaoke ikut lagu",
+                "onboarding.preview.line2", "Sebutan dan terjemahan dipaparkan di sini",
+                "onboarding.preview.line3", "Semuanya dikemas kini dengan trek semasa",
+                "repo.metadata_waiting", "Menunggu metadata lagu",
+                "repo.lyrics_not_found", "Lirik LRCLIB tidak ditemui",
+                "repo.instrumental", "Trek instrumental",
+                "repo.no_renderable_lyrics", "Tiada lirik LRCLIB yang boleh dipaparkan",
+                "repo.detail.sync_applied_direct", "sync-data karaoke digunakan. LRCLIB dimuat terus daripada sync-data.",
+                "repo.detail.sync_applied_search", "sync-data karaoke digunakan. LRCLIB dipilih melalui carian.",
+                "repo.detail.no_spotify_isrc", "Lirik baris LRCLIB. Carian Spotify ISRC tidak tersedia.",
+                "repo.detail.no_sync_data", "Lirik baris LRCLIB. Tiada sync-data sepadan untuk ISRC ini.",
+                "repo.detail.sync_apply_failed", "Lirik baris LRCLIB. sync-data tidak dapat digunakan.",
+                "spotify.error.incomplete_credentials", "Spotify API Client ID atau Client Secret tiada.",
+                "spotify.error.credentials_not_configured", "Bukti kelayakan Spotify API belum dikonfigurasi.",
+                "spotify.error.no_access_token", "Respons token Spotify tidak mengandungi access_token.",
+                "spotify.error.repository_unavailable", "Repositori lirik tidak tersedia.",
+                "lyrics.credit_sync_by_format", "sync oleh %s",
+                "sync.type_line", "Baris",
+                "sync.type_word", "Perkataan",
+                "sync.type_character", "Aksara",
+                "sync.type_mixed", "Campuran",
+                "sync.type_unknown", "Segerak lama"
+        );
+    }
+
+    private static Map<String, String> csStrings() {
+        return strings(
+                "button.close", "Zavřít",
+                "button.previous", "Zpět",
+                "button.save_start", "Uložit a spustit",
+                "button.spotify_setup", "Nastavte Spotify API",
+                "status.waiting_spotify", "Čekání na přehrávání Spotify",
+                "status.lyrics_loading", "Načítání textů",
+                "status.lyrics_waiting", "Čekání na texty",
+                "status.spotify_required_title", "Je vyžadováno rozhraní API Spotify",
+                "status.spotify_required_subtitle", "Nejprve uložte své ID klienta a tajný klíč",
+                "status.spotify_required_detail", "ISRC, sync-data a texty LRCLIB se nenačtou, dokud není nastavení dokončeno.",
+                "toast.spotify_required", "Nejprve zaregistrujte Spotify API",
+                "toast.setup_required", "Nejprve dokončete počáteční nastavení",
+                "toast.back_exit", "Opětovným stisknutím tlačítka Zpět aplikaci ukončíte",
+                "toast.ui_language_saved", "Jazyk aplikace byl uložen",
+                "settings.title", "Nastavení",
+                "settings.subtitle", "Texty, zobrazení, celá obrazovka, AI a nástroje",
+                "tab.lyrics", "Text písně",
+                "tab.display", "Zobrazení",
+                "tab.ai", "AI",
+                "tab.tools", "Nástroje",
+                "section.language", "Jazyk",
+                "section.language_desc", "Spravujte jazyk zobrazení aplikace a výstupní jazyk výslovnosti/překladu.",
+                "setting.ui_language", "Jazyk aplikace",
+                "setting.ui_language_desc", "Jazyk používaný pro uživatelské rozhraní aplikace. Jsou zobrazeny pouze jazyky se skutečnými překlady uživatelského rozhraní.",
+                "setting.pronunciation_language", "Jazyk výslovnosti/překladu",
+                "setting.pronunciation_language_desc", "Sdílený jazyk pro výstup výslovnosti a překladu. Přizpůsobte jazyk uživatelského rozhraní nebo připněte konkrétní jazyk.",
+                "setting.metadata_translation", "Přeložit název/interpreta",
+                "setting.metadata_translation_desc", "Název skladby a interpret se také zobrazí ve vybraném výstupním jazyce.",
+                "setting.main_preview", "Hlavní ukázka textu",
+                "setting.main_preview_desc", "Vyberte řádky originálu, výslovnosti a překladu. Dlouhé řádky se posouvají podle časování textu.",
+                "setting.auto_interlude", "Automaticky rozpoznat úvod, mezihru a závěr",
+                "setting.auto_interlude_desc", "Převede noty, prázdné řádky a dlouhé mezery v textu na animované značky mezihry.",
+                "setting.interlude_labels", "Zobrazit popisky mezihry",
+                "setting.interlude_labels_desc", "Zobrazí textový popisek vedle značek úvodu, mezihry a závěru a zachová animovanou ikonu.",
+                "setting.synced_karaoke_animation", "Karaoke efekt synchronizovaný po řádcích",
+                "setting.synced_karaoke_animation_desc", "Použije rovnoměrné vyplňování znaků u běžných synchronizovaných textů LRCLIB bez sync-data.",
+                "setting.karaoke_bounce_effect", "Efekt poskakování karaoke",
+                "setting.karaoke_bounce_effect_desc", "Při vyplňování znaků během karaoke nechá text jemně poskakovat.",
+                "setting.karaoke_motion_style", "Styl pohybu karaoke",
+                "setting.karaoke_motion_style_desc", "Klasický zachovává jemné poskakování. Expresivní používá pružinovou fyziku: zpívaná slova se zvětší, zvednou a rozzáří, ještě nezazpívaná slova zůstanou o něco menší a dlouhé tóny se animují písmeno po písmenu.",
+                "karaoke.motion.classic", "Klasický",
+                "karaoke.motion.expressive", "Expresivní",
+                "setting.pronunciation_karaoke_fill", "Vyplňovat výslovnost jako karaoke",
+                "setting.pronunciation_karaoke_fill_desc", "I když je režim nejdřív výslovnost vypnutý, řádek výslovnosti se vyplňuje v rytmu zpěvu. AI rozdělí výslovnost podle časování slov nebo znaků. Další efekty, jako poskakování a záře, se nepoužijí.",
+                "setting.synced_pronunciation", "Synchronizovaná výslovnost",
+                "setting.synced_pronunciation_desc", "Načte výslovnost karaoke textů rozdělenou podle načasování každého zpívaného slova nebo znaku. Po zapnutí je k dispozici režim Nejdřív výslovnost a vyplňování výslovnosti jako karaoke. Po vypnutí se výslovnost načte rychleji jako prostý text po řádcích.",
+                "section.player", "Přehrávač",
+                "section.player_desc", "Upravte zobrazení a chování v režimu na šířku.",
+                "setting.landscape_auto_hide", "Automaticky skrýt ovládací prvky na šířku",
+                "setting.landscape_auto_hide_desc", "Při nečinnosti na šířku skryjte ukazatel průběhu a tlačítka.",
+                "section.background", "Pozadí",
+                "section.background_desc", "Vyberte obal alba, video, rozmazaný přechod nebo jednobarevné pozadí.",
+                "setting.background_mode", "Efekt pozadí",
+                "setting.background_mode_desc", "Vyberte, jak se vykreslí pozadí aktuální skladby.",
+                "setting.brightness", "Jas",
+                "setting.brightness_desc", "Jas pro obal alba a pozadí s přechodem.",
+                "setting.blur", "Rozostření",
+                "setting.blur_desc", "Intenzita rozostření pro obal alba a přechodové pozadí. Pozadí videa používá dvojnásobek této hodnoty.",
+                "setting.video_scale", "Zoom videa",
+                "setting.video_scale_desc", "Zvětšení pozadí videa, když má zdroj letterbox nebo potřebuje vyplnit větší část obrazovky.",
+                "setting.noise", "Šumová textura",
+                "setting.noise_desc", "Přidá jemnou zrnitou texturu podobnou původnímu ivLyrics.",
+                "setting.reduce_motion", "Omezit pohyb",
+                "setting.reduce_motion_desc", "Zastaví automatický pohyb alba/přechodu na pozadí.",
+                "section.ai_lyrics", "AI pro texty",
+                "section.ai_lyrics_desc", "Generujte výslovnost a překlady pomocí pokynů kompatibilních s ivLyrics.",
+                "section.provider", "Poskytovatel",
+                "field.api_key", "Klíč API",
+                "field.model", "Model",
+                "field.base_url", "Základní URL",
+                "button.save_regenerate", "Uložit a znovu vygenerovat",
+                "button.get_key", "Získat klíč",
+                "section.tools", "Nástroje",
+                "section.tools_desc", "Správa mezipaměti a protokoly ladění.",
+                "section.spotify_api", "Spotify API",
+                "section.spotify_api_desc", "Použijte ID klienta a tajný klíč klienta ze Spotify Developer Dashboard. Uloženo pouze v tomto zařízení.",
+                "button.spotify_save", "Uložit Spotify API",
+                "section.lyrics_cache", "Mezipaměť textů",
+                "section.lyrics_cache_desc", "Vymaže základní texty sync-data/LRCLIB a mezipaměť výslovnosti a překladů AI. Aktuální skladba se poté načte znovu.",
+                "button.clear_current", "Vymazat aktuální skladbu",
+                "button.clear_all", "Vymazat vše",
+                "button.ai_cache_clear", "Vymazat mezipaměť AI",
+                "button.debug_log", "Ladění / protokoly",
+                "onboarding.subtitle", "Karaoke texty, překlad a výslovnost právě přehrávané písně.",
+                "onboarding.welcome_title", "Nastavte ivLyrics",
+                "onboarding.welcome_desc", "Nejprve vyberte jazyk aplikace, poté nastavte oprávnění k přístupu k médiím a své vlastní přihlašovací údaje pro Spotify API.",
+                "onboarding.app_language_en", "Jazyk aplikace",
+                "onboarding.app_language_native", "Jazyk aplikace",
+                "onboarding.permission_title", "Oprávnění k přístupu k médiím",
+                "onboarding.permission_desc", "Ke čtení aktuálně přehrávané skladby ve Spotify je vyžadován přístup k oznámením systému Android.",
+                "onboarding.permission_hint", "Najděte ivLyrics na obrazovce nastavení, povolte přístup a poté se vraťte do aplikace.",
+                "onboarding.permission_status_enabled", "Oprávnění je povoleno. Přehrávání Spotify lze nyní detekovat.",
+                "onboarding.permission_status_required", "Oprávnění zatím není povoleno. Otevřete nastavení oprávnění a povolte ivLyrics.",
+                "onboarding.spotify_title", "Připojit informace o skladbě",
+                "onboarding.spotify_desc", "Spotify Web API se používá k načtení ISRC a grafiky ve vysokém rozlišení pro aktuální skladbu.",
+                "onboarding.step_format", "Krok %d / %d",
+                "spotify.status_configured", "Spotify API nakonfigurováno",
+                "spotify.status_required", "Zaregistrujte Spotify API před prvním použitím.",
+                "spotify.status_checking", "Kontrola tokenu Spotify...",
+                "spotify.status_invalid_format", "Požadavek na token Spotify selhal: %s\nZnovu zkontrolujte své ID klienta a tajný klíč.",
+                "button.next", "Další",
+                "button.restart", "Začít znovu",
+                "button.copy", "Kopírovat",
+                "button.open_browser", "Otevřít prohlížeč",
+                "button.open_permission", "Otevřete Nastavení oprávnění",
+                "button.prev_track", "Předchozí skladba",
+                "button.next_track", "Další skladba",
+                "debug.title", "Ladění",
+                "debug.permission", "Otevřít oprávnění k přístupu k médiím",
+                "debug.previous", "Předchozí",
+                "debug.play_pause", "Přehrát/Pozastavit",
+                "debug.next", "Další",
+                "debug.refresh", "Obnovit",
+                "debug.log", "Log",
+                "debug.log_waiting", "Čekání na protokoly",
+                "lyrics.tab.language", "Jazyk",
+                "lyrics.tab.sync", "Synchronizace",
+                "lyrics.translation", "Překlad",
+                "lyrics.pronunciation", "Výslovnost",
+                "lyrics.sync.title", "Posun synchronizace aktuální skladby",
+                "lyrics.sync.reset", "Resetovat na 0 ms",
+                "lyrics.sync.no_track", "Žádná skladba se nepřehrává, takže to nebude uloženo.",
+                "lyrics.sync.track_scope", "Uloženo pouze pro \"%s\".",
+                "lyrics.sync.help", "Hodnoty + zobrazí text dříve, hodnoty - později.",
+                "lyrics.menu_tip", "Jedním klepnutím otevřete Spotify; dlouhým stisknutím otevřete nastavení překladu a výslovnosti.",
+                "lyrics.rule.track_language", "Jazyk skladby",
+                "lyrics.rule.save_target", "Cíl uložení",
+                "lyrics.rule.translation_language", "Jazyk překladu",
+                "label.on", "Zapnuto",
+                "label.off", "Vypnuto",
+                "label.auto", "Auto",
+                "label.auto_target", "Automaticky (%s)",
+                "lyrics.button.translation_on", "Překlad zapnut",
+                "lyrics.button.pronunciation_on", "Výslovnost zapnuta",
+                "lyrics.button.translation_plus", "Překlad+",
+                "field.api_key_desc", "Podporuje jeden klíč, seznam oddělený novými řádky nebo pole JSON. Uloženo pouze v tomto zařízení.",
+                "field.model_desc", "Přepsání modelu poskytovatele.",
+                "field.base_url_desc", "Základní adresa URL rozhraní API kompatibilní s OpenAI nebo poskytovatele.",
+                "field.max_tokens", "Maximální počet tokenů",
+                "field.temperature", "Tvořivost",
+                "field.solid_color", "Barva jednobarevného pozadí",
+                "field.solid_color_desc", "Vyberte barvu použitou v režimu plného pozadí.",
+                "field.spotify_client_id_desc", "ID klienta vaší aplikace Spotify.",
+                "field.spotify_client_secret_desc", "Tajný klíč klienta vaší aplikace Spotify.",
+                "preview.none", "Skryto",
+                "preview.original", "Původní",
+                "preview.pronunciation", "Výslovnost",
+                "preview.translation", "Překlad",
+                "background.mode.gradient", "Obal alba",
+                "background.mode.gradient_desc", "Použije aktuální obal alba jako velké rozmazané pozadí.",
+                "background.mode.blur_gradient", "Rozmazaný přechod",
+                "background.mode.blur_gradient_desc", "Vytváří pohyblivý rozmazaný přechod z barev alba.",
+                "background.mode.solid", "Plná barva",
+                "background.mode.solid_desc", "Používá vlastní plnou barvu pozadí.",
+                "provider.desc.gemini", "Google AI Studio API",
+                "provider.desc.chatgpt", "API kompatibilní s OpenAI",
+                "provider.desc.claude", "Claude Messages API",
+                "provider.desc.openrouter", "Směruje více modelů AI",
+                "provider.desc.groq", "Rychlá inference kompatibilní s OpenAI",
+                "provider.desc.perplexity", "Agent API",
+                "provider.desc.pollinations", "Pollinations API kompatibilní s OpenAI",
+                "spotify.step0.title", "Přejděte na panel vývojáře Spotify",
+                "spotify.step0.desc", "Otevřete ve svém prohlížeči Spotify Developer Dashboard. Přihlaste se a vytvořte novou aplikaci.",
+                "spotify.step1.title", "Zadejte název v Create app",
+                "spotify.step1.desc", "Stiskněte Create app a do pole App name zadejte níže uvedenou hodnotu. Nepište ivLyrics nebo ivlyrics.",
+                "spotify.step2.title", "Zadejte popis",
+                "spotify.step2.desc", "Do pole App description zadejte také níže uvedenou hodnotu. Je to jen příklad, aby nedošlo k záměně.",
+                "spotify.step3.title", "Zadejte URI přesměrování",
+                "spotify.step3.desc", "Přidejte níže uvedenou adresu do Redirect URIs. Zahrňte koncové lomítko.",
+                "spotify.step4.title", "Vyberte Web API a uložte",
+                "spotify.step4.desc", "V oblasti výběru API vyberte Web API, zaškrtněte políčko souhlasu a stiskněte Save.",
+                "spotify.step5.title", "Zkopírujte ID klienta a tajný klíč",
+                "spotify.step5.desc", "Zkopírujte ID klienta a tajný klíč klienta z nastavení aplikace, vložte je níže a poté uložte Spotify API.",
+                "toast.copied_format", "Zkopírováno: %s",
+                "toast.provider_saved", "Poskytovatel byl uložen",
+                "toast.pronunciation_language_saved", "Jazyk výslovnosti/překladu byl uložen",
+                "toast.preview_saved", "Hlavní náhled textu byl uložen",
+                "toast.background_saved", "Efekt pozadí uložen",
+                "toast.metadata_translation_on", "Překlad názvu a interpreta zapnut",
+                "toast.metadata_translation_off", "Překlad názvu a interpreta vypnut",
+                "toast.auto_interlude_on", "Automatické rozpoznání mezihry zapnuto",
+                "toast.auto_interlude_off", "Automatické rozpoznání mezihry vypnuto",
+                "toast.landscape_auto_hide_on", "Nastavení automatického skrývání na šířku je zapnuto",
+                "toast.landscape_auto_hide_off", "Automatické skrývání ovládacích prvků na šířku je vypnuto",
+                "toast.background_noise_on", "Šumová textura zapnuta",
+                "toast.background_noise_off", "Šumová textura vypnuta",
+                "toast.reduce_motion_on", "Snížený pohyb na pozadí",
+                "toast.reduce_motion_off", "Pohyb na pozadí povolen",
+                "toast.ai_cache_cleared", "Mezipaměť AI byla vymazána",
+                "toast.language_rule_saved", "Nastavení jazyka skladeb bylo uloženo",
+                "toast.settings_saved", "Nastavení uloženo",
+                "toast.spotify_missing", "Zadejte ID klienta i tajný klíč klienta.",
+                "toast.spotify_checking", "Kontrola tokenu Spotify...",
+                "toast.spotify_invalid", "Znovu zkontrolujte přihlašovací údaje pro Spotify API.",
+                "toast.spotify_saved", "Spotify API uloženo",
+                "toast.current_track_missing", "Žádné aktuální informace o skladbě",
+                "toast.current_cache_cleared", "Mezipaměť aktuálních textů písní byla vymazána",
+                "toast.all_cache_cleared", "Mezipaměť všech textů byla vymazána",
+                "toast.sync_offset_format", "Synchronizační offset %s",
+                "status.lyrics_request_failed", "Žádost o text se nezdařila",
+                "status.ai_applied", "Byl použit překlad/výslovnost",
+                "status.ai_failed_format", "Text AI selhal: %s",
+                "status.ai_cache_cleared", "Mezipaměť AI byla vymazána",
+                "status.ai_lyrics_active", "AI texty povoleny",
+                "status.ai_key_needed", "Zadejte klíč API pro generování textů AI.",
+                "status.ai_disabled", "Překlad/výslovnost je vypnutá.",
+                "status.no_lyrics_to_apply", "Žádné texty k použití.",
+                "status.ai_generating", "Generování textů AI...",
+                "status.reload_after_spotify", "Po změně nastavení Spotify API se znovu načtou ISRC, sync-data a texty LRCLIB této skladby.",
+                "status.detecting_media", "Detekce mediální relace",
+                "status.permission_required", "Vyžaduje se oprávnění k přístupu k oznámení",
+                "status.lyrics_lookup_spotify", "Vyhledávání ISRC pomocí Spotify Web API a následné načítání sync-data a LRCLIB.",
+                "status.lyrics_lookup_player", "Načítání sync-data a LRCLIB pomocí ISRC přehrávače.",
+                "status.waiting_current_track", "Čekání na aktuálně přehrávanou skladbu",
+                "status.spotify_required_plain", "Je vyžadováno rozhraní Spotify API",
+                "loading.generating", "Generování",
+                "loading.pronunciation", "Generování výslovnosti...",
+                "loading.translation", "Generování překladu...",
+                "loading.word_sync", "Vytváření synchronizace slov...",
+                "loading.word_sync_desc", "Na externím serveru s texty písní se vytváří synchronizace po slovech.",
+                "status.word_sync_failed", "Synchronizace slov selhala",
+                "pronunciation_first.state_on", "Nejdřív výslovnost zapnuto. Klepnutím vypnete",
+                "pronunciation_first.state_off", "Nejdřív výslovnost vypnuto. Klepnutím zapnete",
+                "loading.pronunciation_sync", "AI přizpůsobuje výslovnost časování textu...",
+                "status.pronunciation_sync_failed", "Časování výslovnosti selhalo",
+                "lyrics.empty_none", "Žádné texty",
+                "interlude.prelude", "Úvod",
+                "interlude.break", "Mezihra",
+                "interlude.postlude", "Závěr",
+                "onboarding.preview.line1", "Karaoke text následuje píseň",
+                "onboarding.preview.line2", "Zde se objeví výslovnost a překlad",
+                "onboarding.preview.line3", "Vše se aktualizuje s aktuální skladbou",
+                "repo.metadata_waiting", "Čekání na metadata skladby",
+                "repo.lyrics_not_found", "Texty LRCLIB nebyly nalezeny",
+                "repo.instrumental", "Instrumentální skladba",
+                "repo.no_renderable_lyrics", "Žádné zobrazitelné texty LRCLIB",
+                "repo.detail.sync_applied_direct", "Karaoke sync-data byla použita. LRCLIB byl načten přímo ze sync-data.",
+                "repo.detail.sync_applied_search", "Karaoke sync-data byla použita. LRCLIB byl vybrán pomocí vyhledávání.",
+                "repo.detail.no_spotify_isrc", "LRCLIB řádkové texty. Vyhledávání ISRC Spotify není k dispozici.",
+                "repo.detail.no_sync_data", "Řádkově synchronizované texty LRCLIB. Pro toto ISRC nebyla nalezena odpovídající sync-data.",
+                "repo.detail.sync_apply_failed", "Řádkově synchronizované texty LRCLIB. sync-data se nepodařilo použít.",
+                "spotify.error.incomplete_credentials", "Chybí ID klienta rozhraní API Spotify nebo tajný klíč klienta.",
+                "spotify.error.credentials_not_configured", "Přihlašovací údaje API Spotify nejsou nakonfigurovány.",
+                "spotify.error.no_access_token", "Odpověď tokenu Spotify neobsahovala access_token.",
+                "spotify.error.repository_unavailable", "Úložiště textů není k dispozici.",
+                "lyrics.credit_sync_by_format", "synchronizace: %s",
+                "sync.type_line", "Řádek",
+                "sync.type_word", "Slovo",
+                "sync.type_character", "Znak",
+                "sync.type_mixed", "Smíšené",
+                "sync.type_unknown", "Starší synchronizace",
+                "lyrics.lrclib_search.title", "Manuální vyhledávání LRCLIB",
+                "lyrics.lrclib_search.desc", "Vyhledejte přímo LRCLIB a použijte výsledek, když načtený text neodpovídá této písni.",
+                "lyrics.lrclib_search.title_hint", "Název písně",
+                "lyrics.lrclib_search.artist_hint", "Umělec",
+                "lyrics.lrclib_search.field_title", "Název",
+                "lyrics.lrclib_search.field_artist", "Umělec",
+                "lyrics.lrclib_search.button", "Hledat v LRCLIB",
+                "lyrics.lrclib_search.ready", "Zkontrolujte hledané výrazy a poté vyhledejte LRCLIB.",
+                "lyrics.lrclib_search.empty_title", "Zadejte název skladby, kterou chcete vyhledat.",
+                "lyrics.lrclib_search.loading", "Vyhledávání LRCLIB...",
+                "lyrics.lrclib_search.no_results", "Žádné výsledky LRCLIB.",
+                "lyrics.lrclib_search.result_count_format", "Výsledky LRCLIB: %d",
+                "lyrics.lrclib_search.selecting", "Načítání vybraných textů LRCLIB...",
+                "lyrics.lrclib_search.loaded", "Byly použity texty LRCLIB.",
+                "lyrics.lrclib_search.error_format", "Vyhledávání LRCLIB se nezdařilo: %s",
+                "lyrics.lrclib_search.instrumental", "Instrumentální",
+                "lyrics.lrclib_search.synced", "Synchronizováno",
+                "lyrics.lrclib_search.plain", "Prostý text",
+                "repo.detail.manual_lrclib", "Ručně vybrané texty LRCLIB.",
+                "section.spotify_shortcut", "Zástupce Spotify",
+                "section.spotify_shortcut_desc", "Zobrazuje pouze malou pohyblivou ikonu na obrazovce Now Playing Spotify. Klepnutím otevřete stránku s texty písní ivLyrics.",
+                "button.open_accessibility_permission", "Otevřete Povolení detekce Spotify",
+                "button.accessibility_permission_enabled", "Povolení detekce Spotify povoleno",
+                "button.open_overlay_permission", "Otevřete oprávnění k plovoucí ikoně",
+                "button.overlay_permission_enabled", "Povolení plovoucí ikony povoleno",
+                "toast.accessibility_permission_needed", "Je vyžadováno povolení k detekci Spotify",
+                "toast.overlay_permission_needed", "Vyžaduje se oprávnění pro kreslení přes jiné aplikace",
+                "toast.spotify_open_failed", "Nelze otevřít Spotify",
+                "onboarding.preview.line4", "Klepnutím na název nebo interpreta přeskočíte zpět na Spotify.",
+                "setting.keep_screen_on", "Ponechat obrazovku zapnutou",
+                "setting.keep_screen_on_desc", "Zabraňuje vypnutí obrazovky telefonu při používání aplikace.",
+                "toast.keep_screen_on_on", "Obrazovka zůstane zapnutá",
+                "toast.keep_screen_on_off", "Obrazovka se může automaticky vypnout",
+                "setting.landscape_center_no_lyrics", "Středový přehrávač na šířku bez textů",
+                "setting.landscape_center_no_lyrics_desc", "Pokud nejsou k dispozici žádné texty, vycentrujte album a ovládací prvky. Vypněte toto, chcete-li zachovat rozvržení rozdělené na šířku.",
+                "toast.landscape_center_no_lyrics_on", "Středem na šířku bez textů",
+                "toast.landscape_center_no_lyrics_off", "Středová krajina bez textů",
+                "section.app_update", "Automatické aktualizace",
+                "section.app_update_desc", "Vyhledejte nejnovější APK ve vydáních na GitHubu a pokračujte podle instalačního návodu.",
+                "button.check_updates", "Zkontrolovat aktualizace",
+                "button.open_release_page", "Stránka vydání",
+                "update.status_idle", "Aktualizace zatím nebyly zkontrolovány.",
+                "update.status_checking", "Kontrola nejnovější verze...",
+                "update.status_latest_format", "Aktuální verze %s je aktuální.",
+                "update.status_available_format", "K dispozici nová verze %s",
+                "update.status_failed_format", "Kontrola aktualizace selhala: %s",
+                "update.dialog_title", "K dispozici nová verze",
+                "update.dialog_message_format", "Aktuální: %s (%d)\nNejnovější: %s (%d)\n\n%s",
+                "update.dialog_message_no_notes", "Žádné poznámky k vydání.",
+                "update.download", "Stáhnout",
+                "update.later", "Později",
+                "update.open_release", "Otevřít vydání",
+                "update.download_starting", "Příprava stahování aktualizace APK",
+                "update.download_started_format", "Stahování %s zahájeno",
+                "update.download_complete", "Stahování dokončeno. Otevírání instalační obrazovky...",
+                "update.install_failed", "Nelze otevřít instalační obrazovku.",
+                "toast.update_checking", "Kontrola aktualizací",
+                "toast.update_latest", "Jste na nejnovější verzi.",
+                "toast.update_available_format", "K dispozici je nová verze %s.",
+                "toast.update_failed", "Kontrola aktualizace se nezdařila.",
+                "label.same_as_ui_language", "Stejné jako jazyk uživatelského rozhraní",
+                "setting.japanese_furigana", "Japonská furigana",
+                "setting.japanese_furigana_desc", "Když jsou texty rozpoznány jako japonské, zobrazí nad kandži čtení v hiraganě. AI je generuje pouze tehdy, když text obsahuje kandži.",
+                "lyrics.furigana", "Furigana",
+                "toast.furigana_on", "Furigana zapnuta",
+                "toast.furigana_off", "Furigana vypnuta",
+                "setting.karaoke_data_as_line_synced", "Zobrazit karaoke data jako řádkově synchronizovaná",
+                "setting.karaoke_data_as_line_synced_desc", "Pokud sync-data obsahují časování karaoke, zobrazí je jako běžné řádkově synchronizované texty bez vyplňování jednotlivých znaků.",
+                "section.typography", "Typografie",
+                "section.typography_desc", "Přizpůsobte velikost a tloušťku písma v hlavním přehrávači a na stránce s texty.",
+                "typography.size", "Velikost",
+                "typography.weight", "Tloušťka",
+                "typography.weight.regular", "Normální",
+                "typography.weight.semibold", "Polotučné",
+                "typography.weight.bold", "Tučné",
+                "toast.typography_saved", "Typografie byla uložena",
+                "typography.slot.main_title", "Název na hlavní obrazovce",
+                "typography.slot.main_title_desc", "Upravte velikost a tloušťku písma této položky.",
+                "typography.slot.main_artist", "Interpret na hlavní obrazovce",
+                "typography.slot.main_artist_desc", "Upravte velikost a tloušťku písma této položky.",
+                "typography.slot.main_preview_original", "Originál dole na hlavní obrazovce",
+                "typography.slot.main_preview_original_desc", "Upravte velikost a tloušťku písma této položky.",
+                "typography.slot.main_preview_pronunciation", "Výslovnost dole na hlavní obrazovce",
+                "typography.slot.main_preview_pronunciation_desc", "Upravte velikost a tloušťku písma této položky.",
+                "typography.slot.main_preview_translation", "Překlad dole na hlavní obrazovce",
+                "typography.slot.main_preview_translation_desc", "Upravte velikost a tloušťku písma této položky.",
+                "typography.slot.lyrics_header_title", "Název na stránce s texty",
+                "typography.slot.lyrics_header_title_desc", "Upravte velikost a tloušťku písma této položky.",
+                "typography.slot.lyrics_header_artist", "Interpret na stránce s texty",
+                "typography.slot.lyrics_header_artist_desc", "Upravte velikost a tloušťku písma této položky.",
+                "typography.slot.lyrics_original", "Originál na stránce s texty",
+                "typography.slot.lyrics_original_desc", "Upravte velikost a tloušťku písma této položky.",
+                "typography.slot.lyrics_pronunciation", "Výslovnost na stránce s texty",
+                "typography.slot.lyrics_pronunciation_desc", "Upravte velikost a tloušťku písma této položky.",
+                "typography.slot.lyrics_translation", "Překlad na stránce s texty",
+                "typography.slot.lyrics_translation_desc", "Upravte velikost a tloušťku písma této položky.",
+                "section.speaker_colors", "Barvy hlasů",
+                "section.speaker_colors_desc", "Pomocí výběru barvy upravte běžné, duetové, mužské a ženské barvy textu.",
+                "speaker_color.normal", "Normální",
+                "speaker_color.duet", "Duet",
+                "speaker_color.male", "Mužský",
+                "speaker_color.female", "Ženský",
+                "speaker_color.hex_hint", "Vybraná barva",
+                "button.apply_colors", "Použít barvy",
+                "button.reset_colors", "Resetovat",
+                "toast.speaker_colors_saved", "Barvy hlasů uloženy",
+                "toast.speaker_colors_reset", "Barvy hlasů obnoveny",
+                "toast.invalid_color_format", "Formát barev %s je neplatný.",
+                "setting.creator_speaker_colors", "Používat vlastní barvy autora synchronizace",
+                "setting.creator_speaker_colors_desc", "Použije vlastní barvy hlasů vložené autorem synchronizace. Po vypnutí použijí hlasy CUSTOM náhradní barvu zvolenou autorem.",
+                "background.mode.video", "Video",
+                "background.mode.video_desc", "Načte metadata videa ivLyrics YouTube a přehraje skutečné video za přehrávačem.",
+                "lyrics.tab.background", "Pozadí",
+                "lyrics.background.title", "Pozadí aktuální stopy",
+                "lyrics.background.desc", "Uložte přepsání pozadí pro tuto stopu namísto globálního nastavení pozadí.",
+                "lyrics.background.override", "Použít pouze na tuto stopu",
+                "lyrics.background.override_desc", "Chcete-li použít globální nastavení pozadí, vypněte tuto možnost.",
+                "lyrics.background.mode_desc", "Pouze pro tuto skladbu vyberte obal alba, rozmazaný přechod, video nebo plnou barvu.",
+                "lyrics.background.reset", "Obnovit pozadí této stopy",
+                "toast.track_background_saved", "Pozadí stopy uloženo",
+                "toast.track_background_cleared", "Resetování pozadí",
+                "setting.lyrics_alignment", "Zarovnání textů",
+                "setting.lyrics_alignment_desc", "Vyberte, jak budou na stránce s texty zarovnány řádky originálu, výslovnosti a překladu.",
+                "lyrics_alignment.left", "Vlevo",
+                "lyrics_alignment.center", "Střed",
+                "lyrics_alignment.right", "Vpravo",
+                "toast.lyrics_alignment_saved", "Zarovnání textů uloženo",
+                "pip.open_lyrics", "Zobrazit texty v PiP",
+                "pip.unavailable", "Toto zařízení nepodporuje PiP.",
+                "pip.enter_failed", "Nelze otevřít režim PiP.",
+                "section.pip", "Režim PiP",
+                "section.pip_desc", "Vyberte, co se zobrazí v malém okně a jeho orientaci.",
+                "setting.pip_show_artwork", "Zobrazit obal alba",
+                "setting.pip_show_artwork_desc", "Vypněte, chcete-li v PiP zobrazovat pouze texty.",
+                "setting.pip_orientation", "PiP orientace",
+                "setting.pip_orientation_desc", "Zobrazte malé okno na šířku, na výšku nebo čtverec.",
+                "pip.orientation.landscape", "Na šířku",
+                "pip.orientation.portrait", "Na výšku",
+                "pip.orientation.square", "Čtverec",
+                "setting.pip_lyrics_alignment", "PiP zarovnání textů",
+                "setting.pip_lyrics_alignment_desc", "Samostatně zarovná pouze řádky textu uvnitř PiP.",
+                "toast.pip_settings_saved", "Nastavení PiP uloženo.",
+                "setting.pip_lyrics_size", "Velikost textu v PiP",
+                "setting.pip_lyrics_size_desc", "Změní pouze velikost textu v PiP jako procento běžné velikosti na stránce textů.",
+                "lyrics.tab.video", "Video",
+                "lyrics.video_sync.title", "Posun synchronizace videa",
+                "lyrics.video_sync.track_scope", "Úprava videa %s",
+                "lyrics.video_sync.no_track", "Žádná aktuální skladba.",
+                "lyrics.video_sync.help", "Hodnoty + posunou video na pozdější časovou značku, zatímco hodnoty - jej posunou dříve. Toto je přidáno k offsetu synchronizace textu.",
+                "lyrics.video_sync.reset", "Obnovit posun videa",
+                "toast.video_sync_offset_format", "Posun videa %s",
+                "lyrics.bluetooth_sync.title", "Offset zařízení Bluetooth",
+                "lyrics.bluetooth_sync.no_device", "Není připojeno žádné zvukové zařízení Bluetooth.",
+                "lyrics.bluetooth_sync.device_scope", "Uloženo pouze pro \"%s\".",
+                "lyrics.bluetooth_sync.help", "Upraví načasování textu pro reproduktor/sluchátka Bluetooth, když je zvuk slyšet pozdě.",
+                "lyrics.bluetooth_sync.reset", "Obnovit posun Bluetooth",
+                "toast.bluetooth_sync_offset_format", "%s: posun Bluetooth %s",
+                "bluetooth_sync.unknown_device", "Neznámé zařízení Bluetooth",
+                "pollinations.account", "Účet Pollinations",
+                "pollinations.account_desc", "Pollinations podporuje ruční klíče API i tokeny pro přihlášení k účtu. Přihlašovací tokeny se použijí jako první, pokud jsou k dispozici.",
+                "pollinations.connect", "Přihlaste se do Pollinations",
+                "pollinations.reconnect", "Znovu se připojte",
+                "pollinations.waiting", "Čekání na přihlášení",
+                "pollinations.open_login", "Otevřete přihlašovací stránku",
+                "pollinations.disconnect", "Odpojit",
+                "pollinations.test", "Test připojení",
+                "pollinations.configured", "nakonfigurováno",
+                "pollinations.status_disconnected", "Pollinations není připojen. Zadejte ruční přístupový klíč nebo se přihlaste.",
+                "pollinations.status_requesting", "Požaduji přihlašovací kód Pollinations...",
+                "pollinations.status_waiting", "Dokončete přihlášení Pollinations ve vašem prohlížeči. Aplikace se připojí automaticky.",
+                "pollinations.status_code_format", "Dokončete přihlášení Pollinations ve vašem prohlížeči. Kód: %s",
+                "pollinations.user_code_format", "Přihlašovací kód Pollinations: %s",
+                "pollinations.status_connected_format", "Přihlášení k Pollinations bylo dokončeno: %s",
+                "pollinations.status_saved", "Přihlašovací token Pollinations byl uložen.",
+                "pollinations.status_failed_format", "Připojení k Pollinations selhalo: %s",
+                "pollinations.status_no_token", "Není k dispozici žádný token Pollinations k testování.",
+                "pollinations.status_testing", "Ověřování tokenu Pollinations...",
+                "pollinations.status_valid", "Token Pollinations je platný",
+                "pollinations.status_invalid", "Token Pollinations není platný",
+                "pollinations.expires_days_format", "vyprší za %d dnů",
+                "pollinations.toast_connected", "Pollinations připojen",
+                "pollinations.toast_disconnected", "Pollinations odpojen",
+                "pollinations.toast_failed", "Připojení k Pollinations selhalo",
+                "pollinations.toast_valid", "Token Pollinations ověřen",
+                "tmi.title", "TMI",
+                "tmi.loading", "Generování TMI",
+                "tmi.did_you_know", "Věděli jste?",
+                "tmi.verified_sources", "Ověřené zdroje",
+                "tmi.related_sources", "Související zdroje",
+                "tmi.other_sources", "Jiné zdroje",
+                "tmi.no_data", "Pro tuto skladbu zatím není k dispozici žádné TMI.",
+                "tmi.regenerate", "Regenerovat",
+                "tmi.error_fetch", "Načtení TMI se nezdařilo.",
+                "tmi.require_key", "Je vyžadován klíč API poskytovatele AI.",
+                "tmi.confidence_format", "Jistota: %s"
+        );
+    }
+
+    private static Map<String, String> trStrings() {
+        return strings(
+                "button.close", "Kapat",
+                "button.previous", "Geri",
+                "button.save_start", "Kaydet ve Başlat",
+                "button.spotify_setup", "Spotify API'yi Ayarla",
+                "status.waiting_spotify", "Spotify çalması bekleniyor",
+                "status.lyrics_loading", "Sözler yükleniyor",
+                "status.lyrics_waiting", "Sözler bekleniyor",
+                "status.spotify_required_title", "Spotify API Gerekli",
+                "status.spotify_required_subtitle", "Önce Client ID ve Client Secret değerlerinizi kaydedin",
+                "status.spotify_required_detail", "Kurulum tamamlanana kadar ISRC, sync-data ve LRCLIB sözleri yüklenmez.",
+                "toast.spotify_required", "Önce Spotify API'yi kaydedin",
+                "toast.setup_required", "Önce ilk kurulumu tamamlayın",
+                "toast.back_exit", "Çıkmak için Geri'ye tekrar basın",
+                "toast.ui_language_saved", "Uygulama dili kaydedildi",
+                "settings.title", "Ayarlar",
+                "settings.subtitle", "Sözler, görünüm, tam ekran, AI ve araçlar",
+                "tab.lyrics", "Sözler",
+                "tab.display", "Görünüm",
+                "tab.ai", "AI",
+                "tab.tools", "Araçlar",
+                "section.language", "Dil",
+                "section.language_desc", "Uygulama dili, telaffuz ve şarkı başına çeviri kurallarını ayrı ayrı yönetin.",
+                "setting.ui_language", "Uygulama Dili",
+                "setting.ui_language_desc", "Uygulama arayüzünde kullanılan dil. Yalnızca gerçek UI çevirisi olan diller gösterilir.",
+                "setting.pronunciation_language", "Telaffuz Dili",
+                "setting.pronunciation_language_desc", "Telaffuzun hangi yazı/dil ile üretileceğini seçin.",
+                "setting.metadata_translation", "Başlığı/sanatçıyı çevir",
+                "setting.metadata_translation_desc", "Geçerli şarkı başlığını ve sanatçı adını da seçili hedef dile çevirir.",
+                "setting.main_preview", "Ana söz önizlemesi",
+                "setting.main_preview_desc", "Orijinal, telaffuz ve çeviri satırlarını seçin. Uzun satırlar söz zamanlamasına göre kayar.",
+                "setting.auto_interlude", "Intro/ara/outro otomatik algılansın",
+                "setting.auto_interlude_desc", "Nota/boş satırları ve sözlerden sonraki uzun boşlukları animasyonlu ara işaretlerine dönüştürür.",
+                "setting.interlude_labels", "Ara etiketlerini göster",
+                "setting.interlude_labels_desc", "Animasyonlu ikon korunurken intro/ara/outro işaretlerinin yanında metin etiketi gösterir.",
+                "setting.synced_karaoke_animation", "Satır senkronlu karaoke efekti",
+                "setting.synced_karaoke_animation_desc", "sync-data olmayan normal LRCLIB senkronlu sözlere eşit zamanlı harf dolumu uygular.",
+                "setting.karaoke_bounce_effect", "Karaoke zıplama efekti",
+                "setting.karaoke_bounce_effect_desc", "Karaoke oynatımında harfler dolarken metni zıplatır.",
+                "setting.karaoke_motion_style", "Karaoke hareket stili",
+                "setting.karaoke_motion_style_desc", "Klasik, hafif zıplamayı korur. Etkileyici, yay fiziği kullanır: söylenen kelimeler büyür, yükselir ve parlar, henüz söylenmemiş kelimeler biraz daha küçük bekler ve uzun tutulan notalar harf harf canlandırılır.",
+                "karaoke.motion.classic", "Klasik",
+                "karaoke.motion.expressive", "Etkileyici",
+                "setting.pronunciation_karaoke_fill", "Telaffuzu karaoke gibi doldur",
+                "setting.pronunciation_karaoke_fill_desc", "Önce telaffuz modu kapalıyken bile telaffuz satırı şarkının zamanlamasıyla dolar. Yapay zekâ telaffuzu kelime veya karakter zamanlamasına göre böler. Zıplama ve parlama gibi diğer efektler uygulanmaz.",
+                "setting.synced_pronunciation", "Senkronize telaffuz kullan",
+                "setting.synced_pronunciation_desc", "Karaoke sözlerinin telaffuzunu, söylenen her kelimenin veya karakterin zamanlamasına göre bölünmüş olarak alır. Açıkken önce telaffuz modu ve telaffuzu karaoke gibi doldurma kullanılabilir. Kapalıyken telaffuz satır satır düz metin olarak daha hızlı gelir.",
+                "section.player", "Oynatıcı",
+                "section.player_desc", "Görünüm ve yatay ekran davranışını ayarlayın.",
+                "setting.landscape_auto_hide", "Yatay kontrolleri otomatik gizle",
+                "setting.landscape_auto_hide_desc", "Yatay ekranda işlem yokken ilerleme çubuğunu ve düğmeleri gizler.",
+                "section.background", "Arka plan",
+                "section.background_desc", "Albüm kapağı, bulanık gradyan veya düz renk arka plan seçin.",
+                "setting.background_mode", "Arka plan efekti",
+                "setting.background_mode_desc", "Geçerli şarkı arka planının nasıl çizileceğini seçin.",
+                "setting.brightness", "Parlaklık",
+                "setting.brightness_desc", "Albüm kapağı ve gradyan arka planları için parlaklık.",
+                "setting.blur", "Bulanıklık",
+                "setting.blur_desc", "Albüm kapağı ve gradyan arka planları için bulanıklık yoğunluğu. Video arka planları bu değerin iki katını kullanır.",
+                "setting.video_scale", "Video yakınlaştırma",
+                "setting.video_scale_desc", "Kaynakta siyah kenarlık varsa veya ekranı daha fazla doldurması gerekiyorsa video arka planını yakınlaştırır.",
+                "setting.noise", "Gürültü dokusu",
+                "setting.noise_desc", "Orijinal ivLyrics gibi hafif bir gren dokusu ekler.",
+                "setting.reduce_motion", "Hareketi azalt",
+                "setting.reduce_motion_desc", "Albüm/gradyan arka planının otomatik hareketini durdurur.",
+                "section.ai_lyrics", "Söz AI",
+                "section.ai_lyrics_desc", "ivLyrics ile uyumlu istemlerle telaffuz ve çeviri üretir.",
+                "section.provider", "Sağlayıcı",
+                "field.api_key", "API Anahtarı",
+                "field.model", "Model",
+                "field.base_url", "Temel URL",
+                "button.save_regenerate", "Kaydet ve Yeniden Oluştur",
+                "button.get_key", "Anahtar Al",
+                "section.tools", "Araçlar",
+                "section.tools_desc", "Önbelleği ve hata ayıklama günlüklerini yönetin.",
+                "section.spotify_api", "Spotify API",
+                "section.spotify_api_desc", "Spotify Developer Dashboard'dan aldığınız Client ID ve Client Secret değerlerini kullanın. Yalnızca bu cihazda saklanır.",
+                "button.spotify_save", "Spotify API'yi Kaydet",
+                "section.lyrics_cache", "Söz Önbelleği",
+                "section.lyrics_cache_desc", "sync-data/LRCLIB temel sözlerini ve AI telaffuz/çeviri önbelleğini temizler. Temizlikten sonra geçerli şarkı yeniden yüklenir.",
+                "button.clear_current", "Geçerli Olanı Temizle",
+                "button.clear_all", "Tümünü Temizle",
+                "button.ai_cache_clear", "AI Önbelleğini Temizle",
+                "button.debug_log", "Hata Ayıklama / Günlükler",
+                "onboarding.subtitle", "Şu anda çalan şarkı için karaoke sözleri, çeviri ve telaffuz.",
+                "onboarding.welcome_title", "ivLyrics'i Ayarla",
+                "onboarding.welcome_desc", "Önce uygulama dilini seçin, ardından medya erişim iznini ve kendi Spotify API bilgilerinizi ayarlayın.",
+                "onboarding.app_language_en", "Uygulama Dili",
+                "onboarding.app_language_native", "Uygulama Dili",
+                "onboarding.permission_title", "Medya Erişim İzni",
+                "onboarding.permission_desc", "Spotify'da şu anda çalan şarkıyı okuyabilmek için Android bildirim erişimi gerekir.",
+                "onboarding.permission_hint", "Ayarlar ekranında ivLyrics'i bulun, erişime izin verin ve uygulamaya geri dönün.",
+                "onboarding.permission_status_enabled", "İzin etkin. Spotify oynatımı artık algılanabilir.",
+                "onboarding.permission_status_required", "İzin henüz etkin değil. İzin ayarlarını açın ve ivLyrics'e izin verin.",
+                "onboarding.spotify_title", "Şarkı Bilgisini Bağla",
+                "onboarding.spotify_desc", "Spotify Web API, geçerli şarkının ISRC bilgisini ve yüksek çözünürlüklü kapak görselini yüklemek için kullanılır.",
+                "onboarding.step_format", "Adım %d / %d",
+                "spotify.status_configured", "Spotify API yapılandırıldı",
+                "spotify.status_required", "İlk kullanımdan önce Spotify API'yi kaydedin.",
+                "spotify.status_checking", "Spotify token kontrol ediliyor...",
+                "spotify.status_invalid_format", "Spotify token isteği başarısız: %s\nClient ID ve Client Secret değerlerinizi tekrar kontrol edin.",
+                "button.next", "İleri",
+                "button.restart", "Baştan Başla",
+                "button.copy", "Kopyala",
+                "button.open_browser", "Tarayıcıyı Aç",
+                "button.open_permission", "İzin Ayarlarını Aç",
+                "button.prev_track", "Önceki parça",
+                "button.next_track", "Sonraki parça",
+                "debug.title", "Hata Ayıklama",
+                "debug.permission", "Medya erişim iznini aç",
+                "debug.previous", "Önceki",
+                "debug.play_pause", "Oynat/Duraklat",
+                "debug.next", "Sonraki",
+                "debug.refresh", "Yenile",
+                "debug.log", "Günlük",
+                "debug.log_waiting", "Günlükler bekleniyor",
+                "lyrics.tab.language", "Dil",
+                "lyrics.tab.sync", "Senkron",
+                "lyrics.translation", "Çeviri",
+                "lyrics.pronunciation", "Telaffuz",
+                "lyrics.sync.title", "Geçerli Şarkı Senkron Ofseti",
+                "lyrics.sync.reset", "0ms'ye sıfırla",
+                "lyrics.sync.no_track", "Çalan şarkı yok, bu yüzden kaydedilmeyecek.",
+                "lyrics.sync.track_scope", "Yalnızca \"%s\" için kaydedildi.",
+                "lyrics.sync.help", "+ değerler sözleri daha erken, - değerler daha geç gösterir.",
+                "lyrics.menu_tip", "Çeviri ve telaffuz ayarlarını açmak için başlığa veya sanatçıya uzun basın.",
+                "lyrics.rule.track_language", "Şarkı dili",
+                "lyrics.rule.save_target", "Kayıt hedefi",
+                "lyrics.rule.translation_language", "Çeviri dili",
+                "label.on", "Açık",
+                "label.off", "Kapalı",
+                "label.auto", "Otomatik",
+                "label.auto_target", "Otomatik (%s)",
+                "lyrics.button.translation_on", "Çeviri Açık",
+                "lyrics.button.pronunciation_on", "Telaffuz Açık",
+                "lyrics.button.translation_plus", "Çeviri+",
+                "field.api_key_desc", "Tek anahtar, satır satır liste veya JSON dizisi desteklenir. Yalnızca bu cihazda saklanır.",
+                "field.model_desc", "Sağlayıcı model geçersiz kılma değeri.",
+                "field.base_url_desc", "OpenAI uyumlu veya sağlayıcı API temel URL'si.",
+                "field.max_tokens", "Maksimum token",
+                "field.temperature", "Yaratıcılık",
+                "field.solid_color", "Düz arka plan rengi",
+                "field.solid_color_desc", "Düz arka plan modunda kullanılacak rengi seçin.",
+                "field.spotify_client_id_desc", "Spotify uygulamanızın Client ID değeri.",
+                "field.spotify_client_secret_desc", "Spotify uygulamanızın Client Secret değeri.",
+                "preview.none", "Gizli",
+                "preview.original", "Orijinal",
+                "preview.pronunciation", "Telaffuz",
+                "preview.translation", "Çeviri",
+                "background.mode.gradient", "Albüm Kapağı",
+                "background.mode.gradient_desc", "Geçerli albüm kapağını büyük bulanık arka plan olarak kullanır.",
+                "background.mode.blur_gradient", "Bulanık Gradyan",
+                "background.mode.blur_gradient_desc", "Albüm renklerinden hareketli bulanık gradyan oluşturur.",
+                "background.mode.solid", "Düz Renk",
+                "background.mode.solid_desc", "Özel düz arka plan rengi kullanır.",
+                "provider.desc.gemini", "Google AI Studio API",
+                "provider.desc.chatgpt", "OpenAI uyumlu API",
+                "provider.desc.claude", "Claude Messages API",
+                "provider.desc.openrouter", "Birden fazla AI modelini yönlendirir",
+                "provider.desc.groq", "Hızlı OpenAI uyumlu çıkarım",
+                "provider.desc.perplexity", "Agent API",
+                "provider.desc.pollinations", "Pollinations OpenAI uyumlu API",
+                "spotify.step0.title", "Spotify Developer Dashboard'a gidin",
+                "spotify.step0.desc", "Tarayıcınızda Spotify Developer Dashboard'u açın. Oturum açın ve yeni bir uygulama oluşturun.",
+                "spotify.step1.title", "Create app bölümünde ad girin",
+                "spotify.step1.desc", "Create app'e basın ve App name için aşağıdaki değeri girin. ivLyrics veya ivlyrics yazmayın.",
+                "spotify.step2.title", "Açıklamayı girin",
+                "spotify.step2.desc", "App description için de aşağıdaki değeri girin. Bu yalnızca karışıklığı önlemek için bir örnektir.",
+                "spotify.step3.title", "Redirect URI girin",
+                "spotify.step3.desc", "Aşağıdaki adresi Redirect URIs alanına ekleyin. Sondaki eğik çizgiyi dahil edin.",
+                "spotify.step4.title", "Web API'yi seçip kaydedin",
+                "spotify.step4.desc", "API seçim alanında Web API'yi seçin, onay kutusunu işaretleyin ve Save'e basın.",
+                "spotify.step5.title", "Client ID ve Secret'ı kopyalayın",
+                "spotify.step5.desc", "Uygulama ayarlarından Client ID ve Client Secret'ı kopyalayın, aşağıya yapıştırın ve Spotify API'yi kaydedin.",
+                "toast.copied_format", "Kopyalandı: %s",
+                "toast.provider_saved", "Sağlayıcı kaydedildi",
+                "toast.pronunciation_language_saved", "Telaffuz dili kaydedildi",
+                "toast.preview_saved", "Ana söz önizlemesi kaydedildi",
+                "toast.background_saved", "Arka plan efekti kaydedildi",
+                "toast.metadata_translation_on", "Başlık/sanatçı çevirisi açık",
+                "toast.metadata_translation_off", "Başlık/sanatçı çevirisi kapalı",
+                "toast.auto_interlude_on", "Otomatik ara algılama açık",
+                "toast.auto_interlude_off", "Otomatik ara algılama kapalı",
+                "toast.landscape_auto_hide_on", "Yatay kontroller otomatik gizleme açık",
+                "toast.landscape_auto_hide_off", "Yatay kontroller otomatik gizleme kapalı",
+                "toast.background_noise_on", "Gürültü dokusu açık",
+                "toast.background_noise_off", "Gürültü dokusu kapalı",
+                "toast.reduce_motion_on", "Arka plan hareketi azaltıldı",
+                "toast.reduce_motion_off", "Arka plan hareketi etkin",
+                "toast.ai_cache_cleared", "AI önbelleği temizlendi",
+                "toast.language_rule_saved", "Şarkı dili ayarları kaydedildi",
+                "toast.settings_saved", "Ayarlar kaydedildi",
+                "toast.spotify_missing", "Hem Client ID hem de Client Secret girin.",
+                "toast.spotify_checking", "Spotify token kontrol ediliyor...",
+                "toast.spotify_invalid", "Spotify API bilgilerinizi tekrar kontrol edin.",
+                "toast.spotify_saved", "Spotify API kaydedildi",
+                "toast.current_track_missing", "Geçerli şarkı bilgisi yok",
+                "toast.current_cache_cleared", "Geçerli şarkı söz önbelleği temizlendi",
+                "toast.all_cache_cleared", "Tüm söz önbelleği temizlendi",
+                "toast.sync_offset_format", "Senkron ofseti %s",
+                "status.lyrics_request_failed", "Söz isteği başarısız",
+                "status.ai_applied", "Çeviri/telaffuz uygulandı",
+                "status.ai_failed_format", "AI sözleri başarısız: %s",
+                "status.ai_cache_cleared", "AI önbelleği temizlendi",
+                "status.ai_lyrics_active", "AI sözleri etkin",
+                "status.ai_key_needed", "AI sözleri oluşturmak için API anahtarı girin.",
+                "status.ai_disabled", "Çeviri/telaffuz kapalı.",
+                "status.no_lyrics_to_apply", "Uygulanacak söz yok.",
+                "status.ai_generating", "AI sözleri oluşturuluyor...",
+                "status.reload_after_spotify", "Spotify API ayarları değiştikten sonra bu şarkının ISRC, sync-data ve LRCLIB sözleri yeniden yükleniyor.",
+                "status.detecting_media", "Medya oturumu algılanıyor",
+                "status.permission_required", "Bildirim erişim izni gerekli",
+                "status.lyrics_lookup_spotify", "Spotify Web API ile ISRC bulunuyor, ardından sync-data ve LRCLIB yükleniyor.",
+                "status.lyrics_lookup_player", "Oynatıcı ISRC'si ile sync-data ve LRCLIB yükleniyor.",
+                "status.waiting_current_track", "Şu anda çalan şarkı bekleniyor",
+                "status.spotify_required_plain", "Spotify API gerekli",
+                "loading.generating", "Oluşturuluyor",
+                "loading.pronunciation", "Telaffuz oluşturuluyor...",
+                "loading.translation", "Çeviri oluşturuluyor...",
+                "loading.word_sync", "Kelime eşitlemesi oluşturuluyor...",
+                "loading.word_sync_desc", "Harici bir şarkı sözü sunucusunda kelime düzeyinde eşitleme verileri oluşturuluyor.",
+                "status.word_sync_failed", "Kelime eşitleme başarısız",
+                "pronunciation_first.state_on", "Önce telaffuz açık. Kapatmak için dokunun",
+                "pronunciation_first.state_off", "Önce telaffuz kapalı. Açmak için dokunun",
+                "loading.pronunciation_sync", "Yapay zekâ telaffuzu söz zamanlamasına uyduruyor...",
+                "status.pronunciation_sync_failed", "Telaffuz zamanlaması başarısız",
+                "lyrics.empty_none", "Söz yok",
+                "interlude.prelude", "Intro",
+                "interlude.break", "Ara",
+                "interlude.postlude", "Outro",
+                "onboarding.preview.line1", "Karaoke sözleri şarkıyı takip eder",
+                "onboarding.preview.line2", "Telaffuz ve çeviri burada görünür",
+                "onboarding.preview.line3", "Her şey geçerli parçaya göre güncellenir",
+                "repo.metadata_waiting", "Şarkı meta verisi bekleniyor",
+                "repo.lyrics_not_found", "LRCLIB sözleri bulunamadı",
+                "repo.instrumental", "Enstrümantal parça",
+                "repo.no_renderable_lyrics", "Gösterilebilir LRCLIB sözü yok",
+                "repo.detail.sync_applied_direct", "Karaoke sync-data uygulandı. LRCLIB doğrudan sync-data'dan yüklendi.",
+                "repo.detail.sync_applied_search", "Karaoke sync-data uygulandı. LRCLIB arama ile seçildi.",
+                "repo.detail.no_spotify_isrc", "LRCLIB satır sözleri. Spotify ISRC araması kullanılamıyor.",
+                "repo.detail.no_sync_data", "LRCLIB satır sözleri. Bu ISRC için eşleşen sync-data bulunamadı.",
+                "repo.detail.sync_apply_failed", "LRCLIB satır sözleri. sync-data uygulanamadı.",
+                "spotify.error.incomplete_credentials", "Spotify API Client ID veya Client Secret eksik.",
+                "spotify.error.credentials_not_configured", "Spotify API bilgileri yapılandırılmamış.",
+                "spotify.error.no_access_token", "Spotify token yanıtında access_token yok.",
+                "spotify.error.repository_unavailable", "Söz deposu kullanılamıyor.",
+                "lyrics.credit_sync_by_format", "sync: %s",
+                "sync.type_line", "Satır",
+                "sync.type_word", "Kelime",
+                "sync.type_character", "Karakter",
+                "sync.type_mixed", "Karma",
+                "sync.type_unknown", "Eski senkron"
+        );
+    }
+
+    private static Map<String, String> strings(String... values) {
+        Map<String, String> table = new LinkedHashMap<>();
+        for (int index = 0; index + 1 < values.length; index += 2) {
+            table.put(values[index], values[index + 1]);
+        }
+        return Collections.unmodifiableMap(table);
+    }
+
+    private static void addLrclibPlaybackSettingsStrings(Map<String, Map<String, String>> languages) {
+        String[][] rows = {
+                {"ko", "사용자 지정 LRCLIB API (선택 사항)",
+                        "재생 가사를 이 서버에서 먼저 찾고, 없거나 연결할 수 없으면 공식 LRCLIB를 사용합니다. 비워 두면 공식 서버만 사용합니다. 수동 검색과 싱크 제출은 공식 서버를 사용합니다.",
+                        "사용자 정보, 쿼리, # 조각이 없는 유효한 HTTP/HTTPS 기본 URL을 입력하세요. 예: https://lrclib.example/api"},
+                {"en", "Custom LRCLIB API (optional)",
+                        "Look up playback lyrics on this server first, then use official LRCLIB if unavailable or not found. Leave empty to use only the official server. Manual search and sync submissions use the official server.",
+                        "Enter a valid HTTP/HTTPS base URL without credentials, a query or a # fragment. Example: https://lrclib.example/api"},
+                {"zh-CN", "自定义 LRCLIB API（可选）",
+                        "优先从此服务器查找播放歌词；未找到或无法连接时使用官方 LRCLIB。留空则仅使用官方服务器。手动搜索和同步提交使用官方服务器。",
+                        "请输入有效的 HTTP/HTTPS 基础 URL，不含用户凭据、查询参数或 # 片段。例如：https://lrclib.example/api"},
+                {"zh-TW", "自訂 LRCLIB API（選填）",
+                        "優先從此伺服器尋找播放歌詞；找不到或無法連線時使用官方 LRCLIB。留空則只使用官方伺服器。手動搜尋及同步提交使用官方伺服器。",
+                        "請輸入有效的 HTTP/HTTPS 基底 URL，不含使用者憑證、查詢參數或 # 片段。例如：https://lrclib.example/api"},
+                {"ja", "カスタム LRCLIB API（任意）",
+                        "再生用の歌詞をこのサーバーで先に探し、見つからない場合や接続できない場合は公式 LRCLIB を使います。空欄では公式サーバーのみを使います。手動検索と同期データの送信には公式サーバーを使います。",
+                        "認証情報、クエリ、# フラグメントを含まない有効な HTTP/HTTPS ベース URL を入力してください。例：https://lrclib.example/api"},
+                {"hi", "कस्टम LRCLIB API (वैकल्पिक)",
+                        "प्लेबैक के बोल पहले इस सर्वर पर खोजें। न मिलने या कनेक्शन न होने पर आधिकारिक LRCLIB का उपयोग करें। केवल आधिकारिक सर्वर के लिए खाली छोड़ें। मैन्युअल खोज और सिंक सबमिशन आधिकारिक सर्वर पर होते हैं।",
+                        "बिना लॉगिन जानकारी, क्वेरी या # खंड के मान्य HTTP/HTTPS बेस URL दर्ज करें। उदाहरण: https://lrclib.example/api"},
+                {"es", "API LRCLIB personalizada (opcional)",
+                        "Busca las letras de reproducción primero en este servidor y recurre al LRCLIB oficial si no están disponibles. Déjalo vacío para usar solo el servidor oficial. La búsqueda manual y los envíos de sincronización usan el servidor oficial.",
+                        "Introduce una URL base HTTP/HTTPS válida sin credenciales, consulta ni fragmento #. Ejemplo: https://lrclib.example/api"},
+                {"fr", "API LRCLIB personnalisée (facultatif)",
+                        "Recherche d’abord les paroles de lecture sur ce serveur, puis utilise LRCLIB officiel si elles sont introuvables ou indisponibles. Laissez vide pour utiliser uniquement le serveur officiel. La recherche manuelle et l’envoi de synchronisation utilisent le serveur officiel.",
+                        "Saisissez une URL de base HTTP/HTTPS valide sans identifiants, paramètres de requête ni fragment #. Exemple : https://lrclib.example/api"},
+                {"ar", "واجهة LRCLIB مخصصة (اختياري)",
+                        "ابحث عن كلمات التشغيل في هذا الخادم أولاً، ثم استخدم LRCLIB الرسمي إن لم تتوفر أو تعذر الاتصال. اتركه فارغاً لاستخدام الخادم الرسمي فقط. يستخدم البحث اليدوي وإرسال المزامنة الخادم الرسمي.",
+                        "أدخل عنوان HTTP/HTTPS أساسيًا صالحًا دون بيانات اعتماد أو استعلام أو جزء #. مثال: https://lrclib.example/api"},
+                {"fa", "API سفارشی LRCLIB (اختیاری)",
+                        "متن آهنگ هنگام پخش ابتدا در این سرور جستجو می‌شود؛ اگر پیدا نشود یا اتصال ممکن نباشد، LRCLIB رسمی استفاده می‌شود. برای استفاده فقط از سرور رسمی خالی بگذارید. جستجوی دستی و ارسال همگام‌سازی از سرور رسمی استفاده می‌کنند.",
+                        "یک نشانی پایه HTTP/HTTPS معتبر بدون اطلاعات ورود، پرس‌وجو یا بخش # وارد کنید. نمونه: https://lrclib.example/api"},
+                {"de", "Eigene LRCLIB-API (optional)",
+                        "Sucht Liedtexte zur Wiedergabe zuerst auf diesem Server und nutzt das offizielle LRCLIB, wenn nichts gefunden wird oder der Server nicht erreichbar ist. Leer lassen, um nur den offiziellen Server zu nutzen. Manuelle Suche und Synchronisierungsbeiträge nutzen den offiziellen Server.",
+                        "Gib eine gültige HTTP/HTTPS-Basis-URL ohne Zugangsdaten, Abfrage oder #-Fragment ein. Beispiel: https://lrclib.example/api"},
+                {"ru", "Свой API LRCLIB (необязательно)",
+                        "Сначала ищет текст для воспроизведения на этом сервере, затем использует официальный LRCLIB, если текст не найден или сервер недоступен. Оставьте пустым, чтобы использовать только официальный сервер. Ручной поиск и отправка синхронизации используют официальный сервер.",
+                        "Введите корректный базовый HTTP/HTTPS URL без учётных данных, запроса и фрагмента #. Пример: https://lrclib.example/api"},
+                {"sv", "Eget LRCLIB-API (valfritt)",
+                        "Sök sångtexter för uppspelning på denna server först och använd sedan officiella LRCLIB om de saknas eller servern inte kan nås. Lämna tomt för att endast använda den officiella servern. Manuell sökning och synkbidrag använder den officiella servern.",
+                        "Ange en giltig HTTP/HTTPS-basadress utan inloggningsuppgifter, frågeparametrar eller #-fragment. Exempel: https://lrclib.example/api"},
+                {"pt", "API LRCLIB personalizada (opcional)",
+                        "Busca letras para reprodução primeiro neste servidor e usa o LRCLIB oficial se não encontrar ou não conseguir conectar. Deixe vazio para usar apenas o servidor oficial. A busca manual e os envios de sincronização usam o servidor oficial.",
+                        "Insira uma URL base HTTP/HTTPS válida sem credenciais, consulta ou fragmento #. Exemplo: https://lrclib.example/api"},
+                {"bn", "কাস্টম LRCLIB API (ঐচ্ছিক)",
+                        "প্লেব্যাকের গানের কথা প্রথমে এই সার্ভারে খোঁজা হবে। না পেলে বা সংযোগ না হলে অফিসিয়াল LRCLIB ব্যবহার করা হবে। শুধু অফিসিয়াল সার্ভারের জন্য খালি রাখুন। ম্যানুয়াল অনুসন্ধান ও সিঙ্ক জমা অফিসিয়াল সার্ভারে হয়।",
+                        "লগইন তথ্য, কোয়েরি বা # অংশ ছাড়া একটি বৈধ HTTP/HTTPS বেস URL লিখুন। উদাহরণ: https://lrclib.example/api"},
+                {"cs", "Vlastní API LRCLIB (volitelné)",
+                        "Texty pro přehrávání hledá nejprve na tomto serveru, pak použije oficiální LRCLIB, pokud je nenajde nebo se nelze připojit. Prázdné pole použije jen oficiální server. Ruční hledání a odesílání synchronizace používají oficiální server.",
+                        "Zadejte platnou základní adresu HTTP/HTTPS bez přihlašovacích údajů, dotazu nebo fragmentu #. Příklad: https://lrclib.example/api"},
+                {"it", "API LRCLIB personalizzata (facoltativa)",
+                        "Cerca prima i testi di riproduzione su questo server, poi usa LRCLIB ufficiale se non li trova o non riesce a connettersi. Lascia vuoto per usare solo il server ufficiale. La ricerca manuale e l’invio delle sincronizzazioni usano il server ufficiale.",
+                        "Inserisci un URL di base HTTP/HTTPS valido senza credenziali, query o frammento #. Esempio: https://lrclib.example/api"},
+                {"th", "API LRCLIB ที่กำหนดเอง (ไม่บังคับ)",
+                        "ค้นหาเนื้อเพลงสำหรับการเล่นจากเซิร์ฟเวอร์นี้ก่อน แล้วใช้ LRCLIB ทางการหากไม่พบหรือเชื่อมต่อไม่ได้ เว้นว่างเพื่อใช้เซิร์ฟเวอร์ทางการเท่านั้น การค้นหาด้วยตนเองและการส่งข้อมูลซิงค์ใช้เซิร์ฟเวอร์ทางการ",
+                        "ป้อน URL หลักแบบ HTTP/HTTPS ที่ถูกต้องโดยไม่มีข้อมูลเข้าสู่ระบบ พารามิเตอร์ค้นหา หรือส่วน # ตัวอย่าง: https://lrclib.example/api"},
+                {"vi", "API LRCLIB tùy chỉnh (không bắt buộc)",
+                        "Tìm lời bài hát khi phát trên máy chủ này trước, sau đó dùng LRCLIB chính thức nếu không tìm thấy hoặc không thể kết nối. Để trống để chỉ dùng máy chủ chính thức. Tìm kiếm thủ công và gửi dữ liệu đồng bộ dùng máy chủ chính thức.",
+                        "Nhập URL cơ sở HTTP/HTTPS hợp lệ, không có thông tin đăng nhập, truy vấn hoặc đoạn #. Ví dụ: https://lrclib.example/api"},
+                {"id", "API LRCLIB khusus (opsional)",
+                        "Cari lirik pemutaran di server ini terlebih dahulu, lalu gunakan LRCLIB resmi jika tidak ditemukan atau tidak dapat terhubung. Kosongkan untuk hanya menggunakan server resmi. Pencarian manual dan pengiriman sinkronisasi menggunakan server resmi.",
+                        "Masukkan URL dasar HTTP/HTTPS yang valid tanpa kredensial, kueri, atau fragmen #. Contoh: https://lrclib.example/api"},
+                {"ms", "API LRCLIB tersuai (pilihan)",
+                        "Cari lirik main balik pada pelayan ini dahulu, kemudian gunakan LRCLIB rasmi jika tidak ditemui atau tidak dapat disambungkan. Biarkan kosong untuk menggunakan pelayan rasmi sahaja. Carian manual dan penghantaran segerak menggunakan pelayan rasmi.",
+                        "Masukkan URL asas HTTP/HTTPS yang sah tanpa kelayakan log masuk, pertanyaan atau fragmen #. Contoh: https://lrclib.example/api"},
+                {"tr", "Özel LRCLIB API'si (isteğe bağlı)",
+                        "Çalma sözlerini önce bu sunucuda arar; bulunamazsa veya bağlanamazsa resmi LRCLIB'yi kullanır. Yalnızca resmi sunucuyu kullanmak için boş bırakın. Elle arama ve senkronizasyon gönderimleri resmi sunucuyu kullanır.",
+                        "Kimlik bilgileri, sorgu veya # parçası içermeyen geçerli bir HTTP/HTTPS temel URL'si girin. Örnek: https://lrclib.example/api"}
+        };
+        for (String[] row : rows) {
+            Map<String, String> existing = languages.get(row[0]);
+            if (existing == null) throw new IllegalStateException("Missing LRCLIB locale " + row[0]);
+            Map<String, String> table = new java.util.LinkedHashMap<>(existing);
+            for (int index = 0; index < LRCLIB_SETTING_KEYS.length; index++) table.put(LRCLIB_SETTING_KEYS[index], row[index + 1]);
+            languages.put(row[0], java.util.Collections.unmodifiableMap(table));
+        }
+    }
+
+    private static void assertComplete(Map<String, Map<String, String>> languages) {
+        Map<String, String> english = languages.get("en");
+        if (english == null) {
+            throw new IllegalStateException("Missing English i18n table");
+        }
+        for (AiLyricsSettings.Language language : UI_LANGUAGES) {
+            Map<String, String> table = languages.get(language.code);
+            if (table == null) {
+                throw new IllegalStateException("Missing i18n table: " + language.code);
+            }
+            if (!table.keySet().equals(english.keySet())) {
+                java.util.Set<String> missing = new java.util.LinkedHashSet<>(english.keySet());
+                missing.removeAll(table.keySet());
+                java.util.Set<String> extra = new java.util.LinkedHashSet<>(table.keySet());
+                extra.removeAll(english.keySet());
+                throw new IllegalStateException(
+                        "Incomplete i18n table: " + language.code
+                                + " missing=" + missing
+                                + " extra=" + extra);
+            }
+            for (Map.Entry<String, String> entry : table.entrySet()) {
+                if (entry.getValue() == null || entry.getValue().trim().isEmpty()) {
+                    throw new IllegalStateException(
+                            "Blank i18n string: " + language.code + ":" + entry.getKey());
+                }
+                if (entry.getValue().matches(".*\\p{L}\\d{3,}$")) {
+                    throw new IllegalStateException(
+                            "Suspicious numeric suffix in i18n string: "
+                                    + language.code + ":" + entry.getKey());
+                }
+            }
+        }
+    }
+}

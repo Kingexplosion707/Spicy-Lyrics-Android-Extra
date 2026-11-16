@@ -1,0 +1,1077 @@
+package kr.ivlis.ivlyricsandroid;
+
+import android.app.Activity;
+import android.content.Context;
+import android.content.ContextWrapper;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.Color;
+import android.graphics.Outline;
+import android.graphics.Rect;
+import android.media.session.MediaSession;
+import android.media.session.MediaController;
+import android.media.AudioDeviceCallback;
+import android.media.AudioDeviceInfo;
+import android.media.AudioManager;
+import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
+import android.view.Choreographer;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewOutlineProvider;
+import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+
+import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+/** Shared entry points for in-process player cards, playback, and the full lyrics page. */
+public final class IvLyricsBridge {
+    public static final String EXTRA_EMBEDDED_MODE = "kr.ivlis.ivlyricsandroid.EMBEDDED_MODE";
+    private static final Handler MAIN = new Handler(Looper.getMainLooper());
+    private static final String STANDALONE_PACKAGE = "kr.ivlis.ivlyricsandroid";
+    private static Context application;
+    private static Engine engine;
+    private static boolean wordSegmenterInitialized;
+    private static volatile IvLyricsHost host;
+    private static TrackSnapshot sharedTrack;
+    private static LyricsResult sharedResult;
+    private static String sharedSourceLanguage = "auto";
+    private static SharedPreferences localLyricsPreferences;
+    private static Runnable stopObservingLocalLyrics;
+    private static WeakReference<BaseLyricsActivity> foregroundPage = new WeakReference<>(null);
+    private static final List<WeakReference<NativeSurface>> CARDS = new ArrayList<>();
+    /** Host windows open and at rest above the player, keyed by owner; main thread only. */
+    private static final Map<Object, View> PLAYER_COVERS = new IdentityHashMap<>();
+    private static final Runnable RELEASE = IvLyricsBridge::releaseIdleEngine;
+
+    private static void releaseIdleEngine() {
+        pruneCards();
+        if (CARDS.isEmpty() && engine != null) {
+            if (engine.requestInFlight && foregroundPage.get() != null) {
+                MAIN.postDelayed(RELEASE, 5000L);
+                return;
+            }
+            engine.release();
+            engine = null;
+        }
+    }
+
+    private IvLyricsBridge() {}
+
+    /** Register an embedding adapter before initializing playback or creating a lyrics view. */
+    public static void setHost(IvLyricsHost embeddingHost) {
+        if (embeddingHost == null) throw new IllegalArgumentException("Missing ivLyrics host");
+        host = embeddingHost;
+    }
+
+    private static Context hostContext(Context context) {
+        IvLyricsHost currentHost = host;
+        return currentHost == null ? context : currentHost.wrapContext(context);
+    }
+
+    static Intent lyricsIntent(Context context) {
+        IvLyricsHost currentHost = host;
+        return currentHost == null
+                ? new Intent().setClassName(context.getPackageName(), STANDALONE_PACKAGE + ".MainActivity")
+                : currentHost.createLyricsIntent(context);
+    }
+
+    public static boolean isEmbedded(Context context) {
+        if (context == null) return false;
+        // Embedding is an explicit runtime choice, independent of build namespace
+        // or a standalone QA application's install package.
+        if (host != null) return true;
+        return context instanceof Activity
+                && ((((Activity) context).getApplicationInfo().flags
+                    & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0)
+                && ((Activity) context).getIntent() != null
+                && ((Activity) context).getIntent().getBooleanExtra(EXTRA_EMBEDDED_MODE, false);
+    }
+
+    public static void initialize(Context context) {
+        if (context == null) return;
+        Context app = context.getApplicationContext();
+        application = hostContext(app == null ? context : app);
+        observeLocalLyrics(application);
+        if (!wordSegmenterInitialized) {
+            LyricsWordSegmenter.initialize(application);
+            wordSegmenterInitialized = true;
+        }
+    }
+
+    private static void observeLocalLyrics(Context context) {
+        SharedPreferences preferences = context.getSharedPreferences("local_lyrics", Context.MODE_PRIVATE);
+        if (preferences == localLyricsPreferences) return;
+        if (stopObservingLocalLyrics != null) stopObservingLocalLyrics.run();
+        localLyricsPreferences = preferences;
+        // Keep this observer while the process lives: a pending import can
+        // complete after both the full page and the last card have closed.
+        stopObservingLocalLyrics = new LocalLyricsStore(context).observe(changedKey -> {
+            Runnable changed = () -> {
+                if (localLyricsPreferences == preferences) onLocalLyricsChanged(changedKey);
+            };
+            if (Looper.myLooper() == Looper.getMainLooper()) changed.run();
+            else MAIN.post(changed);
+        });
+    }
+
+    private static void onLocalLyricsChanged(String changedKey) {
+        if (sharedTrack != null && (changedKey == null || changedKey.equals(sharedTrack.stableKey()))) {
+            sharedTrack = null;
+            sharedResult = null;
+            sharedSourceLanguage = "auto";
+        }
+        if (engine != null) engine.onLocalLyricsChanged(changedKey);
+        BaseLyricsActivity page = foregroundPage.get();
+        // The page coalesces this with its own store notification and remains
+        // the only provider owner while visible, including after recreation.
+        if (page != null) page.onLocalLyricsChanged(changedKey);
+    }
+
+    public static View createPreview(Context context) {
+        initialize(context);
+        return new NativeCard(hostContext(context));
+    }
+
+    /** Spotify's inline lyrics slot, sharing the same engine and player preview renderer. */
+    public static View createInlinePreview(Context context) {
+        initialize(context);
+        return new NativeInline(hostContext(context));
+    }
+
+    public static void openLyrics(Context context) {
+        if (context == null) return;
+        initialize(context);
+        Intent intent = lyricsIntent(context);
+        intent.putExtra(EXTRA_EMBEDDED_MODE, true);
+        intent.putExtra(BaseLyricsActivity.EXTRA_OPEN_LYRICS_PAGE, true);
+        Context launchContext = context;
+        while (launchContext instanceof ContextWrapper && !(launchContext instanceof Activity)) {
+            Context base = ((ContextWrapper) launchContext).getBaseContext();
+            if (base == null || base == launchContext) break;
+            launchContext = base;
+        }
+        if (!(launchContext instanceof Activity)) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        launchContext.startActivity(intent);
+    }
+
+    public static void onMediaSession(MediaSession session) {
+        if (session != null) onMediaController(session.getController());
+    }
+
+    /**
+     * A host window that is fully open and at rest above the player (Spotify's translucent
+     * lyrics sheet) stops the player's card and inline preview from drawing frames nobody can
+     * see. A surface pauses only while every on-screen part of it lies within
+     * {@code coveringRoot}'s bounds, in another Activity of the same task. Main thread only.
+     */
+    public static void coverPlayerSurfaces(Object owner, View coveringRoot) {
+        if (owner == null || coveringRoot == null || PLAYER_COVERS.get(owner) == coveringRoot) return;
+        PLAYER_COVERS.put(owner, coveringRoot);
+        refreshPlayerCovers();
+    }
+
+    /**
+     * Ends {@code owner}'s cover. Every surface it paused repaints the current playback state
+     * before the next frame is drawn, so a host window that starts to move in that frame never
+     * reveals a stale surface. Main thread only.
+     */
+    public static void uncoverPlayerSurfaces(Object owner) {
+        if (owner == null || PLAYER_COVERS.remove(owner) == null) return;
+        refreshPlayerCovers();
+    }
+
+    private static void refreshPlayerCovers() {
+        pruneCards();
+        for (WeakReference<NativeSurface> reference : new ArrayList<>(CARDS)) {
+            NativeSurface surface = reference.get();
+            if (surface != null) surface.refreshCover();
+        }
+    }
+
+    private static Activity activityOf(Context context) {
+        Context current = context;
+        for (int depth = 0; current != null && depth < 16; depth++) {
+            if (current instanceof Activity) return (Activity) current;
+            if (!(current instanceof ContextWrapper)) return null;
+            Context base = ((ContextWrapper) current).getBaseContext();
+            if (base == current) return null;
+            current = base;
+        }
+        return null;
+    }
+
+    private static void invalidateTree(View view) {
+        view.invalidate();
+        if (!(view instanceof ViewGroup)) return;
+        ViewGroup group = (ViewGroup) view;
+        for (int index = 0; index < group.getChildCount(); index++) invalidateTree(group.getChildAt(index));
+    }
+
+    public static void onMediaController(MediaController controller) {
+        NowPlayingService.attachEmbeddedController(controller);
+    }
+
+    public static void onPlayerState(String uri, String title, String artist, String album,
+            long durationMs, long positionMs, boolean playing, float speed, String artworkUri) {
+        onPlayerState(uri, title, artist, album, durationMs, positionMs, playing, speed, artworkUri, "");
+    }
+
+    public static void onPlayerState(String uri, String title, String artist, String album,
+            long durationMs, long positionMs, boolean playing, float speed, String artworkUri, String isrc) {
+        TrackSnapshot previous = NowPlayingService.getLatestSnapshot();
+        boolean sameTrack = previous != null && previous.mediaId.equals(uri == null ? "" : uri);
+        TrackSnapshot snapshot = new TrackSnapshot(title, artist, album,
+                application == null ? "com.spotify.music" : application.getPackageName(), uri,
+                isrc == null || isrc.isEmpty() ? (sameTrack ? previous.isrc : "") : isrc,
+                durationMs, positionMs, SystemClock.elapsedRealtime(), speed, playing,
+                sameTrack ? previous.artwork : null, artworkUri,
+                sameTrack && previous.spotifyAutomix,
+                sameTrack && previous.spotifyContextKnown,
+                sameTrack ? previous.automixFadeInStartMs : 0,
+                sameTrack ? previous.automixFadeInCueMs : 0,
+                sameTrack ? previous.automixFadeOverlapMs : 0);
+        NowPlayingService.publishEmbeddedSnapshot(snapshot);
+    }
+
+    /** Shares manual selection and generated supplements back to the player card. */
+    static void publishLyrics(TrackSnapshot track, LyricsResult result) {
+        publishLyrics(track, result, "auto");
+    }
+
+    static void publishLyrics(TrackSnapshot track, LyricsResult result, String sourceLanguage) {
+        if (track == null || result == null || result.lines.isEmpty()) return;
+        sharedTrack = track;
+        sharedResult = result;
+        sharedSourceLanguage = sourceLanguage == null ? "auto" : sourceLanguage;
+        if (engine != null) engine.acceptShared(track, result, sharedSourceLanguage);
+    }
+
+    static LyricsResult cachedLyrics(TrackSnapshot track) {
+        if (track == null) return null;
+        if (engine != null && track.stableKey().equals(engine.key)
+                && metadataMatches(track, engine.result)) return engine.result;
+        return sharedTrack != null && track.stableKey().equals(sharedTrack.stableKey())
+                && metadataMatches(track, sharedResult) ? sharedResult : null;
+    }
+
+    private static boolean metadataMatches(TrackSnapshot track, LyricsResult result) {
+        return result != null && !result.lines.isEmpty() && (track.isrc.isEmpty() || track.isrc.equals(result.isrc));
+    }
+
+    static void setLyricsPageForeground(BaseLyricsActivity activity, boolean visible) {
+        if (visible) {
+            foregroundPage = new WeakReference<>(activity);
+        } else if (foregroundPage.get() == activity) {
+            foregroundPage.clear();
+            if (engine != null && !engine.requestInFlight
+                    && (engine.result == null || engine.result.lines.isEmpty())) {
+                engine.key = "";
+                engine.onNowPlayingChanged(NowPlayingService.getLatestSnapshot());
+            }
+        }
+    }
+
+    static boolean awaitCardLyrics(TrackSnapshot track) {
+        return engine != null && track != null && engine.requestInFlight && engine.key.equals(track.stableKey())
+                && engine.track != null && track.isrc.equals(engine.track.isrc);
+    }
+
+    private static void pruneCards() {
+        CARDS.removeIf(reference -> reference.get() == null || !reference.get().isAttachedToWindow());
+    }
+
+    private static void attach(NativeSurface card) {
+        MAIN.removeCallbacks(RELEASE);
+        pruneCards();
+        CARDS.add(new WeakReference<>(card));
+        if (engine == null) engine = new Engine(application);
+        engine.renderCards();
+    }
+
+    private static void detach(NativeSurface card) {
+        CARDS.removeIf(reference -> reference.get() == null || reference.get() == card);
+        MAIN.removeCallbacks(RELEASE);
+        MAIN.postDelayed(RELEASE, 5000L);
+    }
+
+    private abstract static class NativeSurface extends FrameLayout {
+        NativeSurface(Context context) { super(context); }
+        abstract void render(Engine state);
+        /** frameTimeNanos is the Choreographer frame time, or 0 outside a frame. */
+        abstract void updatePosition(Engine state, long frameTimeNanos);
+        boolean needsPlaybackFrames(Engine state) {
+            return state != null && state.track != null && state.track.playing;
+        }
+        /** Draw-time state that could not advance while this surface was covered resumes from now. */
+        void resumeAfterCover() {}
+        // A visible surface follows every display frame at its vsync time; a hidden one polls.
+        private final Choreographer.FrameCallback frameTick = this::tick;
+        private final Runnable idleTick = () -> tick(0L);
+        private final int[] coverLocation = new int[2];
+        private final Rect coverVisible = new Rect();
+        // While a host window hides this surface it neither ticks nor passes on its
+        // descendants' invalidations, so nothing beneath the window is drawn.
+        private boolean covered;
+        private boolean frameProbeEnabled;
+
+        private void tick(long frameTimeNanos) {
+            if (!isAttachedToWindow() || covered) return;
+            if (!PLAYER_COVERS.isEmpty() && liesUnderCover()) {
+                // A surface attached or laid out after the window came to rest pauses here.
+                setCovered(true);
+                return;
+            }
+            boolean visible = isShown() && getWindowVisibility() == View.VISIBLE;
+            if (visible && engine != null) updatePosition(engine, frameTimeNanos);
+            if (visible && needsPlaybackFrames(engine)) Choreographer.getInstance().postFrameCallback(frameTick);
+            else postDelayed(idleTick, 250L);
+        }
+
+        void wakeTicks() {
+            if (!isAttachedToWindow() || covered) return;
+            stopTicks();
+            Choreographer.getInstance().postFrameCallback(frameTick);
+        }
+
+        void refreshCover() {
+            if (!isAttachedToWindow()) return;
+            boolean next = liesUnderCover();
+            if (next != covered) setCovered(next);
+        }
+
+        /**
+         * New content (a track, lyrics, supplements, settings) is laid out and drawn once while
+         * still covered, as before, so the frame that uncovers this surface stays light.
+         */
+        void drawOnceIfCovered() {
+            if (covered && isAttachedToWindow()) invalidateTree(this);
+        }
+
+        private void setCovered(boolean next) {
+            covered = next;
+            stopTicks();
+            if (frameProbeEnabled) logCover(next);
+            if (next) return;
+            // Repaint now: descendants kept their last frames and their own invalidations were
+            // held. When uncovering happens during input or between frames, the frame tick
+            // posted here updates the position at the frame time before that frame is drawn.
+            resumeAfterCover();
+            boolean visible = isShown() && getWindowVisibility() == View.VISIBLE;
+            if (visible && engine != null) updatePosition(engine, 0L);
+            invalidateTree(this);
+            if (visible) Choreographer.getInstance().postFrameCallback(frameTick);
+            else post(idleTick);
+        }
+
+        /** Every on-screen part within a covering window's bounds, in another Activity of the same task. */
+        private boolean liesUnderCover() {
+            if (PLAYER_COVERS.isEmpty() || !isShown() || getWindowVisibility() != View.VISIBLE
+                    || getWidth() <= 0 || getHeight() <= 0) return false;
+            Activity own = activityOf(getContext());
+            if (own == null) return false;
+            for (View root : PLAYER_COVERS.values()) {
+                if (root.getRootView() == getRootView() || !root.isAttachedToWindow() || !root.isShown()
+                        || root.getWindowVisibility() != View.VISIBLE) continue;
+                Activity cover = activityOf(root.getContext());
+                if (cover == null || cover == own || cover.getTaskId() != own.getTaskId()) continue;
+                int[] location = coverLocation;
+                root.getLocationOnScreen(location);
+                int left = location[0];
+                int top = location[1];
+                int right = left + root.getWidth();
+                int bottom = top + root.getHeight();
+                Rect visible = coverVisible;
+                // Nothing of a surface scrolled or clipped away can show; otherwise compare its
+                // visible part, in screen coordinates, with the covering root.
+                if (!getGlobalVisibleRect(visible)) return true;
+                getRootView().getLocationOnScreen(location);
+                visible.offset(location[0], location[1]);
+                if (visible.left >= left && visible.top >= top && visible.right <= right && visible.bottom <= bottom) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override public void onDescendantInvalidated(View child, View target) {
+            // A covered surface keeps its last frame; uncovering redraws every descendant.
+            if (!covered) super.onDescendantInvalidated(child, target);
+        }
+
+        private void logCover(boolean nowCovered) {
+            StringBuilder line = new StringBuilder(64).append(nowCovered ? "COVER" : "UNCOVER")
+                    .append(" surface=").append(getClass().getSimpleName()).append(" draw=");
+            LyricsFrameProbe.appendFixed(line, System.nanoTime() / 1_000_000d, 3);
+            LyricsFrameProbe.log(line);
+        }
+
+        private void stopTicks() {
+            removeCallbacks(idleTick);
+            Choreographer.getInstance().removeFrameCallback(frameTick);
+        }
+
+        @Override protected void onAttachedToWindow() {
+            super.onAttachedToWindow();
+            frameProbeEnabled = LyricsFrameProbe.enabled(getContext());
+            attach(this);
+            stopTicks();
+            post(idleTick);
+        }
+        @Override protected void onDetachedFromWindow() {
+            stopTicks();
+            covered = false;
+            detach(this);
+            super.onDetachedFromWindow();
+        }
+    }
+
+    /** The card uses the same original Canvas renderer as the full lyrics page. */
+    private static final class NativeCard extends NativeSurface {
+        final PlayerBackgroundView background;
+        final LyricsView lyrics;
+        final TextView title;
+        AiLyricsSettings.Snapshot appliedSettings;
+        LyricsResult appliedResult;
+
+        NativeCard(Context context) {
+            super(context);
+            setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT));
+            setMinimumHeight(dp(244));
+            setClickable(true);
+            setFocusable(true);
+            setClipToOutline(true);
+            setOutlineProvider(new ViewOutlineProvider() {
+                @Override public void getOutline(View view, Outline outline) {
+                    outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), dp(12));
+                }
+            });
+            background = new PlayerBackgroundView(context);
+            addView(background, new FrameLayout.LayoutParams(-1, -1));
+            LinearLayout content = new LinearLayout(context);
+            content.setOrientation(LinearLayout.VERTICAL);
+            content.setPadding(dp(8), dp(14), dp(8), dp(14));
+            addView(content, new FrameLayout.LayoutParams(-1, -1));
+            title = text("ivLyrics", 13.5f);
+            title.setTypeface(AppFonts.bold(context));
+            title.setPadding(dp(8), 0, dp(8), 0);
+            content.addView(title, new LinearLayout.LayoutParams(-1, dp(24)));
+            lyrics = new LyricsView(context);
+            lyrics.setSidePaddingSp(9f);
+            lyrics.setTypographySizeMultiplier(0.78f);
+            lyrics.setVerticalCenterBias(0.42f);
+            content.addView(lyrics, new LinearLayout.LayoutParams(-1, 0, 1f));
+            setOnClickListener(view -> openLyrics(getContext()));
+        }
+
+        @Override public boolean onInterceptTouchEvent(MotionEvent event) { return true; }
+        @Override protected void onMeasure(int widthSpec, int heightSpec) {
+            // Spotify supplies the available card width; keep the preview square at every density.
+            int width = MeasureSpec.getMode(widthSpec) == MeasureSpec.UNSPECIFIED
+                    ? dp(320) : MeasureSpec.getSize(widthSpec);
+            // A zero-height intrinsic probe must not also collapse the width.
+            int height = resolveSize(width, heightSpec);
+            super.onMeasure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY));
+        }
+        @Override void updatePosition(Engine state, long frameTimeNanos) {
+            if (frameTimeNanos == 0L) lyrics.refreshMotionPreferences();
+            if (frameTimeNanos > 0L) lyrics.setPlaybackFrame(state.positionAtFrame(frameTimeNanos), frameTimeNanos);
+            else lyrics.setPlaybackPosition(state.position());
+        }
+        @Override void resumeAfterCover() {
+            background.resumeAfterCover();
+            lyrics.resumeAfterCover();
+        }
+        @Override void render(Engine state) {
+            AiLyricsSettings.Snapshot settings = state.settings.snapshot();
+            if (appliedSettings != settings) {
+                appliedSettings = settings;
+                lyrics.setTypographySettings(settings.typography);
+                lyrics.setLyricTextAlignment(settings.lyricsTextAlignment);
+                lyrics.setSpeakerColorSettings(settings.speakerColors);
+                lyrics.setUseCreatorSpeakerColors(settings.useSyncCreatorSpeakerColors);
+                lyrics.setKaraokeDisplayGranularity(settings.karaokeDisplayGranularity);
+                lyrics.setKaraokeBounceEffectEnabled(settings.karaokeBounceEffectEnabled);
+                lyrics.setSyncedLyricsKaraokeAnimationEnabled(settings.syncedLyricsKaraokeAnimationEnabled);
+                lyrics.setAutoInstrumentalBreakEnabled(settings.autoInstrumentalBreakEnabled);
+                lyrics.setInterludeLabelsEnabled(settings.interludeLabelsEnabled);
+                lyrics.setJapaneseFuriganaEnabled(settings.japaneseFuriganaEnabled);
+                lyrics.setUiText(state.ui("status.lyrics_loading"), state.ui("lyrics.empty_none"),
+                        state.ui("interlude.prelude"), state.ui("interlude.break"), state.ui("interlude.postlude"));
+                boolean showBackground = state.settings.playerCardBackgroundEnabled();
+                background.setVisibility(showBackground ? View.VISIBLE : View.GONE);
+                if (showBackground) background.setBackgroundSettings(settings.background);
+                else background.setArtwork(null, "");
+                setContentDescription("ivLyrics, " + state.ui("accessibility.open_lyrics"));
+            }
+            if (appliedResult != state.result) {
+                appliedResult = state.result;
+                lyrics.setResult(state.result);
+            }
+            lyrics.setLyricsSegmentationLocale(state.sourceLanguage);
+            lyrics.setLoadingState(state.loading);
+            lyrics.setSupplementLoading(state.pronunciationLoading, state.translationLoading);
+            lyrics.setTrackDuration(state.track == null ? 0 : state.track.durationMs);
+            lyrics.setCulturalAnnotations(state.annotations, settings.culturalAnnotationsFontFamily,
+                    settings.culturalAnnotationsFontSize, settings.culturalAnnotationsFontWeight,
+                    settings.culturalAnnotationsOpacity);
+            if (background.getVisibility() == View.VISIBLE && state.track != null) {
+                background.setArtwork(state.track.artwork, state.track.artworkKey());
+            }
+            lyrics.setPlaybackPosition(state.position());
+        }
+        TextView text(String value, float size) {
+            TextView view = new TextView(getContext());
+            view.setText(value);
+            view.setTextSize(size);
+            view.setTextColor(Color.WHITE);
+            view.setTypeface(AppFonts.regular(getContext()));
+            return view;
+        }
+        int dp(int value) { return Math.round(getResources().getDisplayMetrics().density * value); }
+    }
+
+    /** The native inline slot has no card chrome; all text behavior belongs to the shared preview. */
+    private static final class NativeInline extends NativeSurface {
+        final MainLyricPreviewView preview;
+        AiLyricsSettings.Snapshot appliedSettings;
+        LyricsResult appliedResult;
+        long appliedDuration;
+        boolean appliedPronunciationLoading;
+        boolean appliedTranslationLoading;
+        String appliedSourceLanguage;
+        InlineLyricPreviewModel model;
+        InlineLyricPreviewModel.PreviewEntry appliedEntry;
+        boolean entryApplied;
+        String emptyKey = "";
+        long emptySince;
+
+        NativeInline(Context context) {
+            super(context);
+            setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT));
+            setPadding(0, 0, 0, Math.round(12f * getResources().getDisplayMetrics().density));
+            setMinimumHeight(Math.round(32f * getResources().getDisplayMetrics().density));
+            setClickable(true);
+            setFocusable(true);
+            preview = new MainLyricPreviewView(context);
+            preview.setCompactLayout(true);
+            preview.setExternallyDriven(true);
+            addView(preview, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, android.view.Gravity.CENTER_VERTICAL));
+            setOnClickListener(view -> openLyrics(getContext()));
+        }
+
+        @Override public boolean onInterceptTouchEvent(MotionEvent event) { return true; }
+
+        @Override boolean needsPlaybackFrames(Engine state) {
+            return super.needsPlaybackFrames(state) || preview.needsHostFrames()
+                    || (model == null && getVisibility() == View.VISIBLE
+                        && SystemClock.uptimeMillis() - emptySince < 3000L);
+        }
+
+        @Override void render(Engine state) {
+            AiLyricsSettings.Snapshot settings = state.settings.snapshot();
+            long duration = state.track == null ? 0L : state.track.durationMs;
+            boolean changed = appliedSettings != settings || appliedResult != state.result
+                    || appliedDuration != duration
+                    || appliedPronunciationLoading != state.pronunciationLoading
+                    || appliedTranslationLoading != state.translationLoading
+                    || !state.sourceLanguage.equals(appliedSourceLanguage);
+            if (appliedSettings != settings) {
+                preview.setTypographySettings(settings.typography);
+                preview.setKaraokeDisplayGranularity(settings.karaokeDisplayGranularity);
+                preview.setKaraokeBounceEffectEnabled(settings.karaokeBounceEffectEnabled);
+                preview.setLyricTextAlignment(settings.lyricsTextAlignment);
+                setContentDescription("ivLyrics, " + state.ui("accessibility.open_lyrics"));
+            }
+            appliedSettings = settings;
+            appliedResult = state.result;
+            appliedDuration = duration;
+            appliedPronunciationLoading = state.pronunciationLoading;
+            appliedTranslationLoading = state.translationLoading;
+            appliedSourceLanguage = state.sourceLanguage;
+            preview.setLyricsSegmentationLocale(state.sourceLanguage);
+            if (changed) {
+                model = state.result == null || state.result.lines.isEmpty() ? null
+                        : new InlineLyricPreviewModel(state.result, settings, duration,
+                                state.pronunciationLoading, state.translationLoading, state.sourceLanguage);
+                entryApplied = false;
+                emptyKey = "";
+            }
+            updatePosition(state, 0L);
+        }
+
+        @Override void updatePosition(Engine state, long frameTimeNanos) {
+            if (appliedSettings == null) return;
+            boolean song = state.track != null && state.track.mediaId.startsWith("spotify:track:")
+                    && !state.track.trackId.isEmpty() && state.track.hasUsableMetadata()
+                    && !state.track.isSpotifyDjSegment();
+            if (!song || appliedSettings.previewItems == AiLyricsSettings.PREVIEW_ITEM_NONE) {
+                if (getVisibility() != View.GONE) { preview.clear(); setVisibility(View.GONE); }
+                // A retained model must repopulate the renderer when this slot becomes visible again.
+                entryApplied = false;
+                appliedEntry = null;
+                emptyKey = "";
+                return;
+            }
+            // Inside a frame the preview paints that frame's exact clock; elsewhere "now".
+            double framePosition = frameTimeNanos > 0L ? state.positionAtFrame(frameTimeNanos) : state.position();
+            long position = (long) Math.floor(framePosition);
+            boolean playing = state.track != null && state.track.playing;
+            if (model == null) {
+                String detail = state.result == null ? state.ui("status.lyrics_waiting") : state.result.detail;
+                String key = state.key + '\n' + state.loading + '\n' + detail;
+                if (!emptyKey.equals(key)) {
+                    emptyKey = key;
+                    emptySince = SystemClock.uptimeMillis();
+                    MainLyricPreviewView.PreviewLine row = state.loading
+                            ? MainLyricPreviewView.PreviewLine.loading(state.ui("status.lyrics_loading"))
+                            : new MainLyricPreviewView.PreviewLine(detail == null || detail.isEmpty()
+                                    ? state.ui("status.lyrics_waiting") : detail, true);
+                    preview.setPreview(Collections.singletonList(row), position, 0L, 0L, state.loading);
+                }
+                setVisibility(!state.loading && SystemClock.uptimeMillis() - emptySince >= 3000L
+                        ? View.GONE : View.VISIBLE);
+                if (getVisibility() == View.VISIBLE) preview.setPlaybackPosition(position, state.loading);
+                return;
+            }
+            setVisibility(View.VISIBLE);
+            InlineLyricPreviewModel.PreviewEntry entry = model.at(position);
+            if (!entryApplied || entry != appliedEntry) {
+                appliedEntry = entry;
+                entryApplied = true;
+                preview.setPreview(model.rows(entry), position, entry == null ? 0L : entry.startTimeMs,
+                        entry == null ? 0L : entry.endTimeMs, playing);
+                if (frameTimeNanos > 0L) preview.setPlaybackFrame(framePosition, frameTimeNanos, playing);
+            } else if (frameTimeNanos > 0L) {
+                preview.setPlaybackFrame(framePosition, frameTimeNanos, playing);
+            } else {
+                preview.setPlaybackPosition(position, playing);
+            }
+        }
+    }
+
+    private static final class Engine implements NowPlayingService.Listener, SharedPreferences.OnSharedPreferenceChangeListener {
+        final AiLyricsSettings settings;
+        final LyricsRepository repository;
+        final AiLyricsRepository ai;
+        final FuriganaRepository furigana;
+        final SharedPreferences uiPreferences;
+        final SharedPreferences providerPreferences;
+        final AudioManager audioManager;
+        final AudioDeviceCallback audioCallback = new AudioDeviceCallback() {
+            @Override public void onAudioDevicesAdded(AudioDeviceInfo[] devices) { updateBluetoothOffset(); }
+            @Override public void onAudioDevicesRemoved(AudioDeviceInfo[] devices) { updateBluetoothOffset(); }
+        };
+        final SpotifyDjLyricsTimeline timeline = new SpotifyDjLyricsTimeline();
+        TrackSnapshot track;
+        LyricsResult base;
+        // The line-timed base replaced by generated lrc.red word timing, if any.
+        LyricsResult timingSource;
+        LyricsResult result;
+        LyricsResult furiganaResult;
+        List<CulturalAnnotation> annotations = Collections.emptyList();
+        String sourceLanguage = "auto";
+        String key = "";
+        long generation;
+        long djOffset;
+        int bluetoothOffset;
+        boolean loading;
+        boolean requestInFlight;
+        boolean pronunciationLoading;
+        boolean translationLoading;
+        boolean released;
+        boolean settingsDataReloadPending;
+        final Runnable reloadSettings = this::reloadSettings;
+
+        private void reloadSettings() {
+            if (released) return;
+            updateBluetoothOffset();
+            if (!settingsDataReloadPending) {
+                renderCards();
+                return;
+            }
+            settingsDataReloadPending = false;
+            if (foregroundPage.get() != null) {
+                renderCards();
+                return;
+            }
+            repository.invalidateProviderSelection();
+            sharedTrack = null;
+            sharedResult = null;
+            key = "";
+            onNowPlayingChanged(NowPlayingService.getLatestSnapshot());
+        }
+
+        void onLocalLyricsChanged(String changedKey) {
+            if (released || track == null || (changedKey != null && !changedKey.equals(track.stableKey()))) return;
+            repository.invalidateProviderSelection();
+            key = "";
+            onNowPlayingChanged(track);
+        }
+
+        Engine(Context context) {
+            settings = new AiLyricsSettings(context);
+            repository = new LyricsRepository(context);
+            ai = new AiLyricsRepository(context);
+            furigana = new FuriganaRepository(context);
+            uiPreferences = context.getSharedPreferences(AiLyricsSettings.PREFS_NAME, Context.MODE_PRIVATE);
+            providerPreferences = context.getSharedPreferences("lyrics_provider_settings", Context.MODE_PRIVATE);
+            audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+            if (audioManager != null) audioManager.registerAudioDeviceCallback(audioCallback, MAIN);
+            updateBluetoothOffset();
+            uiPreferences.registerOnSharedPreferenceChangeListener(this);
+            providerPreferences.registerOnSharedPreferenceChangeListener(this);
+            result = LyricsResult.empty(ui("status.waiting_current_track"));
+            NowPlayingService.register(this);
+            onNowPlayingChanged(NowPlayingService.getLatestSnapshot());
+        }
+
+        @Override public void onSharedPreferenceChanged(SharedPreferences preferences, String changedKey) {
+            settingsDataReloadPending |= preferences == providerPreferences || changesLyricsData(changedKey);
+            MAIN.removeCallbacks(reloadSettings);
+            MAIN.postDelayed(reloadSettings, 200L);
+        }
+
+        boolean changesLyricsData(String preference) {
+            if (preference == null) return true;
+            switch (preference) {
+                case AiLyricsSettings.KEY_TRANSLATION_ENABLED:
+                case AiLyricsSettings.KEY_PRONUNCIATION_ENABLED:
+                case AiLyricsSettings.KEY_BING_TRANSLATE_ENABLED:
+                case AiLyricsSettings.KEY_GOOGLE_TRANSLATE_ENABLED:
+                case AiLyricsSettings.KEY_AI_PROVIDER_ORDER:
+                case AiLyricsSettings.KEY_AI_PROVIDER_ENABLED:
+                case AiLyricsSettings.KEY_AI_PROVIDER_PROFILES:
+                case AiLyricsSettings.KEY_PROVIDER:
+                case AiLyricsSettings.KEY_TARGET_LANG:
+                case AiLyricsSettings.KEY_UI_LANG:
+                case AiLyricsSettings.KEY_OUTPUT_LANG:
+                case AiLyricsSettings.KEY_PRONUNCIATION_LANG:
+                case AiLyricsSettings.KEY_PRONUNCIATION_NOTATION:
+                case AiLyricsSettings.KEY_LANGUAGE_RULES:
+                case AiLyricsSettings.KEY_API_KEYS:
+                case AiLyricsSettings.KEY_POLLINATIONS_ACCESS_TOKEN:
+                case AiLyricsSettings.KEY_MODEL:
+                case AiLyricsSettings.KEY_BASE_URL:
+                case AiLyricsSettings.KEY_MAX_TOKENS:
+                case AiLyricsSettings.KEY_TEMPERATURE:
+                case AiLyricsSettings.KEY_SPOTIFY_CLIENT_ID:
+                case AiLyricsSettings.KEY_SPOTIFY_CLIENT_SECRET:
+                case AiLyricsSettings.KEY_JAPANESE_FURIGANA_ENABLED:
+                case AiLyricsSettings.KEY_CULTURAL_ANNOTATIONS_ENABLED:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        @Override public void onNowPlayingChanged(TrackSnapshot next) {
+            if (released) return;
+            boolean enriched = track != null && next != null && key.equals(next.stableKey())
+                    && !next.isrc.isEmpty() && !next.isrc.equals(track.isrc);
+            track = next;
+            if (next == null || !next.hasUsableMetadata()) {
+                timeline.reset();
+                djOffset = 0L;
+                if (!key.isEmpty()) {
+                    generation++;
+                    key = "";
+                    base = null;
+                    result = LyricsResult.empty(ui("status.waiting_current_track"));
+                    loading = pronunciationLoading = translationLoading = false;
+                    requestInFlight = false;
+                    renderCards();
+                }
+                return;
+            }
+            long nowPosition = next.positionNow();
+            djOffset = Math.max(0, timeline.update(next.stableKey(), nowPosition, next.playing,
+                    next.spotifyAutomix, next.isSpotifyDjSegment(), next.spotifyContextKnown, next.automixFadeInStartMs,
+                    next.automixFadeInCueMs, next.automixFadeOverlapMs, SystemClock.elapsedRealtime()) - nowPosition);
+            if (!key.equals(next.stableKey()) || enriched) {
+                key = next.stableKey();
+                long request = ++generation;
+                if (!enriched) {
+                    base = null;
+                    furiganaResult = null;
+                    annotations = Collections.emptyList();
+                    result = LyricsResult.loading(ui("status.lyrics_loading"));
+                }
+                loading = result == null || result.lines.isEmpty();
+                requestInFlight = false;
+                pronunciationLoading = translationLoading = false;
+                if (!enriched && sharedTrack != null && key.equals(sharedTrack.stableKey()) && metadataMatches(next, sharedResult)) {
+                    base = result = sharedResult;
+                    loading = false;
+                    sourceLanguage = "auto".equals(sharedSourceLanguage) ? detectLanguage(result) : sharedSourceLanguage;
+                    renderCards();
+                    return;
+                }
+                if (foregroundPage.get() != null) {
+                    renderCards();
+                    return;
+                }
+                requestInFlight = true;
+                repository.loadLyrics(next, new LyricsRepository.Callback() {
+                    boolean current(String callbackKey) { return valid(request, callbackKey); }
+                    @Override public void onLyricsLoaded(String callbackKey, LyricsResult loaded) {
+                        if (!current(callbackKey)) return;
+                        loading = false;
+                        requestInFlight = false;
+                        base = result = loaded;
+                        furiganaResult = null;
+                        sourceLanguage = detectLanguage(loaded);
+                        renderCards();
+                        BaseLyricsActivity page = foregroundPage.get();
+                        if (page != null && page.acceptEmbeddedLyrics(callbackKey, loaded)) return;
+                        loadSupplements(request);
+                    }
+                    @Override public void onLyricsError(String callbackKey, String message) {
+                        if (!current(callbackKey)) return;
+                        loading = false;
+                        requestInFlight = false;
+                        if (result == null || result.lines.isEmpty()) result = LyricsResult.empty(ui("status.lyrics_request_failed"));
+                        renderCards();
+                        BaseLyricsActivity page = foregroundPage.get();
+                        if (page != null) {
+                            if (result != null && !result.lines.isEmpty()) page.acceptEmbeddedLyrics(callbackKey, result);
+                            else page.onLyricsError(callbackKey, message);
+                        }
+                    }
+                    @Override public void onLyricsProviderLoading(String callbackKey, String provider) {}
+                    @Override public void onLyricsLog(String callbackKey, String message) {}
+                    @Override public void onLyricsArtworkLoaded(String callbackKey, Bitmap artwork, String artworkKey) {}
+                    @Override public void onLyricsMetadataResolved(String callbackKey, String isrc, String spotifyTrackId) {}
+                    @Override public void onLyricsWordSyncFinished(String callbackKey, LyricsResult upgraded) {
+                        // Only the timing changes; the card keeps its supplements and requests.
+                        if (!current(callbackKey) || !LyricsTimingUpgrade.upgrades(base, upgraded)) return;
+                        timingSource = base;
+                        base = upgraded;
+                        result = LyricsTimingUpgrade.retime(result, upgraded);
+                        renderCards();
+                    }
+                });
+            }
+            renderCards();
+        }
+
+        void acceptShared(TrackSnapshot shared, LyricsResult value, String language) {
+            if (released || !key.equals(shared.stableKey())) return;
+            generation++;
+            base = result = value;
+            sourceLanguage = "auto".equals(language) ? detectLanguage(value) : language;
+            loading = pronunciationLoading = translationLoading = false;
+            requestInFlight = false;
+            renderCards();
+        }
+
+        void loadSupplements(long request) {
+            if (base == null || base.lines.isEmpty() || track == null) return;
+            AiLyricsSettings.Snapshot snapshot = settings.snapshot();
+            AiLyricsSettings.LanguageRule rule = snapshot.ruleForSource(sourceLanguage);
+            boolean ready = snapshot.hasReadyAiProvider();
+            pronunciationLoading = rule.pronunciationEnabled && ready;
+            translationLoading = rule.translationEnabled
+                    && !snapshot.shouldSkipTranslation(sourceLanguage, snapshot.resolveTargetLanguage(sourceLanguage))
+                    && (ready || snapshot.hasKeylessTranslationProvider()
+                            || snapshot.isAiProviderEnabled(AiLyricsSettings.Provider.LOCAL_AI_ID));
+            LyricsResult requestBase = base;
+            if (snapshot.enabled() && (pronunciationLoading || translationLoading)) {
+                ai.loadSupplements(track, base, snapshot, sourceLanguage, false, new AiCallback(request, requestBase));
+            }
+            if (snapshot.culturalAnnotationsEnabled) {
+                ai.loadCulturalAnnotations(track, base, snapshot, sourceLanguage, false, new AiCallback(request, requestBase));
+            }
+            if (snapshot.japaneseFuriganaEnabled && "ja".equals(sourceLanguage)) {
+                furigana.loadFurigana(track, base, false, new FuriganaRepository.Callback() {
+                    @Override public void onFuriganaLoaded(String callbackKey, LyricsResult value) {
+                        if (!valid(request, callbackKey) || !isCurrentBase(requestBase)) return;
+                        furiganaResult = value;
+                        result = withFurigana(result, value);
+                        renderCards();
+                    }
+                    @Override public void onFuriganaError(String callbackKey, String message) {}
+                    @Override public void onFuriganaLog(String callbackKey, String message) {}
+                });
+            }
+            renderCards();
+        }
+
+        boolean valid(long request, String callbackKey) { return !released && generation == request && key.equals(callbackKey); }
+        /** The displayed base, or the line-timed base its generated word timing replaced. */
+        boolean isCurrentBase(LyricsResult requestBase) {
+            return requestBase == base
+                    || (timingSource != null && requestBase == timingSource && LyricsTimingUpgrade.upgrades(timingSource, base));
+        }
+        LyricsResult onCurrentTiming(LyricsResult value) {
+            return value != null && base != null && base.karaoke && !value.karaoke && value.lines.size() == base.lines.size()
+                    ? LyricsTimingUpgrade.retime(value, base)
+                    : value;
+        }
+        long position() {
+            if (track == null) return 0;
+            long value = track.positionNow() + djOffset + settings.globalSyncOffsetMs() + settings.trackSyncOffsetMs(key) + bluetoothOffset;
+            return Math.max(0, track.durationMs > 0 ? Math.min(track.durationMs + djOffset, value) : value);
+        }
+        /** {@link #position()} at a Choreographer frame time, without rounding. */
+        double positionAtFrame(long frameTimeNanos) {
+            if (track == null) return 0d;
+            double value = track.positionAtFrame(frameTimeNanos) + djOffset + settings.globalSyncOffsetMs()
+                    + settings.trackSyncOffsetMs(key) + bluetoothOffset;
+            return Math.max(0d, track.durationMs > 0 ? Math.min(track.durationMs + djOffset, value) : value);
+        }
+        String ui(String message) { return AppI18n.t(settings.snapshot().uiLang, message); }
+        void renderCards() {
+            if (released) return;
+            if (track != null && result != null && !result.lines.isEmpty()) {
+                sharedTrack = track;
+                sharedResult = result;
+                sharedSourceLanguage = sourceLanguage;
+            }
+            pruneCards();
+            for (WeakReference<NativeSurface> reference : CARDS) {
+                NativeSurface card = reference.get();
+                if (card == null) continue;
+                card.render(this);
+                card.drawOnceIfCovered();
+                card.wakeTicks();
+            }
+        }
+        void release() {
+            released = true;
+            generation++;
+            MAIN.removeCallbacks(reloadSettings);
+            NowPlayingService.unregister(this);
+            uiPreferences.unregisterOnSharedPreferenceChangeListener(this);
+            providerPreferences.unregisterOnSharedPreferenceChangeListener(this);
+            if (audioManager != null) audioManager.unregisterAudioDeviceCallback(audioCallback);
+            repository.shutdown();
+            ai.shutdown();
+            furigana.shutdown();
+            settings.shutdown();
+        }
+
+        @Override public void onExplicitSeek(String trackKey, long positionMs, long elapsedRealtimeMs) {
+            timeline.registerExplicitSeek(trackKey, positionMs, elapsedRealtimeMs);
+        }
+
+        String detectLanguage(LyricsResult value) {
+            StringBuilder text = new StringBuilder();
+            for (LyricsLine line : value.lines) text.append(line.text).append('\n');
+            String detected = LyricsLanguageDetector.detect(text.toString());
+            // Missing or undetectable lyrics still need a locale for repeated surface updates.
+            return detected == null ? "auto" : detected;
+        }
+
+        void updateBluetoothOffset() {
+            bluetoothOffset = 0;
+            if (audioManager == null || released) return;
+            AudioDeviceInfo selected = null;
+            try {
+                for (AudioDeviceInfo device : audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)) {
+                    if (device == null || !device.isSink()) continue;
+                    int type = device.getType();
+                    boolean a2dp = type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP;
+                    boolean ble = Build.VERSION.SDK_INT >= 31 && (type == AudioDeviceInfo.TYPE_BLE_HEADSET || type == AudioDeviceInfo.TYPE_BLE_SPEAKER);
+                    boolean hearingAid = Build.VERSION.SDK_INT >= 28 && type == AudioDeviceInfo.TYPE_HEARING_AID;
+                    if (!a2dp && !ble && !hearingAid && type != AudioDeviceInfo.TYPE_BLUETOOTH_SCO) continue;
+                    if (selected == null) selected = device;
+                    if (a2dp || ble) { selected = device; break; }
+                }
+            } catch (RuntimeException ignored) { return; }
+            if (selected == null) return;
+            String name = selected.getProductName() == null ? "" : selected.getProductName().toString().trim();
+            int type = selected.getType();
+            if (name.isEmpty()) {
+                if (type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP) name = "Bluetooth A2DP";
+                else if (type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO) name = "Bluetooth SCO";
+                else if (Build.VERSION.SDK_INT >= 31 && type == AudioDeviceInfo.TYPE_BLE_HEADSET) name = "BLE headset";
+                else if (Build.VERSION.SDK_INT >= 31 && type == AudioDeviceInfo.TYPE_BLE_SPEAKER) name = "BLE speaker";
+                else name = "Hearing aid";
+            }
+            String deviceKey = "type:" + type + "|name:" + name.toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
+            bluetoothOffset = settings.bluetoothSyncOffsetMs(deviceKey);
+        }
+
+        private final class AiCallback implements AiLyricsRepository.Callback {
+            final long request;
+            final LyricsResult requestBase;
+            AiCallback(long request, LyricsResult requestBase) { this.request = request; this.requestBase = requestBase; }
+            boolean current(String callbackKey) { return valid(request, callbackKey) && isCurrentBase(requestBase); }
+            @Override public void onAiLyricsLoaded(String callbackKey, LyricsResult value) {
+                if (!current(callbackKey)) return;
+                result = withFurigana(requestBase == base ? value : onCurrentTiming(value), furiganaResult);
+                pronunciationLoading = translationLoading = false;
+                renderCards();
+            }
+            @Override public void onAiLyricsPartialLoaded(String callbackKey, LyricsResult value,
+                    boolean pronunciation, boolean translation, boolean finished, boolean hadError) {
+                if (!current(callbackKey)) return;
+                result = withFurigana(requestBase == base ? value : onCurrentTiming(value), furiganaResult);
+                pronunciationLoading = !finished && pronunciation;
+                translationLoading = !finished && translation;
+                renderCards();
+            }
+            @Override public void onAiLyricsError(String callbackKey, String message) {
+                if (!current(callbackKey)) return;
+                pronunciationLoading = translationLoading = false;
+                renderCards();
+            }
+            @Override public void onAiLyricsTaskError(String callbackKey, String message,
+                    boolean pronunciation, boolean translation, boolean finished) {
+                if (!current(callbackKey)) return;
+                pronunciationLoading = !finished && pronunciation;
+                translationLoading = !finished && translation;
+                renderCards();
+            }
+            @Override public void onAiCulturalAnnotationsLoaded(String callbackKey, String requestKey, List<CulturalAnnotation> value) {
+                if (!current(callbackKey)) return;
+                annotations = value == null ? Collections.emptyList() : value;
+                renderCards();
+            }
+            @Override public void onAiLyricsLog(String key, String message) {}
+            @Override public void onAiMetadataTranslationLoaded(String key, AiLyricsRepository.MetadataTranslation value) {}
+            @Override public void onAiMetadataTranslationError(String key, String message) {}
+            @Override public void onAiTmiLoaded(String key, AiLyricsRepository.TmiInfo value) {}
+            @Override public void onAiTmiError(String key, String message) {}
+            @Override public void onAiCulturalAnnotationsError(String key, String requestKey, String message) {}
+        }
+    }
+
+    private static LyricsResult withFurigana(LyricsResult target, LyricsResult ruby) {
+        if (target == null || ruby == null || target.lines.isEmpty()) return target;
+        List<LyricsLine> lines = new ArrayList<>();
+        for (int i = 0; i < target.lines.size(); i++) {
+            LyricsLine line = target.lines.get(i);
+            LyricsLine rubyLine = i < ruby.lines.size() ? ruby.lines.get(i) : null;
+            List<LyricsLine.VocalPart> parts = new ArrayList<>();
+            for (int j = 0; j < line.vocalParts.size(); j++) {
+                LyricsLine.VocalPart part = line.vocalParts.get(j);
+                LyricsLine.VocalPart rubyPart = rubyLine != null && j < rubyLine.vocalParts.size() ? rubyLine.vocalParts.get(j) : null;
+                parts.add(part.withSupplements(part.pronunciationText, part.translationText,
+                        rubyPart == null ? part.furiganaText : rubyPart.furiganaText));
+            }
+            lines.add(new LyricsLine(line.startTimeMs, line.endTimeMs, line.text, line.syllables,
+                    line.speaker, line.speakerColor, line.speakerFallback, line.kind, parts,
+                    line.pronunciationText, line.translationText, rubyLine == null ? line.furiganaText : rubyLine.furiganaText));
+        }
+        return new LyricsResult(lines, target.providerLabel, target.detail, target.karaoke, target.isrc,
+                target.spotifyTrackId, target.contributors, target.providerId, target.selectionPolicyKey,
+                target.syncType, target.syncPoints, target.pronunciationProviderLabel, target.translationProviderLabel);
+    }
+}

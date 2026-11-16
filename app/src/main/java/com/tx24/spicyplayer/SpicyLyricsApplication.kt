@@ -14,6 +14,7 @@ class SpicyLyricsApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         CrashLog.install(this)
+        runCatching { kr.ivlis.ivlyricsandroid.SpicyBridge.init(this) }
         UpdateNotification.cancelStale(this)
         runCatching { com.tx24.spicyplayer.stats.ListeningTracker.sync(this) }
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {

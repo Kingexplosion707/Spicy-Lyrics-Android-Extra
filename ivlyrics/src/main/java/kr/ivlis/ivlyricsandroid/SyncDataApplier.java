@@ -1,0 +1,1663 @@
+package kr.ivlis.ivlyricsandroid;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.text.Normalizer;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+
+final class SyncDataApplier {
+    private static final long DURATION_OFFSET_MIN_DIFF_MS = 500L;
+    private static final double DURATION_FRONT_OFFSET_RATIO = 0.3;
+    private static final int MAX_STYLE_RANGES_PER_LINE = 256;
+
+    private SyncDataApplier() {
+    }
+
+    static List<LyricsLine> apply(List<LyricsLine> baseLyrics, JSONObject syncBody, TrackSnapshot track) {
+        return applyWithDiagnostics(baseLyrics, syncBody, track).lines;
+    }
+
+    static ApplyResult applyWithDiagnostics(List<LyricsLine> baseLyrics, JSONObject syncBody, TrackSnapshot track) {
+        return applyWithDiagnostics(baseLyrics, syncBody, track, "", 0L);
+    }
+
+    static ApplyResult applyWithDiagnostics(
+            List<LyricsLine> baseLyrics,
+            JSONObject syncBody,
+            TrackSnapshot track,
+            String currentProvider,
+            long currentLrclibId
+    ) {
+        List<String> diagnostics = new ArrayList<>();
+        if (baseLyrics == null || baseLyrics.isEmpty() || syncBody == null) {
+            return ApplyResult.empty("missing base lyrics or sync body");
+        }
+
+        try { syncBody = SyncDataV6Codec.playbackBody(syncBody); }
+        catch (Exception error) { return ApplyResult.empty(error.getMessage()); }
+        JSONArray rawLines = syncBody.optJSONArray("lines");
+        if (rawLines == null || rawLines.length() == 0) {
+            return ApplyResult.empty("sync body has no lines");
+        }
+
+        JSONObject source = syncBody.optJSONObject("source");
+        boolean hasSourceLineShape = source != null
+                && source.optJSONArray("lineCharCounts") != null
+                && source.optJSONArray("lineCharCounts").length() > 0;
+        boolean normalizeParentheticalLines = syncBody.optInt("version", 1) >= 2 || hasSourceLineShape;
+        List<String> baseLines = getBaseLyricLines(baseLyrics, normalizeParentheticalLines);
+        if (baseLines.isEmpty()) {
+            return ApplyResult.empty("base lyrics became empty after normalization");
+        }
+        diagnostics.add("shape: baseLines=" + baseLines.size()
+                + " / rawSyncLines=" + rawLines.length()
+                + " / sourceLineShape=" + hasSourceLineShape
+                + " / version=" + syncBody.optInt("version", 1));
+
+        List<SyncLine> syncLines = parseSyncLines(rawLines);
+        if (syncLines.isEmpty()) {
+            return ApplyResult.empty("no valid sync lines parsed from JSON");
+        }
+
+        int sourcePrefix = resolveSourcePrefix(source, baseLines);
+        if (sourcePrefix < 0) {
+            List<Integer> expectedCounts = source == null
+                    ? Collections.emptyList()
+                    : readIntArray(source.optJSONArray("lineCharCounts"));
+            return ApplyResult.empty("source line shape mismatch: expected="
+                    + previewIntegers(expectedCounts)
+                    + " actual=" + previewIntegers(lineCharCounts(baseLines)));
+        }
+        if (sourcePrefix > 0) {
+            int charOffset = leadingCharOffset(readIntArray(source.optJSONArray("lineCharCounts")), sourcePrefix);
+            syncLines = shiftSyncLines(syncLines, charOffset);
+            diagnostics.add("source prefix trimmed: lines=" + sourcePrefix + " / charOffset=" + charOffset);
+        } else if (source != null) {
+            String expectedFingerprint = source.optString("lyricsFingerprint", "");
+            if (!expectedFingerprint.isEmpty()) {
+                String actualFingerprint = lyricsFingerprint(joinLinesForFingerprint(baseLines));
+                if (!expectedFingerprint.equals(actualFingerprint)) {
+                    if (canApplyLrclibFingerprintFallback(
+                            source,
+                            currentProvider,
+                            currentLrclibId,
+                            hasSourceLineShape
+                    )) {
+                        diagnostics.add("source fingerprint compatibility fallback: provider=lrclib"
+                                + " / lrclibId=" + currentLrclibId
+                                + " / exactLineShape=true");
+                    } else {
+                        return ApplyResult.empty("source fingerprint mismatch: expected="
+                                + expectedFingerprint
+                                + " actual=" + actualFingerprint);
+                    }
+                } else {
+                    diagnostics.add("source fingerprint matched: " + actualFingerprint);
+                }
+            }
+        }
+
+        DurationAdjustment durationAdjustment = computeDurationAdjustment(syncBody, track);
+        if (durationAdjustment.offsetMs != 0L) {
+            syncLines = shiftSyncTimes(syncLines, durationAdjustment.offsetMs / 1000.0);
+            diagnostics.add("duration offset applied: frontOffset="
+                    + durationAdjustment.offsetMs
+                    + "ms / registered="
+                    + durationAdjustment.registeredDurationMs
+                    + "ms / current="
+                    + durationAdjustment.currentDurationMs
+                    + "ms / diff="
+                    + durationAdjustment.diffMs
+                    + "ms / rearRemainder="
+                    + (durationAdjustment.diffMs - durationAdjustment.offsetMs)
+                    + "ms / frontRatio="
+                    + DURATION_FRONT_OFFSET_RATIO);
+        } else if (durationAdjustment.registeredDurationMs > 0L
+                && durationAdjustment.currentDurationMs > 0L
+                && durationAdjustment.diffMs != 0L) {
+            diagnostics.add("duration offset skipped: registered="
+                    + durationAdjustment.registeredDurationMs
+                    + "ms / current="
+                    + durationAdjustment.currentDurationMs
+                    + "ms / diff="
+                    + durationAdjustment.diffMs
+                    + "ms");
+        }
+
+        List<String> fullChars = splitChars(joinLines(baseLines));
+        syncLines = normalizeParallelParts(syncLines, fullChars);
+        diagnostics.add("char map: fullChars=" + fullChars.size());
+
+        List<LyricsLine> result = new ArrayList<>();
+        int skippedLines = 0;
+        for (int index = 0; index < syncLines.size(); index++) {
+            SyncLine line = syncLines.get(index);
+            if (!line.isUsable(fullChars.size())) {
+                skippedLines++;
+                continue;
+            }
+
+            SyncLine nextLine = nextUsableLine(syncLines, index + 1, fullChars.size());
+            String lineText = joinChars(fullChars, line.start, line.end);
+            long lineStartMs = secondsToMs(line.chars.get(0));
+            long lineEndMs = nextLine != null && !nextLine.chars.isEmpty()
+                    ? secondsToMs(nextLine.chars.get(0))
+                    : secondsToMs(line.chars.get(line.chars.size() - 1)) + 2_000L;
+
+            double lineDurationSec = (lineEndMs - lineStartMs) / 1000.0;
+            double avgCharDuration = Math.max(0.2, lineDurationSec / Math.max(1, line.chars.size()));
+            double lastCharMaxDuration = Math.max(0.5, Math.min(1.5, avgCharDuration * 2.5));
+
+            TimedSyllables timedLine = buildLineSyllables(line, fullChars, lineEndMs, lastCharMaxDuration);
+            if (timedLine.syllables.isEmpty()) {
+                continue;
+            }
+            lineEndMs = timedLine.endTimeMs;
+
+            List<LyricsLine.VocalPart> vocalParts = buildVocalParts(line, fullChars, lineEndMs, lastCharMaxDuration);
+            if (vocalParts.size() > 1) {
+                LyricsLine.VocalPart leadPart = findLeadPart(vocalParts);
+                long startMs = lineStartMs;
+                long endMs = lineEndMs;
+                for (LyricsLine.VocalPart part : vocalParts) {
+                    startMs = Math.min(startMs, part.startTimeMs);
+                    endMs = Math.max(endMs, part.endTimeMs);
+                }
+                result.add(new LyricsLine(
+                        startMs,
+                        endMs,
+                        lineText,
+                        timedLine.syllables,
+                        firstNonEmpty(line.speaker, leadPart.speaker),
+                        firstNonEmpty(line.speakerColor, leadPart.speakerColor),
+                        firstNonEmpty(line.speakerFallback, leadPart.speakerFallback),
+                        firstNonEmpty(line.kind, leadPart.kind),
+                        vocalParts
+                ));
+            } else if (vocalParts.size() == 1) {
+                LyricsLine.VocalPart part = vocalParts.get(0);
+                result.add(new LyricsLine(
+                        lineStartMs,
+                        lineEndMs,
+                        lineText,
+                        timedLine.syllables,
+                        firstNonEmpty(line.speaker, part.speaker),
+                        firstNonEmpty(line.speakerColor, part.speakerColor),
+                        firstNonEmpty(line.speakerFallback, part.speakerFallback),
+                        firstNonEmpty(line.kind, part.kind),
+                        Collections.emptyList()
+                ));
+            } else {
+                result.add(new LyricsLine(
+                        lineStartMs,
+                        lineEndMs,
+                        lineText,
+                        timedLine.syllables,
+                        line.speaker,
+                        line.speakerColor,
+                        line.speakerFallback,
+                        line.kind,
+                        Collections.emptyList()
+                ));
+            }
+        }
+
+        if (result.isEmpty()) {
+            return ApplyResult.empty("rendered 0 karaoke lines; skippedSyncLines="
+                    + skippedLines
+                    + " / fullChars=" + fullChars.size());
+        }
+        if (skippedLines > 0) {
+            diagnostics.add("skipped unusable sync lines=" + skippedLines);
+        }
+        return new ApplyResult(result, diagnostics);
+    }
+
+    private static boolean canApplyLrclibFingerprintFallback(
+            JSONObject source,
+            String currentProvider,
+            long currentLrclibId,
+            boolean hasExactLineShape
+    ) {
+        if (!hasExactLineShape || source == null || currentLrclibId <= 0L) {
+            return false;
+        }
+        if (!"lrclib".equals(source.optString("provider", "").trim().toLowerCase(Locale.ROOT))) {
+            return false;
+        }
+        if (!"lrclib".equals(currentProvider == null ? "" : currentProvider.trim().toLowerCase(Locale.ROOT))) {
+            return false;
+        }
+        return sourceLrclibId(source) == currentLrclibId;
+    }
+
+    private static long sourceLrclibId(JSONObject source) {
+        Object value = source == null ? null : source.opt("lrclibId");
+        if (value == null || value == JSONObject.NULL) {
+            value = source == null ? null : source.opt("id");
+        }
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        if (value instanceof String) {
+            try {
+                return Long.parseLong(((String) value).trim());
+            } catch (NumberFormatException ignored) {
+                return 0L;
+            }
+        }
+        return 0L;
+    }
+
+    private static TimedSyllables buildLineSyllables(
+            SyncLine line,
+            List<String> fullChars,
+            long lineEndMs,
+            double lastCharMaxDuration
+    ) {
+        int charCount = Math.min(line.chars.size(), line.end - line.start + 1);
+        if (charCount == 0) {
+            return new TimedSyllables(Collections.emptyList(), lineEndMs);
+        }
+
+        List<LyricsLine.Syllable> syllables = new ArrayList<>();
+        long adjustedEndMs = lineEndMs;
+        for (int charIndex = 0; charIndex < charCount; charIndex++) {
+            long charStartMs = secondsToMs(line.chars.get(charIndex));
+            long charEndMs;
+            if (charIndex < charCount - 1) {
+                charEndMs = secondsToMs(line.chars.get(charIndex + 1));
+            } else if (heldEnd(line.chars) != null) {
+                charEndMs = heldEnd(line.chars);
+                adjustedEndMs = charEndMs;
+            } else if ("line".equals(line.granularity)) {
+                charEndMs = lineEndMs;
+                adjustedEndMs = lineEndMs;
+            } else {
+                long naturalEndMs = secondsToMs(line.chars.get(charIndex) + lastCharMaxDuration);
+                charEndMs = Math.min(lineEndMs, naturalEndMs);
+                adjustedEndMs = charEndMs;
+            }
+            syllables.add(styledSyllable(
+                    fullChars.get(line.start + charIndex),
+                    charStartMs,
+                    charEndMs,
+                    false,
+                    line.start + charIndex,
+                    line.styleRanges
+            ));
+        }
+        return new TimedSyllables(collapseSyllables(syllables, line.granularity, adjustedEndMs, line.chars, null), adjustedEndMs);
+    }
+
+    private static List<LyricsLine.Syllable> collapseSyllables(
+            List<LyricsLine.Syllable> source,
+            String granularity,
+            long endTimeMs
+    ) {
+        if (source == null || source.isEmpty() || "character".equals(normalizeGranularity(granularity))) {
+            return source == null ? Collections.emptyList() : source;
+        }
+        String normalizedGranularity = normalizeGranularity(granularity);
+        List<LyricsLine.Syllable> grouped = new ArrayList<>();
+        for (LyricsLine.Syllable syllable : source) {
+            long startTime = "line".equals(normalizedGranularity)
+                    ? source.get(0).startTimeMs
+                    : syllable.startTimeMs;
+            LyricsLine.Syllable previous = grouped.isEmpty() ? null : grouped.get(grouped.size() - 1);
+            if (previous != null
+                    && ("line".equals(normalizedGranularity) || previous.startTimeMs == startTime)
+                    && previous.styleKey().equals(syllable.styleKey())) {
+                grouped.set(grouped.size() - 1, previous.copy(
+                        previous.text + syllable.text,
+                        previous.startTimeMs,
+                        Math.max(previous.endTimeMs, syllable.endTimeMs),
+                        "word".equals(normalizedGranularity)
+                ));
+                continue;
+            }
+            grouped.add(syllable.copy(
+                    syllable.text,
+                    startTime,
+                    syllable.endTimeMs,
+                    "word".equals(normalizedGranularity)
+            ));
+        }
+        for (int index = 0; index < grouped.size(); index++) {
+            LyricsLine.Syllable syllable = grouped.get(index);
+            long groupEnd = endTimeMs;
+            if ("word".equals(normalizedGranularity)) {
+                int nextIndex = index + 1;
+                while (nextIndex < grouped.size()
+                        && grouped.get(nextIndex).startTimeMs <= syllable.startTimeMs) {
+                    nextIndex += 1;
+                }
+                if (nextIndex < grouped.size()) {
+                    groupEnd = grouped.get(nextIndex).startTimeMs;
+                }
+            }
+            grouped.set(index, syllable.copy(
+                    syllable.text,
+                    syllable.startTimeMs,
+                    Math.max(syllable.startTimeMs, groupEnd),
+                    syllable.sourceWordUnit
+            ));
+        }
+        return grouped;
+    }
+
+    private static Long heldEnd(List<Double> timing) {
+        return timing instanceof SyncDataV6Codec.Timing ? ((SyncDataV6Codec.Timing) timing).endMs : null;
+    }
+
+    private static List<LyricsLine.Syllable> collapseSyllables(
+            List<LyricsLine.Syllable> source, String granularity, long endTimeMs,
+            List<Double> values, List<Integer> indices
+    ) {
+        if (!(values instanceof SyncDataV6Codec.Timing)) return collapseSyllables(source, granularity, endTimeMs);
+        SyncDataV6Codec.Timing timing = (SyncDataV6Codec.Timing) values;
+        List<LyricsLine.Syllable> grouped = new ArrayList<>();
+        List<Integer> groups = new ArrayList<>(); List<String> units = new ArrayList<>();
+        for (int position = 0; position < source.size(); position++) {
+            LyricsLine.Syllable syllable = source.get(position);
+            Integer index = indices == null ? Integer.valueOf(position) : indices.get(position);
+            String unit = index == null ? "character" : timing.unit(index);
+            int group = index == null ? Integer.MIN_VALUE : timing.group(index);
+            int last = grouped.size() - 1;
+            LyricsLine.Syllable previous = last < 0 ? null : grouped.get(last);
+            if (!"character".equals(unit) && previous != null && groups.get(last) == group
+                    && units.get(last).equals(unit) && previous.styleKey().equals(syllable.styleKey())) {
+                grouped.set(last, previous.copy(previous.text + syllable.text, previous.startTimeMs,
+                        Math.max(previous.endTimeMs, syllable.endTimeMs), "word".equals(unit)));
+            } else {
+                grouped.add(syllable.copy(syllable.text, syllable.startTimeMs, syllable.endTimeMs, "word".equals(unit)));
+                groups.add(group); units.add(unit);
+            }
+        }
+        long nextDistinctStart = endTimeMs;
+        for (int index = grouped.size() - 1; index >= 0; index--) {
+            LyricsLine.Syllable syllable = grouped.get(index);
+            if (index + 1 < grouped.size() && grouped.get(index + 1).startTimeMs > syllable.startTimeMs) nextDistinctStart = grouped.get(index + 1).startTimeMs;
+            if ("character".equals(units.get(index))) continue;
+            grouped.set(index, syllable.copy(syllable.text, syllable.startTimeMs,
+                    Math.max(syllable.startTimeMs, nextDistinctStart), syllable.sourceWordUnit));
+        }
+        return grouped;
+    }
+
+    private static LyricsLine.Syllable styledSyllable(
+            String text,
+            long startTimeMs,
+            long endTimeMs,
+            boolean sourceWordUnit,
+            int absoluteIndex,
+            List<StyleRange> styleRanges
+    ) {
+        if (styleRanges == null || styleRanges.isEmpty()) {
+            return new LyricsLine.Syllable(text, startTimeMs, endTimeMs, sourceWordUnit);
+        }
+        StyleRange style = findStyleRange(styleRanges, absoluteIndex);
+        if (style == null) {
+            return new LyricsLine.Syllable(text, startTimeMs, endTimeMs, sourceWordUnit);
+        }
+        return new LyricsLine.Syllable(
+                text,
+                startTimeMs,
+                endTimeMs,
+                sourceWordUnit,
+                true,
+                style.kind,
+                style.speaker,
+                style.speakerColor,
+                style.speakerFallback
+        );
+    }
+
+    private static StyleRange findStyleRange(List<StyleRange> styleRanges, int absoluteIndex) {
+        int low = 0;
+        int high = styleRanges == null ? -1 : styleRanges.size() - 1;
+        while (low <= high) {
+            int middle = (low + high) >>> 1;
+            StyleRange range = styleRanges.get(middle);
+            if (absoluteIndex < range.start) {
+                high = middle - 1;
+            } else if (absoluteIndex > range.end) {
+                low = middle + 1;
+            } else {
+                return range;
+            }
+        }
+        return null;
+    }
+
+    private static List<LyricsLine.VocalPart> buildVocalParts(
+            SyncLine line,
+            List<String> fullChars,
+            long fallbackEndMs,
+            double lastCharMaxDuration
+    ) {
+        if (line.parts.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<LyricsLine.VocalPart> result = new ArrayList<>();
+        for (ParallelPart part : line.parts) {
+            LyricsLine.VocalPart vocalPart = buildVocalPart(part, line, fullChars, fallbackEndMs, lastCharMaxDuration);
+            if (vocalPart != null) {
+                result.add(vocalPart);
+            }
+        }
+        return result;
+    }
+
+    private static LyricsLine.VocalPart buildVocalPart(
+            ParallelPart part,
+            SyncLine line,
+            List<String> fullChars,
+            long fallbackEndMs,
+            double lastCharMaxDuration
+    ) {
+        if (part == null || part.ranges.isEmpty() || part.chars.isEmpty()) {
+            return null;
+        }
+
+        List<LyricsLine.Syllable> syllables = new ArrayList<>();
+        int partCharIndex = 0;
+        List<Integer> timingIndices = new ArrayList<>();
+        for (int rangeIndex = 0; rangeIndex < part.ranges.size(); rangeIndex++) {
+            Range range = part.ranges.get(rangeIndex);
+            if (rangeIndex > 0) {
+                int joinMode = rangeIndex - 1 < part.join.size() ? part.join.get(rangeIndex - 1) : 1;
+                if (joinMode == 1 || joinMode == 2) {
+                    long previousTime = syllables.isEmpty()
+                            ? secondsToMs(part.chars.get(Math.max(0, Math.min(partCharIndex, part.chars.size() - 1))))
+                            : syllables.get(syllables.size() - 1).endTimeMs;
+                    syllables.add(new LyricsLine.Syllable(" ", previousTime, previousTime, false));
+                    timingIndices.add(null);
+                }
+            }
+
+            for (int sourceIndex = range.start; sourceIndex <= range.end; sourceIndex++) {
+                if (sourceIndex < 0 || sourceIndex >= fullChars.size()) {
+                    partCharIndex++;
+                    continue;
+                }
+                double startSeconds = partCharIndex < part.chars.size()
+                        ? part.chars.get(partCharIndex)
+                        : (line.chars.isEmpty() ? 0.0 : line.chars.get(0));
+                long charStartMs = secondsToMs(startSeconds);
+                long charEndMs;
+                if (partCharIndex + 1 < part.chars.size()) {
+                    charEndMs = secondsToMs(part.chars.get(partCharIndex + 1));
+                } else if (heldEnd(part.chars) != null) {
+                    charEndMs = heldEnd(part.chars);
+                } else if ("line".equals(part.granularity)) {
+                    charEndMs = fallbackEndMs;
+                } else {
+                    charEndMs = Math.min(fallbackEndMs, charStartMs + Math.round(lastCharMaxDuration * 1000.0));
+                }
+                syllables.add(styledSyllable(
+                        fullChars.get(sourceIndex), charStartMs, charEndMs, false,
+                        sourceIndex, line.styleRanges
+                ));
+                timingIndices.add(partCharIndex);
+                partCharIndex++;
+            }
+        }
+
+        List<LyricsLine.Syllable> trimmed = trimWhitespaceSyllables(
+                collapseSyllables(syllables, part.granularity, heldEnd(part.chars) == null ? fallbackEndMs : heldEnd(part.chars), part.chars, timingIndices)
+        );
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+
+        StringBuilder text = new StringBuilder();
+        for (LyricsLine.Syllable syllable : trimmed) {
+            text.append(syllable.text);
+        }
+        return new LyricsLine.VocalPart(
+                part.id,
+                part.role,
+                part.speaker,
+                part.speakerColor,
+                part.speakerFallback,
+                part.kind,
+                text.toString(),
+                trimmed
+        );
+    }
+
+    private static List<LyricsLine.Syllable> trimWhitespaceSyllables(List<LyricsLine.Syllable> syllables) {
+        int start = 0;
+        int end = syllables == null ? 0 : syllables.size();
+        while (start < end && isWhitespace(syllables.get(start).text)) {
+            start++;
+        }
+        while (end > start && isWhitespace(syllables.get(end - 1).text)) {
+            end--;
+        }
+        if (start >= end) {
+            return Collections.emptyList();
+        }
+        return new ArrayList<>(syllables.subList(start, end));
+    }
+
+    private static LyricsLine.VocalPart findLeadPart(List<LyricsLine.VocalPart> parts) {
+        for (LyricsLine.VocalPart part : parts) {
+            if ("lead".equals(part.role)) {
+                return part;
+            }
+        }
+        return parts.get(0);
+    }
+
+    private static List<String> getBaseLyricLines(List<LyricsLine> lines, boolean normalizeParentheticalLines) {
+        List<String> result = new ArrayList<>();
+        for (LyricsLine line : lines) {
+            String text = normalize(line.text).trim();
+            if (!text.isEmpty()) {
+                result.add(normalizeParentheticalLines ? stripStandaloneParentheticalLine(text) : text);
+            }
+        }
+
+        if (normalizeParentheticalLines) {
+            result = normalizeStandaloneParentheticalBlocks(result);
+        }
+
+        List<String> filtered = new ArrayList<>();
+        for (String line : result) {
+            String text = normalize(line).trim();
+            if (!text.isEmpty()) {
+                filtered.add(text);
+            }
+        }
+        return filtered;
+    }
+
+    private static List<SyncLine> parseSyncLines(JSONArray rawLines) {
+        List<SyncLine> result = new ArrayList<>();
+        for (int index = 0; index < rawLines.length(); index++) {
+            JSONObject rawLine = rawLines.optJSONObject(index);
+            if (rawLine == null) continue;
+
+            int start = rawLine.optInt("start", -1);
+            int end = rawLine.optInt("end", -1);
+            String granularity = normalizeGranularity(rawLine.optString("granularity", "character"));
+            List<Double> chars = readCompactTiming(rawLine, end - start + 1, granularity);
+            Parallel parallel = parseParallel(rawLine.optJSONObject("parallel"));
+            result.add(new SyncLine(
+                    start,
+                    end,
+                    chars,
+                    granularity,
+                    rawLine.optString("speaker", ""),
+                    rawLine.optString("speaker-color", ""),
+                    rawLine.optString("speaker-fallback", ""),
+                    rawLine.optString("kind", "vocal"),
+                    readStyleRanges(rawLine.optJSONArray("styleRanges"), start, end),
+                    parallel.parts,
+                    parallel.hiddenRanges
+            ));
+        }
+        return result;
+    }
+
+    private static Parallel parseParallel(JSONObject object) {
+        if (object == null) {
+            return new Parallel(Collections.emptyList(), Collections.emptyList());
+        }
+
+        List<Range> hiddenRanges = readRanges(object.optJSONArray("hiddenRanges"));
+        JSONArray rawParts = object.optJSONArray("parts");
+        if (rawParts == null || rawParts.length() == 0) {
+            return new Parallel(Collections.emptyList(), hiddenRanges);
+        }
+
+        List<ParallelPart> parts = new ArrayList<>();
+        for (int index = 0; index < rawParts.length(); index++) {
+            JSONObject rawPart = rawParts.optJSONObject(index);
+            if (rawPart == null) continue;
+
+            List<Range> ranges = readRanges(rawPart.optJSONArray("ranges"));
+            String granularity = normalizeGranularity(rawPart.optString("granularity", "character"));
+            List<Double> chars = readCompactTiming(rawPart, countRangeChars(ranges), granularity);
+            if (ranges.isEmpty() || chars.isEmpty()) {
+                continue;
+            }
+            parts.add(new ParallelPart(
+                    rawPart.optString("id", ""),
+                    rawPart.optString("role", ""),
+                    rawPart.optString("speaker", ""),
+                    rawPart.optString("speaker-color", ""),
+                    rawPart.optString("speaker-fallback", ""),
+                    rawPart.optString("kind", "vocal"),
+                    granularity,
+                    ranges,
+                    readIntArray(rawPart.optJSONArray("join")),
+                    chars
+            ));
+        }
+        return new Parallel(parts, hiddenRanges);
+    }
+
+    private static String normalizeGranularity(String value) {
+        String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+        return "line".equals(normalized) || "word".equals(normalized) ? normalized : "character";
+    }
+
+    private static List<StyleRange> readStyleRanges(JSONArray rawRanges, int lineStart, int lineEnd) {
+        if (rawRanges == null || rawRanges.length() == 0) {
+            return Collections.emptyList();
+        }
+        List<StyleRange> result = new ArrayList<>();
+        int previousEnd = lineStart - 1;
+        for (int index = 0; index < rawRanges.length(); index++) {
+            if (result.size() >= MAX_STYLE_RANGES_PER_LINE) break;
+            JSONObject raw = rawRanges.optJSONObject(index);
+            if (raw == null) continue;
+            int start = raw.optInt("start", -1);
+            int end = raw.optInt("end", -1);
+            String kind = raw.optString("kind", "").trim().toLowerCase(Locale.ROOT);
+            if (!isValidStyleKind(kind)) kind = "";
+            String speaker = normalizeStyleSpeaker(raw.optString("speaker", ""));
+            String speakerColor = normalizeStyleSpeakerColor(raw.optString("speaker-color", ""));
+            String speakerFallback = normalizeStyleSpeakerFallback(raw.optString("speaker-fallback", ""));
+            if (isCustomStyleSpeaker(speaker) && speakerColor.isEmpty()) speaker = "";
+            if (start < lineStart
+                    || end > lineEnd
+                    || end < start
+                    || start <= previousEnd
+                    || (kind.isEmpty() && speaker.isEmpty())) {
+                continue;
+            }
+            result.add(new StyleRange(
+                    start,
+                    end,
+                    kind,
+                    speaker,
+                    speaker.isEmpty() ? "" : speakerColor,
+                    speaker.isEmpty() ? "" : speakerFallback
+            ));
+            previousEnd = end;
+        }
+        return result;
+    }
+
+    private static boolean isValidStyleKind(String kind) {
+        switch (kind == null ? "" : kind) {
+            case "vocal":
+            case "effect":
+            case "adlib":
+            case "pulse":
+            case "wave":
+            case "sparkle":
+            case "echo":
+            case "whisper":
+            case "bounce":
+            case "sway":
+            case "glow":
+            case "glitch":
+            case "flicker":
+            case "float":
+            case "blur":
+            case "pop":
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static String normalizeStyleSpeaker(String value) {
+        String speaker = value == null ? "" : value.trim()
+                .replace('_', ' ')
+                .replace('-', ' ')
+                .replaceAll("\\s+", " ")
+                .toUpperCase(Locale.ROOT);
+        if ("NORMAL".equals(speaker) || "CUSTOM".equals(speaker)) return speaker;
+        if (speaker.matches("^(MALE|FEMALE|DUET) [1-5]$")) return speaker;
+        return speaker.matches("^(MALE|FEMALE|DUET) CUSTOM$") ? speaker : "";
+    }
+
+    private static boolean isCustomStyleSpeaker(String speaker) {
+        return "CUSTOM".equals(speaker) || (speaker != null && speaker.endsWith(" CUSTOM"));
+    }
+
+    private static String normalizeStyleSpeakerColor(String value) {
+        String color = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+        return color.matches("^#[0-9a-f]{6}$") ? color : "";
+    }
+
+    private static String normalizeStyleSpeakerFallback(String value) {
+        String fallback = value == null ? "" : value.trim()
+                .replace('_', ' ')
+                .replace('-', ' ')
+                .replaceAll("\\s+", " ")
+                .toUpperCase(Locale.ROOT);
+        return "MALE 1".equals(fallback) || "FEMALE 1".equals(fallback) || "DUET 1".equals(fallback)
+                ? fallback
+                : "";
+    }
+
+    private static List<Double> readCompactTiming(JSONObject object, int expectedLength, String granularity) {
+        if (object.opt(SyncDataV6Codec.TIMING_KEY) instanceof SyncDataV6Codec.Timing) return (SyncDataV6Codec.Timing) object.opt(SyncDataV6Codec.TIMING_KEY);
+        List<Double> chars = readDoubleArray(object.optJSONArray("chars"));
+        if (!chars.isEmpty() || expectedLength <= 0) return chars;
+        if ("line".equals(granularity) && object.has("timing")) {
+            double time = object.optDouble("timing", Double.NaN);
+            if (!Double.isFinite(time)) return Collections.emptyList();
+            return new ArrayList<>(Collections.nCopies(expectedLength, time));
+        }
+        if (!"word".equals(granularity)) return Collections.emptyList();
+        JSONArray timing = object.optJSONArray("timing");
+        if (timing == null || timing.length() == 0) return Collections.emptyList();
+        List<Double> expanded = new ArrayList<>(Collections.nCopies(expectedLength, null));
+        int start = 0;
+        for (int index = 0; index < timing.length(); index++) {
+            JSONArray mark = timing.optJSONArray(index);
+            if (mark == null || mark.length() != 2) return Collections.emptyList();
+            int end = mark.optInt(0, -1);
+            double time = mark.optDouble(1, Double.NaN);
+            if (end < start || end >= expectedLength || !Double.isFinite(time)) return Collections.emptyList();
+            for (int charIndex = start; charIndex <= end; charIndex++) expanded.set(charIndex, time);
+            start = end + 1;
+        }
+        return start == expectedLength ? expanded : Collections.emptyList();
+    }
+
+    private static List<SyncLine> normalizeParallelParts(List<SyncLine> lines, List<String> fullChars) {
+        if (lines.isEmpty() || fullChars.isEmpty()) {
+            return lines;
+        }
+
+        List<SyncLine> normalized = new ArrayList<>();
+        for (SyncLine line : lines) {
+            if (line.parts.isEmpty()) {
+                normalized.add(line);
+                continue;
+            }
+
+            List<ParallelPart> parts = new ArrayList<>();
+            for (ParallelPart part : line.parts) {
+                parts.add(stripParentheticalPartRange(part, fullChars));
+            }
+            parts = splitHiddenDelimitedParallelParts(parts, line.hiddenRanges);
+            normalized.add(line.withParts(parts));
+        }
+        return normalized;
+    }
+
+    private static ParallelPart stripParentheticalPartRange(ParallelPart part, List<String> fullChars) {
+        if (part.ranges.size() != 1) {
+            return part;
+        }
+
+        Range range = part.ranges.get(0);
+        if (range.start < 0 || range.end >= fullChars.size() || part.chars.size() != range.count()) {
+            return part;
+        }
+
+        StripResult stripped = stripStandaloneParentheticalCharRange(fullChars, range.start, range.end);
+        if (!stripped.changed || stripped.start > stripped.end) {
+            return part;
+        }
+
+        int charOffset = stripped.start - range.start;
+        int charEnd = charOffset + (stripped.end - stripped.start + 1);
+        if (charOffset < 0 || charEnd > part.chars.size()) {
+            return part;
+        }
+        List<Double> chars = SyncDataV6Codec.sliceTiming(part.chars, charOffset, charEnd);
+        return part.withRangesAndChars(
+                Collections.singletonList(new Range(stripped.start, stripped.end)),
+                chars
+        );
+    }
+
+    private static List<ParallelPart> splitHiddenDelimitedParallelParts(List<ParallelPart> parts, List<Range> hiddenRanges) {
+        if (hiddenRanges.isEmpty()) {
+            return parts;
+        }
+
+        Set<String> usedIds = new HashSet<>();
+        for (ParallelPart part : parts) {
+            if (!part.id.isEmpty()) {
+                usedIds.add(part.id);
+            }
+        }
+
+        List<ParallelPart> split = new ArrayList<>();
+        boolean changed = false;
+        for (ParallelPart part : parts) {
+            List<ParallelPart> splitPart = splitHiddenDelimitedParallelPart(part, hiddenRanges, usedIds);
+            if (splitPart == null) {
+                split.add(part);
+            } else {
+                changed = true;
+                split.addAll(splitPart);
+            }
+        }
+        return changed && split.size() <= 16 ? split : parts;
+    }
+
+    private static List<ParallelPart> splitHiddenDelimitedParallelPart(
+            ParallelPart part,
+            List<Range> hiddenRanges,
+            Set<String> usedIds
+    ) {
+        if (!"background".equals(part.role)
+                || part.id.isEmpty()
+                || part.ranges.size() < 2
+                || part.join.size() != part.ranges.size() - 1
+                || part.chars.size() != countRangeChars(part.ranges)) {
+            return null;
+        }
+        for (int joinMode : part.join) {
+            if (joinMode < 0 || joinMode > 2 || joinMode == 2) {
+                return null;
+            }
+        }
+        for (int index = 0; index < part.ranges.size(); index++) {
+            Range range = part.ranges.get(index);
+            if (index > 0) {
+                Range previous = part.ranges.get(index - 1);
+                if (range.start <= previous.end
+                        || !isRangeGapFullyHidden(hiddenRanges, previous.end + 1, range.start - 1)) {
+                    return null;
+                }
+            }
+        }
+
+        List<ParallelPart> splitParts = new ArrayList<>();
+        int charOffset = 0;
+        for (int index = 0; index < part.ranges.size(); index++) {
+            Range range = part.ranges.get(index);
+            int charCount = range.count();
+            String id = index == 0 ? part.id : getNextPartId(usedIds);
+            if (id == null) {
+                return null;
+            }
+            splitParts.add(new ParallelPart(
+                    id,
+                    part.role,
+                    part.speaker,
+                    part.speakerColor,
+                    part.speakerFallback,
+                    part.kind,
+                    part.granularity,
+                    Collections.singletonList(range),
+                    Collections.emptyList(),
+                    SyncDataV6Codec.sliceTiming(part.chars, charOffset, charOffset + charCount)
+            ));
+            charOffset += charCount;
+        }
+        return splitParts;
+    }
+
+    private static String getNextPartId(Set<String> usedIds) {
+        for (char label = 'a'; label <= 'z'; label++) {
+            String id = String.valueOf(label);
+            if (!usedIds.contains(id)) {
+                usedIds.add(id);
+                return id;
+            }
+        }
+        for (int index = 1; index <= 16; index++) {
+            String id = "p" + index;
+            if (!usedIds.contains(id)) {
+                usedIds.add(id);
+                return id;
+            }
+        }
+        return null;
+    }
+
+    private static boolean isRangeGapFullyHidden(List<Range> hiddenRanges, int gapStart, int gapEnd) {
+        if (gapStart > gapEnd || hiddenRanges.isEmpty()) {
+            return false;
+        }
+
+        int cursor = gapStart;
+        for (Range range : hiddenRanges) {
+            if (range.end < cursor) {
+                continue;
+            }
+            if (range.start > cursor) {
+                return false;
+            }
+            cursor = Math.max(cursor, range.end + 1);
+            if (cursor > gapEnd) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int countRangeChars(List<Range> ranges) {
+        int total = 0;
+        for (Range range : ranges) {
+            total += range.count();
+        }
+        return total;
+    }
+
+    private static SyncLine nextUsableLine(List<SyncLine> lines, int startIndex, int fullCharCount) {
+        for (int index = startIndex; index < lines.size(); index++) {
+            SyncLine line = lines.get(index);
+            if (line.isUsable(fullCharCount)) {
+                return line;
+            }
+        }
+        return null;
+    }
+
+    private static int resolveSourcePrefix(JSONObject source, List<String> baseLines) {
+        if (source == null) {
+            return 0;
+        }
+
+        List<Integer> expectedCounts = readIntArray(source.optJSONArray("lineCharCounts"));
+        if (expectedCounts.isEmpty()) {
+            return 0;
+        }
+
+        List<Integer> actualCounts = new ArrayList<>();
+        for (String line : baseLines) {
+            actualCounts.add(normalizedCodePointCount(line));
+        }
+
+        if (sameShape(expectedCounts, actualCounts, 0)) {
+            return 0;
+        }
+        if (expectedCounts.size() <= actualCounts.size()) {
+            return -1;
+        }
+
+        int maxPrefix = expectedCounts.size() - actualCounts.size();
+        for (int prefix = 1; prefix <= maxPrefix; prefix++) {
+            if (sameShape(expectedCounts, actualCounts, prefix)) {
+                return prefix;
+            }
+        }
+        return -1;
+    }
+
+    private static boolean sameShape(List<Integer> expected, List<Integer> actual, int expectedOffset) {
+        if (expected.size() - expectedOffset != actual.size()) {
+            return false;
+        }
+        for (int index = 0; index < actual.size(); index++) {
+            if (!expected.get(expectedOffset + index).equals(actual.get(index))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static int leadingCharOffset(List<Integer> lineCounts, int prefixLength) {
+        int total = 0;
+        for (int index = 0; index < Math.min(prefixLength, lineCounts.size()); index++) {
+            total += Math.max(0, lineCounts.get(index));
+        }
+        return total;
+    }
+
+    private static List<SyncLine> shiftSyncLines(List<SyncLine> lines, int charOffset) {
+        if (charOffset <= 0) {
+            return lines;
+        }
+
+        List<SyncLine> shifted = new ArrayList<>();
+        for (SyncLine line : lines) {
+            if (line.end < charOffset) {
+                continue;
+            }
+            List<ParallelPart> parts = new ArrayList<>();
+            for (ParallelPart part : line.parts) {
+                ParallelPart shiftedPart = shiftPartRanges(part, charOffset);
+                if (shiftedPart != null) {
+                    parts.add(shiftedPart);
+                }
+            }
+            shifted.add(new SyncLine(
+                    Math.max(0, line.start - charOffset),
+                    Math.max(0, line.end - charOffset),
+                    line.chars,
+                    line.granularity,
+                    line.speaker,
+                    line.speakerColor,
+                    line.speakerFallback,
+                    line.kind,
+                    shiftStyleRanges(line.styleRanges, charOffset),
+                    parts,
+                    shiftRanges(line.hiddenRanges, charOffset).ranges
+            ));
+        }
+        return shifted;
+    }
+
+    private static ParallelPart shiftPartRanges(ParallelPart part, int charOffset) {
+        ShiftedRanges shifted = shiftRanges(part.ranges, charOffset);
+        if (shifted.ranges.isEmpty()) {
+            return null;
+        }
+
+        int nextCharCount = countRangeChars(shifted.ranges);
+        int from = Math.min(Math.max(0, shifted.removedLeadingChars), part.chars.size());
+        int to = Math.min(part.chars.size(), from + nextCharCount);
+        if (to - from != nextCharCount) {
+            return null;
+        }
+        return part.withRangesAndChars(shifted.ranges, SyncDataV6Codec.sliceTiming(part.chars, from, to));
+    }
+
+    private static ShiftedRanges shiftRanges(List<Range> ranges, int charOffset) {
+        List<Range> shifted = new ArrayList<>();
+        int removedLeadingChars = 0;
+        for (Range range : ranges) {
+            if (range.end < charOffset) {
+                removedLeadingChars += range.count();
+                continue;
+            }
+            if (range.start < charOffset) {
+                removedLeadingChars += charOffset - range.start;
+            }
+            shifted.add(new Range(
+                    Math.max(0, range.start - charOffset),
+                    Math.max(0, range.end - charOffset)
+            ));
+        }
+        return new ShiftedRanges(shifted, removedLeadingChars);
+    }
+
+    private static List<StyleRange> shiftStyleRanges(List<StyleRange> ranges, int charOffset) {
+        if (ranges == null || ranges.isEmpty()) return Collections.emptyList();
+        List<StyleRange> shifted = new ArrayList<>();
+        for (StyleRange range : ranges) {
+            if (range.end < charOffset) continue;
+            shifted.add(new StyleRange(
+                    Math.max(0, range.start - charOffset),
+                    Math.max(0, range.end - charOffset),
+                    range.kind,
+                    range.speaker,
+                    range.speakerColor,
+                    range.speakerFallback
+            ));
+        }
+        return shifted;
+    }
+
+    private static List<SyncLine> shiftSyncTimes(List<SyncLine> lines, double offsetSeconds) {
+        List<SyncLine> shifted = new ArrayList<>();
+        for (SyncLine line : lines) {
+            List<Double> chars = shiftTimes(line.chars, offsetSeconds);
+            List<ParallelPart> parts = new ArrayList<>();
+            for (ParallelPart part : line.parts) {
+                parts.add(part.withChars(shiftTimes(part.chars, offsetSeconds)));
+            }
+            shifted.add(new SyncLine(
+                    line.start,
+                    line.end,
+                    chars,
+                    line.granularity,
+                    line.speaker,
+                    line.speakerColor,
+                    line.speakerFallback,
+                    line.kind,
+                    line.styleRanges,
+                    parts,
+                    line.hiddenRanges
+            ));
+        }
+        return shifted;
+    }
+
+    private static List<Double> shiftTimes(List<Double> values, double offsetSeconds) {
+        if (values instanceof SyncDataV6Codec.Timing) return ((SyncDataV6Codec.Timing) values).shifted(offsetSeconds);
+        List<Double> shifted = new ArrayList<>();
+        for (double value : values) {
+            shifted.add(Math.max(0.0, round3(value + offsetSeconds)));
+        }
+        return shifted;
+    }
+
+    private static DurationAdjustment computeDurationAdjustment(JSONObject syncBody, TrackSnapshot track) {
+        long currentDurationMs = track == null ? 0L : track.durationMs;
+        if (currentDurationMs <= 0L) {
+            return new DurationAdjustment(0L, currentDurationMs, 0L, 0L);
+        }
+        long registeredDurationMs = normalizeSyncDataDurationMs(
+                syncBody == null ? null : syncBody.opt("trackDurationMs"),
+                syncBody == null ? null : syncBody.opt("durationMs"),
+                syncBody == null ? null : syncBody.opt("duration_ms")
+        );
+        if (registeredDurationMs <= 0L) {
+            return new DurationAdjustment(0L, currentDurationMs, 0L, 0L);
+        }
+        long diffMs = currentDurationMs - registeredDurationMs;
+        if (Math.abs(diffMs) < DURATION_OFFSET_MIN_DIFF_MS) {
+            return new DurationAdjustment(registeredDurationMs, currentDurationMs, diffMs, 0L);
+        }
+        return new DurationAdjustment(
+                registeredDurationMs,
+                currentDurationMs,
+                diffMs,
+                Math.round(diffMs * DURATION_FRONT_OFFSET_RATIO)
+        );
+    }
+
+    private static long normalizeSyncDataDurationMs(Object... values) {
+        if (values == null) {
+            return 0L;
+        }
+        for (Object value : values) {
+            if (value == null || JSONObject.NULL.equals(value)) {
+                continue;
+            }
+            double numeric;
+            if (value instanceof Number) {
+                numeric = ((Number) value).doubleValue();
+            } else {
+                String text = String.valueOf(value).trim();
+                if (text.isEmpty()) {
+                    continue;
+                }
+                try {
+                    numeric = Double.parseDouble(text);
+                } catch (NumberFormatException ignored) {
+                    continue;
+                }
+            }
+            if (Double.isFinite(numeric) && numeric > 0.0 && numeric <= 86_400_000.0) {
+                return Math.round(numeric);
+            }
+        }
+        return 0L;
+    }
+
+    private static List<Range> readRanges(JSONArray array) {
+        if (array == null) {
+            return Collections.emptyList();
+        }
+        List<Range> result = new ArrayList<>();
+        for (int index = 0; index < array.length(); index++) {
+            JSONObject rawRange = array.optJSONObject(index);
+            if (rawRange == null) {
+                continue;
+            }
+            int start = rawRange.optInt("start", -1);
+            int end = rawRange.optInt("end", -1);
+            if (start >= 0 && end >= start) {
+                result.add(new Range(start, end));
+            }
+        }
+        return result;
+    }
+
+    private static List<Integer> readIntArray(JSONArray array) {
+        if (array == null) {
+            return Collections.emptyList();
+        }
+        List<Integer> result = new ArrayList<>();
+        for (int index = 0; index < array.length(); index++) {
+            result.add(array.optInt(index, 0));
+        }
+        return result;
+    }
+
+    private static List<Double> readDoubleArray(JSONArray array) {
+        if (array == null) {
+            return Collections.emptyList();
+        }
+        List<Double> result = new ArrayList<>();
+        for (int index = 0; index < array.length(); index++) {
+            double value = array.optDouble(index, Double.NaN);
+            if (Double.isFinite(value)) {
+                result.add(value);
+            }
+        }
+        return result;
+    }
+
+    private static List<String> normalizeStandaloneParentheticalBlocks(List<String> lines) {
+        List<String> normalizedLines = new ArrayList<>(lines);
+        for (int index = 0; index < normalizedLines.size(); index++) {
+            String trimmed = normalize(normalizedLines.get(index)).trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+
+            String openChar = firstChar(trimmed);
+            String closeChar = getParenthesisClose(openChar);
+            if (closeChar.isEmpty() || trimmed.contains(closeChar)) {
+                continue;
+            }
+
+            int closeLineIndex = -1;
+            for (int candidate = index + 1; candidate < normalizedLines.size(); candidate++) {
+                String candidateTrimmed = normalize(normalizedLines.get(candidate)).trim();
+                if (!candidateTrimmed.isEmpty() && candidateTrimmed.endsWith(closeChar)) {
+                    closeLineIndex = candidate;
+                    break;
+                }
+            }
+            if (closeLineIndex < 0) {
+                continue;
+            }
+
+            normalizedLines.set(index, stripLeadingParenthesis(normalizedLines.get(index)).trim());
+            normalizedLines.set(closeLineIndex, stripTrailingParenthesis(normalizedLines.get(closeLineIndex), closeChar).trim());
+        }
+        return normalizedLines;
+    }
+
+    private static StripResult stripStandaloneParentheticalCharRange(List<String> chars, int start, int end) {
+        int nextStart = start;
+        int nextEnd = end;
+        boolean changed = false;
+
+        Range trimmed = trimWhitespaceRange(chars, nextStart, nextEnd);
+        nextStart = trimmed.start;
+        nextEnd = trimmed.end;
+        while (nextStart < nextEnd && isStandaloneParentheticalLine(joinChars(chars, nextStart, nextEnd))) {
+            nextStart++;
+            nextEnd--;
+            changed = true;
+            trimmed = trimWhitespaceRange(chars, nextStart, nextEnd);
+            nextStart = trimmed.start;
+            nextEnd = trimmed.end;
+        }
+
+        return new StripResult(nextStart, nextEnd, changed);
+    }
+
+    private static Range trimWhitespaceRange(List<String> chars, int start, int end) {
+        int nextStart = start;
+        int nextEnd = end;
+        while (nextStart <= nextEnd && nextStart < chars.size() && isWhitespace(chars.get(nextStart))) {
+            nextStart++;
+        }
+        while (nextEnd >= nextStart && nextEnd >= 0 && isWhitespace(chars.get(nextEnd))) {
+            nextEnd--;
+        }
+        return new Range(nextStart, nextEnd);
+    }
+
+    private static String stripStandaloneParentheticalLine(String text) {
+        String value = normalize(text).trim();
+        while (isStandaloneParentheticalLine(value)) {
+            List<String> chars = splitChars(value);
+            value = joinChars(chars, 1, chars.size() - 2).trim();
+        }
+        return value;
+    }
+
+    private static boolean isStandaloneParentheticalLine(String text) {
+        String value = normalize(text).trim();
+        List<String> chars = splitChars(value);
+        if (chars.size() < 2) {
+            return false;
+        }
+        String closeChar = getParenthesisClose(chars.get(0));
+        return !closeChar.isEmpty() && closeChar.equals(chars.get(chars.size() - 1));
+    }
+
+    private static String stripLeadingParenthesis(String line) {
+        String value = normalize(line);
+        List<String> chars = splitChars(value);
+        for (int index = 0; index < chars.size(); index++) {
+            String closeChar = getParenthesisClose(chars.get(index));
+            if (isWhitespace(chars.get(index))) {
+                continue;
+            }
+            if (!closeChar.isEmpty()) {
+                chars.remove(index);
+            }
+            break;
+        }
+        return joinChars(chars, 0, chars.size() - 1);
+    }
+
+    private static String stripTrailingParenthesis(String line, String closeChar) {
+        String value = normalize(line);
+        List<String> chars = splitChars(value);
+        for (int index = chars.size() - 1; index >= 0; index--) {
+            if (isWhitespace(chars.get(index))) {
+                continue;
+            }
+            if (chars.get(index).equals(closeChar)) {
+                chars.remove(index);
+            }
+            break;
+        }
+        return joinChars(chars, 0, chars.size() - 1);
+    }
+
+    private static String getParenthesisClose(String openChar) {
+        if ("(".equals(openChar)) return ")";
+        if ("（".equals(openChar)) return "）";
+        return "";
+    }
+
+    private static String firstChar(String value) {
+        List<String> chars = splitChars(value);
+        return chars.isEmpty() ? "" : chars.get(0);
+    }
+
+    private static String normalize(String value) {
+        return Normalizer.normalize(value == null ? "" : value, Normalizer.Form.NFC);
+    }
+
+    private static String joinLines(List<String> lines) {
+        StringBuilder builder = new StringBuilder();
+        for (String line : lines) {
+            builder.append(line);
+        }
+        return builder.toString();
+    }
+
+    private static String joinLinesForFingerprint(List<String> lines) {
+        StringBuilder builder = new StringBuilder();
+        for (int index = 0; index < lines.size(); index++) {
+            if (index > 0) {
+                builder.append('\n');
+            }
+            builder.append(lines.get(index));
+        }
+        return builder.toString();
+    }
+
+    private static List<Integer> lineCharCounts(List<String> lines) {
+        List<Integer> counts = new ArrayList<>();
+        for (String line : lines) {
+            counts.add(normalizedCodePointCount(line));
+        }
+        return counts;
+    }
+
+    private static String previewIntegers(List<Integer> values) {
+        if (values == null || values.isEmpty()) {
+            return "[]";
+        }
+        StringBuilder builder = new StringBuilder("[");
+        int limit = Math.min(12, values.size());
+        for (int index = 0; index < limit; index++) {
+            if (index > 0) {
+                builder.append(",");
+            }
+            builder.append(values.get(index));
+        }
+        if (values.size() > limit) {
+            builder.append(",...");
+        }
+        builder.append("] len=").append(values.size());
+        return builder.toString();
+    }
+
+    private static List<String> splitChars(String value) {
+        String normalized = normalize(value);
+        List<String> chars = new ArrayList<>(normalized.length());
+        normalized.codePoints().forEach(codePoint -> chars.add(new String(Character.toChars(codePoint))));
+        return chars;
+    }
+
+    private static int normalizedCodePointCount(String value) {
+        String normalized = normalize(value);
+        return normalized.codePointCount(0, normalized.length());
+    }
+
+    private static String joinChars(List<String> chars, int start, int end) {
+        StringBuilder builder = new StringBuilder();
+        int safeStart = Math.max(0, start);
+        int safeEnd = Math.min(chars.size() - 1, end);
+        for (int index = safeStart; index <= safeEnd; index++) {
+            builder.append(chars.get(index));
+        }
+        return builder.toString();
+    }
+
+    private static boolean isWhitespace(String value) {
+        if (value == null || value.isEmpty()) {
+            return true;
+        }
+        return value.codePoints().allMatch(Character::isWhitespace);
+    }
+
+    private static long secondsToMs(double seconds) {
+        return Math.round(Math.max(0.0, seconds) * 1000.0);
+    }
+
+    private static double round3(double value) {
+        return Math.round(value * 1000.0) / 1000.0;
+    }
+
+    private static String firstNonEmpty(String first, String second) {
+        if (first != null && !first.trim().isEmpty()) {
+            return first.trim();
+        }
+        return second == null ? "" : second.trim();
+    }
+
+    private static String lyricsFingerprint(String text) {
+        long hash = 2_166_136_261L;
+        List<String> chars = splitChars(text);
+        for (String character : chars) {
+            int codePoint = character.codePointAt(0);
+            hash ^= codePoint;
+            hash = (hash * 16_777_619L) & 0xffff_ffffL;
+        }
+        return String.format(Locale.ROOT, "lrclib-%s-%s",
+                Long.toString(hash, 36),
+                Long.toString(chars.size(), 36));
+    }
+
+    static final class ApplyResult {
+        final List<LyricsLine> lines;
+        final List<String> diagnostics;
+
+        ApplyResult(List<LyricsLine> lines, List<String> diagnostics) {
+            this.lines = lines == null ? Collections.emptyList() : lines;
+            this.diagnostics = diagnostics == null ? Collections.emptyList() : diagnostics;
+        }
+
+        static ApplyResult empty(String reason) {
+            List<String> diagnostics = new ArrayList<>();
+            if (reason != null && !reason.trim().isEmpty()) {
+                diagnostics.add(reason);
+            }
+            return new ApplyResult(Collections.emptyList(), diagnostics);
+        }
+    }
+
+    private static final class TimedSyllables {
+        final List<LyricsLine.Syllable> syllables;
+        final long endTimeMs;
+
+        TimedSyllables(List<LyricsLine.Syllable> syllables, long endTimeMs) {
+            this.syllables = syllables;
+            this.endTimeMs = endTimeMs;
+        }
+    }
+
+    private static final class Parallel {
+        final List<ParallelPart> parts;
+        final List<Range> hiddenRanges;
+
+        Parallel(List<ParallelPart> parts, List<Range> hiddenRanges) {
+            this.parts = parts == null ? Collections.emptyList() : new ArrayList<>(parts);
+            this.hiddenRanges = hiddenRanges == null ? Collections.emptyList() : new ArrayList<>(hiddenRanges);
+        }
+    }
+
+    private static final class SyncLine {
+        final int start;
+        final int end;
+        final List<Double> chars;
+        final String granularity;
+        final String speaker;
+        final String speakerColor;
+        final String speakerFallback;
+        final String kind;
+        final List<StyleRange> styleRanges;
+        final List<ParallelPart> parts;
+        final List<Range> hiddenRanges;
+
+        SyncLine(
+                int start,
+                int end,
+                List<Double> chars,
+                String granularity,
+                String speaker,
+                String speakerColor,
+                String speakerFallback,
+                String kind,
+                List<StyleRange> styleRanges,
+                List<ParallelPart> parts,
+                List<Range> hiddenRanges
+        ) {
+            this.start = start;
+            this.end = end;
+            this.chars = SyncDataV6Codec.copyTiming(chars);
+            this.granularity = normalizeGranularity(granularity);
+            this.speaker = speaker == null ? "" : speaker;
+            this.speakerColor = speakerColor == null ? "" : speakerColor;
+            this.speakerFallback = speakerFallback == null ? "" : speakerFallback;
+            this.kind = kind == null || kind.trim().isEmpty() ? "vocal" : kind.trim();
+            this.styleRanges = styleRanges == null ? Collections.emptyList() : new ArrayList<>(styleRanges);
+            this.parts = parts == null ? Collections.emptyList() : new ArrayList<>(parts);
+            this.hiddenRanges = hiddenRanges == null ? Collections.emptyList() : new ArrayList<>(hiddenRanges);
+        }
+
+        SyncLine withParts(List<ParallelPart> nextParts) {
+            return new SyncLine(start, end, chars, granularity, speaker, speakerColor, speakerFallback, kind, styleRanges, nextParts, hiddenRanges);
+        }
+
+        boolean isUsable(int fullCharCount) {
+            int expected = end - start + 1;
+            return start >= 0
+                    && end >= start
+                    && end < fullCharCount
+                    && expected > 0
+                    && chars.size() == expected;
+        }
+    }
+
+    private static final class ParallelPart {
+        final String id;
+        final String role;
+        final String speaker;
+        final String speakerColor;
+        final String speakerFallback;
+        final String kind;
+        final String granularity;
+        final List<Range> ranges;
+        final List<Integer> join;
+        final List<Double> chars;
+
+        ParallelPart(
+                String id,
+                String role,
+                String speaker,
+                String speakerColor,
+                String speakerFallback,
+                String kind,
+                String granularity,
+                List<Range> ranges,
+                List<Integer> join,
+                List<Double> chars
+        ) {
+            this.id = id == null ? "" : id;
+            this.role = role == null ? "" : role;
+            this.speaker = speaker == null ? "" : speaker;
+            this.speakerColor = speakerColor == null ? "" : speakerColor;
+            this.speakerFallback = speakerFallback == null ? "" : speakerFallback;
+            this.kind = kind == null || kind.trim().isEmpty() ? "vocal" : kind.trim();
+            this.granularity = normalizeGranularity(granularity);
+            this.ranges = ranges == null ? Collections.emptyList() : new ArrayList<>(ranges);
+            this.join = join == null ? Collections.emptyList() : new ArrayList<>(join);
+            this.chars = SyncDataV6Codec.copyTiming(chars);
+        }
+
+        ParallelPart withRangesAndChars(List<Range> nextRanges, List<Double> nextChars) {
+            return new ParallelPart(id, role, speaker, speakerColor, speakerFallback, kind, granularity, nextRanges, join, nextChars);
+        }
+
+        ParallelPart withChars(List<Double> nextChars) {
+            return new ParallelPart(id, role, speaker, speakerColor, speakerFallback, kind, granularity, ranges, join, nextChars);
+        }
+    }
+
+    private static final class Range {
+        final int start;
+        final int end;
+
+        Range(int start, int end) {
+            this.start = start;
+            this.end = end;
+        }
+
+        int count() {
+            return Math.max(0, end - start + 1);
+        }
+    }
+
+    private static final class StyleRange {
+        final int start;
+        final int end;
+        final String kind;
+        final String speaker;
+        final String speakerColor;
+        final String speakerFallback;
+
+        StyleRange(int start, int end, String kind, String speaker, String speakerColor, String speakerFallback) {
+            this.start = start;
+            this.end = end;
+            this.kind = kind == null ? "" : kind.trim();
+            this.speaker = speaker == null ? "" : speaker.trim();
+            this.speakerColor = speakerColor == null ? "" : speakerColor.trim();
+            this.speakerFallback = speakerFallback == null ? "" : speakerFallback.trim();
+        }
+    }
+
+    private static final class ShiftedRanges {
+        final List<Range> ranges;
+        final int removedLeadingChars;
+
+        ShiftedRanges(List<Range> ranges, int removedLeadingChars) {
+            this.ranges = ranges;
+            this.removedLeadingChars = removedLeadingChars;
+        }
+    }
+
+    private static final class DurationAdjustment {
+        final long registeredDurationMs;
+        final long currentDurationMs;
+        final long diffMs;
+        final long offsetMs;
+
+        DurationAdjustment(long registeredDurationMs, long currentDurationMs, long diffMs, long offsetMs) {
+            this.registeredDurationMs = Math.max(0L, registeredDurationMs);
+            this.currentDurationMs = Math.max(0L, currentDurationMs);
+            this.diffMs = diffMs;
+            this.offsetMs = offsetMs;
+        }
+    }
+
+    private static final class StripResult {
+        final int start;
+        final int end;
+        final boolean changed;
+
+        StripResult(int start, int end, boolean changed) {
+            this.start = start;
+            this.end = end;
+            this.changed = changed;
+        }
+    }
+}

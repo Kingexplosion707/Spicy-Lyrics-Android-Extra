@@ -1,0 +1,4825 @@
+package kr.ivlis.ivlyricsandroid;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.ArraySet;
+import android.util.Base64;
+import android.util.Log;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Pattern;
+
+final class LyricsRepository {
+    private static final String TAG = "ivLyricsDebug";
+    private static final String LRCLIB_BASE = LrclibEndpoint.OFFICIAL;
+    private static final String SYNC_DATA_BASE = "https://lyrics.api.ivl.is/lyrics/sync-data";
+    private static final String SYNC_DATA_REQUEST_VERSION = "20260701";
+    private static final String OPENDB_ORIGIN = "https://ivlis.kr";
+    private static final String OPENDB_ROOT = "https://ivlis.kr/ivLyrics/opendb";
+    private static final String OPENDB_MANIFEST_URL = OPENDB_ROOT + "/data/manifest.json";
+    private static final String SYNC_DATA_SPOTIFY_ORIGIN = "https://xpui.app.spotify.com";
+    private static final String SYNC_DATA_SPOTIFY_REFERER = "https://xpui.app.spotify.com/";
+    private static final String SYNC_DATA_CACHE_SCHEMA = "sync-data-api-v3-v6";
+    private static final String OPENDB_PREFS = "sync_data_opendb";
+    private static final String KEY_OPENDB_PROVIDER_MAP = "provider_map";
+    private static final String KEY_OPENDB_FETCHED_AT_MS = "fetched_at_ms";
+    private static final String KEY_OPENDB_SIGNATURE = "manifest_signature";
+    private static final String KEY_OPENDB_BASE_DATE = "base_date";
+    private static final String KEY_OPENDB_UNAVAILABLE_UNTIL_MS = "unavailable_until_ms";
+    private static final String SPOTIFY_ACCOUNTS_TOKEN_ENDPOINT = "https://accounts.spotify.com/api/token";
+    private static final String SPOTIFY_SEARCH_BASE = "https://api.spotify.com/v1/search";
+    private static final String SPOTIFY_TRACK_BASE = "https://api.spotify.com/v1/tracks/";
+    private static final String SPOTIFY_ENGLISH_ACCEPT_LANGUAGE = "en-US,en;q=0.9";
+    private static final String SPOTIFY_TOKEN_PREFS = "spotify_token_cache";
+    private static final String KEY_SPOTIFY_ACCESS_TOKEN = "access_token";
+    private static final String KEY_SPOTIFY_TOKEN_ISSUED_AT_MS = "issued_at_ms";
+    private static final String KEY_SPOTIFY_TOKEN_EXPIRES_AT_MS = "expires_at_ms";
+    private static final String KEY_SPOTIFY_TOKEN_SOURCE = "source_key";
+    private static final String LRCLIB_PROVIDER_ID = "lrclib";
+    private static final int CONNECT_TIMEOUT_MS = 12_000;
+    private static final int READ_TIMEOUT_MS = 35_000;
+    private static final long SPOTIFY_TOKEN_MAX_AGE_MS = 50L * 60L * 1_000L;
+    private static final long SPOTIFY_TOKEN_REFRESH_GRACE_MS = 30_000L;
+    private static final long SYNC_DATA_SERVER_CACHE_BYPASS_MS = 30L * 1_000L;
+    private static final long LYRICS_CACHE_MAX_AGE_MS = DiskCachePolicy.MAX_AGE_MS;
+    private static final long OPENDB_FRESH_MS = 6L * 60L * 60L * 1_000L;
+    private static final long OPENDB_UNAVAILABLE_RETRY_MS = 5L * 60L * 1_000L;
+    private static final int SPOTIFY_ARTWORK_CACHE_MAX_ENTRIES = 8;
+    private static final double DURATION_TOLERANCE_SECONDS = 15.0;
+    private static final double LRCLIB_SYNCED_FALLBACK_SCORE_WINDOW = 0.50;
+    private static final double LRCLIB_SYNCED_FALLBACK_MIN_TITLE_SCORE = 0.78;
+    private static final double LRCLIB_SYNCED_FALLBACK_MIN_ARTIST_SCORE = 0.45;
+    private static final Pattern LRCLIB_METADATA_LINE_PATTERN = Pattern.compile(
+            "^\\s*\\[(?:ar|al|ti|au|length|by|offset|re|ve):[^\\]]*\\]\\s*$"
+    );
+    private static final Pattern LRCLIB_LEADING_TIMESTAMP_PATTERN = Pattern.compile(
+            "^\\[\\d+:\\d+(?:[.,]\\d+)?\\]\\s*"
+    );
+    private static final Pattern COMPARABLE_APOSTROPHE_PATTERN = Pattern.compile("[\\u2018\\u2019]");
+    private static final Pattern COMPARABLE_QUOTE_PATTERN = Pattern.compile("[\\u201c\\u201d]");
+    private static final Pattern COMPARABLE_BRACKET_PATTERN = Pattern.compile("[()\\[\\]{}]");
+    private static final Pattern COMPARABLE_WHITESPACE_PATTERN = Pattern.compile("\\s+");
+
+    private final ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(1);
+    private final ThreadPoolExecutor artworkExecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(1);
+    // Independent provider lookups run beside the lookup thread, at most three per request.
+    private static final int MAX_CONCURRENT_PROVIDER_LOOKUPS = 3;
+    private final ExecutorService providerLookupExecutor = Executors.newCachedThreadPool(runnable -> {
+        Thread thread = new Thread(runnable, "ivlyrics-provider-lookup");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private volatile boolean shutdown;
+    private final LatestLyricsRequest latestLyricsRequest = new LatestLyricsRequest(executor);
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final LrcRedWordSync wordSync = createWordSync(mainHandler);
+    private final Map<String, MemoryLyricsCacheEntry> cache = new HashMap<>();
+    private final LocalLyricsStore localLyrics;
+    private final Map<String, Bitmap> spotifyArtworkCache = new LinkedHashMap<String, Bitmap>(
+            SPOTIFY_ARTWORK_CACHE_MAX_ENTRIES + 1,
+            0.75f,
+            true
+    ) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, Bitmap> eldest) {
+            return size() > SPOTIFY_ARTWORK_CACHE_MAX_ENTRIES;
+        }
+    };
+    private final Map<String, SpotifyTrackMatch> spotifyArtworkMetadataCache = new LinkedHashMap<String, SpotifyTrackMatch>(
+            SPOTIFY_ARTWORK_CACHE_MAX_ENTRIES + 1,
+            0.75f,
+            true
+    ) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, SpotifyTrackMatch> eldest) {
+            return size() > SPOTIFY_ARTWORK_CACHE_MAX_ENTRIES;
+        }
+    };
+    private final AtomicLong providerPolicyGeneration = new AtomicLong();
+    private final AtomicLong syncMetadataReportGeneration = new AtomicLong();
+    private final ThreadLocal<SyncMetadataReportScope> syncMetadataReportScope = new ThreadLocal<>();
+    private final SharedPreferences spotifyTokenPrefs;
+    private final AiLyricsSettings aiLyricsSettings;
+    private final LyricsProviderSettings lyricsProviderSettings;
+    private final LrclibPlaybackStage.ConnectionFactory lrclibPlaybackConnections = LrclibPlaybackConnection::new;
+    private final LyricsDiskCache diskCache;
+    private final RawResponseDiskCache syncDataResponseCache;
+    private final SharedPreferences openDbPrefs;
+    private final boolean embeddedSpotify;
+    private final Map<String, Long> syncDataServerCacheBypassUntil = new HashMap<>();
+    private final Object spotifyTokenLock = new Object();
+    private String spotifyAccessToken = "";
+    private String spotifyTokenSourceKey = "";
+    private long spotifyTokenIssuedAtMs = 0L;
+    private long spotifyTokenExpiresAtMs = 0L;
+    private long syncDataServerCacheBypassAllUntilMs = 0L;
+
+    LyricsRepository(Context context) {
+        Context appContext = context == null ? null : context.getApplicationContext();
+        localLyrics = appContext == null ? null : new LocalLyricsStore(appContext);
+        embeddedSpotify = IvLyricsBridge.isEmbedded(appContext);
+        spotifyTokenPrefs = appContext == null || embeddedSpotify
+                ? null
+                : appContext.getSharedPreferences(SPOTIFY_TOKEN_PREFS, Context.MODE_PRIVATE);
+        aiLyricsSettings = appContext == null ? null : new AiLyricsSettings(appContext);
+        lyricsProviderSettings = new LyricsProviderSettings(appContext);
+        diskCache = appContext == null
+                ? null
+                : new LyricsDiskCache(appContext, "base_lyrics", 350, LYRICS_CACHE_MAX_AGE_MS);
+        syncDataResponseCache = appContext == null
+                ? null
+                : new RawResponseDiskCache(appContext, "sync_data_api", 700, LYRICS_CACHE_MAX_AGE_MS);
+        openDbPrefs = appContext == null
+                ? null
+                : appContext.getSharedPreferences(OPENDB_PREFS, Context.MODE_PRIVATE);
+        restoreSpotifyToken();
+    }
+
+    interface Callback {
+        void onLyricsLoaded(String trackKey, LyricsResult result);
+
+        void onLyricsError(String trackKey, String message);
+
+        void onLyricsProviderLoading(String trackKey, String providerName);
+
+        void onLyricsLog(String trackKey, String message);
+
+        void onLyricsArtworkLoaded(String trackKey, Bitmap artwork, String artworkKey);
+
+        void onLyricsMetadataResolved(String trackKey, String isrc, String spotifyTrackId);
+
+        /** lrc.red started generating word timing for the lyrics shown for this track. */
+        default void onLyricsWordSyncStarted(String trackKey) {
+        }
+
+        /**
+         * Generation ended. The result is the displayed lyrics with word timing, or null when
+         * no timing could be produced; the displayed text is never replaced.
+         */
+        default void onLyricsWordSyncFinished(String trackKey, LyricsResult upgraded) {
+        }
+    }
+
+    interface ManualLrclibCallback {
+        void onManualLrclibSearchResults(String trackKey, List<ManualLrclibCandidate> candidates);
+
+        void onManualLrclibLyricsLoaded(String trackKey, LyricsResult result);
+
+        void onManualLrclibError(String trackKey, String message);
+
+        void onManualLrclibLog(String trackKey, String message);
+    }
+
+    static final class ManualLrclibCandidate {
+        final long id;
+        final String trackName;
+        final String artistName;
+        final String albumName;
+        final double durationSeconds;
+        final boolean synced;
+        final boolean plain;
+        final boolean instrumental;
+        final String isrc;
+        final double score;
+
+        ManualLrclibCandidate(
+                long id,
+                String trackName,
+                String artistName,
+                String albumName,
+                double durationSeconds,
+                boolean synced,
+                boolean plain,
+                boolean instrumental,
+                String isrc,
+                double score
+        ) {
+            this.id = id;
+            this.trackName = trackName == null ? "" : trackName;
+            this.artistName = artistName == null ? "" : artistName;
+            this.albumName = albumName == null ? "" : albumName;
+            this.durationSeconds = Math.max(0.0, durationSeconds);
+            this.synced = synced;
+            this.plain = plain;
+            this.instrumental = instrumental;
+            this.isrc = TrackSnapshot.normalizeIsrc(isrc);
+            this.score = score;
+        }
+
+        static ManualLrclibCandidate from(LrclibCandidate candidate) {
+            return new ManualLrclibCandidate(
+                    candidate.id,
+                    candidate.trackName,
+                    candidate.artistName,
+                    candidate.albumName,
+                    candidate.durationSeconds,
+                    candidate.syncedLyrics != null,
+                    candidate.plainLyrics != null,
+                    candidate.instrumental,
+                    candidate.isrc,
+                    candidate.score
+            );
+        }
+    }
+
+    interface SpotifyTokenValidationCallback {
+        void onSpotifyTokenValidated(long expiresInSeconds);
+
+        void onSpotifyTokenValidationFailed(String message);
+
+        void onSpotifyTokenValidationLog(String message);
+    }
+
+    private interface LogSink {
+        void write(String message);
+    }
+
+    private interface SpotifyMetadataSink {
+        void onResolved(SpotifyTrackMatch match);
+    }
+
+    private String ui(String key) {
+        String lang = aiLyricsSettings == null ? "en" : aiLyricsSettings.snapshot().uiLang;
+        return AppI18n.t(lang, key);
+    }
+
+    private synchronized LyricsResult getMemoryCachedLyrics(String key) {
+        MemoryLyricsCacheEntry entry = cache.get(key);
+        if (entry == null) {
+            return null;
+        }
+        if (System.currentTimeMillis() - entry.savedAtMs > LYRICS_CACHE_MAX_AGE_MS) {
+            cache.remove(key);
+            return null;
+        }
+        return entry.result;
+    }
+
+    private synchronized void putMemoryCachedLyrics(String key, LyricsResult result) {
+        if (key == null || key.trim().isEmpty() || result == null || result.lines.isEmpty()) {
+            return;
+        }
+        cache.put(key, new MemoryLyricsCacheEntry(
+                result,
+                System.currentTimeMillis()
+        ));
+    }
+
+    static LyricsResult withoutCachedContributorIdentities(LyricsResult result) {
+        if (result == null || result.contributors.isEmpty()) {
+            return result;
+        }
+        return withContributors(result, Collections.emptyList());
+    }
+
+    static LyricsResult privacySafeContributorFallback(LyricsResult result) {
+        if (result == null || result.contributors.isEmpty()) {
+            return result;
+        }
+        List<LyricsResult.SyncContributor> anonymous = new ArrayList<>();
+        for (LyricsResult.SyncContributor contributor : result.contributors) {
+            if (contributor == null) continue;
+            anonymous.add(new LyricsResult.SyncContributor(
+                    "Anonymous",
+                    "",
+                    false,
+                    true,
+                    contributor.isPrivate,
+                    null,
+                    contributor.syncType,
+                    contributor.syncPoints
+            ));
+        }
+        return withContributors(result, anonymous);
+    }
+
+    private synchronized void removeMemoryCachedLyrics(String key) {
+        cache.remove(key);
+    }
+
+    private synchronized void clearMemoryLyricsCache() {
+        cache.clear();
+    }
+
+    static boolean isCachedResultReusable(
+            LyricsResult result,
+            LyricsProviderSettings.Snapshot settings
+    ) {
+        if (result == null || result.lines.isEmpty()) return false;
+        if ("manual".equals(result.selectionPolicyKey)) {
+            return settings == null || settings.order.size() != 1 || settings.config(result.providerId) != null;
+        }
+        return settings != null
+                && settings.cacheKeyForProvider(result.providerId).equals(result.selectionPolicyKey);
+    }
+
+    private boolean shouldRevalidateCachedResult(
+            LyricsResult result,
+            LyricsProviderSettings.Snapshot settings,
+            TrackSnapshot track
+    ) {
+        String isrc = firstNonEmpty(track == null ? "" : track.isrc, result == null ? "" : result.isrc);
+        if (result != null
+                && !result.contributors.isEmpty()
+                && !TrackSnapshot.normalizeIsrc(isrc).isEmpty()) {
+            return true;
+        }
+        return LyricsProviderSelectionPlan.shouldRecheckCachedResult(result, settings, isrc);
+    }
+
+    void loadLyrics(TrackSnapshot track, Callback callback) {
+        long requestGeneration = providerPolicyGeneration.incrementAndGet();
+        RequestCancellation request = latestLyricsRequest.begin();
+        if (track == null || !track.hasUsableMetadata()) {
+            callback.onLyricsLoaded("", LyricsResult.empty(ui("repo.metadata_waiting")));
+            return;
+        }
+
+        String key = track.stableKey();
+        if (localLyrics != null) {
+            try {
+                LyricsResult imported = localLyrics.load(track);
+                if (imported != null) {
+                    callback.onLyricsLoaded(key, imported);
+                    return;
+                }
+            } catch (IOException error) {
+                emitLog(key, callback, "local lyrics unavailable: " + error.getMessage(), request);
+            }
+        }
+        LyricsProviderSettings.Snapshot providerSettings = lyricsProviderSettings.snapshotForTrack(key);
+        LyricsResult cached = getMemoryCachedLyrics(key);
+        if (!isCachedResultReusable(cached, providerSettings)) {
+            cached = null;
+            removeMemoryCachedLyrics(key);
+        }
+        if (cached != null && !shouldRevalidateCachedResult(cached, providerSettings, track)) {
+            emitLog(key, callback, "cache hit: " + track.title + " / " + track.artist, request);
+            LyricsResult cachedPresentation = privacySafeContributorFallback(cached);
+            callback.onLyricsLoaded(key, cachedPresentation);
+            requestSpotifyArtwork(track, cached, key, callback, request);
+            wordSync.request(track, key, cachedPresentation, callback, true);
+            return;
+        }
+        if (cached != null) {
+            emitLog(key, callback, "cache hit: base lyrics served immediately; rechecking OpenDB sync-data in background", request);
+            callback.onLyricsLoaded(key, withoutCachedContributorIdentities(cached));
+        }
+
+        emitLog(key, callback, "track: \"" + track.title + "\" / \"" + track.artist + "\""
+                + (track.album.isEmpty() ? "" : " / album=\"" + track.album + "\"")
+                + " / duration=" + track.durationMs + "ms"
+                + (track.isrc.isEmpty() ? "" : " / player ISRC=" + track.isrc), request);
+
+        LyricsResult memoryCached = cached;
+        latestLyricsRequest.submit(request, () -> {
+            syncMetadataReportScope.set(new SyncMetadataReportScope());
+            LogSink log = message -> { request.throwIfCancelled(); emitLog(key, callback, message); };
+            LyricsResult reusableCached = memoryCached;
+            try {
+                request.throwIfCancelled();
+                if (reusableCached == null) {
+                    reusableCached = diskCache == null ? null : diskCache.get(key);
+                }
+                if (!isCachedResultReusable(reusableCached, providerSettings)) {
+                    reusableCached = null;
+                    if (diskCache != null) diskCache.remove(key);
+                }
+                if (reusableCached != null
+                        && !shouldRevalidateCachedResult(reusableCached, providerSettings, track)) {
+                    LyricsResult safeCached = privacySafeContributorFallback(reusableCached);
+                    putMemoryCachedLyrics(key, safeCached);
+                    log.write("disk cache hit: provider=" + reusableCached.providerId
+                            + " / contributors=" + reusableCached.contributors.size());
+                    LyricsResult finalCached = safeCached;
+                    postLyricsIfCurrent(requestGeneration, callback, key, finalCached);
+                    requestSpotifyArtwork(track, safeCached, key, callback, request);
+                    wordSync.request(track, key, safeCached, callback, true);
+                    return;
+                }
+                if (reusableCached != null) {
+                    putMemoryCachedLyrics(key, reusableCached);
+                    log.write("base lyrics disk cache hit: served immediately; rechecking OpenDB sync-data in background");
+                    if (memoryCached == null) {
+                        LyricsResult finalCached = withoutCachedContributorIdentities(reusableCached);
+                        postLyricsIfCurrent(requestGeneration, callback, key, finalCached);
+                    }
+                }
+                LyricsResult result = loadLyricsBlocking(
+                        track,
+                        key,
+                        requestGeneration,
+                        callback,
+                        log,
+                        reusableCached
+                );
+                request.throwIfCancelled();
+                if (requestGeneration != providerPolicyGeneration.get()) {
+                    log.write("stale provider request discarded after settings change");
+                    return;
+                }
+                if (!UnisonLyricsProvider.isUnisonResult(result)) {
+                    putMemoryCachedLyrics(key, result);
+                    if (diskCache != null) {
+                        diskCache.put(key, result);
+                    }
+                } else {
+                    log.write("unison cache: skipped to match provider policy");
+                }
+                LyricsResult cachedPresentation = withoutCachedContributorIdentities(reusableCached);
+                if (shouldPublishRevalidatedLyrics(cachedPresentation, result)) {
+                    postLyricsIfCurrent(requestGeneration, callback, key, result);
+                } else {
+                    log.write("background sync-data recheck complete: cached lyrics kept");
+                }
+                wordSync.request(track, key, result, callback, false);
+            } catch (Exception error) {
+                if (request.isCancelled()) return;
+                String message = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+                if (reusableCached != null) {
+                    LyricsResult safeFallback = privacySafeContributorFallback(reusableCached);
+                    putMemoryCachedLyrics(key, safeFallback);
+                    postLyricsIfCurrent(requestGeneration, callback, key, safeFallback);
+                    log.write("background sync-data recheck error: " + message
+                            + "; cached timing kept with anonymous contributor fallback");
+                    return;
+                }
+                log.write("error: " + message);
+                mainHandler.post(() -> {
+                    if (requestGeneration == providerPolicyGeneration.get()) {
+                        callback.onLyricsError(key, message);
+                    }
+                });
+            } finally {
+                syncMetadataReportScope.remove();
+            }
+        });
+    }
+
+    private void postLyricsIfCurrent(
+            long requestGeneration,
+            Callback callback,
+            String key,
+            LyricsResult result
+    ) {
+        mainHandler.post(() -> {
+            if (requestGeneration == providerPolicyGeneration.get()) {
+                callback.onLyricsLoaded(key, result);
+            }
+        });
+    }
+
+    void invalidateProviderSelection() {
+        providerPolicyGeneration.incrementAndGet();
+        latestLyricsRequest.cancel();
+    }
+
+    void onLrclibPlaybackEndpointChanged() {
+        invalidateProviderSelection();
+        clearMemoryLyricsCache();
+        if (diskCache != null) diskCache.clear();
+    }
+
+    void shutdown() {
+        shutdown = true;
+        latestLyricsRequest.cancel();
+        executor.shutdownNow();
+        artworkExecutor.shutdownNow();
+        providerLookupExecutor.shutdownNow();
+        // A running word-timing generation still finishes and updates the cache for the next visit.
+        wordSync.close();
+    }
+
+    void clearCache() {
+        syncMetadataReportGeneration.incrementAndGet();
+        clearMemoryLyricsCache();
+        if (diskCache != null) {
+            diskCache.clear();
+        }
+        if (syncDataResponseCache != null) {
+            syncDataResponseCache.clear();
+        }
+        clearOpenDbCache();
+        markSyncDataServerCacheBypass("");
+    }
+
+    void clearCacheForTrack(String trackKey) {
+        String key = trackKey == null ? "" : trackKey.trim();
+        if (key.isEmpty()) {
+            return;
+        }
+        syncMetadataReportGeneration.incrementAndGet();
+        removeMemoryCachedLyrics(key);
+        if (diskCache != null) {
+            diskCache.remove(key);
+        }
+    }
+
+    void clearSyncDataCacheForIsrc(String isrc) {
+        syncMetadataReportGeneration.incrementAndGet();
+        if (syncDataResponseCache == null) {
+            return;
+        }
+        for (LyricsProviderSettings.Provider provider : LyricsProviderSettings.PROVIDERS) {
+            String key = syncDataCacheKey(isrc, provider.id);
+            if (!key.isEmpty()) syncDataResponseCache.remove(key);
+        }
+        clearOpenDbCache();
+        markSyncDataServerCacheBypass(TrackSnapshot.normalizeIsrc(isrc));
+    }
+
+    private void clearOpenDbCache() {
+        if (openDbPrefs == null) {
+            return;
+        }
+        openDbPrefs.edit()
+                .remove(KEY_OPENDB_PROVIDER_MAP)
+                .remove(KEY_OPENDB_FETCHED_AT_MS)
+                .remove(KEY_OPENDB_SIGNATURE)
+                .remove(KEY_OPENDB_BASE_DATE)
+                .remove(KEY_OPENDB_UNAVAILABLE_UNTIL_MS)
+                .apply();
+    }
+
+    private synchronized void markSyncDataServerCacheBypass(String normalizedIsrc) {
+        long expiresAt = System.currentTimeMillis() + SYNC_DATA_SERVER_CACHE_BYPASS_MS;
+        String key = normalizedIsrc == null ? "" : normalizedIsrc.trim();
+        if (key.isEmpty()) {
+            syncDataServerCacheBypassAllUntilMs = expiresAt;
+            syncDataServerCacheBypassUntil.clear();
+            return;
+        }
+        syncDataServerCacheBypassUntil.put(key, expiresAt);
+    }
+
+    private synchronized boolean shouldBypassSyncDataServerCache(String normalizedIsrc) {
+        long now = System.currentTimeMillis();
+        if (syncDataServerCacheBypassAllUntilMs > now) {
+            return true;
+        }
+        if (syncDataServerCacheBypassAllUntilMs > 0L) {
+            syncDataServerCacheBypassAllUntilMs = 0L;
+        }
+
+        String key = normalizedIsrc == null ? "" : normalizedIsrc.trim();
+        if (key.isEmpty()) {
+            return false;
+        }
+
+        Long expiresAt = syncDataServerCacheBypassUntil.get(key);
+        if (expiresAt == null) {
+            return false;
+        }
+        if (expiresAt <= now) {
+            syncDataServerCacheBypassUntil.remove(key);
+            return false;
+        }
+        return true;
+    }
+
+    void clearSpotifyTokenCache() {
+        invalidateSpotifyToken();
+    }
+
+    void searchManualLrclib(
+            TrackSnapshot track,
+            String title,
+            String artist,
+            ManualLrclibCallback callback
+    ) {
+        String key = manualTrackKey(track);
+        String queryTitle = firstNonEmpty(title, track == null ? "" : track.title);
+        String queryArtist = firstNonEmpty(artist, track == null ? "" : track.artist);
+        if (queryTitle.isEmpty()) {
+            postManualError(key, callback, ui("lyrics.lrclib_search.empty_title"));
+            return;
+        }
+
+        executor.execute(() -> {
+            LogSink log = message -> emitManualLog(key, callback, message);
+            try {
+                log.write("manual lrclib search: title=\"" + queryTitle + "\""
+                        + (queryArtist.isEmpty() ? "" : " / artist=\"" + queryArtist + "\""));
+                List<LrclibCandidate> candidates = searchManualLrclibCandidates(queryTitle, queryArtist, log);
+                TrackSnapshot scoringTrack = manualScoringTrack(track, queryTitle, queryArtist);
+                for (LrclibCandidate candidate : candidates) {
+                    candidate.score = scoringTrack == null ? 0.0 : scoreCandidate(scoringTrack, candidate, null);
+                }
+                candidates.sort(this::compareLrclibCandidates);
+                List<ManualLrclibCandidate> result = new ArrayList<>();
+                for (int index = 0; index < Math.min(14, candidates.size()); index++) {
+                    result.add(ManualLrclibCandidate.from(candidates.get(index)));
+                }
+                log.write("manual lrclib search: results=" + result.size());
+                mainHandler.post(() -> {
+                    if (callback != null) {
+                        callback.onManualLrclibSearchResults(key, result);
+                    }
+                });
+            } catch (Exception error) {
+                String message = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+                log.write("manual lrclib search error: " + message);
+                postManualError(key, callback, message);
+            }
+        });
+    }
+
+    boolean hasLocalLyrics(TrackSnapshot track) {
+        if (localLyrics == null || track == null) return false;
+        try { return localLyrics.load(track) != null; } catch (IOException error) { return false; }
+    }
+
+    void loadManualLrclibCandidate(
+            TrackSnapshot track,
+            ManualLrclibCandidate selected,
+            ManualLrclibCallback callback
+    ) {
+        String key = manualTrackKey(track);
+        if (selected == null || selected.id <= 0L) {
+            postManualError(key, callback, ui("repo.lyrics_not_found"));
+            return;
+        }
+
+        executor.execute(() -> {
+            LogSink log = message -> emitManualLog(key, callback, message);
+            try {
+                log.write("manual lrclib load: id=" + selected.id);
+                LrclibCandidate candidate = fetchLrclibCandidateById(selected.id, log);
+                if (candidate == null) {
+                    throw new IOException(ui("repo.lyrics_not_found"));
+                }
+                LyricsResult result = lyricsResultFromManualCandidate(candidate, track);
+                if (!key.isEmpty()) {
+                    putMemoryCachedLyrics(key, result);
+                    if (diskCache != null) {
+                        diskCache.put(key, result);
+                    }
+                }
+                log.write("manual lrclib applied: " + describeLrclibCandidate(candidate)
+                        + (key.isEmpty() ? "" : " / cacheKey=" + key));
+                mainHandler.post(() -> {
+                    if (callback != null) {
+                        callback.onManualLrclibLyricsLoaded(key, result);
+                    }
+                });
+            } catch (Exception error) {
+                String message = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+                log.write("manual lrclib load error: " + message);
+                postManualError(key, callback, message);
+            }
+        });
+    }
+
+    void validateSpotifyCredentials(
+            String clientId,
+            String clientSecret,
+            SpotifyTokenValidationCallback callback
+    ) {
+        if (embeddedSpotify) {
+            if (callback != null) mainHandler.post(() -> callback.onSpotifyTokenValidationFailed(
+                    "Spotify metadata is supplied by the host app."));
+            return;
+        }
+        SpotifyCredentials credentials = new SpotifyCredentials(clientId, clientSecret);
+        executor.execute(() -> {
+            LogSink log = message -> {
+                if (callback != null) {
+                    mainHandler.post(() -> callback.onSpotifyTokenValidationLog(message));
+                }
+            };
+            try {
+                if (!credentials.configured()) {
+                    throw new IOException(credentials.partial()
+                            ? ui("spotify.error.incomplete_credentials")
+                            : ui("spotify.error.credentials_not_configured"));
+                }
+                SpotifyTokenResponse response = requestSpotifyClientCredentialsToken(credentials, log);
+                if (response.accessToken.isEmpty()) {
+                    throw new IOException(ui("spotify.error.no_access_token"));
+                }
+                cacheSpotifyToken(credentials, response, log);
+                if (callback != null) {
+                    mainHandler.post(() -> callback.onSpotifyTokenValidated(response.expiresInSeconds));
+                }
+            } catch (Exception error) {
+                String message = error.getMessage() == null
+                        ? error.getClass().getSimpleName()
+                        : error.getMessage();
+                log.write("spotify token: validation failed (" + message + ")");
+                if (callback != null) {
+                    mainHandler.post(() -> callback.onSpotifyTokenValidationFailed(message));
+                }
+            }
+        });
+    }
+
+    private LyricsResult loadLyricsBlocking(
+            TrackSnapshot track,
+            String trackKey,
+            long requestGeneration,
+            Callback callback,
+            LogSink log,
+            LyricsResult cachedBase
+    ) throws Exception {
+        boolean hasCachedIsrc = cachedBase != null && !cachedBase.isrc.isEmpty();
+        log.write(embeddedSpotify
+                ? "flow: native player ISRC -> sync-data -> configured lyrics providers"
+                : hasCachedIsrc
+                ? "flow: cached ISRC -> sync-data recheck -> cached LRCLIB lyrics"
+                : "flow: Spotify Web API search -> sync-data -> LRCLIB source/search -> Unison fallback");
+        SpotifyTrackMatch spotifyMatch = null;
+        if (hasCachedIsrc) {
+            log.write("spotify lookup skipped: cached ISRC=" + cachedBase.isrc
+                    + (cachedBase.spotifyTrackId.isEmpty()
+                    ? ""
+                    : " / trackId=" + cachedBase.spotifyTrackId));
+            publishResolvedMetadata(trackKey, firstNonEmpty(track.isrc, cachedBase.isrc),
+                    firstNonEmpty(track.trackId, cachedBase.spotifyTrackId), callback);
+            requestSpotifyArtwork(track, cachedBase, trackKey, callback, RequestCancellation.current());
+        } else if (!embeddedSpotify) {
+            spotifyMatch = fetchSpotifyIsrc(
+                    track,
+                    log,
+                    match -> publishResolvedSpotifyMetadata(trackKey, match, callback)
+            );
+            requestSpotifyArtwork(trackKey, spotifyMatch, callback, log);
+        }
+        boolean isrcFromSpotify = spotifyMatch != null && !spotifyMatch.isrc.isEmpty();
+        String isrc = firstNonEmpty(
+                spotifyMatch == null ? "" : spotifyMatch.isrc,
+                track.isrc,
+                cachedBase == null ? "" : cachedBase.isrc
+        );
+        String spotifyTrackId = firstNonEmpty(
+                spotifyMatch == null ? "" : spotifyMatch.spotifyId,
+                track.trackId,
+                cachedBase == null ? "" : cachedBase.spotifyTrackId
+        );
+        boolean isrcFromCache = !isrcFromSpotify
+                && track.isrc.isEmpty()
+                && cachedBase != null
+                && !cachedBase.isrc.isEmpty();
+        String isrcSource = isrc.isEmpty()
+                ? ""
+                : (isrcFromSpotify ? "Spotify Web API" : (isrcFromCache ? "lyrics cache" : "player metadata"));
+        log.write(isrc.isEmpty()
+                ? (embeddedSpotify ? "isrc: awaiting native track metadata" : "isrc: unavailable after Spotify lookup")
+                : "isrc: " + isrc + " (" + isrcSource + ")");
+        if (embeddedSpotify) Log.i("ivLyricsSync", "Lookup: native ISRC " + (isrc.isEmpty() ? "pending" : "available"));
+        if (!isrc.isEmpty()) {
+            publishResolvedMetadata(trackKey, isrc, spotifyTrackId, callback);
+        }
+
+        LyricsProviderSettings.Snapshot providerSettings = lyricsProviderSettings.snapshotForTrack(trackKey);
+        if (cachedBase != null) {
+            Set<String> syncDataProviders = isrc.isEmpty()
+                    ? Collections.emptySet()
+                    : availableSyncDataProviders(isrc, log);
+            String preferredSyncProvider = providerSettings.preferSyncDataProvider
+                    ? LyricsProviderSelectionPlan.preferredIvLyricsSyncProviderId(
+                    providerSettings,
+                    syncDataProviders
+            )
+                    : "";
+            boolean cachedProviderIsPreferred = !preferredSyncProvider.isEmpty()
+                    && preferredSyncProvider.equals(cachedBase.providerId);
+            if (!preferredSyncProvider.isEmpty()
+                    && (!cachedProviderIsPreferred || !cachedBase.karaoke)) {
+                if (cachedProviderIsPreferred
+                        && LyricsProviderSelectionPlan.canApplyIvLyricsSyncToCachedResult(
+                        cachedBase,
+                        providerSettings
+                )) {
+                    SyncDataResult syncData = fetchSyncData(
+                            isrc,
+                            preferredSyncProvider,
+                            track,
+                            spotifyMatch,
+                            log,
+                            !cachedBase.contributors.isEmpty()
+                    );
+                    return applySyncDataToCachedBase(cachedBase, syncData, configProviderLabel(preferredSyncProvider), track, isrc, spotifyTrackId, log)
+                            .withSelection(
+                                    cachedBase.providerId,
+                                    providerSettings.cacheKeyForProvider(cachedBase.providerId)
+                            );
+                }
+                log.write("cached provider " + cachedBase.providerId
+                        + " replaced by OpenDB sync-data provider " + preferredSyncProvider);
+                return selectLyricsProvider(
+                        track,
+                        isrc,
+                        spotifyTrackId,
+                        spotifyMatch,
+                        trackKey,
+                        requestGeneration,
+                        callback,
+                        log
+                );
+            }
+            if (LyricsProviderSelectionPlan.canApplyIvLyricsSyncToCachedResult(cachedBase, providerSettings)) {
+                SyncDataResult syncData = isrc.isEmpty()
+                        ? null
+                        : fetchSyncData(
+                                isrc,
+                                cachedBase.providerId,
+                                track,
+                                spotifyMatch,
+                                log,
+                                !cachedBase.contributors.isEmpty()
+                        );
+                return applySyncDataToCachedBase(cachedBase, syncData, configProviderLabel(cachedBase.providerId), track, isrc, spotifyTrackId, log)
+                        .withSelection(
+                                cachedBase.providerId,
+                                providerSettings.cacheKeyForProvider(cachedBase.providerId)
+                        );
+            }
+            if (cachedBase.karaoke
+                    && !cachedBase.contributors.isEmpty()
+                    && syncDataProviders.contains(cachedBase.providerId)
+                    && !isrc.isEmpty()) {
+                SyncDataResult currentSyncData = fetchSyncData(isrc, cachedBase.providerId, track, spotifyMatch, log, true);
+                if (currentSyncData != null) {
+                    log.write("sync-data contributors refreshed for cached lyrics: count="
+                            + currentSyncData.contributors.size());
+                    return withContributors(
+                            cachedBase,
+                            currentSyncData.contributors,
+                            currentSyncData.syncType,
+                            currentSyncData.syncPoints
+                    )
+                            .withSelection(
+                                    cachedBase.providerId,
+                                    providerSettings.cacheKeyForProvider(cachedBase.providerId)
+                            );
+                }
+                log.write("sync-data contributor refresh failed; using anonymous contributor fallback");
+            }
+            log.write("OpenDB sync-data priority unchanged; cached provider kept: " + cachedBase.providerId);
+            return privacySafeContributorFallback(cachedBase).withMetadata(isrc, spotifyTrackId);
+        }
+
+        return selectLyricsProvider(
+                track,
+                isrc,
+                spotifyTrackId,
+                spotifyMatch,
+                trackKey,
+                requestGeneration,
+                callback,
+                log
+        );
+    }
+
+    private LyricsResult selectLyricsProvider(
+            TrackSnapshot track,
+            String isrc,
+            String spotifyTrackId,
+            SpotifyTrackMatch spotifyMatch,
+            String trackKey,
+            long requestGeneration,
+            Callback callback,
+            LogSink log
+    ) {
+        LyricsProviderSettings.Snapshot settings = lyricsProviderSettings.snapshotForTrack(trackKey);
+        Set<String> syncDataProviders = availableSyncDataProviders(isrc, log);
+        LyricsProviderSelectionPlan plan = LyricsProviderSelectionPlan.create(settings, syncDataProviders);
+        log.write("provider policy: " + (settings.typeFirst ? "karaoke -> synced -> plain" : "provider first")
+                + " / order=" + providerIds(plan.providers)
+                + " / opendb=" + syncDataProviders);
+
+        Map<String, ProviderCandidate> attempts = new HashMap<>();
+        // Lookups start in the configured order, three at a time; results are still taken in
+        // that order, so a faster lower-priority source never replaces a higher one.
+        ProviderLookupWindow<ProviderCandidate> lookups = new ProviderLookupWindow<>(
+                concurrentProviders(plan.providers),
+                providerLookupExecutor,
+                MAX_CONCURRENT_PROVIDER_LOOKUPS,
+                () -> shutdown,
+                config -> fetchConcurrentCandidate(config, track, isrc, spotifyTrackId, trackKey, log)
+        );
+        boolean wordSyncFallbackChecked = !settings.automaticWordSyncFallback();
+        try {
+            lookups.fill();
+            for (LyricsProviderSelectionPlan.Attempt attempt : plan.attempts) {
+                if (!wordSyncFallbackChecked && !LyricsProviderSettings.TYPE_KARAOKE.equals(attempt.type)) {
+                    // No enabled source has karaoke lyrics. Show lrc.red's own text while its
+                    // word timing is generated, rather than another source's lines.
+                    wordSyncFallbackChecked = true;
+                    LyricsProviderSettings.ProviderConfig lrcRed = settings.config(LyricsProviderSettings.PROVIDER_LRC_RED);
+                    ProviderCandidate lrcRedCandidate = loadProviderOnce(attempts, lrcRed, track, isrc, spotifyTrackId,
+                            spotifyMatch, syncDataProviders, trackKey, requestGeneration, callback, log, lookups);
+                    LyricsResult fallback = lrcRedCandidate == null ? null
+                            : lrcRed.synced && lrcRedCandidate.synced != null ? lrcRedCandidate.synced
+                            : lrcRed.plain ? lrcRedCandidate.plain : null;
+                    if (fallback != null) {
+                        log.write("provider selected: lrcred / type=" + (fallback == lrcRedCandidate.synced ? "synced" : "plain")
+                                + " / word timing will be generated");
+                        return fallback.withSelection(
+                                LyricsProviderSettings.PROVIDER_LRC_RED,
+                                settings.cacheKeyForProvider(LyricsProviderSettings.PROVIDER_LRC_RED)
+                        );
+                    }
+                }
+                LyricsProviderSettings.ProviderConfig config = attempt.config;
+                ProviderCandidate candidate = loadProviderOnce(
+                        attempts,
+                        config,
+                        track,
+                        isrc,
+                        spotifyTrackId,
+                        spotifyMatch,
+                        syncDataProviders,
+                        trackKey,
+                        requestGeneration,
+                        callback,
+                        log,
+                        lookups
+                );
+                LyricsResult selected = resultForType(candidate, attempt.type);
+                if (selected != null) {
+                    log.write("provider selected: " + config.provider.id + " / type=" + attempt.type);
+                    return selected.withSelection(
+                            config.provider.id,
+                            settings.cacheKeyForProvider(config.provider.id)
+                    );
+                }
+            }
+        } finally {
+            lookups.cancel();
+        }
+        return LyricsResult.empty(ui("repo.lyrics_not_found"));
+    }
+
+    private ProviderCandidate loadProviderOnce(
+            Map<String, ProviderCandidate> attempts,
+            LyricsProviderSettings.ProviderConfig config,
+            TrackSnapshot track,
+            String isrc,
+            String spotifyTrackId,
+            SpotifyTrackMatch spotifyMatch,
+            Set<String> syncDataProviders,
+            String trackKey,
+            long requestGeneration,
+            Callback callback,
+            LogSink log,
+            ProviderLookupWindow<ProviderCandidate> lookups
+    ) {
+        if (attempts.containsKey(config.provider.id)) return attempts.get(config.provider.id);
+        postProviderLoadingIfCurrent(
+                requestGeneration,
+                callback,
+                trackKey,
+                config.provider.label
+        );
+        LyricsResult result = null;
+        ProviderCandidate candidate = null;
+        try {
+            if (isConcurrentProvider(config.provider.id)) {
+                candidate = lookups.await(config);
+            } else if (LyricsProviderSettings.PROVIDER_LRCLIB.equals(config.provider.id)) {
+                SyncDataResult syncData = !isrc.isEmpty() && config.karaoke && syncDataProviders.contains(config.provider.id)
+                        ? fetchSyncData(isrc, config.provider.id, track, spotifyMatch, log)
+                        : null;
+                result = loadLrclibProvider(track, isrc, spotifyTrackId, spotifyMatch, syncData, log);
+            }
+        } catch (Exception error) {
+            String message = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+            log.write(config.provider.id + " error: " + message);
+        }
+        if (candidate == null && result != null && !result.lines.isEmpty()) {
+            candidate = candidateFromResult(result);
+        }
+        if (candidate != null
+                && !LyricsProviderSettings.PROVIDER_LRCLIB.equals(config.provider.id)
+                && config.karaoke
+                && !isrc.isEmpty()
+                && syncDataProviders.contains(config.provider.id)) {
+            LyricsResult base = candidate.synced != null ? candidate.synced
+                    : (candidate.plain != null ? candidate.plain : candidate.karaoke);
+            if (base == null) {
+                attempts.put(config.provider.id, candidate);
+                return candidate;
+            }
+            SyncDataResult syncData = fetchSyncData(
+                    isrc,
+                    config.provider.id,
+                    track,
+                    spotifyMatch,
+                    log
+            );
+            LyricsResult applied = applySyncDataToCachedBase(
+                    base,
+                    syncData,
+                    config.provider.label,
+                    track,
+                    isrc,
+                    spotifyTrackId,
+                    log
+            );
+            if (applied != null && applied.karaoke) {
+                candidate = new ProviderCandidate(applied, candidate.synced, candidate.plain);
+            }
+        }
+        attempts.put(config.provider.id, candidate);
+        return candidate;
+    }
+
+    private void postProviderLoadingIfCurrent(
+            long requestGeneration,
+            Callback callback,
+            String trackKey,
+            String providerName
+    ) {
+        if (callback == null) {
+            return;
+        }
+        mainHandler.post(() -> {
+            if (requestGeneration == providerPolicyGeneration.get()) {
+                callback.onLyricsProviderLoading(trackKey, providerName);
+            }
+        });
+    }
+
+    private ProviderCandidate candidateFromResult(LyricsResult result) {
+        LyricsResult karaoke = result.karaoke ? result : null;
+        LyricsResult synced = hasTimedLyrics(result.lines) ? asLineSynced(result) : null;
+        LyricsResult plain = asPlain(result);
+        return new ProviderCandidate(karaoke, synced, plain);
+    }
+
+    /** Sources whose lookup depends only on the track; these may run beside each other. */
+    private static boolean isConcurrentProvider(String providerId) {
+        return LyricsProviderSettings.PROVIDER_OPEN_LYRICS.equals(providerId)
+                || LyricsProviderSettings.PROVIDER_LRC_RED.equals(providerId)
+                || LyricsProviderSettings.PROVIDER_LYRICS_PLUS.equals(providerId)
+                || LyricsProviderSettings.PROVIDER_UNISON.equals(providerId);
+    }
+
+    private static List<LyricsProviderSettings.ProviderConfig> concurrentProviders(
+            List<LyricsProviderSettings.ProviderConfig> providers
+    ) {
+        List<LyricsProviderSettings.ProviderConfig> concurrent = new ArrayList<>();
+        for (LyricsProviderSettings.ProviderConfig config : providers) {
+            if (isConcurrentProvider(config.provider.id)) concurrent.add(config);
+        }
+        return concurrent;
+    }
+
+    private ProviderCandidate fetchConcurrentCandidate(
+            LyricsProviderSettings.ProviderConfig config,
+            TrackSnapshot track,
+            String isrc,
+            String spotifyTrackId,
+            String trackKey,
+            LogSink log
+    ) {
+        String providerId = config.provider.id;
+        try {
+            LyricsResult result = null;
+            if (LyricsProviderSettings.PROVIDER_OPEN_LYRICS.equals(providerId)) {
+                OpenLyricsProvider.Variants variants = OpenLyricsProvider.fetchVariants(track, isrc, spotifyTrackId, log::write);
+                return variants == null ? null : new ProviderCandidate(variants.karaoke, variants.synced, variants.plain);
+            } else if (LyricsProviderSettings.PROVIDER_LYRICS_PLUS.equals(providerId)) {
+                LyricsPlusLyricsProvider.Variants variants = LyricsPlusLyricsProvider.fetchVariants(track, isrc, spotifyTrackId, log::write);
+                return variants == null ? null : new ProviderCandidate(variants.karaoke, variants.synced, variants.plain);
+            } else if (LyricsProviderSettings.PROVIDER_UNISON.equals(providerId)) {
+                result = UnisonLyricsProvider.fetch(track, isrc, spotifyTrackId, log::write);
+            } else if (LyricsProviderSettings.PROVIDER_LRC_RED.equals(providerId)) {
+                LrcRedLyricsProvider.Fetched fetched = LrcRedLyricsProvider.fetch(track, isrc, spotifyTrackId, log::write);
+                if (fetched != null) {
+                    wordSync.rememberRecording(trackKey, fetched.recordIsrc);
+                    result = fetched.result;
+                }
+            }
+            return result == null || result.lines.isEmpty() ? null : candidateFromResult(result);
+        } catch (Exception error) {
+            String message = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+            try {
+                log.write(providerId + " error: " + message);
+            } catch (CancellationException ignored) {
+                // The request was replaced while this source was loading.
+            }
+            return null;
+        }
+    }
+
+    /** Whether lrc.red is currently generating word timing for this track. */
+    boolean isWordSyncGenerating(String trackKey) {
+        return wordSync.isGenerating(trackKey);
+    }
+
+    private LrcRedWordSync createWordSync(Handler handler) {
+        return new LrcRedWordSync(new LrcRedWordSync.Host() {
+            @Override
+            public boolean enabled(String trackKey) {
+                return lyricsProviderSettings.snapshotForTrack(trackKey).automaticWordSyncFallback();
+            }
+
+            @Override
+            public void persist(String trackKey, LyricsResult upgraded) {
+                persistWordSync(trackKey, upgraded);
+            }
+
+            @Override
+            public void log(String trackKey, Callback callback, String message) {
+                emitLog(trackKey, callback, message, null);
+            }
+        }, handler);
+    }
+
+    /** Stores generated timing only where the same line-timed lrc.red lyrics are still cached. */
+    private void persistWordSync(String key, LyricsResult upgraded) {
+        LyricsResult memory = getMemoryCachedLyrics(key);
+        if (memory == null || LyricsTimingUpgrade.upgrades(memory, upgraded)) putMemoryCachedLyrics(key, upgraded);
+        if (diskCache == null) return;
+        LyricsResult disk = diskCache.get(key);
+        if (disk == null || LyricsTimingUpgrade.upgrades(disk, upgraded)) diskCache.put(key, upgraded);
+    }
+
+    private LyricsResult resultForType(ProviderCandidate candidate, String type) {
+        if (candidate == null) return null;
+        if (LyricsProviderSettings.TYPE_KARAOKE.equals(type)) return candidate.karaoke;
+        if (LyricsProviderSettings.TYPE_SYNCED.equals(type)) return candidate.synced;
+        return candidate.plain;
+    }
+
+    private LyricsResult asLineSynced(LyricsResult source) {
+        List<LyricsLine> lines = new ArrayList<>();
+        for (LyricsLine line : source.lines) {
+            if (!line.isTimed()) continue;
+            lines.add(new LyricsLine(
+                    line.startTimeMs,
+                    line.endTimeMs,
+                    line.text,
+                    Collections.emptyList(),
+                    line.speaker,
+                    line.speakerColor,
+                    line.speakerFallback,
+                    line.kind,
+                    Collections.emptyList()
+            ));
+        }
+        if (lines.isEmpty()) return null;
+        return new LyricsResult(lines, providerBaseLabel(source.providerLabel) + " synced", source.detail,
+                false, source.isrc, source.spotifyTrackId, source.contributors);
+    }
+
+    private LyricsResult asPlain(LyricsResult source) {
+        List<LyricsLine> lines = new ArrayList<>();
+        for (LyricsLine line : source.lines) {
+            if (line.text == null || line.text.trim().isEmpty()) continue;
+            lines.add(new LyricsLine(0L, 0L, line.text, Collections.emptyList(), line.speaker,
+                    line.speakerColor, line.speakerFallback, line.kind, Collections.emptyList()));
+        }
+        if (lines.isEmpty()) return null;
+        return new LyricsResult(lines, providerBaseLabel(source.providerLabel) + " plain", source.detail,
+                false, source.isrc, source.spotifyTrackId, source.contributors);
+    }
+
+    private String providerBaseLabel(String label) {
+        String value = label == null ? "" : label.trim();
+        for (String suffix : new String[]{" karaoke", " synced", " plain"}) {
+            if (value.toLowerCase(Locale.ROOT).endsWith(suffix)) {
+                return value.substring(0, value.length() - suffix.length());
+            }
+        }
+        return value;
+    }
+
+    private boolean hasTimedLyrics(List<LyricsLine> lines) {
+        for (LyricsLine line : lines) if (line.isTimed()) return true;
+        return false;
+    }
+
+    private Set<String> availableSyncDataProviders(String isrc, LogSink log) {
+        String normalized = TrackSnapshot.normalizeIsrc(isrc);
+        if (normalized.isEmpty()) return Collections.emptySet();
+        try {
+            JSONObject providerMap = loadOpenDbProviderMap(log);
+            if (providerMap == null) return Collections.emptySet();
+            Set<String> result = new LinkedHashSet<>();
+            Iterator<String> providers = providerMap.keys();
+            while (providers.hasNext()) {
+                String provider = providers.next().trim().toLowerCase(Locale.ROOT);
+                if (jsonArrayContains(providerMap.optJSONArray(provider), normalized)) result.add(provider);
+            }
+            return result;
+        } catch (Exception error) {
+            log.write("sync-data opendb error: " + error.getMessage());
+            return Collections.emptySet();
+        }
+    }
+
+    private String providerIds(List<LyricsProviderSettings.ProviderConfig> providers) {
+        List<String> ids = new ArrayList<>();
+        for (LyricsProviderSettings.ProviderConfig provider : providers) ids.add(provider.provider.id);
+        return ids.toString();
+    }
+
+    private String configProviderLabel(String providerId) {
+        LyricsProviderSettings.Provider provider = LyricsProviderSettings.provider(providerId);
+        return provider == null ? providerId : provider.label;
+    }
+
+    private LyricsResult loadLrclibProvider(
+            TrackSnapshot track,
+            String isrc,
+            String spotifyTrackId,
+            SpotifyTrackMatch spotifyMatch,
+            SyncDataResult syncData,
+            LogSink log
+    ) {
+        LrclibCandidate candidate = findPlaybackLrclibCandidate(track, spotifyMatch, syncData, log);
+        boolean loadedFromSyncSource = candidate != null && candidate.loadedFromSyncSource;
+
+        if (candidate == null) {
+            log.write("result: no LRCLIB candidate selected");
+            return null;
+        }
+        log.write("lrclib selected: " + describeLrclibCandidate(candidate)
+                + (loadedFromSyncSource ? " / source=sync-data.lrclibId" : " / source=search"));
+
+        List<LyricsLine> baseLines;
+        boolean lineSynced = candidate.useSyncedLyrics();
+        if (lineSynced) {
+            baseLines = LrcParser.parseSynced(candidate.syncedLyrics, secondsToMs(candidate.durationSeconds, track.durationMs));
+        } else {
+            baseLines = LrcParser.parsePlain(candidate.plainLyrics);
+        }
+
+        if (baseLines.isEmpty()) {
+            if (candidate.instrumental) {
+                log.write("result: instrumental track");
+                return LyricsResult.empty(ui("repo.instrumental"));
+            }
+            log.write("result: LRCLIB result has no renderable lyrics");
+            return null;
+        }
+        log.write("lyrics base: lines=" + baseLines.size()
+                + " / " + (lineSynced ? "LRCLIB synced" : "LRCLIB plain"));
+
+        if (syncData != null) {
+            SyncDataApplier.ApplyResult applied = SyncDataApplier.applyWithDiagnostics(
+                    baseLines,
+                    syncData.syncBody,
+                    track,
+                    LRCLIB_PROVIDER_ID,
+                    candidate.id
+            );
+            for (String diagnostic : applied.diagnostics) {
+                log.write("sync-data apply: " + diagnostic);
+            }
+            List<LyricsLine> karaoke = applied.lines;
+            if (embeddedSpotify) Log.i("ivLyricsSync", "Applied timing: lines=" + karaoke.size()
+                    + " / points=" + syncData.syncPoints);
+            if (!karaoke.isEmpty()) {
+                log.write("sync-data applied: karaoke lines=" + karaoke.size()
+                        + " / vocalParts=" + countVocalParts(karaoke));
+                return new LyricsResult(
+                        karaoke,
+                        "ivLyrics sync-data + LRCLIB",
+                        ui(loadedFromSyncSource
+                                ? "repo.detail.sync_applied_direct"
+                                : "repo.detail.sync_applied_search"),
+                        true,
+                        isrc,
+                        spotifyTrackId,
+                        syncData.contributors,
+                        syncData.syncType,
+                        syncData.syncPoints
+                );
+            }
+            log.write("sync-data apply failed: falling back to LRCLIB line lyrics");
+            if (!syncData.contributors.isEmpty()) {
+                log.write("sync-data contributors ignored: sync-data was not applied");
+            }
+        }
+
+        String detail = isrc.isEmpty()
+                ? ui("repo.detail.no_spotify_isrc")
+                : (syncData == null
+                ? ui("repo.detail.no_sync_data")
+                : ui("repo.detail.sync_apply_failed"));
+        return new LyricsResult(
+                baseLines,
+                lineSynced ? "LRCLIB synced" : "LRCLIB plain",
+                detail,
+                false,
+                isrc,
+                spotifyTrackId,
+                Collections.emptyList()
+        );
+    }
+
+    private LrclibCandidate findPlaybackLrclibCandidate(
+            TrackSnapshot track, SpotifyTrackMatch spotifyMatch, SyncDataResult syncData, LogSink log
+    ) {
+        String customBase = lyricsProviderSettings.lrclibPlaybackEndpoint();
+        List<String> bases = new ArrayList<>();
+        if (!customBase.isEmpty()) bases.add(customBase);
+        bases.add(LRCLIB_BASE);
+        for (String base : bases) {
+            RequestCancellation.check();
+            LrclibPlaybackStage stage = new LrclibPlaybackStage(base, lrclibPlaybackConnections);
+            log.write("lrclib playback stage: " + (stage.custom ? "custom" : "official"));
+            try {
+                long sourceId = syncData != null && syncData.hasLrclibSource() ? syncData.lrclibId() : 0L;
+                if (sourceId > 0L) {
+                    LrclibCandidate direct = fetchPlaybackLrclibCandidate(stage, "/get/" + sourceId, syncData, log);
+                    if (direct != null && (stage.custom || direct.id == sourceId)) {
+                        direct.loadedFromSyncSource = true;
+                        return direct;
+                    }
+                }
+                LrclibCandidate candidate = searchBestCandidate(stage, track, spotifyMatch, syncData, log);
+                if (candidate != null) return candidate;
+            } catch (Exception error) {
+                RequestCancellation.check();
+                log.write("lrclib playback stage failed: " + error.getClass().getSimpleName());
+            }
+        }
+        return null;
+    }
+
+    private LyricsResult applySyncDataToCachedBase(
+            LyricsResult cachedBase,
+            SyncDataResult syncData,
+            String providerName,
+            TrackSnapshot track,
+            String isrc,
+            String spotifyTrackId,
+            LogSink log
+    ) {
+        List<LyricsLine> baseLines = cachedBase.lines;
+        log.write("lyrics base: lines=" + baseLines.size() + " / source=cache");
+        if (syncData != null) {
+            SyncDataApplier.ApplyResult applied = SyncDataApplier.applyWithDiagnostics(baseLines, syncData.syncBody, track);
+            if (embeddedSpotify) Log.i("ivLyricsSync", "Applied cached timing: lines=" + applied.lines.size()
+                    + " / points=" + syncData.syncPoints);
+            for (String diagnostic : applied.diagnostics) {
+                log.write("sync-data apply: " + diagnostic);
+            }
+            if (!applied.lines.isEmpty()) {
+                log.write("sync-data applied to cached lyrics: karaoke lines=" + applied.lines.size()
+                        + " / vocalParts=" + countVocalParts(applied.lines));
+                return new LyricsResult(
+                        applied.lines,
+                        "ivLyrics sync-data + " + providerName,
+                        ui("repo.detail.sync_applied_search"),
+                        true,
+                        isrc,
+                        spotifyTrackId,
+                        syncData.contributors,
+                        syncData.syncType,
+                        syncData.syncPoints
+                );
+            }
+            log.write("sync-data apply failed for cached lyrics: keeping provider line lyrics");
+        }
+
+        String detail = isrc.isEmpty()
+                ? ui("repo.detail.no_spotify_isrc")
+                : (syncData == null ? cachedBase.detail : ui("repo.detail.sync_apply_failed"));
+        return new LyricsResult(
+                baseLines,
+                cachedBase.providerLabel,
+                detail,
+                false,
+                firstNonEmpty(isrc, cachedBase.isrc),
+                firstNonEmpty(spotifyTrackId, cachedBase.spotifyTrackId),
+                syncData == null
+                        ? privacySafeContributorFallback(cachedBase).contributors
+                        : syncData.contributors,
+                cachedBase.providerId,
+                cachedBase.selectionPolicyKey,
+                cachedBase.syncType,
+                cachedBase.syncPoints,
+                cachedBase.pronunciationProviderLabel,
+                cachedBase.translationProviderLabel
+        );
+    }
+
+    private boolean shouldPublishRevalidatedLyrics(LyricsResult cached, LyricsResult refreshed) {
+        if (cached == null) {
+            return true;
+        }
+        return refreshed != null
+                && !refreshed.lines.isEmpty()
+                && ((refreshed.karaoke && !cached.karaoke)
+                || !refreshed.providerId.equals(cached.providerId)
+                || !refreshed.syncType.equals(cached.syncType)
+                || refreshed.syncPoints != cached.syncPoints
+                || !sameContributors(refreshed.contributors, cached.contributors));
+    }
+
+    private static LyricsResult withContributors(
+            LyricsResult result,
+            List<LyricsResult.SyncContributor> contributors
+    ) {
+        return withContributors(result, contributors, result.syncType, result.syncPoints);
+    }
+
+    private static LyricsResult withContributors(
+            LyricsResult result,
+            List<LyricsResult.SyncContributor> contributors,
+            String syncType,
+            int syncPoints
+    ) {
+        return new LyricsResult(
+                result.lines,
+                result.providerLabel,
+                result.detail,
+                result.karaoke,
+                result.isrc,
+                result.spotifyTrackId,
+                contributors,
+                result.providerId,
+                result.selectionPolicyKey,
+                syncType,
+                syncPoints,
+                result.pronunciationProviderLabel,
+                result.translationProviderLabel
+        );
+    }
+
+    private static boolean sameContributors(
+            List<LyricsResult.SyncContributor> left,
+            List<LyricsResult.SyncContributor> right
+    ) {
+        if (left == right) return true;
+        if (left == null || right == null || left.size() != right.size()) return false;
+        for (int index = 0; index < left.size(); index++) {
+            LyricsResult.SyncContributor a = left.get(index);
+            LyricsResult.SyncContributor b = right.get(index);
+            if (a == b) continue;
+            if (a == null || b == null
+                    || !a.name.equals(b.name)
+                    || !a.userHash.equals(b.userHash)
+                    || a.profileAvailable != b.profileAvailable
+                    || a.anonymous != b.anonymous
+                    || a.isPrivate != b.isPrivate
+                    || !a.syncType.equals(b.syncType)
+                    || a.syncPoints != b.syncPoints) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private LyricsResult lyricsResultFromManualCandidate(LrclibCandidate candidate, TrackSnapshot track) {
+        boolean lineSynced = candidate.useSyncedLyrics();
+        List<LyricsLine> lines = lineSynced
+                ? LrcParser.parseSynced(candidate.syncedLyrics, secondsToMs(
+                candidate.durationSeconds,
+                track == null ? 0L : track.durationMs
+        ))
+                : LrcParser.parsePlain(candidate.plainLyrics);
+        if (lines.isEmpty()) {
+            return new LyricsResult(
+                    Collections.emptyList(),
+                    "LRCLIB",
+                    candidate.instrumental ? ui("repo.instrumental") : ui("repo.no_renderable_lyrics"),
+                    false,
+                    firstNonEmpty(candidate.isrc, track == null ? "" : track.isrc),
+                    track == null ? "" : track.trackId,
+                    Collections.emptyList()
+            );
+        }
+        return new LyricsResult(
+                lines,
+                lineSynced ? "LRCLIB synced" : "LRCLIB plain",
+                ui("repo.detail.manual_lrclib"),
+                false,
+                firstNonEmpty(candidate.isrc, track == null ? "" : track.isrc),
+                track == null ? "" : track.trackId,
+                Collections.emptyList()
+        ).withSelection(LyricsProviderSettings.PROVIDER_LRCLIB, "manual");
+    }
+
+    private void publishSpotifyArtwork(String trackKey, SpotifyTrackMatch match, Callback callback, LogSink log) {
+        if (callback == null || match == null || match.artworkUrl.isEmpty()) {
+            return;
+        }
+        if (!match.spotifyId.isEmpty()) {
+            synchronized (spotifyArtworkMetadataCache) {
+                spotifyArtworkMetadataCache.put(match.spotifyId, match);
+            }
+        }
+        String cacheKey = firstNonEmpty(match.spotifyId, match.artworkUrl) + "|" + match.artworkUrl;
+        Bitmap cachedArtwork;
+        synchronized (spotifyArtworkCache) {
+            cachedArtwork = spotifyArtworkCache.get(cacheKey);
+        }
+        if (cachedArtwork != null && !cachedArtwork.isRecycled()) {
+            String artworkKey = "spotify:" + match.spotifyId + ":artwork:" + match.artworkUrl;
+            log.write("spotify artwork: memory cache hit "
+                    + cachedArtwork.getWidth() + "x" + cachedArtwork.getHeight());
+            mainHandler.post(RequestCancellation.guard(() -> callback.onLyricsArtworkLoaded(trackKey, cachedArtwork, artworkKey)));
+            return;
+        }
+        try {
+            Bitmap artwork = loadBitmap(match.artworkUrl);
+            if (artwork == null) {
+                log.write("spotify artwork: load failed, url=" + match.artworkUrl);
+                return;
+            }
+            String artworkKey = "spotify:" + match.spotifyId + ":artwork:" + match.artworkUrl;
+            synchronized (spotifyArtworkCache) {
+                spotifyArtworkCache.put(cacheKey, artwork);
+            }
+            log.write("spotify artwork: loaded "
+                    + artwork.getWidth()
+                    + "x"
+                    + artwork.getHeight()
+                    + " / source="
+                    + match.artworkWidth
+                    + "x"
+                    + match.artworkHeight);
+            mainHandler.post(RequestCancellation.guard(() -> callback.onLyricsArtworkLoaded(trackKey, artwork, artworkKey)));
+        } catch (Exception error) {
+            log.write("spotify artwork error: " + error.getMessage());
+        }
+    }
+
+    private void requestSpotifyArtwork(
+            String trackKey, SpotifyTrackMatch match, Callback callback, LogSink log
+    ) {
+        if (callback == null || match == null || match.artworkUrl.isEmpty()) return;
+        submitSpotifyArtwork(RequestCancellation.current(),
+                () -> publishSpotifyArtwork(trackKey, match, callback, log));
+    }
+
+    private void submitSpotifyArtwork(RequestCancellation request, Runnable work) {
+        if (artworkExecutor.isShutdown()) return;
+        try {
+            artworkExecutor.execute(() -> {
+                if (request == null) work.run();
+                else request.run(work);
+            });
+        } catch (RuntimeException ignored) {
+            // The activity may close while an artwork refresh is being queued.
+        }
+    }
+
+    private void requestSpotifyArtwork(
+            TrackSnapshot track,
+            LyricsResult cachedBase,
+            String trackKey,
+            Callback callback,
+            RequestCancellation request
+    ) {
+        if (track == null || callback == null) {
+            return;
+        }
+        submitSpotifyArtwork(request, () -> {
+            LogSink log = message -> {
+                RequestCancellation.check();
+                emitLog(trackKey, callback, message);
+            };
+            resolveAndPublishSpotifyArtwork(track, cachedBase, trackKey, callback, log);
+        });
+    }
+
+    private void resolveAndPublishSpotifyArtwork(
+            TrackSnapshot track,
+            LyricsResult cachedBase,
+            String trackKey,
+            Callback callback,
+            LogSink log
+    ) {
+        if (embeddedSpotify || track == null || callback == null) {
+            return;
+        }
+        String spotifyTrackId = firstNonEmpty(
+                track.trackId,
+                cachedBase == null ? "" : cachedBase.spotifyTrackId
+        );
+        SpotifyTrackMatch match = null;
+        if (!spotifyTrackId.isEmpty()) {
+            synchronized (spotifyArtworkMetadataCache) {
+                match = spotifyArtworkMetadataCache.get(spotifyTrackId);
+            }
+            if (match != null) {
+                log.write("spotify artwork metadata: memory cache hit id=" + spotifyTrackId);
+                publishResolvedSpotifyMetadata(trackKey, match, callback);
+                publishSpotifyArtwork(trackKey, match, callback, log);
+                return;
+            }
+            try {
+                String token = getSpotifyAccessToken(false, log);
+                if (token.isEmpty()) {
+                    return;
+                }
+                try {
+                    match = fetchSpotifyTrackById(
+                            token,
+                            spotifyTrackId,
+                            "artwork metadata",
+                            Collections.singletonMap("Authorization", "Bearer " + token),
+                            false,
+                            log
+                    );
+                } catch (HttpStatusException error) {
+                    if (!isSpotifyTokenFailure(error)) {
+                        throw error;
+                    }
+                    log.write("spotify token: rejected by artwork request ("
+                            + error.getMessage() + "), refreshing");
+                    invalidateSpotifyToken();
+                    token = getSpotifyAccessToken(true, log);
+                    if (!token.isEmpty()) {
+                        match = fetchSpotifyTrackById(
+                                token,
+                                spotifyTrackId,
+                                "artwork metadata after refresh",
+                                Collections.singletonMap("Authorization", "Bearer " + token),
+                                false,
+                                log
+                        );
+                    }
+                }
+            } catch (Exception error) {
+                log.write("spotify artwork metadata error: " + error.getMessage());
+            }
+        } else {
+            log.write("spotify artwork: cached track id unavailable; resolving from playback metadata");
+            match = fetchSpotifyIsrc(track, log, null);
+        }
+        if (match == null) {
+            return;
+        }
+        if (!match.spotifyId.isEmpty()) {
+            synchronized (spotifyArtworkMetadataCache) {
+                spotifyArtworkMetadataCache.put(match.spotifyId, match);
+            }
+        }
+        publishResolvedSpotifyMetadata(trackKey, match, callback);
+        publishSpotifyArtwork(trackKey, match, callback, log);
+    }
+
+    private void publishResolvedSpotifyMetadata(String trackKey, SpotifyTrackMatch match, Callback callback) {
+        if (match == null) {
+            return;
+        }
+        publishResolvedMetadata(trackKey, match.isrc, match.spotifyId, callback);
+    }
+
+    private void publishResolvedMetadata(String trackKey, String isrc, String spotifyTrackId, Callback callback) {
+        if (callback == null) {
+            return;
+        }
+        String normalizedIsrc = TrackSnapshot.normalizeIsrc(isrc);
+        String safeSpotifyTrackId = spotifyTrackId == null ? "" : spotifyTrackId.trim();
+        if (normalizedIsrc.isEmpty() && safeSpotifyTrackId.isEmpty()) {
+            return;
+        }
+        mainHandler.post(RequestCancellation.guard(() -> callback.onLyricsMetadataResolved(trackKey, normalizedIsrc, safeSpotifyTrackId)));
+    }
+
+    private int countVocalParts(List<LyricsLine> lines) {
+        int count = 0;
+        for (LyricsLine line : lines) {
+            count += line.vocalParts == null ? 0 : line.vocalParts.size();
+        }
+        return count;
+    }
+
+    private LrclibCandidate searchBestCandidate(
+            LrclibPlaybackStage stage,
+            TrackSnapshot track,
+            SpotifyTrackMatch spotifyMatch,
+            SyncDataResult syncData,
+            LogSink log
+    ) throws Exception {
+        List<LrclibCandidate> candidates = new ArrayList<>();
+        TrackSnapshot spotifySearchTrack = buildSpotifyLrclibSearchTrack(track, spotifyMatch, log);
+        List<TrackSnapshot> searchTracks = new ArrayList<>();
+        searchTracks.add(track);
+        if (spotifySearchTrack != null) searchTracks.add(spotifySearchTrack);
+        for (TrackSnapshot searchTrack : searchTracks) {
+            Map<String, String> metadata = buildStructuredQuery(searchTrack);
+            if (searchTrack.durationMs > 0L) metadata.put("duration", String.valueOf(searchTrack.durationMs / 1000.0));
+            LrclibCandidate direct = fetchPlaybackLrclibCandidate(stage, "/get?" + encodeParams(metadata), syncData, log);
+            if (direct != null) {
+                appendUniqueCandidates(candidates, Collections.singletonList(direct));
+                LrclibCandidate best = rankPlaybackLrclibCandidates(track, spotifySearchTrack, syncData, candidates, log);
+                if (canFinishLrclibSearch(best, syncData, candidates)) return best;
+            }
+            List<Map<String, String>> queries = new ArrayList<>();
+            queries.add(buildStructuredQuery(searchTrack));
+            if (!searchTrack.album.isEmpty()) queries.add(buildStructuredQuery(searchTrack, false));
+            queries.add(Collections.singletonMap("q", searchTrack.title + " " + searchTrack.artist));
+            queries.add(Collections.singletonMap("q", searchTrack.title));
+            for (Map<String, String> query : queries) {
+                appendUniqueCandidates(candidates, searchPlaybackLrclib(stage, query, syncData, log));
+                LrclibCandidate best = rankPlaybackLrclibCandidates(track, spotifySearchTrack, syncData, candidates, log);
+                if (canFinishLrclibSearch(best, syncData, candidates)) return best;
+            }
+        }
+        return rankPlaybackLrclibCandidates(track, spotifySearchTrack, syncData, candidates, log);
+    }
+
+    private boolean canFinishLrclibSearch(LrclibCandidate best, SyncDataResult syncData, List<LrclibCandidate> candidates) {
+        return best != null && !needsLegacySyncLineShapeMatch(syncData, candidates)
+                && (best.instrumental || best.useSyncedLyrics() || !shouldPreferSyncedLrclibFallback(syncData));
+    }
+
+    private LrclibCandidate rankPlaybackLrclibCandidates(
+            TrackSnapshot track, TrackSnapshot spotifySearchTrack, SyncDataResult syncData,
+            List<LrclibCandidate> candidates, LogSink log
+    ) {
+        if (candidates.isEmpty()) {
+            log.write("lrclib search: no candidates");
+            return null;
+        }
+
+        for (LrclibCandidate candidate : candidates) {
+            decorateCandidateForSyncData(candidate, syncData);
+            candidate.albumMatchScore = 0.0;
+            candidate.score = scoreCandidate(track, candidate, syncData);
+            if (spotifySearchTrack != null) {
+                candidate.score = Math.max(candidate.score, scoreCandidate(spotifySearchTrack, candidate, syncData));
+            }
+        }
+        candidates.sort(this::compareLrclibCandidates);
+        if (syncData != null && !syncData.lineCharCounts().isEmpty()) {
+            log.write("lrclib sync-data exact line-shape candidates="
+                    + countSyncLineExactCandidates(candidates));
+        }
+        log.write("lrclib ranked candidates:");
+        for (int index = 0; index < Math.min(5, candidates.size()); index++) {
+            LrclibCandidate candidate = candidates.get(index);
+            log.write("  #" + (index + 1)
+                    + " score=" + fmt(candidate.score)
+                    + " album=" + fmt(candidate.albumMatchScore)
+                    + " sourceScore=" + candidate.syncSourceMatchScore
+                    + " syncLineExact=" + candidate.syncLineExactMatch
+                    + " preferred=" + candidate.preferredLyricsSource
+                    + " " + describeLrclibCandidate(candidate));
+        }
+        if (shouldPreferLegacyExactSyncLineShape(syncData)) {
+            LrclibCandidate exact = selectLegacyExactLineShapeCandidate(track, candidates, log);
+            if (exact != null) {
+                return exact;
+            }
+            log.write("lrclib legacy sync-data: no exact line-shape candidate found; using ranked fallback");
+        }
+        LrclibCandidate best = selectSyncedFallbackCandidate(
+                track,
+                spotifySearchTrack,
+                syncData,
+                candidates,
+                candidates.get(0),
+                log
+        );
+        if (best.score <= 2.2 && best.syncSourceMatchScore <= 0 && !best.syncLineExactMatch) {
+            log.write("lrclib selected: rejected top candidate, score below threshold: " + fmt(best.score));
+            return null;
+        }
+        return best;
+    }
+
+    private TrackSnapshot buildSpotifyLrclibSearchTrack(
+            TrackSnapshot track,
+            SpotifyTrackMatch spotifyMatch,
+            LogSink log
+    ) {
+        if (track == null || spotifyMatch == null) {
+            return null;
+        }
+
+        String spotifyTitle = firstNonEmpty(spotifyMatch.englishTitle, spotifyMatch.title);
+        String spotifyArtist = firstNonEmpty(spotifyMatch.englishArtist, spotifyMatch.artist);
+        String spotifyAlbum = firstNonEmpty(spotifyMatch.englishAlbum, spotifyMatch.album);
+        if (spotifyTitle.isEmpty() || spotifyArtist.isEmpty()) {
+            return null;
+        }
+        if (sameSearchMetadata(track.title, spotifyTitle)
+                && sameSearchMetadata(track.artist, spotifyArtist)
+                && (spotifyAlbum.isEmpty() || sameSearchMetadata(track.album, spotifyAlbum))) {
+            return null;
+        }
+
+        boolean englishMetadata = spotifyMatch.hasEnglishMetadata();
+        log.write("lrclib spotify metadata search enabled"
+                + " / english=" + englishMetadata
+                + " / title=\"" + spotifyTitle + "\""
+                + " / artist=\"" + spotifyArtist + "\""
+                + (spotifyAlbum.isEmpty() || englishMetadata ? "" : " / album=\"" + spotifyAlbum + "\""));
+        return new TrackSnapshot(
+                spotifyTitle,
+                spotifyArtist,
+                englishMetadata ? "" : spotifyAlbum,
+                track.packageName,
+                track.mediaId,
+                firstNonEmpty(spotifyMatch.isrc, track.isrc),
+                spotifyMatch.durationMs > 0L ? spotifyMatch.durationMs : track.durationMs,
+                track.positionMs,
+                track.lastPositionUpdateElapsedMs,
+                track.playbackSpeed,
+                track.playing,
+                track.artwork,
+                track.artworkUri
+        );
+    }
+
+    private List<LrclibCandidate> searchManualLrclibCandidates(String title, String artist, LogSink log) throws Exception {
+        List<LrclibCandidate> candidates = new ArrayList<>();
+        Map<String, String> structured = new LinkedHashMap<>();
+        structured.put("track_name", title);
+        if (artist != null && !artist.trim().isEmpty()) {
+            structured.put("artist_name", artist.trim());
+        }
+        appendUniqueCandidates(candidates, searchLrclib(structured, "manual:structured", log));
+
+        if (artist != null && !artist.trim().isEmpty()) {
+            appendUniqueCandidates(candidates, searchLrclib(
+                    Collections.singletonMap("q", title + " " + artist.trim()),
+                    "manual:q:title+artist",
+                    log
+            ));
+        }
+        appendUniqueCandidates(candidates, searchLrclib(
+                Collections.singletonMap("q", title),
+                "manual:q:title",
+                log
+        ));
+        return candidates;
+    }
+
+    private TrackSnapshot manualScoringTrack(TrackSnapshot track, String title, String artist) {
+        if ((title == null || title.trim().isEmpty()) && (track == null || track.title.isEmpty())) {
+            return null;
+        }
+        String scoreTitle = firstNonEmpty(title, track == null ? "" : track.title);
+        String scoreArtist = firstNonEmpty(artist, track == null ? "" : track.artist);
+        if (scoreTitle.isEmpty() || scoreArtist.isEmpty()) {
+            return null;
+        }
+        return new TrackSnapshot(
+                scoreTitle,
+                scoreArtist,
+                track == null ? "" : track.album,
+                track == null ? "" : track.packageName,
+                track == null ? "" : track.mediaId,
+                track == null ? "" : track.isrc,
+                track == null ? 0L : track.durationMs,
+                track == null ? 0L : track.positionMs,
+                track == null ? 0L : track.lastPositionUpdateElapsedMs,
+                track == null ? 1f : track.playbackSpeed,
+                track != null && track.playing,
+                track == null ? null : track.artwork,
+                track == null ? "" : track.artworkUri
+        );
+    }
+
+    private boolean needsLegacySyncLineShapeMatch(SyncDataResult syncData, List<LrclibCandidate> candidates) {
+        if (!shouldPreferLegacyExactSyncLineShape(syncData)) {
+            return false;
+        }
+        return !hasSyncLineExactCandidate(candidates, syncData);
+    }
+
+    private boolean shouldPreferLegacyExactSyncLineShape(SyncDataResult syncData) {
+        return syncData != null
+                && !syncData.lineCharCounts().isEmpty()
+                && syncData.lrclibId() <= 0L
+                && syncData.sourceLineCharCounts().isEmpty();
+    }
+
+    private LrclibCandidate selectLegacyExactLineShapeCandidate(
+            TrackSnapshot track,
+            List<LrclibCandidate> candidates,
+            LogSink log
+    ) {
+        if (candidates == null || candidates.isEmpty()) {
+            return null;
+        }
+
+        List<LrclibCandidate> exactCandidates = new ArrayList<>();
+        for (LrclibCandidate candidate : candidates) {
+            if (candidate != null && candidate.syncLineExactMatch) {
+                exactCandidates.add(candidate);
+            }
+        }
+        if (exactCandidates.isEmpty()) {
+            return null;
+        }
+
+        exactCandidates.sort((left, right) -> compareLegacyExactLineShapeCandidates(track, left, right));
+        LrclibCandidate selected = exactCandidates.get(0);
+        log.write("lrclib legacy sync-data: selected exact line-shape candidate"
+                + " / group=" + legacyExactLineShapeGroup(selected)
+                + " / withinDuration=" + isWithinDurationTolerance(track, selected)
+                + " / " + describeLrclibCandidate(selected));
+        return selected;
+    }
+
+    private int compareLegacyExactLineShapeCandidates(
+            TrackSnapshot track,
+            LrclibCandidate left,
+            LrclibCandidate right
+    ) {
+        int group = Integer.compare(legacyExactLineShapeGroup(right), legacyExactLineShapeGroup(left));
+        if (group != 0) return group;
+
+        int durationWithin = Boolean.compare(
+                isWithinDurationTolerance(track, right),
+                isWithinDurationTolerance(track, left)
+        );
+        if (durationWithin != 0) return durationWithin;
+
+        int durationDiff = Double.compare(durationDiffSeconds(track, left), durationDiffSeconds(track, right));
+        if (durationDiff != 0) return durationDiff;
+
+        return compareLrclibCandidates(left, right);
+    }
+
+    private int legacyExactLineShapeGroup(LrclibCandidate candidate) {
+        if (candidate == null) {
+            return 0;
+        }
+        if (candidate.hasOriginalLyricsScript && candidate.exactSyncedLineMatch) {
+            return 4;
+        }
+        if (candidate.hasOriginalLyricsScript && candidate.exactPlainLineMatch) {
+            return 3;
+        }
+        if (candidate.exactSyncedLineMatch) {
+            return 2;
+        }
+        return candidate.exactPlainLineMatch ? 1 : 0;
+    }
+
+    private boolean isWithinDurationTolerance(TrackSnapshot track, LrclibCandidate candidate) {
+        return durationDiffSeconds(track, candidate) <= DURATION_TOLERANCE_SECONDS;
+    }
+
+    private double durationDiffSeconds(TrackSnapshot track, LrclibCandidate candidate) {
+        if (track == null || candidate == null || track.durationMs <= 0L || candidate.durationSeconds <= 0.0) {
+            return Double.MAX_VALUE;
+        }
+        return Math.abs((track.durationMs / 1000.0) - candidate.durationSeconds);
+    }
+
+    private boolean hasSyncLineExactCandidate(List<LrclibCandidate> candidates, SyncDataResult syncData) {
+        if (candidates == null || candidates.isEmpty() || syncData == null) {
+            return false;
+        }
+        for (LrclibCandidate candidate : candidates) {
+            decorateCandidateForSyncData(candidate, syncData);
+            if (candidate.syncLineExactMatch) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private int countSyncLineExactCandidates(List<LrclibCandidate> candidates) {
+        int count = 0;
+        if (candidates == null) {
+            return count;
+        }
+        for (LrclibCandidate candidate : candidates) {
+            if (candidate != null && candidate.syncLineExactMatch) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private void appendUniqueCandidates(List<LrclibCandidate> target, List<LrclibCandidate> next) {
+        if (target == null || next == null || next.isEmpty()) {
+            return;
+        }
+        for (LrclibCandidate candidate : next) {
+            if (candidate == null || containsCandidate(target, candidate)) {
+                continue;
+            }
+            target.add(candidate);
+        }
+    }
+
+    private boolean containsCandidate(List<LrclibCandidate> candidates, LrclibCandidate candidate) {
+        for (LrclibCandidate existing : candidates) {
+            if (existing == null) {
+                continue;
+            }
+            if (existing.id > 0L && candidate.id > 0L && existing.id == candidate.id) {
+                return true;
+            }
+            if (existing.id <= 0L || candidate.id <= 0L) {
+                String existingKey = lrclibCandidateKey(existing);
+                String nextKey = lrclibCandidateKey(candidate);
+                if (!existingKey.isEmpty() && existingKey.equals(nextKey)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private String lrclibCandidateKey(LrclibCandidate candidate) {
+        if (candidate == null) {
+            return "";
+        }
+        return (candidate.trackName + "\n" + candidate.artistName + "\n" + candidate.albumName)
+                .toLowerCase(Locale.ROOT)
+                .trim() + "\n" + lyricsFingerprint(candidate.plainLyrics) + "\n" + lyricsFingerprint(candidate.syncedLyrics);
+    }
+
+    private int compareLrclibCandidates(LrclibCandidate left, LrclibCandidate right) {
+        int sourceScore = Integer.compare(right.syncSourceMatchScore, left.syncSourceMatchScore);
+        if (sourceScore != 0) return sourceScore;
+        int syncLine = Boolean.compare(right.syncLineExactMatch, left.syncLineExactMatch);
+        if (syncLine != 0) return syncLine;
+        int syncedLine = Boolean.compare(right.exactSyncedLineMatch, left.exactSyncedLineMatch);
+        if (syncedLine != 0) return syncedLine;
+        return Double.compare(right.score, left.score);
+    }
+
+    private LrclibCandidate selectSyncedFallbackCandidate(
+            TrackSnapshot track,
+            TrackSnapshot spotifySearchTrack,
+            SyncDataResult syncData,
+            List<LrclibCandidate> candidates,
+            LrclibCandidate best,
+            LogSink log
+    ) {
+        if (best == null || candidates == null || candidates.isEmpty() || !shouldPreferSyncedLrclibFallback(syncData)) {
+            return best;
+        }
+        if (best.useSyncedLyrics()) {
+            return best;
+        }
+        if (hasSyncedLyricsPayload(best) && isReasonableSyncedFallbackMatch(track, spotifySearchTrack, best)) {
+            best.preferredLyricsSource = "synced";
+            log.write("lrclib synced fallback: using synced lyrics from top candidate"
+                    + " / score=" + fmt(best.score)
+                    + " / " + describeLrclibCandidate(best));
+            return best;
+        }
+
+        double floor = best.score - LRCLIB_SYNCED_FALLBACK_SCORE_WINDOW;
+        for (LrclibCandidate candidate : candidates) {
+            if (candidate == null || candidate == best || !hasSyncedLyricsPayload(candidate)) {
+                continue;
+            }
+            if (candidate.score + 0.0001 < floor) {
+                continue;
+            }
+            if (!isReasonableSyncedFallbackMatch(track, spotifySearchTrack, candidate)) {
+                continue;
+            }
+            if (!passesLrclibSelectionThreshold(candidate)) {
+                continue;
+            }
+            candidate.preferredLyricsSource = "synced";
+            log.write("lrclib synced fallback: selected synced candidate within score window"
+                    + " / bestPlainScore=" + fmt(best.score)
+                    + " / syncedScore=" + fmt(candidate.score)
+                    + " / window=" + fmt(LRCLIB_SYNCED_FALLBACK_SCORE_WINDOW)
+                    + " / " + describeLrclibCandidate(candidate));
+            return candidate;
+        }
+        return best;
+    }
+
+    private boolean shouldPreferSyncedLrclibFallback(SyncDataResult syncData) {
+        return syncData == null
+                || (syncData.lrclibId() <= 0L
+                && syncData.lineCharCounts().isEmpty());
+    }
+
+    private boolean passesLrclibSelectionThreshold(LrclibCandidate candidate) {
+        return candidate != null
+                && (candidate.score > 2.2
+                || candidate.syncSourceMatchScore > 0
+                || candidate.syncLineExactMatch);
+    }
+
+    private boolean hasSyncedLyricsPayload(LrclibCandidate candidate) {
+        return candidate != null
+                && candidate.syncedLyrics != null
+                && !candidate.syncedLyrics.trim().isEmpty();
+    }
+
+    private boolean isReasonableSyncedFallbackMatch(
+            TrackSnapshot track,
+            TrackSnapshot spotifySearchTrack,
+            LrclibCandidate candidate
+    ) {
+        if (candidate == null) {
+            return false;
+        }
+        if (!candidate.isrc.isEmpty()) {
+            if (track != null && candidate.isrc.equals(track.isrc)) {
+                return true;
+            }
+            if (spotifySearchTrack != null && candidate.isrc.equals(spotifySearchTrack.isrc)) {
+                return true;
+            }
+        }
+        return isReasonableSyncedFallbackMatch(track, candidate)
+                || isReasonableSyncedFallbackMatch(spotifySearchTrack, candidate);
+    }
+
+    private boolean isReasonableSyncedFallbackMatch(TrackSnapshot track, LrclibCandidate candidate) {
+        if (track == null || candidate == null) {
+            return false;
+        }
+        double title = titleScore(track.title, candidate.trackName);
+        double artist = bestArtistScore(track.artist, candidate.artistName);
+        boolean durationOk = track.durationMs <= 0L
+                || candidate.durationSeconds <= 0.0
+                || isWithinDurationTolerance(track, candidate);
+        return title >= LRCLIB_SYNCED_FALLBACK_MIN_TITLE_SCORE
+                && artist >= LRCLIB_SYNCED_FALLBACK_MIN_ARTIST_SCORE
+                && durationOk;
+    }
+
+    private Map<String, String> buildStructuredQuery(TrackSnapshot track) {
+        return buildStructuredQuery(track, true);
+    }
+
+    private Map<String, String> buildStructuredQuery(TrackSnapshot track, boolean includeAlbum) {
+        Map<String, String> params = new HashMap<>();
+        params.put("track_name", track.title);
+        params.put("artist_name", track.artist);
+        if (includeAlbum && !track.album.isEmpty()) {
+            params.put("album_name", track.album);
+        }
+        return params;
+    }
+
+    private String getPlaybackLrclib(LrclibPlaybackStage stage, String suffix, LogSink log) throws Exception {
+        // Missing/unsupported variants remain empty, but rate limits, outages and timeouts end
+        // this host's bounded stage instead of repeating every metadata/search variant.
+        return stage.get(suffix);
+    }
+
+    private LrclibCandidate fetchPlaybackLrclibCandidate(
+            LrclibPlaybackStage stage, String suffix, SyncDataResult syncData, LogSink log
+    ) throws Exception {
+        String response = getPlaybackLrclib(stage, suffix, log);
+        if (response.trim().isEmpty()) return null;
+        try {
+            return preparePlaybackLrclibCandidate(LrclibCandidate.fromJson(new JSONObject(response)), stage, syncData, log);
+        } catch (org.json.JSONException error) {
+            log.write("lrclib get: invalid JSON payload");
+            return null;
+        }
+    }
+
+    private List<LrclibCandidate> searchPlaybackLrclib(
+            LrclibPlaybackStage stage, Map<String, String> params, SyncDataResult syncData, LogSink log
+    ) throws Exception {
+        String response = getPlaybackLrclib(stage, "/search?" + encodeParams(params), log);
+        List<LrclibCandidate> candidates = new ArrayList<>();
+        if (response.trim().isEmpty()) return candidates;
+        try {
+            JSONArray array = new JSONArray(response);
+            for (int index = 0; index < array.length(); index++) {
+                RequestCancellation.check();
+                JSONObject object = array.optJSONObject(index);
+                if (object == null) continue;
+                LrclibCandidate candidate = preparePlaybackLrclibCandidate(LrclibCandidate.fromJson(object), stage, syncData, log);
+                if (candidate != null) candidates.add(candidate);
+            }
+        } catch (org.json.JSONException error) {
+            log.write("lrclib search: invalid JSON payload");
+        }
+        return candidates;
+    }
+
+    private LrclibCandidate preparePlaybackLrclibCandidate(
+            LrclibCandidate candidate, LrclibPlaybackStage stage, SyncDataResult syncData, LogSink log
+    ) {
+        if (!candidate.hasLyrics() || candidate.trackName.isEmpty() || candidate.artistName.isEmpty()
+                || !Double.isFinite(candidate.durationSeconds) || candidate.durationSeconds < 0) return null;
+        boolean pinned = syncData != null && syncData.hasLrclibSource()
+                && (syncData.lrclibId() > 0 || !syncData.sourceLyricsFingerprint().isEmpty()
+                || !syncData.sourceLineCharCounts().isEmpty());
+        if (stage.custom) {
+            long privateId = candidate.id;
+            // A mirror ID has no authority in LRCLIB. Only a saved source may supply a canonical ID.
+            candidate = new LrclibCandidate(0L, candidate.trackName, candidate.artistName, candidate.albumName,
+                    candidate.durationSeconds, candidate.instrumental, candidate.plainLyrics, candidate.syncedLyrics, candidate.isrc);
+            decorateCandidateForSyncData(candidate, syncData);
+            if (pinned) {
+                boolean contentEvidence = !syncData.sourceLyricsFingerprint().isEmpty()
+                        || !syncData.sourceLineCharCounts().isEmpty() || !syncData.lineCharCounts().isEmpty();
+                boolean differentId = syncData.lrclibId() > 0L && privateId != syncData.lrclibId();
+                if ((differentId && syncData.sourceLyricsFingerprint().isEmpty())
+                        || (contentEvidence ? !matchesPrivatePinnedSource(candidate, syncData) : privateId != syncData.lrclibId())) {
+                    log.write("lrclib custom: rejected conflicting pinned source");
+                    return null;
+                }
+                String validatedSource = candidate.preferredLyricsSource;
+                candidate = new LrclibCandidate(syncData.lrclibId(), candidate.trackName, candidate.artistName, candidate.albumName,
+                        candidate.durationSeconds, candidate.instrumental, candidate.plainLyrics, candidate.syncedLyrics, candidate.isrc);
+                decorateCandidateForSyncData(candidate, syncData);
+                candidate.preferredLyricsSource = validatedSource;
+            }
+        } else {
+            decorateCandidateForSyncData(candidate, syncData);
+            // Preserve official same-ID compatibility, but never choose another revision on metadata alone.
+            if (pinned && !candidate.syncSourceIdMatch) {
+                boolean fingerprint = !syncData.sourceLyricsFingerprint().isEmpty();
+                boolean counts = !syncData.sourceLineCharCounts().isEmpty();
+                if ((!fingerprint && !counts) || (fingerprint && !candidate.syncSourceTextMatch)
+                        || (counts && !candidate.syncSourceLineCountMatch)) return null;
+            }
+        }
+        List<LyricsLine> renderable = candidate.useSyncedLyrics()
+                ? LrcParser.parseSynced(candidate.syncedLyrics, secondsToMs(candidate.durationSeconds, 0L))
+                : LrcParser.parsePlain(candidate.plainLyrics);
+        return candidate.instrumental || !renderable.isEmpty() ? candidate : null;
+    }
+
+    private boolean matchesPrivatePinnedSource(LrclibCandidate candidate, SyncDataResult syncData) {
+        String preferred = syncData.preferredLyricsSource();
+        String[] sources = {preferred, candidate.preferredLyricsSource, "synced", "plain"};
+        for (String source : sources) {
+            if (source.isEmpty() || ("synced".equals(source) ? candidate.syncedLyrics == null : candidate.plainLyrics == null)) continue;
+            String text = candidateComparableText(candidate, source, syncData.shouldNormalizeParentheticalLines());
+            List<Integer> counts = lineCharCounts(comparableLyricsLines(text, false, false));
+            if (!syncData.sourceLyricsFingerprint().isEmpty()
+                    && !syncData.sourceLyricsFingerprint().equals(lyricsFingerprint(text))) continue;
+            if (!syncData.sourceLineCharCounts().isEmpty() && !hasExactLineShape(syncData.sourceLineCharCounts(), counts)) continue;
+            // Timing rows may be merged. Source rows describe the saved text; legacy timing shape
+            // is evidence only when that stronger source description is absent.
+            if (syncData.sourceLineCharCounts().isEmpty() && syncData.sourceLyricsFingerprint().isEmpty()
+                    && !syncData.lineCharCounts().isEmpty() && !hasExactLineShape(syncData.lineCharCounts(), counts)) continue;
+            candidate.preferredLyricsSource = source;
+            return true;
+        }
+        return false;
+    }
+
+    private List<LrclibCandidate> searchLrclib(Map<String, String> params, String label, LogSink log) throws Exception {
+        log.write("lrclib search [" + label + "]: " + describeParams(params));
+        String response = get(LRCLIB_BASE + "/search?" + encodeParams(params));
+        JSONArray array = new JSONArray(response);
+        List<LrclibCandidate> candidates = new ArrayList<>();
+        for (int index = 0; index < array.length(); index++) {
+            JSONObject object = array.optJSONObject(index);
+            if (object != null) {
+                LrclibCandidate candidate = LrclibCandidate.fromJson(object);
+                if (candidate.hasLyrics()) {
+                    candidates.add(candidate);
+                }
+            }
+        }
+        log.write("lrclib search [" + label + "]: candidates=" + candidates.size());
+        return candidates;
+    }
+
+    private LrclibCandidate fetchLrclibCandidateById(long lrclibId, LogSink log) {
+        if (lrclibId <= 0L) {
+            return null;
+        }
+
+        try {
+            String response = get(LRCLIB_BASE + "/get/" + lrclibId);
+            LrclibCandidate candidate = LrclibCandidate.fromJson(new JSONObject(response));
+            if (candidate.hasLyrics()) {
+                log.write("lrclib direct: " + describeLrclibCandidate(candidate));
+                return candidate;
+            }
+            log.write("lrclib direct: id=" + lrclibId + " has no lyrics payload");
+            return null;
+        } catch (Exception error) {
+            log.write("lrclib direct error: id=" + lrclibId + " / " + error.getMessage());
+            return null;
+        }
+    }
+
+    private SyncDataResult fetchSyncData(String isrc, String providerId, TrackSnapshot track, SpotifyTrackMatch spotifyMatch, LogSink log) {
+        return fetchSyncData(isrc, providerId, track, spotifyMatch, log, false);
+    }
+
+    private SyncDataResult fetchSyncData(
+            String isrc,
+            String providerId,
+            TrackSnapshot track,
+            SpotifyTrackMatch spotifyMatch,
+            LogSink log,
+            boolean refreshContributorPrivacy
+    ) {
+        try {
+            String normalizedIsrc = TrackSnapshot.normalizeIsrc(isrc);
+            String normalizedProvider = providerId == null ? "" : providerId.trim().toLowerCase(Locale.ROOT);
+            if (normalizedIsrc.isEmpty() || LyricsProviderSettings.provider(normalizedProvider) == null) {
+                return null;
+            }
+            String cacheKey = syncDataCacheKey(isrc, normalizedProvider);
+            String cachedResponse = syncDataResponseCache == null ? "" : syncDataResponseCache.get(cacheKey);
+            boolean cachedIdentityRedacted = cachedResponse.contains("\"identityRedacted\":true");
+            if (!refreshContributorPrivacy && !cachedResponse.isEmpty() && !cachedIdentityRedacted) {
+                log.write("sync-data cache hit: isrc=" + normalizedIsrc);
+                return parseSyncDataResponse(cachedResponse, normalizedProvider, log, true);
+            }
+            if (cachedIdentityRedacted) {
+                log.write("sync-data timing cache hit; refreshing contributor privacy metadata");
+            }
+
+            boolean bypassServerCache = shouldBypassSyncDataServerCache(normalizedIsrc);
+            if (refreshContributorPrivacy) {
+                log.write("sync-data contributor privacy refresh: using current server privacy revision");
+            }
+            if (!cachedIdentityRedacted && !refreshContributorPrivacy) {
+                if (bypassServerCache) {
+                    if (isOpenDbUnavailable(log)) {
+                        log.write("sync-data opendb: unavailable after cache clear, skip direct sync-data request");
+                        return null;
+                    }
+                } else if (!shouldRequestSyncDataFromOpenDb(normalizedIsrc, normalizedProvider, log)) {
+                    return null;
+                }
+            }
+
+            Map<String, String> params = new HashMap<>();
+            params.put("isrc", normalizedIsrc);
+            params.put("provider", normalizedProvider);
+            params.put("request-version", SYNC_DATA_REQUEST_VERSION);
+            params.put("format", "6");
+            if (bypassServerCache) {
+                params.put("bypassCache", "1");
+            }
+            params.put("title", firstNonEmpty(spotifyMatch == null ? "" : spotifyMatch.title, track.title));
+            params.put("artist", firstNonEmpty(spotifyMatch == null ? "" : spotifyMatch.artist, track.artist));
+            params.put("album", firstNonEmpty(spotifyMatch == null ? "" : spotifyMatch.album, track.album));
+            String trackId = firstNonEmpty(spotifyMatch == null ? "" : spotifyMatch.spotifyId, track.trackId);
+            if (!trackId.isEmpty()) {
+                params.put("trackId", trackId);
+            }
+
+            SyncMetadataReportScope metadataScope = syncMetadataReportScope.get();
+            long metadataGeneration = syncMetadataReportGeneration.get();
+            String metadataFingerprint = SyncMetadataReportScope.fingerprint(params);
+            boolean reportMetadata = metadataScope == null
+                    || !metadataScope.isAccepted(metadataFingerprint, metadataGeneration);
+            if (reportMetadata) {
+                params.put("metadata", "1");
+                if (metadataScope != null) params.put("metadata_ack", "1");
+            }
+
+            log.write("sync-data request: " + describeParams(params));
+            Map<String, String> headers = syncDataHeaders();
+            log.write("sync-data headers: Origin=" + headers.get("Origin"));
+            Map<String, String> responseHeaders = new HashMap<>();
+            String response = get(SYNC_DATA_BASE + "?" + encodeParams(params), headers, responseHeaders);
+            SyncDataResult result = parseSyncDataResponse(response, normalizedProvider, log, false);
+            if (reportMetadata && metadataScope != null
+                    && "1".equals(responseHeaders.get("X-Sync-Metadata-Accepted"))) {
+                metadataScope.accept(metadataFingerprint, metadataGeneration, syncMetadataReportGeneration.get());
+            }
+            if (embeddedSpotify) Log.i("ivLyricsSync", "Sync response: provider=" + normalizedProvider
+                    + " / timing=" + (result != null) + " / points=" + (result == null ? 0 : result.syncPoints));
+            if (syncDataResponseCache != null && !cacheKey.isEmpty()) {
+                String persistentResponse = redactSyncDataContributorIdentitiesForCache(response);
+                if (!persistentResponse.isEmpty()) {
+                    syncDataResponseCache.put(cacheKey, persistentResponse);
+                }
+            }
+            return result;
+        } catch (Exception error) {
+            log.write("sync-data error: " + error.getMessage());
+            return null;
+        }
+    }
+
+    private boolean shouldRequestSyncDataFromOpenDb(String isrc, String provider, LogSink log) {
+        String normalizedIsrc = TrackSnapshot.normalizeIsrc(isrc);
+        String normalizedProvider = provider == null ? "" : provider.trim();
+        if (normalizedIsrc.isEmpty() || normalizedProvider.isEmpty()) {
+            return false;
+        }
+
+        try {
+            JSONObject providerMap = loadOpenDbProviderMap(log);
+            if (providerMap == null) {
+                log.write("sync-data opendb: unavailable, skip direct sync-data request");
+                return false;
+            }
+            JSONArray providerItems = providerMap.optJSONArray(normalizedProvider);
+            boolean exists = jsonArrayContains(providerItems, normalizedIsrc);
+            if (!exists) {
+                log.write("sync-data opendb: not listed, skip direct sync-data request"
+                        + " / provider=" + normalizedProvider
+                        + " / isrc=" + normalizedIsrc);
+            }
+            return exists;
+        } catch (Exception error) {
+            markOpenDbUnavailable();
+            log.write("sync-data opendb error: " + error.getMessage());
+            return false;
+        }
+    }
+
+    private boolean isOpenDbUnavailable(LogSink log) {
+        try {
+            return loadOpenDbProviderMap(log) == null;
+        } catch (Exception error) {
+            markOpenDbUnavailable();
+            log.write("sync-data opendb error: " + error.getMessage());
+            return true;
+        }
+    }
+
+    private JSONObject loadOpenDbProviderMap(LogSink log) throws Exception {
+        long now = System.currentTimeMillis();
+        if (openDbPrefs == null) {
+            return null;
+        }
+
+        long unavailableUntil = openDbPrefs.getLong(KEY_OPENDB_UNAVAILABLE_UNTIL_MS, 0L);
+        if (unavailableUntil > now) {
+            return null;
+        }
+
+        String cached = openDbPrefs.getString(KEY_OPENDB_PROVIDER_MAP, "");
+        long fetchedAt = openDbPrefs.getLong(KEY_OPENDB_FETCHED_AT_MS, 0L);
+        if (cached != null && !cached.isEmpty() && fetchedAt > 0L
+                && now >= fetchedAt && now - fetchedAt < OPENDB_FRESH_MS) {
+            return new JSONObject(cached);
+        }
+
+        try {
+            log.write("sync-data opendb manifest request");
+            JSONObject manifest = new JSONObject(get(OPENDB_MANIFEST_URL));
+            String signature = getOpenDbManifestSignature(manifest);
+            String storedSignature = openDbPrefs.getString(KEY_OPENDB_SIGNATURE, "");
+            if (cached != null && !cached.isEmpty() && signature.equals(storedSignature)) {
+                JSONObject providerMap = new JSONObject(cached);
+                openDbPrefs.edit()
+                        .putLong(KEY_OPENDB_FETCHED_AT_MS, now)
+                        .putLong(KEY_OPENDB_UNAVAILABLE_UNTIL_MS, 0L)
+                        .apply();
+                log.write("sync-data opendb manifest unchanged: cached provider map reused");
+                return providerMap;
+            }
+
+            JSONObject refreshed = refreshOpenDbProviderMap(manifest, log);
+            JSONObject base = manifest.optJSONObject("base");
+            openDbPrefs.edit()
+                    .putString(KEY_OPENDB_PROVIDER_MAP, refreshed.toString())
+                    .putLong(KEY_OPENDB_FETCHED_AT_MS, now)
+                    .putString(KEY_OPENDB_SIGNATURE, signature)
+                    .putString(KEY_OPENDB_BASE_DATE, base == null ? "" : base.optString("date", ""))
+                    .putLong(KEY_OPENDB_UNAVAILABLE_UNTIL_MS, 0L)
+                    .apply();
+            return refreshed;
+        } catch (Exception error) {
+            openDbPrefs.edit()
+                    .putLong(KEY_OPENDB_UNAVAILABLE_UNTIL_MS, now + OPENDB_UNAVAILABLE_RETRY_MS)
+                    .apply();
+            throw error;
+        }
+    }
+
+    private String getOpenDbManifestSignature(JSONObject manifest) throws Exception {
+        JSONObject signature = new JSONObject();
+        signature.put("schema", manifest == null ? 0 : manifest.optInt("schema", 0));
+
+        JSONObject base = manifest == null ? null : manifest.optJSONObject("base");
+        signature.put("base", base == null ? "" : firstNonEmpty(
+                base.optString("sha256", ""),
+                base.optString("url", "")
+        ));
+
+        JSONArray deltaSignatures = new JSONArray();
+        JSONArray deltas = manifest == null ? null : manifest.optJSONArray("deltas");
+        if (deltas != null) {
+            for (int index = 0; index < deltas.length(); index++) {
+                JSONObject delta = deltas.optJSONObject(index);
+                deltaSignatures.put(delta == null ? "" : firstNonEmpty(
+                        delta.optString("sha256", ""),
+                        delta.optString("url", ""),
+                        delta.optString("date", "")
+                ));
+            }
+        }
+        signature.put("deltas", deltaSignatures);
+
+        JSONObject current = manifest == null ? null : manifest.optJSONObject("current");
+        signature.put("current", current == null ? "" : firstNonEmpty(
+                current.optString("sha256", ""),
+                current.optString("updatedAt", ""),
+                current.optString("url", "")
+        ));
+        return signature.toString();
+    }
+
+    private JSONObject refreshOpenDbProviderMap(JSONObject manifest, LogSink log) throws Exception {
+        JSONObject providerMap = new JSONObject();
+
+        JSONObject base = manifest.optJSONObject("base");
+        if (base != null) {
+            mergeOpenDbProviderFile(providerMap, base.optString("url", ""), false);
+        }
+
+        JSONArray deltas = manifest.optJSONArray("deltas");
+        if (deltas != null) {
+            for (int index = 0; index < deltas.length(); index++) {
+                JSONObject delta = deltas.optJSONObject(index);
+                if (delta != null) {
+                    mergeOpenDbProviderFile(providerMap, delta.optString("url", ""), true);
+                }
+            }
+        }
+
+        JSONObject current = manifest.optJSONObject("current");
+        if (current != null) {
+            mergeOpenDbProviderFile(providerMap, current.optString("url", ""), true);
+        }
+
+        JSONArray lrclib = providerMap.optJSONArray(LRCLIB_PROVIDER_ID);
+        log.write("sync-data opendb refreshed: lrclib="
+                + (lrclib == null ? 0 : lrclib.length()));
+        return providerMap;
+    }
+
+    private void mergeOpenDbProviderFile(JSONObject providerMap, String relativeUrl, boolean delta) throws Exception {
+        String url = resolveOpenDbUrl(relativeUrl);
+        if (url.isEmpty()) {
+            return;
+        }
+        JSONObject file = new JSONObject(get(url));
+        if (delta) {
+            mergeOpenDbProviderObject(providerMap, file.optJSONObject("add"), true);
+            mergeOpenDbProviderObject(providerMap, file.optJSONObject("remove"), false);
+            return;
+        }
+        mergeOpenDbProviderObject(providerMap, file.optJSONObject("items"), true);
+    }
+
+    private void mergeOpenDbProviderObject(JSONObject providerMap, JSONObject source, boolean add) throws Exception {
+        if (source == null) {
+            return;
+        }
+
+        Iterator<String> keys = source.keys();
+        while (keys.hasNext()) {
+            String provider = keys.next();
+            JSONArray entries = source.optJSONArray(provider);
+            if (entries == null) {
+                continue;
+            }
+
+            JSONArray target = providerMap.optJSONArray(provider);
+            if (target == null) {
+                target = new JSONArray();
+                providerMap.put(provider, target);
+            }
+
+            Set<String> values = new ArraySet<>(
+                    add ? target.length() + entries.length() : entries.length()
+            );
+            if (add) {
+                for (int index = 0; index < target.length(); index++) {
+                    values.add(target.optString(index, ""));
+                }
+            }
+            for (int index = 0; index < entries.length(); index++) {
+                String rawIsrc = entries.optString(index, "");
+                String normalizedIsrc = isCanonicalOpenDbIsrc(rawIsrc)
+                        ? rawIsrc
+                        : TrackSnapshot.normalizeIsrc(rawIsrc);
+                if (normalizedIsrc.isEmpty()) {
+                    continue;
+                }
+                if (add) {
+                    if (values.add(normalizedIsrc)) {
+                        target.put(normalizedIsrc);
+                    }
+                } else {
+                    values.add(normalizedIsrc);
+                }
+            }
+            if (!add && !values.isEmpty()) {
+                for (int index = target.length() - 1; index >= 0; index--) {
+                    if (values.contains(target.optString(index, ""))) {
+                        target.remove(index);
+                    }
+                }
+            }
+        }
+    }
+
+    private String resolveOpenDbUrl(String relativeUrl) {
+        String value = relativeUrl == null ? "" : relativeUrl.trim();
+        if (value.isEmpty()) {
+            return "";
+        }
+        if (value.startsWith("http://") || value.startsWith("https://")) {
+            return value;
+        }
+        if (value.startsWith("/")) {
+            return OPENDB_ORIGIN + value;
+        }
+        return OPENDB_ROOT + "/" + value;
+    }
+
+    private void markOpenDbUnavailable() {
+        if (openDbPrefs != null) {
+            openDbPrefs.edit()
+                    .putLong(KEY_OPENDB_UNAVAILABLE_UNTIL_MS, System.currentTimeMillis() + OPENDB_UNAVAILABLE_RETRY_MS)
+                    .apply();
+        }
+    }
+
+    private static boolean jsonArrayContains(JSONArray array, String value) {
+        if (array == null || value == null || value.trim().isEmpty()) {
+            return false;
+        }
+        for (int index = 0; index < array.length(); index++) {
+            if (value.equals(array.optString(index, ""))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isCanonicalOpenDbIsrc(String value) {
+        if (value == null || value.length() != 12) {
+            return false;
+        }
+        for (int index = 0; index < 2; index++) {
+            char character = value.charAt(index);
+            if (character < 'A' || character > 'Z') {
+                return false;
+            }
+        }
+        for (int index = 2; index < 5; index++) {
+            char character = value.charAt(index);
+            if ((character < 'A' || character > 'Z') && (character < '0' || character > '9')) {
+                return false;
+            }
+        }
+        for (int index = 5; index < 12; index++) {
+            char character = value.charAt(index);
+            if (character < '0' || character > '9') {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private SyncDataResult parseSyncDataResponse(String response, String expectedProvider, LogSink log, boolean fromCache) throws Exception {
+        String prefix = fromCache ? "sync-data cached response" : "sync-data response";
+        JSONObject root = new JSONObject(response);
+        JSONObject data = root.optJSONObject("data");
+        if (data == null) {
+            log.write(prefix + ": no data");
+            return null;
+        }
+        String responseProvider = data.optString("provider", expectedProvider).trim().toLowerCase(Locale.ROOT);
+        if (!expectedProvider.equals(responseProvider)) {
+            log.write(prefix + ": provider mismatch / expected=" + expectedProvider + " / actual=" + responseProvider);
+            return null;
+        }
+        JSONObject syncData = data.optJSONObject("syncData");
+        if (syncData != null) {
+            SyncDataResult result = new SyncDataResult(
+                    syncBodyWithDurationFallback(syncData, data),
+                    responseProvider,
+                    parseSyncContributors(data, syncData),
+                    data.optString("syncType", "unknown"),
+                    data.optInt("syncPoints", 0)
+            );
+            log.write(prefix + ": provider=" + result.provider
+                    + " / lines=" + result.lineCharCounts().size()
+                    + " / lrclibId=" + result.lrclibId()
+                    + " / contributors=" + result.contributors.size()
+                    + syncDurationSuffix(result.syncBody));
+            return result;
+        }
+        if (data.optJSONArray("lines") != null) {
+            SyncDataResult result = new SyncDataResult(
+                    syncBodyWithDurationFallback(data, data),
+                    responseProvider,
+                    parseSyncContributors(data, data),
+                    data.optString("syncType", "unknown"),
+                    data.optInt("syncPoints", 0)
+            );
+            log.write(prefix + ": legacy body / provider=" + result.provider
+                    + " / lines=" + result.lineCharCounts().size()
+                    + " / lrclibId=" + result.lrclibId()
+                    + " / contributors=" + result.contributors.size()
+                    + syncDurationSuffix(result.syncBody));
+            return result;
+        }
+        log.write(prefix + ": data without lines");
+        return null;
+    }
+
+    private String syncDataCacheKey(String isrc, String providerId) {
+        String normalized = TrackSnapshot.normalizeIsrc(isrc);
+        String provider = providerId == null ? "" : providerId.trim().toLowerCase(Locale.ROOT);
+        return normalized.isEmpty() || provider.isEmpty()
+                ? ""
+                : SYNC_DATA_CACHE_SCHEMA + "|isrc:" + normalized + "|provider:" + provider;
+    }
+
+    private JSONObject syncBodyWithDurationFallback(JSONObject syncBody, JSONObject wrapper) {
+        if (syncBody == null) {
+            return null;
+        }
+        long durationMs = normalizeSyncDataDurationMs(
+                syncBody.opt("trackDurationMs"),
+                wrapper == null ? null : wrapper.opt("trackDurationMs"),
+                syncBody.opt("durationMs"),
+                wrapper == null ? null : wrapper.opt("durationMs"),
+                syncBody.opt("duration_ms"),
+                wrapper == null ? null : wrapper.opt("duration_ms")
+        );
+        if (durationMs <= 0L || normalizeSyncDataDurationMs(syncBody.opt("trackDurationMs")) > 0L) {
+            return syncBody;
+        }
+        try {
+            JSONObject copy = new JSONObject(syncBody.toString());
+            copy.put("trackDurationMs", durationMs);
+            return copy;
+        } catch (Exception ignored) {
+            try {
+                syncBody.put("trackDurationMs", durationMs);
+            } catch (Exception ignoredAgain) {
+            }
+            return syncBody;
+        }
+    }
+
+    private String syncDurationSuffix(JSONObject syncBody) {
+        long durationMs = normalizeSyncDataDurationMs(
+                syncBody == null ? null : syncBody.opt("trackDurationMs"),
+                syncBody == null ? null : syncBody.opt("durationMs"),
+                syncBody == null ? null : syncBody.opt("duration_ms")
+        );
+        return durationMs <= 0L ? "" : " / durationMs=" + durationMs;
+    }
+
+    private static long normalizeSyncDataDurationMs(Object... values) {
+        if (values == null) {
+            return 0L;
+        }
+        for (Object value : values) {
+            if (value == null || JSONObject.NULL.equals(value)) {
+                continue;
+            }
+            double numeric;
+            if (value instanceof Number) {
+                numeric = ((Number) value).doubleValue();
+            } else {
+                String text = String.valueOf(value).trim();
+                if (text.isEmpty()) {
+                    continue;
+                }
+                try {
+                    numeric = Double.parseDouble(text);
+                } catch (NumberFormatException ignored) {
+                    continue;
+                }
+            }
+            if (Double.isFinite(numeric) && numeric > 0.0 && numeric <= 86_400_000.0) {
+                return Math.round(numeric);
+            }
+        }
+        return 0L;
+    }
+
+    private SpotifyTrackMatch fetchSpotifyIsrc(TrackSnapshot track, LogSink log, SpotifyMetadataSink metadataSink) {
+        if (track == null || track.title.trim().isEmpty() || track.artist.trim().isEmpty()) {
+            log.write("spotify search: missing title or artist metadata");
+            return null;
+        }
+
+        try {
+            String token = getSpotifyAccessToken(false, log);
+            if (token.isEmpty()) {
+                log.write("spotify token: unavailable; configure Spotify API client id/secret in settings");
+                return null;
+            }
+
+            if (!track.trackId.isEmpty()) {
+                try {
+                    SpotifyTrackMatch direct = fetchSpotifyTrackById(token, track.trackId, log);
+                    if (direct != null && !direct.isrc.isEmpty()) {
+                        if (isSpotifyDurationCompatible(track, direct)) {
+                            publishSpotifyMetadata(metadataSink, direct);
+                            direct = attachSpotifyEnglishMetadata(token, direct, log);
+                            log.write("spotify selected ISRC: direct track metadata " + describeSpotifyMatch(direct));
+                            return direct;
+                        }
+                        log.write("spotify track: direct metadata skipped by duration, "
+                                + spotifyDurationNote(track, direct) + " " + describeSpotifyMatch(direct));
+                    }
+                } catch (HttpStatusException error) {
+                    if (!isSpotifyTokenFailure(error)) {
+                        throw error;
+                    }
+                    log.write("spotify token: rejected by direct track request (" + error.getMessage() + "), refreshing");
+                    invalidateSpotifyToken();
+                    token = getSpotifyAccessToken(true, log);
+                    if (!token.isEmpty()) {
+                        SpotifyTrackMatch direct = fetchSpotifyTrackById(token, track.trackId, log);
+                        if (direct != null && !direct.isrc.isEmpty()) {
+                            if (isSpotifyDurationCompatible(track, direct)) {
+                                publishSpotifyMetadata(metadataSink, direct);
+                                direct = attachSpotifyEnglishMetadata(token, direct, log);
+                                log.write("spotify selected ISRC: direct track metadata after refresh "
+                                        + describeSpotifyMatch(direct));
+                                return direct;
+                            }
+                            log.write("spotify track: direct metadata after refresh skipped by duration, "
+                                    + spotifyDurationNote(track, direct) + " " + describeSpotifyMatch(direct));
+                        }
+                    }
+                }
+            }
+
+            List<SpotifyTrackMatch> matches;
+            try {
+                matches = searchSpotifyCandidates(track, token, log);
+            } catch (HttpStatusException error) {
+                if (!isSpotifyTokenFailure(error)) {
+                    throw error;
+                }
+                log.write("spotify token: rejected by Spotify API (" + error.getMessage() + "), refreshing");
+                invalidateSpotifyToken();
+                token = getSpotifyAccessToken(true, log);
+                if (token.isEmpty()) {
+                    log.write("spotify token: refresh failed");
+                    return null;
+                }
+                matches = searchSpotifyCandidates(track, token, log);
+            }
+            if (matches.isEmpty()) {
+                log.write("spotify search: no candidates with ISRC");
+                return null;
+            }
+
+            SpotifyTrackMatch selected = selectSpotifyMatchByApiOrder(track, matches, log);
+            publishSpotifyMetadata(metadataSink, selected);
+            return attachSpotifyEnglishMetadata(token, selected, log);
+        } catch (Exception error) {
+            log.write("spotify search error: " + error.getMessage());
+            return null;
+        }
+    }
+
+    private void publishSpotifyMetadata(SpotifyMetadataSink metadataSink, SpotifyTrackMatch match) {
+        if (metadataSink != null && match != null && !match.isrc.isEmpty()) {
+            metadataSink.onResolved(match);
+        }
+    }
+
+    private SpotifyTrackMatch fetchSpotifyTrackById(String token, String trackId, LogSink log) throws Exception {
+        return fetchSpotifyTrackById(
+                token,
+                trackId,
+                "direct metadata",
+                Collections.singletonMap("Authorization", "Bearer " + token),
+                true,
+                log
+        );
+    }
+
+    /** Resolve the album only on an explicit tap. This never starts playback or changes the queue. */
+    void resolveAlbumDestination(String trackId, java.util.function.Consumer<String> callback) {
+        if (trackId == null || !trackId.matches("[A-Za-z0-9]{22}") || executor.isShutdown()) {
+            mainHandler.post(() -> callback.accept(""));
+            return;
+        }
+        executor.execute(() -> {
+            String destination = "";
+            try {
+                String token = getSpotifyAccessToken(false, message -> {});
+                if (!token.isEmpty()) {
+                    JSONObject response = new JSONObject(get(SPOTIFY_TRACK_BASE + trackId,
+                            Collections.singletonMap("Authorization", "Bearer " + token)));
+                    JSONObject album = response.optJSONObject("album");
+                    if (album != null) destination = AppearanceOptions.spotifyDestination(album.optString("uri"), true);
+                }
+            } catch (Exception ignored) {}
+            String resolved = destination;
+            mainHandler.post(() -> callback.accept(resolved));
+        });
+    }
+
+    private SpotifyTrackMatch fetchSpotifyTrackById(
+            String token,
+            String trackId,
+            String label,
+            Map<String, String> headers,
+            boolean requireIsrc,
+            LogSink log
+    ) throws Exception {
+        if (trackId == null || trackId.trim().isEmpty()) {
+            return null;
+        }
+        String safeLabel = label == null || label.trim().isEmpty() ? "metadata" : label.trim();
+        log.write("spotify track: " + safeLabel + " lookup id=" + trackId);
+        String response = get(
+                SPOTIFY_TRACK_BASE + urlEncode(trackId.trim()),
+                headers == null ? Collections.emptyMap() : headers
+        );
+        SpotifyTrackMatch match = SpotifyTrackMatch.fromJson(new JSONObject(response), requireIsrc);
+        if (match == null) {
+            log.write("spotify track: no usable " + safeLabel);
+            return null;
+        }
+        log.write("spotify track: " + safeLabel + " ready " + describeSpotifyMatch(match));
+        return match;
+    }
+
+    private SpotifyTrackMatch attachSpotifyEnglishMetadata(String token, SpotifyTrackMatch match, LogSink log) {
+        if (match == null || match.spotifyId.isEmpty() || token == null || token.trim().isEmpty()) {
+            return match;
+        }
+        try {
+            SpotifyTrackMatch english = fetchSpotifyTrackById(
+                    token,
+                    match.spotifyId,
+                    "english metadata",
+                    spotifyEnglishHeaders(token),
+                    false,
+                    log
+            );
+            if (english == null || english.title.isEmpty() || english.artist.isEmpty()) {
+                return match;
+            }
+            SpotifyTrackMatch merged = match.withEnglishMetadata(english);
+            if (merged.hasEnglishMetadata()) {
+                log.write("spotify english metadata: title=\"" + merged.englishTitle
+                        + "\" / artist=\"" + merged.englishArtist + "\"");
+            } else {
+                log.write("spotify english metadata: same as selected metadata");
+            }
+            return merged;
+        } catch (Exception error) {
+            log.write("spotify english metadata error: " + error.getMessage());
+            return match;
+        }
+    }
+
+    private Map<String, String> spotifyEnglishHeaders(String token) {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Authorization", "Bearer " + token);
+        headers.put("Accept-Language", SPOTIFY_ENGLISH_ACCEPT_LANGUAGE);
+        return headers;
+    }
+
+    private List<SpotifyTrackMatch> searchSpotifyCandidates(TrackSnapshot track, String token, LogSink log) throws Exception {
+        List<SpotifyTrackMatch> matches = new ArrayList<>();
+        matches.addAll(searchSpotifyTracks(token, track.title + " " + track.artist, "plain", log));
+        matches.addAll(searchSpotifyTracks(token, buildSpotifyFieldQuery(track), "field", log));
+        Map<String, SpotifyTrackMatch> ordered = new LinkedHashMap<>();
+        for (SpotifyTrackMatch match : matches) {
+            String key = match.spotifyId.isEmpty()
+                    ? match.isrc + "|" + match.title + "|" + match.artist + "|" + match.durationMs
+                    : match.spotifyId;
+            if (!key.trim().isEmpty() && !ordered.containsKey(key)) {
+                ordered.put(key, match);
+            }
+        }
+        return new ArrayList<>(ordered.values());
+    }
+
+    private SpotifyTrackMatch selectSpotifyMatchByApiOrder(
+            TrackSnapshot track,
+            List<SpotifyTrackMatch> matches,
+            LogSink log
+    ) {
+        log.write("spotify ordered candidates:");
+        for (int index = 0; index < Math.min(8, matches.size()); index++) {
+            SpotifyTrackMatch match = matches.get(index);
+            log.write("  #" + (index + 1) + " "
+                    + spotifyDurationNote(track, match)
+                    + " " + describeSpotifyMatch(match));
+        }
+
+        for (int index = 0; index < matches.size(); index++) {
+            SpotifyTrackMatch match = matches.get(index);
+            if (isSpotifyDurationCompatible(track, match)) {
+                log.write("spotify selected ISRC: " + match.isrc
+                        + " / responseOrder=" + (index + 1)
+                        + " / trackId=" + match.spotifyId);
+                return match;
+            }
+        }
+
+        log.write("spotify selected ISRC: rejected all candidates by duration mismatch");
+        return null;
+    }
+
+    private boolean isSpotifyDurationCompatible(TrackSnapshot track, SpotifyTrackMatch match) {
+        if (track == null || match == null || track.durationMs <= 0L || match.durationMs <= 0L) {
+            return true;
+        }
+        return spotifyDurationDiffSeconds(track, match) <= DURATION_TOLERANCE_SECONDS;
+    }
+
+    private String spotifyDurationNote(TrackSnapshot track, SpotifyTrackMatch match) {
+        if (track == null || match == null || track.durationMs <= 0L || match.durationMs <= 0L) {
+            return "duration=unchecked";
+        }
+        double diffSeconds = spotifyDurationDiffSeconds(track, match);
+        return (diffSeconds <= DURATION_TOLERANCE_SECONDS ? "duration=ok" : "duration=skip")
+                + " diff=" + fmt(diffSeconds) + "s";
+    }
+
+    private double spotifyDurationDiffSeconds(TrackSnapshot track, SpotifyTrackMatch match) {
+        return Math.abs((track.durationMs - match.durationMs) / 1000.0);
+    }
+
+    private String getSpotifyAccessToken(boolean forceRefresh, LogSink log) {
+        synchronized (spotifyTokenLock) {
+            return getSpotifyAccessTokenLocked(forceRefresh, log);
+        }
+    }
+
+    private String getSpotifyAccessTokenLocked(boolean forceRefresh, LogSink log) {
+        if (embeddedSpotify) return "";
+        SpotifyCredentials credentials = readSpotifyCredentials();
+        if (!credentials.configured()) {
+            invalidateSpotifyToken();
+            log.write(credentials.partial()
+                    ? "spotify token: Spotify API client id/secret is incomplete"
+                    : "spotify token: Spotify API credentials not configured");
+            return "";
+        }
+        String tokenSourceKey = credentials.sourceKey();
+        long now = System.currentTimeMillis();
+        if (!forceRefresh && isSpotifyTokenUsable(now, tokenSourceKey)) {
+            log.write("spotify token: cached token reused (" + credentials.sourceLabel() + ")");
+            return spotifyAccessToken;
+        }
+        if (forceRefresh) {
+            log.write("spotify token: forced refresh");
+        } else if (!spotifyAccessToken.isEmpty() && !tokenSourceKey.equals(spotifyTokenSourceKey)) {
+            log.write("spotify token: cached token source changed, refreshing");
+        } else if (!spotifyAccessToken.isEmpty()) {
+            log.write("spotify token: cached token expired, refreshing");
+        }
+
+        try {
+            SpotifyTokenResponse response = requestSpotifyClientCredentialsToken(credentials, log);
+            if (response.accessToken.isEmpty()) {
+                return "";
+            }
+
+            cacheSpotifyToken(credentials, response, log);
+            return spotifyAccessToken;
+        } catch (Exception error) {
+            invalidateSpotifyToken();
+            log.write("spotify token: refresh error (" + credentials.sourceLabel() + "): " + error.getMessage());
+            return "";
+        }
+    }
+
+    private void cacheSpotifyToken(
+            SpotifyCredentials credentials,
+            SpotifyTokenResponse response,
+            LogSink log
+    ) {
+        synchronized (spotifyTokenLock) {
+            long issuedAtMs = System.currentTimeMillis();
+            long providerTtlMs = Math.max(60L, response.expiresInSeconds) * 1_000L;
+            long effectiveTtlMs = Math.min(providerTtlMs, SPOTIFY_TOKEN_MAX_AGE_MS);
+            spotifyAccessToken = response.accessToken;
+            spotifyTokenSourceKey = credentials.sourceKey();
+            spotifyTokenIssuedAtMs = issuedAtMs;
+            spotifyTokenExpiresAtMs = issuedAtMs + effectiveTtlMs;
+            persistSpotifyToken();
+            log.write("spotify token: refreshed and saved (" + credentials.sourceLabel()
+                    + "), ttl=" + Math.round(effectiveTtlMs / 1000.0) + "s");
+        }
+    }
+
+    private SpotifyTokenResponse requestSpotifyClientCredentialsToken(SpotifyCredentials credentials, LogSink log) throws Exception {
+        log.write("spotify token: requesting with Spotify API credentials");
+        Map<String, String> headers = new HashMap<>();
+        String basic = Base64.encodeToString(
+                (credentials.clientId + ":" + credentials.clientSecret).getBytes(StandardCharsets.UTF_8),
+                Base64.NO_WRAP
+        );
+        headers.put("Authorization", "Basic " + basic);
+
+        Map<String, String> params = new HashMap<>();
+        params.put("grant_type", "client_credentials");
+        String response = postForm(SPOTIFY_ACCOUNTS_TOKEN_ENDPOINT, params, headers);
+        JSONObject root = new JSONObject(response == null ? "" : response.trim());
+        return new SpotifyTokenResponse(
+                extractSpotifyToken(root),
+                Math.max(60L, root.optLong("expires_in", root.optLong("expiresIn", 3_600L)))
+        );
+    }
+
+    private SpotifyCredentials readSpotifyCredentials() {
+        AiLyricsSettings.Snapshot snapshot = aiLyricsSettings == null ? null : aiLyricsSettings.snapshot();
+        return new SpotifyCredentials(
+                snapshot == null ? "" : snapshot.spotifyClientId,
+                snapshot == null ? "" : snapshot.spotifyClientSecret
+        );
+    }
+
+    private boolean isSpotifyTokenUsable(long now, String tokenSourceKey) {
+        if (spotifyAccessToken.isEmpty()) {
+            return false;
+        }
+        if (!tokenSourceKey.equals(spotifyTokenSourceKey)) {
+            return false;
+        }
+        if (spotifyTokenIssuedAtMs <= 0L || now - spotifyTokenIssuedAtMs >= SPOTIFY_TOKEN_MAX_AGE_MS) {
+            return false;
+        }
+        return spotifyTokenExpiresAtMs > now + SPOTIFY_TOKEN_REFRESH_GRACE_MS;
+    }
+
+    private void restoreSpotifyToken() {
+        if (spotifyTokenPrefs == null) {
+            return;
+        }
+        spotifyAccessToken = spotifyTokenPrefs.getString(KEY_SPOTIFY_ACCESS_TOKEN, "");
+        spotifyTokenSourceKey = spotifyTokenPrefs.getString(KEY_SPOTIFY_TOKEN_SOURCE, "");
+        spotifyTokenIssuedAtMs = spotifyTokenPrefs.getLong(KEY_SPOTIFY_TOKEN_ISSUED_AT_MS, 0L);
+        spotifyTokenExpiresAtMs = spotifyTokenPrefs.getLong(KEY_SPOTIFY_TOKEN_EXPIRES_AT_MS, 0L);
+        if (!isSpotifyTokenUsable(System.currentTimeMillis(), readSpotifyCredentials().sourceKey())) {
+            invalidateSpotifyToken();
+        }
+    }
+
+    private void persistSpotifyToken() {
+        if (spotifyTokenPrefs == null) {
+            return;
+        }
+        spotifyTokenPrefs.edit()
+                .putString(KEY_SPOTIFY_ACCESS_TOKEN, spotifyAccessToken)
+                .putString(KEY_SPOTIFY_TOKEN_SOURCE, spotifyTokenSourceKey)
+                .putLong(KEY_SPOTIFY_TOKEN_ISSUED_AT_MS, spotifyTokenIssuedAtMs)
+                .putLong(KEY_SPOTIFY_TOKEN_EXPIRES_AT_MS, spotifyTokenExpiresAtMs)
+                .apply();
+    }
+
+    private void invalidateSpotifyToken() {
+        synchronized (spotifyTokenLock) {
+            spotifyAccessToken = "";
+            spotifyTokenSourceKey = "";
+            spotifyTokenIssuedAtMs = 0L;
+            spotifyTokenExpiresAtMs = 0L;
+            if (spotifyTokenPrefs != null) {
+                spotifyTokenPrefs.edit().clear().apply();
+            }
+        }
+    }
+
+    private boolean isSpotifyTokenFailure(HttpStatusException error) {
+        return error != null && (error.statusCode == 401 || error.statusCode == 403);
+    }
+
+    private String extractSpotifyToken(JSONObject object) {
+        if (object == null) {
+            return "";
+        }
+
+        String token = firstNonEmpty(
+                object.optString("access_token", ""),
+                object.optString("accessToken", "")
+        );
+        token = firstNonEmpty(token, object.optString("token", ""));
+        token = firstNonEmpty(token, object.optString("spotifyAccessToken", ""));
+        if (!token.isEmpty()) {
+            return stripBearer(token);
+        }
+
+        String nestedDataToken = extractSpotifyToken(object.optJSONObject("data"));
+        if (!nestedDataToken.isEmpty()) {
+            return nestedDataToken;
+        }
+        return extractSpotifyToken(object.optJSONObject("session"));
+    }
+
+    private List<SpotifyTrackMatch> searchSpotifyTracks(String token, String query, String label, LogSink log) throws Exception {
+        Map<String, String> params = new HashMap<>();
+        params.put("q", query);
+        params.put("type", "track");
+        params.put("limit", "10");
+
+        log.write("spotify search [" + label + "]: q=" + query);
+        String response = get(
+                SPOTIFY_SEARCH_BASE + "?" + encodeParams(params),
+                Collections.singletonMap("Authorization", "Bearer " + token)
+        );
+        JSONObject root = new JSONObject(response);
+        JSONObject tracks = root.optJSONObject("tracks");
+        JSONArray items = tracks == null ? null : tracks.optJSONArray("items");
+        List<SpotifyTrackMatch> matches = new ArrayList<>();
+        if (items != null) {
+            for (int index = 0; index < items.length(); index++) {
+                SpotifyTrackMatch match = SpotifyTrackMatch.fromJson(items.optJSONObject(index));
+                if (match != null) {
+                    matches.add(match);
+                }
+            }
+        }
+        log.write("spotify search [" + label + "]: candidates=" + matches.size());
+        return matches;
+    }
+
+    private String buildSpotifyFieldQuery(TrackSnapshot track) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("track:").append(spotifySearchValue(track.title));
+        builder.append(" artist:").append(spotifySearchValue(track.artist));
+        if (!track.album.isEmpty()) {
+            builder.append(" album:").append(spotifySearchValue(track.album));
+        }
+        return builder.toString();
+    }
+
+    private String spotifySearchValue(String value) {
+        String normalized = value == null ? "" : value.trim().replace("\"", "");
+        if (normalized.indexOf(' ') >= 0) {
+            return "\"" + normalized + "\"";
+        }
+        return normalized;
+    }
+
+    private double scoreCandidate(TrackSnapshot track, LrclibCandidate candidate, SyncDataResult syncData) {
+        double titleScore = titleScore(track.title, candidate.trackName);
+        double artistScore = bestArtistScore(track.artist, candidate.artistName);
+        double albumScore = albumScore(track.album, candidate.albumName);
+        double durationScore = durationScore(track.durationMs, candidate.durationSeconds);
+        double lyricsScore = candidate.useSyncedLyrics()
+                ? 0.8
+                : (candidate.plainLyrics != null && !candidate.plainLyrics.trim().isEmpty() ? 0.25 : 0.0);
+        candidate.albumMatchScore = Math.max(candidate.albumMatchScore, albumScore);
+        double score = (titleScore * 4.0)
+                + (artistScore * 3.0)
+                + (albumScore * 1.25)
+                + (durationScore * 2.0)
+                + lyricsScore;
+
+        if (track.durationMs > 0 && candidate.durationSeconds > 0) {
+            double diff = Math.abs((track.durationMs / 1000.0) - candidate.durationSeconds);
+            if (diff > DURATION_TOLERANCE_SECONDS) {
+                score -= Math.min(2.5, (diff - DURATION_TOLERANCE_SECONDS) / 15.0);
+            }
+        }
+        if (syncData != null && candidate.syncLineExactMatch) {
+            score += 2.5;
+        }
+        return score;
+    }
+
+    private void decorateCandidateForSyncData(LrclibCandidate candidate, SyncDataResult syncData) {
+        if (candidate == null) {
+            return;
+        }
+        if (candidate.syncDataDecorationComputed
+                && candidate.decoratedSyncData == syncData) {
+            return;
+        }
+        candidate.syncDataDecorationComputed = true;
+        candidate.decoratedSyncData = syncData;
+        candidate.preferredLyricsSource = "";
+        candidate.syncLineExactMatch = false;
+        candidate.exactSyncedLineMatch = false;
+        candidate.exactPlainLineMatch = false;
+        candidate.syncSourceMatchScore = 0;
+        candidate.syncSourceIdMatch = false;
+        candidate.syncSourceTextMatch = false;
+        candidate.syncSourceLineCountMatch = false;
+        candidate.hasOriginalLyricsScript = false;
+
+        if (syncData == null) {
+            return;
+        }
+
+        List<Integer> syncLineCounts = syncData.lineCharCounts();
+        boolean normalizeParentheticalLines = syncData.shouldNormalizeParentheticalLines();
+        List<Integer> candidateSyncedLineCounts = candidateLineCharCounts(
+                candidate.syncedLyrics, true, normalizeParentheticalLines
+        );
+        candidate.exactSyncedLineMatch = hasExactLineShape(
+                syncLineCounts,
+                candidateSyncedLineCounts
+        );
+        List<Integer> candidatePlainLineCounts = candidateLineCharCounts(
+                candidate.plainLyrics, false, normalizeParentheticalLines
+        );
+        candidate.exactPlainLineMatch = hasExactLineShape(
+                syncLineCounts,
+                candidatePlainLineCounts
+        );
+        candidate.syncLineExactMatch = candidate.exactSyncedLineMatch || candidate.exactPlainLineMatch;
+        candidate.preferredLyricsSource = candidate.exactSyncedLineMatch
+                ? "synced"
+                : (candidate.exactPlainLineMatch ? "plain" : syncData.preferredLyricsSource());
+        candidate.hasOriginalLyricsScript = hasOriginalLyricsScript(candidateComparableText(
+                candidate,
+                candidate.preferredLyricsSource,
+                normalizeParentheticalLines
+        ));
+
+        if (!syncData.hasLrclibSource()) {
+            return;
+        }
+
+        long sourceId = syncData.lrclibId();
+        candidate.syncSourceIdMatch = sourceId > 0L && candidate.id == sourceId;
+
+        List<Integer> sourceLineCounts = syncData.sourceLineCharCounts();
+        boolean sourceSyncedLineMatch = hasExactLineShape(
+                sourceLineCounts,
+                candidateSyncedLineCounts
+        );
+        boolean sourcePlainLineMatch = hasExactLineShape(
+                sourceLineCounts,
+                candidatePlainLineCounts
+        );
+        if (candidate.preferredLyricsSource.isEmpty()) {
+            candidate.preferredLyricsSource = sourceSyncedLineMatch
+                    ? "synced"
+                    : (sourcePlainLineMatch ? "plain" : syncData.preferredLyricsSource());
+        }
+
+        String preferredSource = firstNonEmpty(candidate.preferredLyricsSource, syncData.preferredLyricsSource());
+        String candidateText = candidateComparableText(candidate, preferredSource, normalizeParentheticalLines);
+        String sourceFingerprint = syncData.sourceLyricsFingerprint();
+        candidate.syncSourceTextMatch = !sourceFingerprint.isEmpty()
+                && sourceFingerprint.equals(lyricsFingerprint(candidateText));
+
+        candidate.syncSourceLineCountMatch = hasExactLineShape(
+                sourceLineCounts,
+                lineCharCounts(comparableLyricsLines(candidateText, false, false))
+        );
+
+        if (candidate.syncSourceIdMatch) {
+            candidate.syncSourceMatchScore = 100;
+        } else if (candidate.syncSourceTextMatch) {
+            candidate.syncSourceMatchScore = 90;
+        } else if (candidate.syncSourceLineCountMatch) {
+            candidate.syncSourceMatchScore = 60;
+        }
+    }
+
+    private boolean hasExactLineShape(List<Integer> expectedCounts, List<Integer> actualCounts) {
+        if (expectedCounts == null || actualCounts == null || expectedCounts.isEmpty()) {
+            return false;
+        }
+        if (expectedCounts.size() != actualCounts.size()) {
+            return false;
+        }
+        for (int index = 0; index < expectedCounts.size(); index++) {
+            if (!expectedCounts.get(index).equals(actualCounts.get(index))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private List<Integer> candidateLineCharCounts(
+            String text,
+            boolean stripTimestamps,
+            boolean normalizeParentheticalLines
+    ) {
+        if (text == null || text.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        return lineCharCounts(comparableLyricsLines(text, stripTimestamps, normalizeParentheticalLines));
+    }
+
+    private List<Integer> lineCharCounts(List<String> lines) {
+        List<Integer> counts = new ArrayList<>();
+        for (String line : lines) {
+            counts.add(codePointLength(line));
+        }
+        return counts;
+    }
+
+    private List<String> comparableLyricsLines(String text, boolean stripTimestamps) {
+        return comparableLyricsLines(text, stripTimestamps, false);
+    }
+
+    private List<String> comparableLyricsLines(
+            String text,
+            boolean stripTimestamps,
+            boolean normalizeParentheticalLines
+    ) {
+        if (text == null || text.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<String> lines = new ArrayList<>();
+        String[] rawLines = text.split("\\r?\\n");
+        for (String rawLine : rawLines) {
+            String line = stripTimestamps ? stripLeadingLrcTimestamp(rawLine) : rawLine.trim();
+            line = Normalizer.normalize(line, Normalizer.Form.NFC).trim();
+            if (line.isEmpty() || LRCLIB_METADATA_LINE_PATTERN.matcher(line).matches()) {
+                continue;
+            }
+            lines.add(line);
+        }
+        if (normalizeParentheticalLines) {
+            List<String> normalizedLines = normalizeStandaloneParentheticalBlocks(lines);
+            List<String> filtered = new ArrayList<>();
+            for (String line : normalizedLines) {
+                String normalized = Normalizer.normalize(line == null ? "" : line, Normalizer.Form.NFC).trim();
+                if (!normalized.isEmpty()) {
+                    filtered.add(normalized);
+                }
+            }
+            return filtered;
+        }
+        return lines;
+    }
+
+    private String candidateComparableText(
+            LrclibCandidate candidate,
+            String preferredSource,
+            boolean normalizeParentheticalLines
+    ) {
+        if (candidate == null) {
+            return "";
+        }
+        boolean useSynced = "synced".equals(preferredSource)
+                ? candidate.syncedLyrics != null
+                : (!"plain".equals(preferredSource) && candidate.plainLyrics == null && candidate.syncedLyrics != null);
+        String text = useSynced
+                ? stripLrcTimestamps(candidate.syncedLyrics)
+                : firstNonEmpty(
+                        candidate.plainLyrics,
+                        stripLrcTimestampsIfNeeded(candidate.plainLyrics, candidate.syncedLyrics)
+                );
+        List<String> lines = comparableLyricsLines(text, false, normalizeParentheticalLines);
+        return joinLinesForFingerprint(lines);
+    }
+
+    private List<String> normalizeStandaloneParentheticalBlocks(List<String> lines) {
+        List<String> normalizedLines = new ArrayList<>();
+        if (lines != null) {
+            for (String line : lines) {
+                normalizedLines.add(stripStandaloneParentheticalLine(line));
+            }
+        }
+
+        for (int index = 0; index < normalizedLines.size(); index++) {
+            String trimmed = Normalizer.normalize(
+                    normalizedLines.get(index) == null ? "" : normalizedLines.get(index),
+                    Normalizer.Form.NFC
+            ).trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+
+            int openCodePoint = firstCodePoint(trimmed);
+            String closeChar = getParenthesisClose(openCodePoint);
+            if (closeChar.isEmpty() || trimmed.contains(closeChar)) {
+                continue;
+            }
+
+            int closeLineIndex = -1;
+            for (int candidate = index + 1; candidate < normalizedLines.size(); candidate++) {
+                String candidateTrimmed = Normalizer.normalize(
+                        normalizedLines.get(candidate) == null ? "" : normalizedLines.get(candidate),
+                        Normalizer.Form.NFC
+                ).trim();
+                if (!candidateTrimmed.isEmpty() && candidateTrimmed.endsWith(closeChar)) {
+                    closeLineIndex = candidate;
+                    break;
+                }
+            }
+            if (closeLineIndex < 0) {
+                continue;
+            }
+
+            normalizedLines.set(index, stripLeadingParenthesis(normalizedLines.get(index)).trim());
+            normalizedLines.set(closeLineIndex, stripTrailingParenthesis(
+                    normalizedLines.get(closeLineIndex),
+                    closeChar
+            ).trim());
+        }
+        return normalizedLines;
+    }
+
+    private String stripStandaloneParentheticalLine(String text) {
+        String value = Normalizer.normalize(text == null ? "" : text, Normalizer.Form.NFC).trim();
+        while (isStandaloneParentheticalLine(value)) {
+            List<Integer> codePoints = codePoints(value);
+            value = codePointsToString(codePoints, 1, codePoints.size() - 2).trim();
+        }
+        return value;
+    }
+
+    private boolean isStandaloneParentheticalLine(String text) {
+        String value = Normalizer.normalize(text == null ? "" : text, Normalizer.Form.NFC).trim();
+        List<Integer> codePoints = codePoints(value);
+        if (codePoints.size() < 2) {
+            return false;
+        }
+
+        String expectedClose = getParenthesisClose(codePoints.get(0));
+        return !expectedClose.isEmpty()
+                && expectedClose.equals(codePointsToString(codePoints, codePoints.size() - 1, codePoints.size() - 1));
+    }
+
+    private String stripLeadingParenthesis(String text) {
+        List<Integer> codePoints = codePoints(text);
+        for (int index = 0; index < codePoints.size(); index++) {
+            int codePoint = codePoints.get(index);
+            if (Character.isWhitespace(codePoint)) {
+                continue;
+            }
+            if (!getParenthesisClose(codePoint).isEmpty()) {
+                codePoints.remove(index);
+            }
+            break;
+        }
+        return codePointsToString(codePoints, 0, codePoints.size() - 1);
+    }
+
+    private String stripTrailingParenthesis(String text, String closeChar) {
+        List<Integer> codePoints = codePoints(text);
+        for (int index = codePoints.size() - 1; index >= 0; index--) {
+            int codePoint = codePoints.get(index);
+            if (Character.isWhitespace(codePoint)) {
+                continue;
+            }
+            if (closeChar.equals(codePointsToString(codePoints, index, index))) {
+                codePoints.remove(index);
+            }
+            break;
+        }
+        return codePointsToString(codePoints, 0, codePoints.size() - 1);
+    }
+
+    private String getParenthesisClose(int openCodePoint) {
+        if (openCodePoint == '(') return ")";
+        if (openCodePoint == '（') return "）";
+        return "";
+    }
+
+    private int firstCodePoint(String value) {
+        List<Integer> codePoints = codePoints(value);
+        return codePoints.isEmpty() ? -1 : codePoints.get(0);
+    }
+
+    private List<Integer> codePoints(String value) {
+        String normalized = Normalizer.normalize(value == null ? "" : value, Normalizer.Form.NFC);
+        List<Integer> codePoints = new ArrayList<>();
+        normalized.codePoints().forEach(codePoints::add);
+        return codePoints;
+    }
+
+    private String codePointsToString(List<Integer> codePoints, int start, int end) {
+        if (codePoints == null || codePoints.isEmpty() || start > end) {
+            return "";
+        }
+
+        StringBuilder builder = new StringBuilder();
+        int safeStart = Math.max(0, start);
+        int safeEnd = Math.min(codePoints.size() - 1, end);
+        for (int index = safeStart; index <= safeEnd; index++) {
+            builder.appendCodePoint(codePoints.get(index));
+        }
+        return builder.toString();
+    }
+
+    private boolean hasOriginalLyricsScript(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+        String normalized = Normalizer.normalize(text, Normalizer.Form.NFC);
+        return normalized.codePoints().anyMatch(codePoint ->
+                (codePoint >= 0x3040 && codePoint <= 0x30ff)
+                        || (codePoint >= 0x3400 && codePoint <= 0x4dbf)
+                        || (codePoint >= 0x4e00 && codePoint <= 0x9fff)
+                        || (codePoint >= 0xf900 && codePoint <= 0xfaff)
+                        || (codePoint >= 0x1100 && codePoint <= 0x11ff)
+                        || (codePoint >= 0x3130 && codePoint <= 0x318f)
+                        || (codePoint >= 0xac00 && codePoint <= 0xd7af)
+        );
+    }
+
+    private static String stripLeadingLrcTimestamp(String text) {
+        if (text == null) {
+            return "";
+        }
+        return LRCLIB_LEADING_TIMESTAMP_PATTERN.matcher(text).replaceFirst("");
+    }
+
+    private static String stripLrcTimestamps(String text) {
+        if (text == null) {
+            return "";
+        }
+        return text.replaceAll("(?m)^\\[\\d+:\\d+(?:[.,]\\d+)?\\]\\s*", "").trim();
+    }
+
+    private static String stripLrcTimestampsIfNeeded(String plainLyrics, String syncedLyrics) {
+        if (plainLyrics != null && !plainLyrics.trim().isEmpty()) {
+            return "";
+        }
+        return stripLrcTimestamps(syncedLyrics);
+    }
+
+    private static String joinLinesForFingerprint(List<String> lines) {
+        if (lines == null || lines.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder builder = new StringBuilder();
+        for (int index = 0; index < lines.size(); index++) {
+            if (index > 0) {
+                builder.append('\n');
+            }
+            builder.append(lines.get(index));
+        }
+        return builder.toString();
+    }
+
+    private static String lyricsFingerprint(String text) {
+        long hash = 2_166_136_261L;
+        String normalized = Normalizer.normalize(text == null ? "" : text, Normalizer.Form.NFC);
+        int codePointCount = 0;
+        for (int offset = 0; offset < normalized.length(); ) {
+            int codePoint = normalized.codePointAt(offset);
+            hash ^= codePoint;
+            hash = (hash * 16_777_619L) & 0xffff_ffffL;
+            offset += Character.charCount(codePoint);
+            codePointCount++;
+        }
+        return String.format(Locale.ROOT, "lrclib-%s-%s",
+                Long.toString(hash, 36),
+                Long.toString(codePointCount, 36));
+    }
+
+    private void emitLog(String trackKey, Callback callback, String message) {
+        emitLog(trackKey, callback, message, RequestCancellation.current());
+    }
+
+    private void emitLog(String trackKey, Callback callback, String message, RequestCancellation request) {
+        String safeMessage = message == null ? "" : message;
+        Log.d(TAG, safeMessage);
+        mainHandler.post(RequestCancellation.guard(request, () -> callback.onLyricsLog(trackKey, safeMessage)));
+    }
+
+    private void emitManualLog(String trackKey, ManualLrclibCallback callback, String message) {
+        String safeMessage = message == null ? "" : message;
+        Log.d(TAG, safeMessage);
+        if (callback != null) {
+            mainHandler.post(() -> callback.onManualLrclibLog(trackKey, safeMessage));
+        }
+    }
+
+    private void postManualError(String trackKey, ManualLrclibCallback callback, String message) {
+        if (callback != null) {
+            mainHandler.post(() -> callback.onManualLrclibError(trackKey, message == null ? "" : message));
+        }
+    }
+
+    private String manualTrackKey(TrackSnapshot track) {
+        return track == null || !track.hasUsableMetadata() ? "" : track.stableKey();
+    }
+
+    private String describeParams(Map<String, String> params) {
+        if (params == null || params.isEmpty()) {
+            return "{}";
+        }
+
+        List<String> keys = new ArrayList<>(params.keySet());
+        Collections.sort(keys);
+        StringBuilder builder = new StringBuilder("{");
+        for (int index = 0; index < keys.size(); index++) {
+            String key = keys.get(index);
+            if (index > 0) {
+                builder.append(", ");
+            }
+            builder.append(key).append("=").append(params.get(key));
+        }
+        builder.append("}");
+        return builder.toString();
+    }
+
+    private String describeSpotifyMatch(SpotifyTrackMatch match) {
+        if (match == null) {
+            return "null";
+        }
+        return "id=" + match.spotifyId
+                + " / isrc=" + match.isrc
+                + " / title=\"" + match.title + "\""
+                + " / artist=\"" + match.artist + "\""
+                + " / album=\"" + match.album + "\""
+                + " / duration=" + match.durationMs + "ms"
+                + (match.artworkUrl.isEmpty()
+                ? ""
+                : " / artwork=" + match.artworkWidth + "x" + match.artworkHeight);
+    }
+
+    private String describeLrclibCandidate(LrclibCandidate candidate) {
+        if (candidate == null) {
+            return "null";
+        }
+        return "id=" + candidate.id
+                + " / title=\"" + candidate.trackName + "\""
+                + " / artist=\"" + candidate.artistName + "\""
+                + " / album=\"" + candidate.albumName + "\""
+                + " / duration=" + fmt(candidate.durationSeconds) + "s"
+                + " / synced=" + (candidate.syncedLyrics != null)
+                + " / plain=" + (candidate.plainLyrics != null)
+                + (candidate.syncSourceMatchScore > 0
+                ? " / sourceMatch[id=" + candidate.syncSourceIdMatch
+                + ",text=" + candidate.syncSourceTextMatch
+                + ",shape=" + candidate.syncSourceLineCountMatch
+                + "]"
+                : "");
+    }
+
+    private static String fmt(double value) {
+        return String.format(Locale.ROOT, "%.2f", value);
+    }
+
+    private static int codePointLength(String value) {
+        String normalized = Normalizer.normalize(value == null ? "" : value, Normalizer.Form.NFC);
+        return normalized.codePointCount(0, normalized.length());
+    }
+
+    private double durationScore(long expectedDurationMs, double candidateDurationSeconds) {
+        if (expectedDurationMs <= 0L || candidateDurationSeconds <= 0.0) {
+            return 0.5;
+        }
+        double diff = Math.abs((expectedDurationMs / 1000.0) - candidateDurationSeconds);
+        return Math.max(0.0, 1.0 - Math.min(1.0, diff / DURATION_TOLERANCE_SECONDS));
+    }
+
+    private double titleScore(String expected, String candidate) {
+        String left = normalizeComparable(expected);
+        String right = normalizeComparable(candidate);
+        if (left.isEmpty() || right.isEmpty()) return 0.0;
+        if (left.equals(right)) return 1.0;
+        if (left.contains(right) || right.contains(left)) return 0.96;
+        return jaroWinkler(left, right);
+    }
+
+    private double albumScore(String expected, String candidate) {
+        String left = normalizeComparable(expected);
+        String right = normalizeComparable(candidate);
+        if (left.isEmpty() || right.isEmpty() || "null".equals(right)) return 0.0;
+        if (left.equals(right)) return 1.0;
+        if (isAlbumExpansion(left, right) || isAlbumExpansion(right, left)) return 0.72;
+
+        double similarity = jaroWinkler(left, right);
+        if (similarity >= 0.92) return 0.55;
+        if (similarity >= 0.84) return 0.25;
+        return 0.0;
+    }
+
+    private boolean isAlbumExpansion(String base, String expanded) {
+        if (base.isEmpty() || expanded.isEmpty() || !expanded.startsWith(base) || expanded.length() == base.length()) {
+            return false;
+        }
+        char next = expanded.charAt(base.length());
+        return Character.isWhitespace(next) || next == '-' || next == ':' || next == '(' || next == '[';
+    }
+
+    private double bestArtistScore(String expectedArtists, String candidateArtists) {
+        List<String> expected = splitArtists(expectedArtists);
+        List<String> candidates = splitArtists(candidateArtists);
+        double best = 0.0;
+        for (String left : expected) {
+            for (String right : candidates) {
+                best = Math.max(best, jaroWinkler(left, right));
+            }
+        }
+        return best;
+    }
+
+    private List<String> splitArtists(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+        String[] parts = value.split("[&,]");
+        List<String> result = new ArrayList<>();
+        for (String part : parts) {
+            String normalized = normalizeComparable(part);
+            if (!normalized.isEmpty()) {
+                result.add(normalized);
+            }
+        }
+        return result;
+    }
+
+    private Map<String, String> syncDataHeaders() {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Origin", SYNC_DATA_SPOTIFY_ORIGIN);
+        headers.put("Referer", SYNC_DATA_SPOTIFY_REFERER);
+        headers.put("X-ivLyrics-Client", "android");
+        return headers;
+    }
+
+    private String get(String url) throws IOException {
+        return get(url, Collections.emptyMap());
+    }
+
+    private String get(String url, Map<String, String> headers) throws IOException {
+        return get(url, headers, null);
+    }
+
+    private String get(String url, Map<String, String> headers, Map<String, String> responseHeaders) throws IOException {
+        URL parsedUrl = URI.create(url).toURL();
+        RequestCancellation.check();
+        HttpURLConnection connection = (HttpURLConnection) parsedUrl.openConnection();
+        try (RequestCancellation.AutoCloseableConnection registration = RequestCancellation.register(connection)) {
+            connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            connection.setReadTimeout(READ_TIMEOUT_MS);
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setRequestProperty("User-Agent", "ivLyrics-Android/0.1");
+            if (headers != null) {
+                for (Map.Entry<String, String> header : headers.entrySet()) {
+                    if (header.getKey() != null && header.getValue() != null) {
+                        connection.setRequestProperty(header.getKey(), header.getValue());
+                    }
+                }
+            }
+
+            int status = connection.getResponseCode();
+            if (status < 200 || status >= 300) {
+                throw new HttpStatusException(status, httpErrorMessage(status, connection));
+            }
+
+            try {
+                String body = readBody(connection.getInputStream());
+                if (responseHeaders != null) {
+                    responseHeaders.put("X-Sync-Metadata-Accepted", connection.getHeaderField("X-Sync-Metadata-Accepted"));
+                }
+                return body;
+            } finally {
+                RequestCancellation.check();
+            }
+        }
+    }
+
+    private String postForm(String url, Map<String, String> params, Map<String, String> headers) throws IOException {
+        byte[] body = encodeParams(params).getBytes(StandardCharsets.UTF_8);
+        URL parsedUrl = URI.create(url).toURL();
+        RequestCancellation.check();
+        HttpURLConnection connection = (HttpURLConnection) parsedUrl.openConnection();
+        try (RequestCancellation.AutoCloseableConnection registration = RequestCancellation.register(connection)) {
+            connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            connection.setReadTimeout(READ_TIMEOUT_MS);
+            connection.setRequestMethod("POST");
+            connection.setDoOutput(true);
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+            connection.setRequestProperty("User-Agent", "ivLyrics-Android/0.1");
+            connection.setRequestProperty("Content-Length", String.valueOf(body.length));
+            if (headers != null) {
+                for (Map.Entry<String, String> header : headers.entrySet()) {
+                    if (header.getKey() != null && header.getValue() != null) {
+                        connection.setRequestProperty(header.getKey(), header.getValue());
+                    }
+                }
+            }
+
+            try (OutputStream output = connection.getOutputStream()) {
+                output.write(body);
+            }
+
+            int status = connection.getResponseCode();
+            if (status < 200 || status >= 300) {
+                throw new HttpStatusException(status, httpErrorMessage(status, connection));
+            }
+
+            try {
+                return readBody(connection.getInputStream());
+            } finally {
+                RequestCancellation.check();
+            }
+        }
+    }
+
+    private Bitmap loadBitmap(String url) throws IOException {
+        if (url == null || url.trim().isEmpty()) {
+            return null;
+        }
+
+        URL parsedUrl = URI.create(url).toURL();
+        RequestCancellation.check();
+        HttpURLConnection connection = (HttpURLConnection) parsedUrl.openConnection();
+        try (RequestCancellation.AutoCloseableConnection registration = RequestCancellation.register(connection)) {
+            connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            connection.setReadTimeout(READ_TIMEOUT_MS);
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("Accept", "image/*");
+            connection.setRequestProperty("User-Agent", "ivLyrics-Android/0.1");
+
+            int status = connection.getResponseCode();
+            if (status < 200 || status >= 300) {
+                throw new HttpStatusException(status, httpErrorMessage(status, connection));
+            }
+
+            try (BufferedInputStream input = new BufferedInputStream(connection.getInputStream())) {
+                return BitmapFactory.decodeStream(input);
+            } finally {
+                RequestCancellation.check();
+            }
+        }
+    }
+
+    private String httpErrorMessage(int status, HttpURLConnection connection) {
+        String message = "HTTP " + status;
+        try {
+            String body = readBody(connection.getErrorStream());
+            if (!body.trim().isEmpty()) {
+                message += " / " + compactBody(body);
+            }
+        } catch (Exception ignored) {
+        }
+        return message;
+    }
+
+    private String readBody(InputStream stream) throws IOException {
+        if (stream == null) {
+            return "";
+        }
+        try (BufferedInputStream input = new BufferedInputStream(stream);
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = input.read(buffer)) != -1) {
+                output.write(buffer, 0, read);
+            }
+            return output.toString(StandardCharsets.UTF_8.name());
+        }
+    }
+
+    private String compactBody(String body) {
+        String compact = body == null ? "" : body.trim().replaceAll("\\s+", " ");
+        return compact.length() <= 300 ? compact : compact.substring(0, 300) + "...";
+    }
+
+    private String encodeParams(Map<String, String> params) {
+        StringBuilder builder = new StringBuilder();
+        boolean first = true;
+        for (Map.Entry<String, String> entry : params.entrySet()) {
+            if (entry.getValue() == null || entry.getValue().trim().isEmpty()) {
+                continue;
+            }
+            if (!first) {
+                builder.append("&");
+            }
+            first = false;
+            builder.append(urlEncode(entry.getKey()))
+                    .append("=")
+                    .append(urlEncode(entry.getValue()));
+        }
+        return builder.toString();
+    }
+
+    private String urlEncode(String value) {
+        try {
+            return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8.name());
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private static long secondsToMs(double seconds, long fallbackDurationMs) {
+        if (seconds > 0.0) {
+            return Math.round(seconds * 1000.0);
+        }
+        return Math.max(0L, fallbackDurationMs);
+    }
+
+    private static String firstNonEmpty(String... values) {
+        if (values == null) {
+            return "";
+        }
+        for (String value : values) {
+            if (value != null && !value.trim().isEmpty()) {
+                return value.trim();
+            }
+        }
+        return "";
+    }
+
+    private static String stripBearer(String value) {
+        if (value == null) return "";
+        return value.replaceFirst("(?i)^Bearer\\s+", "").trim();
+    }
+
+    private static List<Integer> readIntArray(JSONArray array) {
+        if (array == null) {
+            return Collections.emptyList();
+        }
+        List<Integer> result = new ArrayList<>();
+        for (int index = 0; index < array.length(); index++) {
+            result.add(array.optInt(index, 0));
+        }
+        return result;
+    }
+
+    private static List<LyricsResult.SyncContributor> parseSyncContributors(JSONObject data, JSONObject syncData) {
+        JSONArray combined = new JSONArray();
+        appendContributorEntries(combined, data, "contributors");
+        appendContributorEntries(combined, syncData, "contributors");
+        appendContributorEntries(combined, data, "creators");
+        appendContributorEntries(combined, syncData, "creators");
+        appendContributorEntries(combined, data, "authors");
+        appendContributorEntries(combined, syncData, "authors");
+        appendContributorEntry(combined, data == null ? null : data.optJSONObject("creator"));
+        appendContributorEntry(combined, syncData == null ? null : syncData.optJSONObject("creator"));
+        return parseSyncContributors(combined);
+    }
+
+    static String redactSyncDataContributorIdentitiesForCache(String response) {
+        if (response == null || response.trim().isEmpty()) {
+            return "";
+        }
+        try {
+            JSONObject root = new JSONObject(response);
+            redactContributorIdentityContainers(root);
+            return root.toString();
+        } catch (Exception ignored) {
+            // An unparseable response must not be written to disk verbatim,
+            // because doing so could retain an identity we failed to inspect.
+            return "";
+        }
+    }
+
+    private static void redactContributorIdentityContainers(Object node) throws Exception {
+        if (node instanceof JSONArray) {
+            JSONArray array = (JSONArray) node;
+            for (int index = 0; index < array.length(); index++) {
+                Object item = array.opt(index);
+                if (item instanceof JSONObject || item instanceof JSONArray) {
+                    redactContributorIdentityContainers(item);
+                }
+            }
+            return;
+        }
+        if (!(node instanceof JSONObject)) {
+            return;
+        }
+
+        JSONObject object = (JSONObject) node;
+        List<String> keys = new ArrayList<>();
+        java.util.Iterator<String> iterator = object.keys();
+        while (iterator.hasNext()) {
+            keys.add(iterator.next());
+        }
+
+        for (String key : keys) {
+            Object value = object.opt(key);
+            if ("contributors".equals(key) || "creators".equals(key) || "authors".equals(key)) {
+                if (value instanceof JSONArray) {
+                    JSONArray source = (JSONArray) value;
+                    JSONArray redacted = new JSONArray();
+                    for (int index = 0; index < source.length(); index++) {
+                        redacted.put(redactedContributorForCache(source.opt(index)));
+                    }
+                    object.put(key, redacted);
+                } else if (value != null && value != JSONObject.NULL) {
+                    object.put(key, redactedContributorForCache(value));
+                }
+                continue;
+            }
+            if ("creator".equals(key) && value != null && value != JSONObject.NULL) {
+                object.put(key, redactedContributorForCache(value));
+                continue;
+            }
+            if (value instanceof JSONObject || value instanceof JSONArray) {
+                redactContributorIdentityContainers(value);
+            }
+        }
+    }
+
+    private static JSONObject redactedContributorForCache(Object raw) throws Exception {
+		JSONObject source = raw instanceof JSONObject ? (JSONObject) raw : null;
+		boolean isPrivate = source != null && (
+				source.optBoolean("isPrivate", false)
+						|| source.optBoolean("private", false)
+						|| (source.has("profilePublic")
+						&& !source.optBoolean("profilePublic", true))
+        );
+        return new JSONObject()
+                .put("name", "Anonymous")
+                .put("displayName", "Anonymous")
+                .put("userHash", JSONObject.NULL)
+                .put("avatarUrl", JSONObject.NULL)
+                .put("linked", false)
+                .put("profileAvailable", false)
+                .put("spotifyUserId", JSONObject.NULL)
+                .put("spotifyDisplayName", JSONObject.NULL)
+                .put("spotifyProfileUrl", JSONObject.NULL)
+                .put("profileUrl", JSONObject.NULL)
+                .put("identifier", JSONObject.NULL)
+                .put("anonymous", true)
+                .put("isPrivate", isPrivate)
+				.put("identityRedacted", true)
+				.put("syncType", source == null ? "unknown" : source.optString("syncType", "unknown"))
+				.put("syncPoints", source == null ? 0 : source.optInt("syncPoints", 0));
+    }
+
+    private static void appendContributorEntries(JSONArray target, JSONObject object, String key) {
+        if (target == null || object == null || key == null) {
+            return;
+        }
+        JSONArray array = object.optJSONArray(key);
+        if (array == null) {
+            appendContributorEntry(target, object.optJSONObject(key));
+            return;
+        }
+        for (int index = 0; index < array.length(); index++) {
+            appendContributorEntry(target, array.opt(index));
+        }
+    }
+
+    private static void appendContributorEntry(JSONArray target, Object entry) {
+        if (target == null || entry == null) {
+            return;
+        }
+        target.put(entry);
+    }
+
+    private static List<LyricsResult.SyncContributor> parseSyncContributors(JSONArray array) {
+        if (array == null || array.length() == 0) {
+            return Collections.emptyList();
+        }
+        List<LyricsResult.SyncContributor> result = new ArrayList<>();
+        List<String> seen = new ArrayList<>();
+        boolean anonymousAdded = false;
+        for (int index = 0; index < array.length(); index++) {
+            Object raw = array.opt(index);
+            String name;
+            String userHash = "";
+            boolean profileAvailable = false;
+            boolean anonymous = false;
+            boolean isPrivate = false;
+			String syncType = "unknown";
+			int syncPoints = 0;
+            LyricsResult.SyncContributor.CreatorDecoration decoration = null;
+            boolean explicitAnonymousIdentity = false;
+            if (raw instanceof String) {
+                name = ((String) raw).trim();
+            } else if (raw instanceof JSONObject) {
+                JSONObject object = (JSONObject) raw;
+                isPrivate = object.optBoolean("isPrivate", false)
+                        || object.optBoolean("private", false)
+                        || (object.has("profilePublic") && !object.optBoolean("profilePublic", true));
+                anonymous = object.optBoolean("anonymous", false) || isPrivate;
+                explicitAnonymousIdentity = anonymous || isPrivate;
+                name = firstNonEmpty(
+                        firstNonEmpty(
+                                firstNonEmpty(object.optString("name", ""), object.optString("nickname", "")),
+                                object.optString("displayName", "")
+                        ),
+                        firstNonEmpty(object.optString("username", ""), object.optString("spotifyDisplayName", ""))
+                );
+                userHash = firstNonEmpty(
+                        firstNonEmpty(object.optString("userHash", ""), object.optString("hash", "")),
+                        object.optString("id", "")
+                );
+                userHash = userHash == null ? "" : userHash.trim();
+                profileAvailable = object.has("profileAvailable")
+                        ? object.optBoolean("profileAvailable", false)
+                        : !userHash.isEmpty();
+				syncType = object.optString("syncType", "unknown");
+				syncPoints = Math.max(0, object.optInt("syncPoints", 0));
+                if (object.has("linked") && !object.optBoolean("linked", false)) {
+                    profileAvailable = false;
+                }
+                JSONObject decorationObject = object.optJSONObject("decoration");
+                if (decorationObject != null) {
+                    decoration = new LyricsResult.SyncContributor.CreatorDecoration(
+                            decorationObject.optString("mode", ""),
+                            decorationObject.optString("solidColor", ""),
+                            decorationObject.optString("gradientStartColor", ""),
+                            decorationObject.optString("gradientEndColor", ""),
+                            decorationObject.optInt("gradientAngle", 90)
+                    );
+                }
+            } else {
+                continue;
+            }
+            if (anonymous || isPrivate) {
+                name = "Anonymous";
+                userHash = "";
+                profileAvailable = false;
+            }
+            if (name == null || name.trim().isEmpty()) {
+                name = "Anonymous";
+            }
+            String key = userHash.isEmpty() ? "name:" + name.trim().toLowerCase(Locale.ROOT) : userHash;
+            boolean anonymousIdentity = anonymous
+                    || isPrivate
+                    || ("anonymous".equalsIgnoreCase(name.trim()) && userHash.isEmpty());
+            boolean legacyAnonymousIdentity = anonymousIdentity && !explicitAnonymousIdentity;
+            if (legacyAnonymousIdentity) {
+                if (anonymousAdded) {
+                    continue;
+                }
+                anonymousAdded = true;
+            } else if (!explicitAnonymousIdentity && seen.contains(key)) {
+                continue;
+            }
+            if (!explicitAnonymousIdentity) {
+                seen.add(key);
+            }
+            result.add(new LyricsResult.SyncContributor(
+                    name,
+                    userHash,
+                    profileAvailable,
+                    anonymousIdentity,
+                    isPrivate,
+					decoration,
+					syncType,
+					syncPoints
+            ));
+        }
+        return result.isEmpty() ? Collections.emptyList() : Collections.unmodifiableList(result);
+    }
+
+    private static String normalizeComparable(String value) {
+        if (value == null) return "";
+        String normalized = Normalizer.normalize(value, Normalizer.Form.NFKC)
+                .toLowerCase(Locale.ROOT)
+                .trim();
+        normalized = COMPARABLE_APOSTROPHE_PATTERN.matcher(normalized).replaceAll("'");
+        normalized = COMPARABLE_QUOTE_PATTERN.matcher(normalized).replaceAll("\"");
+        normalized = COMPARABLE_BRACKET_PATTERN.matcher(normalized).replaceAll("");
+        return COMPARABLE_WHITESPACE_PATTERN.matcher(normalized).replaceAll(" ");
+    }
+
+    private static boolean sameSearchMetadata(String left, String right) {
+        String normalizedLeft = normalizeComparable(left);
+        String normalizedRight = normalizeComparable(right);
+        return !normalizedLeft.isEmpty() && normalizedLeft.equals(normalizedRight);
+    }
+
+    private static double jaroWinkler(String rawLeft, String rawRight) {
+        String left = normalizeComparable(rawLeft);
+        String right = normalizeComparable(rawRight);
+        if (left.isEmpty() || right.isEmpty()) return 0.0;
+        if (left.equals(right)) return 1.0;
+
+        int leftLength = left.length();
+        int rightLength = right.length();
+        int matchDistance = Math.max(leftLength, rightLength) / 2 - 1;
+        boolean[] leftMatches = new boolean[leftLength];
+        boolean[] rightMatches = new boolean[rightLength];
+        int matches = 0;
+
+        for (int leftIndex = 0; leftIndex < leftLength; leftIndex++) {
+            int start = Math.max(0, leftIndex - matchDistance);
+            int end = Math.min(leftIndex + matchDistance + 1, rightLength);
+            for (int rightIndex = start; rightIndex < end; rightIndex++) {
+                if (rightMatches[rightIndex]) continue;
+                if (left.charAt(leftIndex) != right.charAt(rightIndex)) continue;
+                leftMatches[leftIndex] = true;
+                rightMatches[rightIndex] = true;
+                matches++;
+                break;
+            }
+        }
+
+        if (matches == 0) return 0.0;
+
+        double transpositions = 0.0;
+        int rightIndex = 0;
+        for (int leftIndex = 0; leftIndex < leftLength; leftIndex++) {
+            if (!leftMatches[leftIndex]) continue;
+            while (!rightMatches[rightIndex]) {
+                rightIndex++;
+            }
+            if (left.charAt(leftIndex) != right.charAt(rightIndex)) {
+                transpositions++;
+            }
+            rightIndex++;
+        }
+        transpositions /= 2.0;
+
+        double jaro = ((matches / (double) leftLength)
+                + (matches / (double) rightLength)
+                + ((matches - transpositions) / matches)) / 3.0;
+
+        int prefix = 0;
+        for (int index = 0; index < Math.min(4, Math.min(leftLength, rightLength)); index++) {
+            if (left.charAt(index) == right.charAt(index)) {
+                prefix++;
+            } else {
+                break;
+            }
+        }
+
+        return jaro + prefix * 0.1 * (1.0 - jaro);
+    }
+
+    private static final class ProviderCandidate {
+        final LyricsResult karaoke;
+        final LyricsResult synced;
+        final LyricsResult plain;
+
+        ProviderCandidate(LyricsResult karaoke, LyricsResult synced, LyricsResult plain) {
+            this.karaoke = karaoke;
+            this.synced = synced;
+            this.plain = plain;
+        }
+    }
+
+    private static final class MemoryLyricsCacheEntry {
+        final LyricsResult result;
+        final long savedAtMs;
+
+        MemoryLyricsCacheEntry(LyricsResult result, long savedAtMs) {
+            this.result = result;
+            this.savedAtMs = savedAtMs;
+        }
+    }
+
+    private static final class LrclibCandidate {
+        final long id;
+        final String trackName;
+        final String artistName;
+        final String albumName;
+        final double durationSeconds;
+        final boolean instrumental;
+        final String plainLyrics;
+        final String syncedLyrics;
+        final String isrc;
+        double score;
+        String preferredLyricsSource = "";
+        boolean syncLineExactMatch;
+        boolean exactSyncedLineMatch;
+        boolean exactPlainLineMatch;
+        int syncSourceMatchScore;
+        boolean syncSourceIdMatch;
+        boolean syncSourceTextMatch;
+        boolean syncSourceLineCountMatch;
+        boolean hasOriginalLyricsScript;
+        double albumMatchScore;
+        boolean syncDataDecorationComputed;
+        boolean loadedFromSyncSource;
+        SyncDataResult decoratedSyncData;
+
+        LrclibCandidate(
+                long id,
+                String trackName,
+                String artistName,
+                String albumName,
+                double durationSeconds,
+                boolean instrumental,
+                String plainLyrics,
+                String syncedLyrics,
+                String isrc
+        ) {
+            this.id = id;
+            this.trackName = trackName == null ? "" : trackName;
+            this.artistName = artistName == null ? "" : artistName;
+            this.albumName = albumName == null ? "" : albumName;
+            this.durationSeconds = durationSeconds;
+            this.instrumental = instrumental;
+            this.plainLyrics = emptyToNull(plainLyrics);
+            this.syncedLyrics = emptyToNull(syncedLyrics);
+            this.isrc = TrackSnapshot.normalizeIsrc(isrc);
+        }
+
+        static LrclibCandidate fromJson(JSONObject object) {
+            return new LrclibCandidate(
+                    object.optLong("id", 0L),
+                    firstNonEmpty(object.optString("trackName", ""), object.optString("name", "")),
+                    object.optString("artistName", ""),
+                    object.optString("albumName", ""),
+                    object.optDouble("duration", 0.0),
+                    object.optBoolean("instrumental", false),
+                    jsonStringOrNull(object, "plainLyrics"),
+                    jsonStringOrNull(object, "syncedLyrics"),
+                    firstNonEmpty(object.optString("isrc", ""), object.optString("ISRC", ""))
+            );
+        }
+
+        boolean hasLyrics() {
+            return instrumental || plainLyrics != null || syncedLyrics != null;
+        }
+
+        boolean useSyncedLyrics() {
+            if ("plain".equals(preferredLyricsSource) && plainLyrics != null) {
+                return false;
+            }
+            return syncedLyrics != null && !syncedLyrics.trim().isEmpty();
+        }
+
+        private static String emptyToNull(String value) {
+            return value == null || value.trim().isEmpty() ? null : value;
+        }
+
+        private static String jsonStringOrNull(JSONObject object, String key) {
+            if (object == null || object.isNull(key)) {
+                return null;
+            }
+            Object raw = object.opt(key);
+            String value = raw instanceof String ? (String) raw : "";
+            return value.trim().isEmpty() ? null : value;
+        }
+    }
+
+    private static final class SyncDataResult {
+        final JSONObject syncBody;
+        final String provider;
+        final List<LyricsResult.SyncContributor> contributors;
+        final String syncType;
+        final int syncPoints;
+
+        SyncDataResult(JSONObject syncBody, String provider) {
+            this(syncBody, provider, Collections.emptyList(), "unknown", 0);
+        }
+
+        SyncDataResult(JSONObject syncBody, String provider, List<LyricsResult.SyncContributor> contributors) {
+            this(syncBody, provider, contributors, "unknown", 0);
+        }
+
+        SyncDataResult(
+                JSONObject syncBody,
+                String provider,
+                List<LyricsResult.SyncContributor> contributors,
+                String syncType,
+                int syncPoints
+        ) {
+            this.syncBody = syncBody;
+            this.provider = provider == null ? "" : provider;
+            this.contributors = contributors == null
+                    ? Collections.emptyList()
+                    : Collections.unmodifiableList(new ArrayList<>(contributors));
+            String normalizedType = syncType == null ? "" : syncType.trim().toLowerCase(Locale.ROOT);
+            this.syncType = "line".equals(normalizedType)
+                    || "word".equals(normalizedType)
+                    || "character".equals(normalizedType)
+                    || "mixed".equals(normalizedType)
+                    ? normalizedType
+                    : "unknown";
+            this.syncPoints = Math.max(0, syncPoints);
+        }
+
+        JSONObject source() {
+            return syncBody == null ? null : syncBody.optJSONObject("source");
+        }
+
+        boolean hasLrclibSource() {
+            JSONObject source = source();
+            if (source == null) {
+                return false;
+            }
+            String sourceProvider = source.optString("provider", "").trim().toLowerCase(Locale.ROOT);
+            return sourceProvider.isEmpty() || LRCLIB_PROVIDER_ID.equals(sourceProvider);
+        }
+
+        long lrclibId() {
+            JSONObject source = source();
+            if (source == null) {
+                return 0L;
+            }
+            Object rawId = source.opt("lrclibId");
+            if (rawId == null || rawId == JSONObject.NULL) {
+                rawId = source.opt("id");
+            }
+            if (rawId instanceof Number) {
+                return Math.max(0L, ((Number) rawId).longValue());
+            }
+            if (rawId instanceof String) {
+                try {
+                    return Math.max(0L, Long.parseLong(((String) rawId).trim()));
+                } catch (NumberFormatException ignored) {
+                    return 0L;
+                }
+            }
+            return 0L;
+        }
+
+        String preferredLyricsSource() {
+            JSONObject source = source();
+            if (source == null) {
+                return "";
+            }
+            String value = source.optString("preferredLyricsSource", "").trim();
+            return "plain".equals(value) || "synced".equals(value) ? value : "";
+        }
+
+        String sourceLyricsFingerprint() {
+            JSONObject source = source();
+            return source == null ? "" : source.optString("lyricsFingerprint", "").trim();
+        }
+
+        List<Integer> sourceLineCharCounts() {
+            JSONObject source = source();
+            return source == null
+                    ? Collections.emptyList()
+                    : readIntArray(source.optJSONArray("lineCharCounts"));
+        }
+
+        List<Integer> lineCharCounts() {
+            JSONArray lines = syncBody == null ? null : syncBody.optJSONArray("lines");
+            if (lines == null || lines.length() == 0) {
+                return Collections.emptyList();
+            }
+
+            List<Integer> counts = new ArrayList<>();
+            for (int index = 0; index < lines.length(); index++) {
+                JSONObject line = lines.optJSONObject(index);
+                JSONArray chars = line == null ? null : line.optJSONArray("chars");
+                int declaredLength = line == null ? 0 : syncBody.optInt("version", 1) == 6
+                        ? line.optInt("length", 0) : line.optInt("end", -1) - line.optInt("start", 0) + 1;
+                counts.add(chars != null ? chars.length() : declaredLength > 0 && declaredLength <= 2000 ? declaredLength : 0);
+            }
+            return counts;
+        }
+
+        boolean shouldNormalizeParentheticalLines() {
+            return syncBody != null
+                    && (syncBody.optInt("version", 1) >= 2 || !sourceLineCharCounts().isEmpty());
+        }
+    }
+
+    private static final class SpotifyTrackMatch {
+        final String spotifyId;
+        final String title;
+        final String artist;
+        final String album;
+        final long durationMs;
+        final String isrc;
+        final String artworkUrl;
+        final int artworkWidth;
+        final int artworkHeight;
+        final String englishTitle;
+        final String englishArtist;
+        final String englishAlbum;
+
+        SpotifyTrackMatch(
+                String spotifyId,
+                String title,
+                String artist,
+                String album,
+                long durationMs,
+                String isrc,
+                String artworkUrl,
+                int artworkWidth,
+                int artworkHeight
+        ) {
+            this(
+                    spotifyId,
+                    title,
+                    artist,
+                    album,
+                    durationMs,
+                    isrc,
+                    artworkUrl,
+                    artworkWidth,
+                    artworkHeight,
+                    "",
+                    "",
+                    ""
+            );
+        }
+
+        SpotifyTrackMatch(
+                String spotifyId,
+                String title,
+                String artist,
+                String album,
+                long durationMs,
+                String isrc,
+                String artworkUrl,
+                int artworkWidth,
+                int artworkHeight,
+                String englishTitle,
+                String englishArtist,
+                String englishAlbum
+        ) {
+            this.spotifyId = spotifyId == null ? "" : spotifyId;
+            this.title = title == null ? "" : title;
+            this.artist = artist == null ? "" : artist;
+            this.album = album == null ? "" : album;
+            this.durationMs = Math.max(0L, durationMs);
+            this.isrc = TrackSnapshot.normalizeIsrc(isrc);
+            this.artworkUrl = artworkUrl == null ? "" : artworkUrl;
+            this.artworkWidth = Math.max(0, artworkWidth);
+            this.artworkHeight = Math.max(0, artworkHeight);
+            this.englishTitle = englishTitle == null ? "" : englishTitle.trim();
+            this.englishArtist = englishArtist == null ? "" : englishArtist.trim();
+            this.englishAlbum = englishAlbum == null ? "" : englishAlbum.trim();
+        }
+
+        static SpotifyTrackMatch fromJson(JSONObject item) {
+            return fromJson(item, true);
+        }
+
+        static SpotifyTrackMatch fromJson(JSONObject item, boolean requireIsrc) {
+            if (item == null) {
+                return null;
+            }
+
+            JSONObject externalIds = item.optJSONObject("external_ids");
+            String isrc = externalIds == null ? "" : externalIds.optString("isrc", "");
+            if (requireIsrc && TrackSnapshot.normalizeIsrc(isrc).isEmpty()) {
+                return null;
+            }
+
+            JSONObject album = item.optJSONObject("album");
+            AlbumArtwork artwork = bestAlbumArtwork(album);
+            return new SpotifyTrackMatch(
+                    item.optString("id", ""),
+                    item.optString("name", ""),
+                    artistText(item.optJSONArray("artists")),
+                    albumName(album),
+                    item.optLong("duration_ms", 0L),
+                    isrc,
+                    artwork.url,
+                    artwork.width,
+                    artwork.height
+            );
+        }
+
+        SpotifyTrackMatch withEnglishMetadata(SpotifyTrackMatch english) {
+            if (english == null || english.title.trim().isEmpty() || english.artist.trim().isEmpty()) {
+                return this;
+            }
+            String nextTitle = sameSearchMetadata(title, english.title) ? "" : english.title;
+            String nextArtist = sameSearchMetadata(artist, english.artist) ? "" : english.artist;
+            String nextAlbum = sameSearchMetadata(album, english.album) ? "" : english.album;
+            if (nextTitle.isEmpty() && nextArtist.isEmpty()) {
+                return this;
+            }
+            return new SpotifyTrackMatch(
+                    spotifyId,
+                    title,
+                    artist,
+                    album,
+                    durationMs,
+                    isrc,
+                    artworkUrl,
+                    artworkWidth,
+                    artworkHeight,
+                    firstNonEmpty(nextTitle, title),
+                    firstNonEmpty(nextArtist, artist),
+                    nextAlbum
+            );
+        }
+
+        boolean hasEnglishMetadata() {
+            return (!englishTitle.isEmpty() && !sameSearchMetadata(title, englishTitle))
+                    || (!englishArtist.isEmpty() && !sameSearchMetadata(artist, englishArtist));
+        }
+
+        private static String artistText(JSONArray artists) {
+            if (artists == null || artists.length() == 0) {
+                return "";
+            }
+
+            StringBuilder builder = new StringBuilder();
+            for (int index = 0; index < artists.length(); index++) {
+                JSONObject artist = artists.optJSONObject(index);
+                String name = artist == null ? "" : artist.optString("name", "").trim();
+                if (name.isEmpty()) {
+                    continue;
+                }
+                if (builder.length() > 0) {
+                    builder.append(", ");
+                }
+                builder.append(name);
+            }
+            return builder.toString();
+        }
+
+        private static String albumName(JSONObject album) {
+            return album == null ? "" : album.optString("name", "");
+        }
+
+        private static AlbumArtwork bestAlbumArtwork(JSONObject album) {
+            JSONArray images = album == null ? null : album.optJSONArray("images");
+            if (images == null || images.length() == 0) {
+                return AlbumArtwork.empty();
+            }
+
+            AlbumArtwork best = AlbumArtwork.empty();
+            long bestArea = -1L;
+            for (int index = 0; index < images.length(); index++) {
+                JSONObject image = images.optJSONObject(index);
+                if (image == null) {
+                    continue;
+                }
+                String url = image.optString("url", "").trim();
+                if (url.isEmpty()) {
+                    continue;
+                }
+                int width = Math.max(0, image.optInt("width", 0));
+                int height = Math.max(0, image.optInt("height", 0));
+                long area = width > 0 && height > 0 ? (long) width * height : 0L;
+                if (best.url.isEmpty() || area > bestArea) {
+                    best = new AlbumArtwork(url, width, height);
+                    bestArea = area;
+                }
+            }
+            return best;
+        }
+
+        private static final class AlbumArtwork {
+            final String url;
+            final int width;
+            final int height;
+
+            AlbumArtwork(String url, int width, int height) {
+                this.url = url == null ? "" : url;
+                this.width = Math.max(0, width);
+                this.height = Math.max(0, height);
+            }
+
+            static AlbumArtwork empty() {
+                return new AlbumArtwork("", 0, 0);
+            }
+        }
+    }
+
+    private static final class SpotifyTokenResponse {
+        final String accessToken;
+        final long expiresInSeconds;
+
+        SpotifyTokenResponse(String accessToken, long expiresInSeconds) {
+            this.accessToken = stripBearer(accessToken);
+            this.expiresInSeconds = Math.max(60L, expiresInSeconds);
+        }
+    }
+
+    private static final class SpotifyCredentials {
+        final String clientId;
+        final String clientSecret;
+
+        SpotifyCredentials(String clientId, String clientSecret) {
+            this.clientId = clientId == null ? "" : clientId.trim();
+            this.clientSecret = clientSecret == null ? "" : clientSecret.trim();
+        }
+
+        boolean configured() {
+            return !clientId.isEmpty() && !clientSecret.isEmpty();
+        }
+
+        boolean partial() {
+            return clientId.isEmpty() != clientSecret.isEmpty();
+        }
+
+        String sourceKey() {
+            if (!configured()) {
+                return "spotify-client:missing";
+            }
+            String secretHash = Integer.toHexString((clientId + "\n" + clientSecret).hashCode());
+            return "spotify-client:" + clientId + ":" + secretHash;
+        }
+
+        String sourceLabel() {
+            return "Spotify API credentials";
+        }
+    }
+
+    private static final class HttpStatusException extends IOException {
+        final int statusCode;
+
+        HttpStatusException(int statusCode, String message) {
+            super(message);
+            this.statusCode = statusCode;
+        }
+    }
+}

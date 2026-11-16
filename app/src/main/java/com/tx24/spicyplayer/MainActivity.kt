@@ -1344,6 +1344,26 @@ private fun LyricsApp(
                             held = ambientOpaque,
                         )
                     }
+                    // ivLyrics' music video, over the picked background, where the song has one.
+                    if (settings.musicVideoBackground && !lowPerformance && kr.ivlis.ivlyricsandroid.SpicyBridge.supported()) {
+                        var videoFound by remember { mutableStateOf(false) }
+                        val videoShown by animateFloatAsState(if (videoFound) 1f else 0f, tween(STAGE_FADE_MS, easing = StageEaseOut), label = "musicVideo")
+                        val videoLines = remember(state.lyrics) {
+                            (state.lyrics as? LyricsState.Ready)?.let(com.tx24.spicyplayer.ivlyrics::rendererLines).orEmpty()
+                        }
+                        com.tx24.spicyplayer.ivlyrics.MusicVideoBackground(
+                            title = state.title,
+                            artist = state.artist,
+                            album = state.album,
+                            spotifyId = state.manualSpotifyId ?: state.detectedSpotifyId,
+                            durationMs = state.durationMs,
+                            lines = videoLines,
+                            isPlaying = state.isPlaying,
+                            currentTimeMs = viewModel::currentLyricPositionMs,
+                            onFound = { videoFound = it },
+                            modifier = Modifier.fillMaxSize().graphicsLayer { alpha = videoShown },
+                        )
+                    }
                     // Background dim: a veil over whatever the background shows.
                     if (settings.backgroundDim > 0) {
                         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = settings.backgroundDim / 100f)))
@@ -1421,6 +1441,7 @@ private fun LyricsApp(
                         LyricsPanel(
                             lyrics = state.lyrics,
                             motionLyrics = settings.motionLyrics,
+                            furigana = settings.furigana,
                             translation = state.translation.takeIf { state.translationEnabled },
                             translationMode = settings.translationMode,
                             textCredits = settings.textCredits,
@@ -1894,6 +1915,29 @@ private fun LyricsApp(
             )
         }
 
+        // ivLyrics' vinyl player, over everything but the toasts; its close turns it off.
+        if (settings.vinylMode && kr.ivlis.ivlyricsandroid.SpicyBridge.supported() && !showIntro) {
+            val vinylLines = remember(state.lyrics) {
+                (state.lyrics as? LyricsState.Ready)?.let(com.tx24.spicyplayer.ivlyrics::rendererLines).orEmpty()
+            }
+            com.tx24.spicyplayer.ivlyrics.VinylMode(
+                title = state.title,
+                artist = state.artist,
+                album = state.album,
+                spotifyId = state.manualSpotifyId ?: state.detectedSpotifyId,
+                artwork = state.artwork,
+                durationMs = state.durationMs,
+                isPlaying = state.isPlaying,
+                lines = vinylLines,
+                currentTimeMs = viewModel::currentLyricPositionMs,
+                onClose = { settings.vinylMode = false },
+                onPlayPause = viewModel::playPause,
+                onSeek = viewModel::seekTo,
+                onPause = { if (state.isPlaying) viewModel.playPause() },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+
         SpicyToastHost(viewModel.messages, Modifier.padding(padding).padding(top = SpicySpacing.S4))
     }
 }
@@ -1967,6 +2011,7 @@ private fun PipLyrics(
         LyricsPanel(
             lyrics = state.lyrics,
             motionLyrics = settings.motionLyrics,
+            furigana = settings.furigana,
             translation = state.translation.takeIf { state.translationEnabled },
             translationMode = settings.translationMode,
             textCredits = settings.textCredits,
@@ -2340,6 +2385,8 @@ private fun LyricsPanel(
     holdUntilFirstLine: Boolean = false,
     /** Word-synced songs play as motion lyrics. */
     motionLyrics: Boolean = false,
+    /** Japanese lines read from ivLyrics' furigana. */
+    furigana: Boolean = false,
 ) {
     val transition = com.tx24.spicyplayer.lyrics.rememberSongTransition(
         lyrics, translation, songKey, currentTimeMs, songTransition, holdUntilFirstLine,
@@ -2361,6 +2408,7 @@ private fun LyricsPanel(
                 romanizationMode = romanizationMode,
                 visible = visible,
                 motionLyrics = motionLyrics,
+                furigana = furigana,
             )
         }
         LyricsPanelContent(
@@ -2377,6 +2425,7 @@ private fun LyricsPanel(
             romanizationCredit = romanizationCredit,
             visible = visible,
             motionLyrics = motionLyrics,
+            furigana = furigana,
         )
         AnimatedVisibility(
             visible = lyrics == LyricsState.Loading && outgoing == null,
@@ -2425,13 +2474,15 @@ private fun LyricsPanelContent(
     visible: () -> Boolean = { true },
     /** Word-synced songs play as motion lyrics. */
     motionLyrics: Boolean = false,
+    /** Japanese lines read from ivLyrics' furigana. */
+    furigana: Boolean = false,
 ) {
     when (lyrics) {
         LyricsState.Idle -> LyricsNotice("Waiting for a song", modifier, bottomPx = noticeBottomPx, compact = noticeActions == null)
         LyricsState.Loading -> Unit
         is LyricsState.Error -> LyricsNotice(lyrics, noticeActions, noticeBottomPx, modifier)
         is LyricsState.Ready -> {
-            val originalLines = remember(lyrics.lines) {
+            val baseLines = remember(lyrics.lines) {
                 lyrics.lines.map { line ->
                     Line(
                         words = line.words.map { word ->
@@ -2448,6 +2499,12 @@ private fun LyricsPanelContent(
                     )
                 }
             }
+            // ivLyrics' furigana, where it's on and the song has kanji: shown as the lines' reading.
+            val originalLines = com.tx24.spicyplayer.ivlyrics.rememberFurigana(
+                furigana, baseLines, remember(lyrics.lines) { lyrics.lines.hashCode().toString() },
+            )
+            @Suppress("NAME_SHADOWING")
+            val romanize = romanize || originalLines !== baseLines
             val rendererLines = remember(originalLines, config.isMinimal, config.isBloom) {
                 buildDisplayTimeline(originalLines, minimalMode = config.isMinimal, holdThroughShortGaps = when (lyrics.lyricsType) {
                     LyricsType.Syllable -> config.isMinimal || config.isBloom
@@ -2461,8 +2518,8 @@ private fun LyricsPanelContent(
                 }
             }
             val copyContext = LocalContext.current
-            if (com.tx24.spicyplayer.lyrics.motion.motionLyricsFit(motionLyrics, originalLines, lyrics.lyricsType)) {
-                com.tx24.spicyplayer.lyrics.motion.MotionLyricsView(
+            if (com.tx24.spicyplayer.ivlyrics.motionLyricsFit(motionLyrics, originalLines, lyrics.lyricsType)) {
+                com.tx24.spicyplayer.ivlyrics.MotionLyricsView(
                     lines = originalLines,
                     documentId = remember(lyrics.lines) { lyrics.lines.hashCode().toString() },
                     currentTimeMs = currentTimeMs,

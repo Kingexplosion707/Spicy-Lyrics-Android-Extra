@@ -1,0 +1,431 @@
+package kr.ivlis.ivlyricsandroid;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+
+final class LyricsProviderSettings {
+    static final String PROVIDER_LYRICS_PLUS = "lyricsplus";
+    static final String PROVIDER_OPEN_LYRICS = "open-lyrics";
+    static final String PROVIDER_LRC_RED = "lrcred";
+    static final String PROVIDER_UNISON = "unison";
+    static final String PROVIDER_LRCLIB = "lrclib";
+
+    static final String TYPE_KARAOKE = "karaoke";
+    static final String TYPE_SYNCED = "synced";
+    static final String TYPE_PLAIN = "plain";
+
+    static final List<Provider> PROVIDERS = Collections.unmodifiableList(Arrays.asList(
+            new Provider(PROVIDER_OPEN_LYRICS, "Open Lyrics", "default", OpenLyricsProvider.PROJECT_URL, true, true, true, true),
+            new Provider(PROVIDER_LRC_RED, "lrc.red", "default", LrcRedLyricsProvider.PROJECT_URL, true, true, true, true),
+            new Provider(PROVIDER_LYRICS_PLUS, "LyricsPlus", "default", LyricsPlusLyricsProvider.PROJECT_URL, true, true, true, true),
+            new Provider(PROVIDER_LRCLIB, "LRCLIB", "default", "https://lrclib.net", true, false, true, true),
+            new Provider(PROVIDER_UNISON, "Unison", "default", "https://github.com/better-lyrics/unison", false, true, true, true)
+    ));
+
+    private static final String PREFS_NAME = "lyrics_provider_settings";
+    private static final String KEY_ORDER = "provider_order";
+    private static final String KEY_PREFER_SYNC_DATA = "prefer_sync_data_provider";
+    private static final String KEY_TYPE_FIRST = "prefer_lyrics_type_over_provider_order";
+    private static final String KEY_LRCLIB_ENDPOINT = "lrclib_playback_endpoint";
+    private static final String KEY_ENABLED_PREFIX = "enabled_";
+    private static final String KEY_TYPE_PREFIX = "allow_";
+
+    private final SharedPreferences preferences;
+
+    LyricsProviderSettings(Context context) {
+        Context appContext = context == null ? null : context.getApplicationContext();
+        preferences = appContext == null
+                ? null
+                : appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+    }
+
+    String lrclibPlaybackEndpoint() {
+        try {
+            return LrclibEndpoint.normalize(preferences == null ? "" : preferences.getString(KEY_LRCLIB_ENDPOINT, ""));
+        } catch (IllegalArgumentException ignored) {
+            return "";
+        }
+    }
+
+    boolean setLrclibPlaybackEndpoint(String value) {
+        String normalized = LrclibEndpoint.normalize(value);
+        if (preferences == null || normalized.equals(lrclibPlaybackEndpoint())) return false;
+        if (normalized.isEmpty()) preferences.edit().remove(KEY_LRCLIB_ENDPOINT).apply();
+        else preferences.edit().putString(KEY_LRCLIB_ENDPOINT, normalized).apply();
+        return true;
+    }
+
+    JSONObject exportCloudSettings() throws JSONException {
+        JSONObject result = new JSONObject();
+        if (preferences == null) {
+            return result;
+        }
+        for (Map.Entry<String, ?> entry : preferences.getAll().entrySet()) {
+            if (!isCloudSettingKey(entry.getKey())) {
+                continue;
+            }
+            Object value = entry.getValue();
+            if (KEY_LRCLIB_ENDPOINT.equals(entry.getKey())) {
+                result.put(entry.getKey(), lrclibPlaybackEndpoint());
+                continue;
+            }
+            if (value instanceof Boolean || value instanceof String) {
+                result.put(entry.getKey(), value);
+            }
+        }
+        // An explicit empty value must clear a previously configured endpoint on another device.
+        result.put(KEY_LRCLIB_ENDPOINT, lrclibPlaybackEndpoint());
+        return result;
+    }
+
+    void importCloudSettings(JSONObject source) throws JSONException {
+        if (preferences == null || source == null) {
+            return;
+        }
+        SharedPreferences.Editor editor = preferences.edit();
+        java.util.Iterator<String> keys = source.keys();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            if (!isCloudSettingKey(key) || source.isNull(key)) {
+                continue;
+            }
+            Object value = source.get(key);
+            if (KEY_LRCLIB_ENDPOINT.equals(key)) {
+                if (value instanceof String) {
+                    try { editor.putString(key, LrclibEndpoint.normalize((String) value)); }
+                    catch (IllegalArgumentException ignored) { /* Preserve a working local endpoint. */ }
+                }
+                continue;
+            }
+            if (value instanceof Boolean) {
+                editor.putBoolean(key, (Boolean) value);
+            } else if (value instanceof String) {
+                editor.putString(key, (String) value);
+            }
+        }
+        editor.apply();
+    }
+
+    private static boolean isCloudSettingKey(String key) {
+        return KEY_ORDER.equals(key)
+                || KEY_PREFER_SYNC_DATA.equals(key)
+                || KEY_TYPE_FIRST.equals(key)
+                || KEY_LRCLIB_ENDPOINT.equals(key)
+                || key.startsWith(KEY_ENABLED_PREFIX)
+                || key.startsWith(KEY_TYPE_PREFIX);
+    }
+
+    Snapshot snapshot() {
+        Map<String, ProviderConfig> configs = new LinkedHashMap<>();
+        for (Provider provider : PROVIDERS) {
+            configs.put(provider.id, new ProviderConfig(
+                    provider,
+                    readBoolean(KEY_ENABLED_PREFIX + provider.id, provider.defaultEnabled),
+                    readBoolean(typeKey(provider.id, TYPE_KARAOKE), true),
+                    readBoolean(typeKey(provider.id, TYPE_SYNCED), true),
+                    readBoolean(typeKey(provider.id, TYPE_PLAIN), true)
+            ));
+        }
+        return new Snapshot(
+                orderedProviderIds(),
+                configs,
+                readBoolean(KEY_PREFER_SYNC_DATA, true),
+                readBoolean(KEY_TYPE_FIRST, true),
+                lrclibPlaybackEndpoint()
+        );
+    }
+
+    String providerForTrack(String trackKey) {
+        return preferences == null || trackKey == null ? ""
+                : preferences.getString("track_provider_" + trackKey, "");
+    }
+
+    void setProviderForTrack(String trackKey, String providerId) {
+        if (preferences == null || trackKey == null || trackKey.isEmpty()) return;
+        String id = normalizeProviderId(providerId);
+        if (!id.isEmpty() && snapshot().config(id) == null) return;
+        if (id.isEmpty()) preferences.edit().remove("track_provider_" + trackKey).apply();
+        else preferences.edit().putString("track_provider_" + trackKey, id).apply();
+    }
+
+    Snapshot snapshotForTrack(String trackKey) {
+        return snapshot().withSelectedProvider(providerForTrack(trackKey));
+    }
+
+    void setProviderEnabled(String providerId, boolean enabled) {
+        putBoolean(KEY_ENABLED_PREFIX + normalizeProviderId(providerId), enabled);
+    }
+
+    void setTypeAllowed(String providerId, String type, boolean allowed) {
+        putBoolean(typeKey(normalizeProviderId(providerId), normalizeType(type)), allowed);
+    }
+
+    void setPreferSyncDataProvider(boolean enabled) {
+        putBoolean(KEY_PREFER_SYNC_DATA, enabled);
+    }
+
+    void setTypeFirst(boolean enabled) {
+        putBoolean(KEY_TYPE_FIRST, enabled);
+    }
+
+    void moveProvider(String providerId, int direction) {
+        List<String> order = new ArrayList<>(orderedProviderIds());
+        int index = order.indexOf(normalizeProviderId(providerId));
+        int target = index + (direction < 0 ? -1 : 1);
+        if (index < 0 || target < 0 || target >= order.size()) {
+            return;
+        }
+        Collections.swap(order, index, target);
+        writeOrder(order);
+    }
+
+    private List<String> orderedProviderIds() {
+        Set<String> known = new LinkedHashSet<>();
+        for (Provider provider : PROVIDERS) {
+            known.add(provider.id);
+        }
+
+        List<String> result = new ArrayList<>();
+        if (preferences != null) {
+            String stored = preferences.getString(KEY_ORDER, "");
+            if (stored != null && !stored.trim().isEmpty()) {
+                try {
+                    JSONArray array = new JSONArray(stored);
+                    for (int index = 0; index < array.length(); index++) {
+                        String id = normalizeProviderId(array.optString(index, ""));
+                        if (known.contains(id) && !result.contains(id)) {
+                            result.add(id);
+                        }
+                    }
+                } catch (Exception ignored) {
+                    // A malformed old preference falls back to the current default order.
+                }
+            }
+        }
+        return completeProviderOrder(result);
+    }
+
+    static List<String> completeProviderOrder(List<String> storedOrder) {
+        List<String> result = new ArrayList<>();
+        Set<String> known = new LinkedHashSet<>();
+        for (Provider provider : PROVIDERS) known.add(provider.id);
+        if (storedOrder != null) {
+            for (String providerId : storedOrder) {
+                String id = normalizeProviderId(providerId);
+                if (known.contains(id) && !result.contains(id)) result.add(id);
+            }
+        }
+        if (!result.isEmpty() && !result.contains(PROVIDER_OPEN_LYRICS)) {
+            result.add(0, PROVIDER_OPEN_LYRICS);
+        }
+        // lrc.red is new on mobile, so a saved order has never placed it. Give it the
+        // default second position instead of appending it after every other source.
+        if (!result.isEmpty() && !result.contains(PROVIDER_LRC_RED)) {
+            result.add(result.indexOf(PROVIDER_OPEN_LYRICS) + 1, PROVIDER_LRC_RED);
+        }
+        for (Provider provider : PROVIDERS) {
+            if (!result.contains(provider.id)) {
+                result.add(provider.id);
+            }
+        }
+        return Collections.unmodifiableList(result);
+    }
+
+    static Provider provider(String providerId) {
+        String normalized = normalizeProviderId(providerId);
+        for (Provider provider : PROVIDERS) {
+            if (provider.id.equals(normalized)) return provider;
+        }
+        return null;
+    }
+
+    private void writeOrder(List<String> order) {
+        if (preferences == null) {
+            return;
+        }
+        JSONArray array = new JSONArray();
+        for (String providerId : order) {
+            array.put(providerId);
+        }
+        preferences.edit().putString(KEY_ORDER, array.toString()).apply();
+    }
+
+    private boolean readBoolean(String key, boolean fallback) {
+        return preferences == null ? fallback : preferences.getBoolean(key, fallback);
+    }
+
+    private void putBoolean(String key, boolean value) {
+        if (preferences != null && key != null && !key.trim().isEmpty()) {
+            preferences.edit().putBoolean(key, value).apply();
+        }
+    }
+
+    private static String typeKey(String providerId, String type) {
+        return KEY_TYPE_PREFIX + providerId + "_" + type;
+    }
+
+    private static String normalizeProviderId(String providerId) {
+        return providerId == null ? "" : providerId.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static String normalizeType(String type) {
+        String normalized = type == null ? "" : type.trim().toLowerCase(Locale.ROOT);
+        if (TYPE_KARAOKE.equals(normalized) || TYPE_SYNCED.equals(normalized)) {
+            return normalized;
+        }
+        return TYPE_PLAIN;
+    }
+
+    static final class Provider {
+        final String id;
+        final String label;
+        final String author;
+        final String projectUrl;
+        final boolean defaultEnabled;
+        final boolean nativeKaraoke;
+        final boolean synced;
+        final boolean plain;
+
+        Provider(
+                String id,
+                String label,
+                String author,
+                String projectUrl,
+                boolean defaultEnabled,
+                boolean nativeKaraoke,
+                boolean synced,
+                boolean plain
+        ) {
+            this.id = id;
+            this.label = label;
+            this.author = author;
+            this.projectUrl = projectUrl;
+            this.defaultEnabled = defaultEnabled;
+            this.nativeKaraoke = nativeKaraoke;
+            this.synced = synced;
+            this.plain = plain;
+        }
+    }
+
+    static final class ProviderConfig {
+        final Provider provider;
+        final boolean enabled;
+        final boolean karaoke;
+        final boolean synced;
+        final boolean plain;
+
+        ProviderConfig(Provider provider, boolean enabled, boolean karaoke, boolean synced, boolean plain) {
+            this.provider = provider;
+            this.enabled = enabled;
+            this.karaoke = karaoke;
+            this.synced = synced;
+            this.plain = plain;
+        }
+
+        boolean allows(String type) {
+            if (TYPE_KARAOKE.equals(type)) return karaoke;
+            if (TYPE_SYNCED.equals(type)) return synced;
+            return plain;
+        }
+    }
+
+    static final class Snapshot {
+        final List<String> order;
+        final Map<String, ProviderConfig> configs;
+        final boolean preferSyncDataProvider;
+        final boolean typeFirst;
+        final String lrclibPlaybackEndpoint;
+
+        Snapshot(
+                List<String> order,
+                Map<String, ProviderConfig> configs,
+                boolean preferSyncDataProvider,
+                boolean typeFirst
+        ) {
+            this(order, configs, preferSyncDataProvider, typeFirst, "");
+        }
+
+        Snapshot(List<String> order, Map<String, ProviderConfig> configs, boolean preferSyncDataProvider,
+                 boolean typeFirst, String lrclibPlaybackEndpoint) {
+            this.order = Collections.unmodifiableList(new ArrayList<>(order));
+            this.configs = Collections.unmodifiableMap(new LinkedHashMap<>(configs));
+            this.preferSyncDataProvider = preferSyncDataProvider;
+            this.typeFirst = typeFirst;
+            this.lrclibPlaybackEndpoint = lrclibPlaybackEndpoint;
+        }
+
+        Snapshot withSelectedProvider(String providerId) {
+            ProviderConfig selected = config(providerId);
+            if (selected == null) return this;
+            Map<String, ProviderConfig> selectedConfigs = new LinkedHashMap<>();
+            // An explicit per-track choice enables all types for that provider only.
+            selectedConfigs.put(selected.provider.id,
+                    new ProviderConfig(selected.provider, true, true, true, true));
+            return new Snapshot(Collections.singletonList(selected.provider.id), selectedConfigs, false, true, lrclibPlaybackEndpoint);
+        }
+
+        ProviderConfig config(String providerId) {
+            return configs.get(normalizeProviderId(providerId));
+        }
+
+        /**
+         * After every enabled source lacks karaoke timing, lrc.red's own text is preferred while
+         * it generates word timing. This needs its karaoke type and is never used for a source
+         * the user chose for one track, which does not mean the others were searched.
+         */
+        boolean automaticWordSyncFallback() {
+            ProviderConfig config = config(PROVIDER_LRC_RED);
+            return config != null && config.enabled && config.karaoke && order.size() > 1;
+        }
+
+        List<ProviderConfig> enabledProviders() {
+            List<ProviderConfig> result = new ArrayList<>();
+            for (String providerId : order) {
+                ProviderConfig config = configs.get(providerId);
+                if (config != null && config.enabled) {
+                    result.add(config);
+                }
+            }
+            return result;
+        }
+
+        String cacheKey() {
+            StringBuilder builder = new StringBuilder(typeFirst ? "type-first" : "provider-first");
+            builder.append(preferSyncDataProvider ? ":sync-first" : ":normal-order");
+            for (String providerId : order) {
+                ProviderConfig config = configs.get(providerId);
+                if (config == null) continue;
+                builder.append('|').append(providerId)
+                        .append(':').append(config.enabled ? '1' : '0')
+                        .append(config.karaoke ? 'k' : '-')
+                        .append(config.synced ? 's' : '-')
+                        .append(config.plain ? 'p' : '-');
+            }
+            // Also invalidates cached fallbacks from another provider when this endpoint changes.
+            if (!lrclibPlaybackEndpoint.isEmpty()) builder.append("|lrclib-playback:").append(lrclibPlaybackEndpoint);
+            return builder.toString();
+        }
+
+        String cacheKeyForProvider(String providerId) {
+            String base = cacheKey();
+            if (PROVIDER_OPEN_LYRICS.equals(normalizeProviderId(providerId))) {
+                return base + "|open-lyrics-text:" + OpenLyricsProvider.TEXT_CACHE_REVISION;
+            }
+            return base;
+        }
+    }
+}

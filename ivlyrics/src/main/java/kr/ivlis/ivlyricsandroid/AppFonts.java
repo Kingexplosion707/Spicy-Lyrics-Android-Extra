@@ -1,0 +1,87 @@
+package kr.ivlis.ivlyricsandroid;
+
+import android.content.Context;
+import android.graphics.Typeface;
+import android.util.SparseArray;
+
+final class AppFonts {
+    private static Typeface regular;
+    private static Typeface semiBold;
+    private static Typeface bold;
+    private static final SparseArray<Typeface> brandWeights = new SparseArray<>(2);
+
+    private AppFonts() {
+    }
+
+    static Typeface regular(Context context) {
+        if (regular == null) {
+            regular = load(context, "fonts/Pretendard-Regular.ttf", Typeface.NORMAL);
+        }
+        return regular;
+    }
+
+    static Typeface semiBold(Context context) {
+        if (semiBold == null) {
+            semiBold = load(context, "fonts/Pretendard-SemiBold.ttf", Typeface.BOLD);
+        }
+        return semiBold;
+    }
+
+    static Typeface bold(Context context) {
+        if (bold == null) {
+            bold = load(context, "fonts/Pretendard-Bold.ttf", Typeface.BOLD);
+        }
+        return bold;
+    }
+
+    /** The bundled variable outlines preserve exact brand weights, including 250, on API 26+. */
+    static Typeface brand(Context context, int weight) {
+        Typeface typeface = brandWeights.get(weight);
+        if (typeface == null) {
+            typeface = new Typeface.Builder(context.getAssets(), "fonts/ivLyricsBrand-Variable.ttf")
+                    .setFontVariationSettings("'wght' " + weight)
+                    .setWeight(weight)
+                    .setItalic(false)
+                    .build();
+            brandWeights.put(weight, typeface);
+        }
+        return typeface;
+    }
+
+    static Typeface byWeight(Context context, String weight) {
+        String normalized = AiLyricsSettings.normalizeTypographyWeight(weight);
+        if (AiLyricsSettings.TYPO_WEIGHT_REGULAR.equals(normalized)) {
+            return regular(context);
+        }
+        if (AiLyricsSettings.TYPO_WEIGHT_BOLD.equals(normalized)) {
+            return bold(context);
+        }
+        return semiBold(context);
+    }
+
+    static Typeface cultural(Context context, String family, int weight) {
+        String normalizedFamily = AiLyricsSettings.normalizeCulturalFontFamily(family);
+        Typeface base;
+        if (AiLyricsSettings.CULTURAL_FONT_SERIF.equals(normalizedFamily)) {
+            base = Typeface.SERIF;
+        } else if (AiLyricsSettings.CULTURAL_FONT_MONOSPACE.equals(normalizedFamily)) {
+            base = Typeface.MONOSPACE;
+        } else if (AiLyricsSettings.CULTURAL_FONT_SYSTEM.equals(normalizedFamily)) {
+            base = Typeface.DEFAULT;
+        } else {
+            base = regular(context);
+        }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            return Typeface.create(base, AiLyricsSettings.normalizeCulturalFontWeight(weight), false);
+        }
+        return Typeface.create(base, weight >= 600 ? Typeface.BOLD : Typeface.NORMAL);
+    }
+
+    private static Typeface load(Context context, String assetPath, int style) {
+        try {
+            return Typeface.createFromAsset(context.getAssets(), assetPath);
+        } catch (Exception ignored) {
+            return Typeface.create("sans", style);
+        }
+    }
+}

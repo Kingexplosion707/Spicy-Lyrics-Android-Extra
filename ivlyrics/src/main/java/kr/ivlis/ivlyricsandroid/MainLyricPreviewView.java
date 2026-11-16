@@ -1,0 +1,1949 @@
+package kr.ivlis.ivlyricsandroid;
+
+import android.content.Context;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.LinearGradient;
+import android.graphics.Matrix;
+import android.graphics.Paint;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
+import android.graphics.Shader;
+import android.graphics.Typeface;
+import android.os.SystemClock;
+import android.util.AttributeSet;
+import android.util.TypedValue;
+import android.view.View;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.regex.Pattern;
+
+final class MainLyricPreviewView extends View {
+    private static final float PRIMARY_TEXT_SP = 17f;
+    private static final float SECONDARY_TEXT_SP = 14.5f;
+    private static final float ROW_GAP_SP = 4f;
+    private static final float EDGE_FADE_DP = 28f;
+    private static final float FURIGANA_TEXT_RATIO = 0.46f;
+    private static final float SLIDE_START_HOLD = 0.3f;
+    private static final float SLIDE_MOVE_DURATION = 0.4f;
+    private static final int RESERVED_TEXT_ROWS = 3;
+    private static final int PREVIEW_LAYOUT_MATCH = 1;
+    private static final int PREVIEW_INSTANCES_MATCH = 1 << 1;
+    private static final int PREVIEW_WIDTH_INPUTS_MATCH = 1 << 2;
+    private static final int PRIMARY_KARAOKE_ACTIVE_COLOR = Color.argb(252, 255, 255, 255);
+    private static final int SECONDARY_KARAOKE_ACTIVE_COLOR = Color.argb(226, 255, 255, 255);
+    private static final int[] PRIMARY_KARAOKE_FILL_COLORS = {
+            PRIMARY_KARAOKE_ACTIVE_COLOR,
+            PRIMARY_KARAOKE_ACTIVE_COLOR,
+            Color.argb(0, 255, 255, 255)
+    };
+    private static final int[] SECONDARY_KARAOKE_FILL_COLORS = {
+            SECONDARY_KARAOKE_ACTIVE_COLOR,
+            SECONDARY_KARAOKE_ACTIVE_COLOR,
+            Color.argb(0, 255, 255, 255)
+    };
+    private static final float[] KARAOKE_FILL_STOPS = {0f, 0.34f, 1f};
+    private static final float[] LOADING_ROW_WIDTH_FACTORS = {0.54f, 0.78f, 0.42f};
+    private static final float[] LOADING_SHIMMER_STOPS = {0f, 0.5f, 1f};
+    private static final float[] EFFECT_TRANSLATE_X = {0f, -0.5f, 0.45f, -0.25f};
+    private static final float[] EFFECT_TRANSLATE_Y = {0f, 0.25f, -0.25f, -0.35f};
+    private static final Pattern MARKUP_TAG_PATTERN = Pattern.compile("<[^>]+>");
+
+    private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint edgeFadePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint shapePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint.FontMetrics textFontMetrics = new Paint.FontMetrics();
+    private final KaraokeMotion.Values karaokeBounceResult = new KaraokeMotion.Values();
+    private final PorterDuffXfermode edgeFadeXfermode = new PorterDuffXfermode(PorterDuff.Mode.DST_IN);
+    private final LinearGradient primaryKaraokeFillShader = karaokeFillShader(PRIMARY_KARAOKE_FILL_COLORS);
+    private final LinearGradient secondaryKaraokeFillShader = karaokeFillShader(SECONDARY_KARAOKE_FILL_COLORS);
+    private final int[] loadingShimmerColors = {
+            Color.argb(0, 255, 255, 255),
+            Color.argb(0, 255, 255, 255),
+            Color.argb(0, 255, 255, 255)
+    };
+    private final LinearGradient[] loadingShaders = new LinearGradient[LOADING_ROW_WIDTH_FACTORS.length];
+    private final float[] loadingShaderWidths = new float[LOADING_ROW_WIDTH_FACTORS.length];
+    private int loadingShaderAlpha = -1;
+    private final Matrix karaokeFillShaderMatrix = new Matrix();
+    private final List<PreviewLine> lines = new ArrayList<>();
+    private final Map<PreviewLine, List<TextSegment>> textSegmentCache = new IdentityHashMap<>();
+    private float[] measuredLineWidths = new float[0];
+    private boolean measuredLineWidthsValid;
+    private float measuredLineWidthsScaledDensity = Float.NaN;
+    private LinearGradient edgeFadeShader;
+    private float edgeFadeShaderLeft = Float.NaN;
+    private float edgeFadeShaderWidth = Float.NaN;
+    private float edgeFadeShaderStop = Float.NaN;
+    private Typeface primaryTypeface;
+    private Typeface secondaryTypeface;
+    private AiLyricsSettings.TypographySettings typographySettings = AiLyricsSettings.TypographySettings.defaults();
+    // Playback clock: basePositionMs at baseTimeNanos (System.nanoTime() clock).
+    private double basePositionMs;
+    private final PlaybackRenderWindow playbackRenderWindow = new PlaybackRenderWindow();
+    private long baseTimeNanos;
+    /** Choreographer frame time of the last frame-synchronized position. */
+    private long hostFrameTimeNanos;
+    /** Set by the host for the frame in progress; consumed by that frame's draw. */
+    private boolean hostFrameFresh;
+    /** Drawing time minus the host's frame time, last observed; estimates frames without a host. */
+    private long hostFrameOffsetNanos;
+    private long lineStartMs;
+    private long lineEndMs;
+    private PreviewInterlude lastDrawnInterlude;
+    private PreviewInterlude exitingInterlude;
+    private boolean playing;
+    private boolean compactLayout;
+    private boolean externallyDriven;
+    private boolean timeDrivenVisuals;
+    private boolean frameAnimationsEnabled;
+    private long frameUptimeMs;
+    private long frameWallTimeMs;
+    private boolean frameProbeEnabled;
+    private String frameProbeOwner = "";
+    private final StringBuilder frameProbeLine = new StringBuilder(160);
+    private String lyricTextAlignment = AiLyricsSettings.LYRICS_ALIGN_CENTER;
+    private boolean karaokeBounceEffectEnabled = true;
+    /** Desktop's expressive karaoke motion, a style of the bounce (Settings > Karaoke). */
+    private boolean karaokeExpressiveMotion;
+    private String karaokeDisplayGranularity = AiLyricsSettings.KARAOKE_DISPLAY_CHARACTER;
+    private String lyricsSegmentationLocale = "auto";
+    private float textScale = 1f;
+    private String culturalAnnotationFontFamily = AiLyricsSettings.CULTURAL_FONT_PRETENDARD;
+    private int culturalAnnotationFontSize = 12;
+    private int culturalAnnotationFontWeight = 300;
+    private int culturalAnnotationOpacity = 60;
+
+    MainLyricPreviewView(Context context) {
+        super(context);
+        init();
+    }
+
+    MainLyricPreviewView(Context context, AttributeSet attrs) {
+        super(context, attrs);
+        init();
+    }
+
+    void setPreview(List<PreviewLine> nextLines, long positionMs, long startTimeMs, long endTimeMs, boolean isPlaying) {
+        List<PreviewLine> safeLines = nextLines == null ? Collections.emptyList() : nextLines;
+        int previewMatches = comparePreviewLines(safeLines);
+        boolean layoutChanged = (previewMatches & PREVIEW_LAYOUT_MATCH) == 0;
+        boolean segmentInputsChanged = (previewMatches & PREVIEW_INSTANCES_MATCH) == 0;
+        boolean lineWidthInputsChanged = (previewMatches & PREVIEW_WIDTH_INPUTS_MATCH) == 0;
+        if (segmentInputsChanged || lineStartMs != Math.max(0L, startTimeMs)
+                || lineEndMs != Math.max(Math.max(0L, startTimeMs), endTimeMs) || playing != isPlaying) {
+            playbackRenderWindow.invalidate();
+        }
+        // The host republishes the preview every 250 ms. Paused on the same rows and position,
+        // the frame it would draw is the one already on screen (see setPlaybackFrame).
+        boolean unchangedPaused = previewMatches == (PREVIEW_LAYOUT_MATCH | PREVIEW_INSTANCES_MATCH | PREVIEW_WIDTH_INPUTS_MATCH)
+                && !playing && !isPlaying
+                && basePositionMs == Math.max(0L, positionMs)
+                && lineStartMs == Math.max(0L, startTimeMs)
+                && lineEndMs == Math.max(lineStartMs, endTimeMs);
+        lines.clear();
+        lines.addAll(safeLines);
+        timeDrivenVisuals = false;
+        for (PreviewLine line : lines) {
+            timeDrivenVisuals |= line.isAnimatedVisual() || !"vocal".equals(line.kind);
+        }
+        basePositionMs = Math.max(0L, positionMs);
+        baseTimeNanos = SystemClock.uptimeMillis() * 1_000_000L;
+        lineStartMs = Math.max(0L, startTimeMs);
+        lineEndMs = Math.max(lineStartMs, endTimeMs);
+        playing = isPlaying;
+        if (segmentInputsChanged) {
+            textSegmentCache.clear();
+        }
+        if (lineWidthInputsChanged) {
+            measuredLineWidthsValid = false;
+        }
+        if (layoutChanged) {
+            requestLayout();
+        }
+        if (unchangedPaused && !timeDrivenVisuals
+                && frameAnimationsEnabled == MotionPreferences.animationsEnabled(getContext())) return;
+        if (canReusePlaybackFrame(basePositionMs)) return;
+        postInvalidateOnAnimation();
+    }
+
+    void clear() {
+        boolean exitShown = exitingInterlude != null;
+        lastDrawnInterlude = null;
+        exitingInterlude = null;
+        setPreview(Collections.emptyList(), 0L, 0L, 0L, false);
+        if (exitShown) postInvalidateOnAnimation();
+    }
+
+    /** Native inline lyrics reserve only their selected rows, without player-page spacing. */
+    void setCompactLayout(boolean compact) {
+        if (compactLayout == compact) return;
+        compactLayout = compact;
+        requestLayout();
+    }
+
+    void setExternallyDriven(boolean driven) {
+        externallyDriven = driven;
+    }
+
+    void setLyricTextAlignment(String alignment) {
+        String normalized = AiLyricsSettings.normalizeLyricsTextAlignment(alignment);
+        if (lyricTextAlignment.equals(normalized)) return;
+        lyricTextAlignment = normalized;
+        postInvalidateOnAnimation();
+    }
+
+    void setPlaybackPosition(long positionMs, boolean isPlaying) {
+        long nextPositionMs = Math.max(0L, positionMs);
+        boolean unchangedPaused = !playing && !isPlaying && basePositionMs == nextPositionMs;
+        basePositionMs = nextPositionMs;
+        baseTimeNanos = SystemClock.uptimeMillis() * 1_000_000L;
+        playing = isPlaying;
+        if (unchangedPaused && !timeDrivenVisuals
+                && frameAnimationsEnabled == MotionPreferences.animationsEnabled(getContext())) return;
+        if (canReusePlaybackFrame(basePositionMs)) return;
+        postInvalidateOnAnimation();
+    }
+
+    /**
+     * Playback position at a Choreographer frame time, without rounding. The fill and
+     * bounce of that frame then paint exactly this position; later frames extrapolate
+     * from it on the same frame clock.
+     */
+    void setPlaybackFrame(double positionMs, long frameTimeNanos, boolean isPlaying) {
+        playing = isPlaying;
+        setPlaybackFrame(positionMs, frameTimeNanos);
+    }
+
+    /** As {@link #setPlaybackFrame(double, long, boolean)}, keeping the current playing state. */
+    void setPlaybackFrame(double positionMs, long frameTimeNanos) {
+        double nextPositionMs = Double.isFinite(positionMs) ? Math.max(0d, positionMs) : 0d;
+        boolean unchangedPaused = !playing && basePositionMs == nextPositionMs;
+        basePositionMs = nextPositionMs;
+        baseTimeNanos = frameTimeNanos;
+        hostFrameTimeNanos = frameTimeNanos;
+        hostFrameFresh = frameTimeNanos > 0L;
+        if (unchangedPaused && !timeDrivenVisuals
+                && frameAnimationsEnabled == MotionPreferences.animationsEnabled(getContext())) return;
+        if (canReusePlaybackFrame(nextPositionMs)) return;
+        postInvalidateOnAnimation();
+    }
+
+    private boolean canReusePlaybackFrame(double position) {
+        return measuredLineWidthsValid && playbackRenderWindow.contains(position);
+    }
+
+    /** Effects such as wave/pulse also animate while playback is paused. */
+    boolean needsHostFrames() {
+        return timeDrivenVisuals && MotionPreferences.animationsEnabled(getContext());
+    }
+
+    void setTextScale(float scale) {
+        float safeScale = Math.max(0.85f, Math.min(1.75f, scale));
+        if (Math.abs(textScale - safeScale) < 0.01f) {
+            return;
+        }
+        textScale = safeScale;
+        textSegmentCache.clear();
+        measuredLineWidthsValid = false;
+        requestLayout();
+        postInvalidateOnAnimation();
+    }
+
+    void setKaraokeBounceEffectEnabled(boolean enabled) {
+        if (karaokeBounceEffectEnabled == enabled) {
+            return;
+        }
+        karaokeBounceEffectEnabled = enabled;
+        postInvalidateOnAnimation();
+    }
+
+    void setKaraokeExpressiveMotion(boolean enabled) {
+        if (karaokeExpressiveMotion == enabled) {
+            return;
+        }
+        karaokeExpressiveMotion = enabled;
+        postInvalidateOnAnimation();
+    }
+
+    void setKaraokeDisplayGranularity(String granularity) {
+        String normalized = AiLyricsSettings.normalizeKaraokeDisplayGranularity(granularity);
+        if (karaokeDisplayGranularity.equals(normalized)) {
+            return;
+        }
+        karaokeDisplayGranularity = normalized;
+        textSegmentCache.clear();
+        postInvalidateOnAnimation();
+    }
+
+    void setLyricsSegmentationLocale(String locale) {
+        String normalized = locale == null || locale.trim().isEmpty() ? "auto" : locale.trim();
+        if (lyricsSegmentationLocale.equalsIgnoreCase(normalized)) {
+            return;
+        }
+        lyricsSegmentationLocale = normalized;
+        textSegmentCache.clear();
+        postInvalidateOnAnimation();
+    }
+
+    void setTypographySettings(AiLyricsSettings.TypographySettings settings) {
+        typographySettings = settings == null ? AiLyricsSettings.TypographySettings.defaults() : settings;
+        textSegmentCache.clear();
+        measuredLineWidthsValid = false;
+        requestLayout();
+        postInvalidateOnAnimation();
+    }
+
+    void setCulturalAnnotationStyle(String fontFamily, int fontSize, int fontWeight, int opacity) {
+        String nextFamily = AiLyricsSettings.normalizeCulturalFontFamily(fontFamily);
+        int nextSize = Math.max(10, Math.min(28, fontSize));
+        int nextWeight = AiLyricsSettings.normalizeCulturalFontWeight(fontWeight);
+        int nextOpacity = Math.max(20, Math.min(100, opacity));
+        if (culturalAnnotationFontFamily.equals(nextFamily)
+                && culturalAnnotationFontSize == nextSize
+                && culturalAnnotationFontWeight == nextWeight
+                && culturalAnnotationOpacity == nextOpacity) {
+            return;
+        }
+        culturalAnnotationFontFamily = nextFamily;
+        culturalAnnotationFontSize = nextSize;
+        culturalAnnotationFontWeight = nextWeight;
+        culturalAnnotationOpacity = nextOpacity;
+        measuredLineWidthsValid = false;
+        requestLayout();
+        postInvalidateOnAnimation();
+    }
+
+    private void init() {
+        primaryTypeface = AppFonts.semiBold(getContext());
+        secondaryTypeface = AppFonts.semiBold(getContext());
+        textPaint.setSubpixelText(true);
+        setWillNotDraw(false);
+    }
+
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        int desiredHeight = Math.round(Math.max(desiredContentHeight(), compactLayout ? 0f : reservedContentHeight()));
+        int measuredWidth = MeasureSpec.getSize(widthMeasureSpec);
+        int measuredHeight = resolveSize(desiredHeight, heightMeasureSpec);
+        setMeasuredDimension(measuredWidth, measuredHeight);
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        frameProbeEnabled = LyricsFrameProbe.enabled(getContext());
+        if (frameProbeEnabled) frameProbeOwner = LyricsFrameProbe.owner(getContext());
+    }
+
+    @Override
+    protected void onDraw(Canvas canvas) {
+        super.onDraw(canvas);
+        playbackRenderWindow.invalidate();
+        if (lines.isEmpty()) {
+            lastDrawnInterlude = null;
+            exitingInterlude = null;
+            return;
+        }
+
+        long frameProbeStartNs = frameProbeEnabled ? System.nanoTime() : 0L;
+        float totalHeight = desiredContentHeight();
+        float top = Math.max(0f, (getHeight() - totalHeight) * 0.5f);
+        boolean frameProbeHostTime = hostFrameFresh;
+        long frameNanos = frameTimeNanos();
+        double position = positionAtFrame(frameNanos);
+        frameAnimationsEnabled = MotionPreferences.animationsEnabled(getContext());
+        frameUptimeMs = SystemClock.uptimeMillis();
+        frameWallTimeMs = System.currentTimeMillis();
+        float left = getPaddingLeft();
+        float width = Math.max(1f, getWidth() - getPaddingLeft() - getPaddingRight());
+        updatePreviewInterludeExit((long) position);
+        boolean overflow = measureLineWidths(width);
+
+        int save = overflow
+                ? canvas.saveLayer(left, 0f, left + width, getHeight(), null)
+                : canvas.save();
+        canvas.clipRect(left, 0f, left + width, getHeight());
+        for (int index = 0; index < lines.size(); index++) {
+            PreviewLine line = lines.get(index);
+            float progress = frameAnimationsEnabled ? line.progress(position, lineStartMs, lineEndMs) : 0f;
+            float textSize = sp(textSizeSp(line));
+            textPaint.setTypeface(typefaceForLine(line));
+            textPaint.setTextSize(textSize);
+            int alpha = line.isCultural()
+                    ? Math.round(255f * culturalAnnotationOpacity / 100f)
+                    : line.primary ? 244 : 208;
+            if (exitingInterlude != null) {
+                alpha = Math.round(alpha * (1f - InterludeTransition.exit(
+                        frameUptimeMs - exitingInterlude.startedMs, frameAnimationsEnabled)));
+            }
+            textPaint.setColor(Color.argb(alpha, 255, 255, 255));
+
+            textPaint.getFontMetrics(textFontMetrics);
+            float rowHeight = rowHeight(line);
+            float rubyExtraHeight = rubyExtraHeight(line, textSize);
+            float baseline = top
+                    + rubyExtraHeight
+                    + (rowHeight - rubyExtraHeight - textFontMetrics.ascent - textFontMetrics.descent) * 0.5f;
+            float textWidth = Float.isNaN(measuredLineWidths[index])
+                    ? measureLineWidth(line)
+                    : measuredLineWidths[index];
+            float x = xForText(textWidth, width, left, progress);
+            drawPreviewLine(canvas, line, x, baseline, textSize, alpha, position, left, width);
+            if (line.isInterlude()) {
+                if (lastDrawnInterlude == null || !lastDrawnInterlude.label.equals(line.text)
+                        || lastDrawnInterlude.endMs != lineEndMs) {
+                    lastDrawnInterlude = new PreviewInterlude(line.text, lineEndMs);
+                }
+                lastDrawnInterlude.baseline = baseline;
+                lastDrawnInterlude.textSize = textSize;
+                lastDrawnInterlude.typeface = textPaint.getTypeface();
+            }
+            top += rowHeight;
+            if (index + 1 < lines.size()) {
+                top += sp(rowGapSp());
+            }
+        }
+        drawPreviewInterludeExit(canvas, left, width);
+        if (overflow) {
+            applyEdgeFadeMask(canvas, left, width);
+        }
+        canvas.restoreToCount(save);
+        playbackRenderWindow.begin(position);
+        if (timeDrivenVisuals || exitingInterlude != null || hasKaraokeLine() || overflow) {
+            playbackRenderWindow.invalidate();
+        }
+        if (exitingInterlude != null && frameAnimationsEnabled) postInvalidateOnAnimation();
+        if (frameProbeEnabled) {
+            logFrameProbe(frameProbeStartNs, position, frameProbeHostTime, frameNanos);
+        }
+
+        // Expressive units settle for 820 ms after they end; the classic release ends sooner.
+        long motionTailMs = karaokeExpressiveMotion ? 900L : 700L;
+        if (!externallyDriven && frameAnimationsEnabled && ((playing && lineEndMs > lineStartMs && position < lineEndMs + motionTailMs && (overflow || hasKaraokeLine()))
+                || hasAnimatedLine())) {
+            postInvalidateOnAnimation();
+        }
+    }
+
+    /** Debug-only: the karaoke values this preview frame painted. */
+    private void logFrameProbe(long startNs, double position, boolean hostTime, long frameNanos) {
+        double fillPx = 0d;
+        float lift = 0f;
+        for (PreviewLine line : lines) {
+            if (!line.hasKaraoke() || isLineDisplayGranularity()) continue;
+            float textSize = sp(textSizeSp(line));
+            for (TextSegment segment : textSegments(line)) {
+                fillPx += segment.textWidth * segmentFillFraction(segment, position);
+                KaraokeMotion.Values bounce = karaokeMotion(segment, line, position, textSize);
+                if (bounce.active && bounce.offsetY < lift) lift = bounce.offsetY;
+            }
+            break;
+        }
+        StringBuilder line = frameProbeLine;
+        line.setLength(0);
+        line.append("PV").append(externallyDriven ? "x" : "").append(" vsync=").append(getDrawingTime()).append(" vsyncExact=");
+        LyricsFrameProbe.appendFixed(line, frameNanos / 1_000_000d, 4);
+        line.append(" draw=");
+        LyricsFrameProbe.appendFixed(line, startNs / 1_000_000d, 3);
+        line.append(" host=").append(hostTime ? 1 : 0);
+        line.append(" pos=").append((long) Math.floor(position)).append(" posExact=");
+        LyricsFrameProbe.appendFixed(line, position, 4);
+        line.append(" fillPx=");
+        LyricsFrameProbe.appendFixed(line, fillPx, 3);
+        line.append(" lift=");
+        LyricsFrameProbe.appendFixed(line, lift, 4);
+        line.append(" us=").append((System.nanoTime() - startNs) / 1000L);
+        line.append(" owner=").append(frameProbeOwner);
+        LyricsFrameProbe.log(line);
+    }
+
+    private void drawPreviewLine(
+            Canvas canvas,
+            PreviewLine line,
+            float x,
+            float baseline,
+            float textSize,
+            int normalAlpha,
+            double positionMs,
+            float left,
+            float width
+    ) {
+        if (line.isInterlude()) {
+            float opacity = InterludeTransition.enter(lineStartMs, positionMs, frameAnimationsEnabled);
+            int save = canvas.save();
+            float scale = InterludeTransition.scale(opacity);
+            canvas.scale(scale, scale, left + width * 0.5f, baseline - textSize * 0.36f);
+            drawInterludeLine(canvas, line.text, baseline, textSize, Math.round(normalAlpha * opacity), left, width);
+            canvas.restoreToCount(save);
+            return;
+        }
+        if (line.isLoading()) {
+            drawLoadingLine(canvas, line.text, baseline, textSize, normalAlpha, left, width);
+            return;
+        }
+        if (line.isCultural()) {
+            textPaint.setColor(Color.argb(normalAlpha, 255, 255, 255));
+            canvas.drawText(line.text, x, baseline, textPaint);
+            return;
+        }
+        if (isLineDisplayGranularity() || !line.hasKaraoke()) {
+            textPaint.setColor(Color.argb(normalAlpha, 255, 255, 255));
+            canvas.drawText(line.text, x, baseline, textPaint);
+            drawPlainRubyText(canvas, line, x, baseline, textSize, normalAlpha);
+            return;
+        }
+
+        drawKaraokeLine(canvas, line, x, baseline, textSize, positionMs);
+    }
+
+    private void drawInterludeLine(
+            Canvas canvas,
+            String label,
+            float baseline,
+            float textSize,
+            int alpha,
+            float left,
+            float width
+    ) {
+        long now = frameAnimationsEnabled ? frameUptimeMs : 0L;
+        float barWidth = dp(3.2f);
+        float barGap = dp(3.8f);
+        float iconWidth = barWidth * 4f + barGap * 3f;
+        float labelGap = dp(10f);
+        boolean showLabel = label != null && !label.trim().isEmpty();
+        float labelWidth = showLabel ? textPaint.measureText(label) : 0f;
+        float totalWidth = iconWidth + (showLabel ? labelGap + labelWidth : 0f);
+        float start = alignedStart(totalWidth, width, left);
+        float centerY = baseline - textSize * 0.36f;
+        float minHeight = dp(7f);
+        float maxHeight = dp(22f);
+        float radius = barWidth * 0.7f;
+
+        shapePaint.setShader(null);
+        shapePaint.setStyle(Paint.Style.FILL);
+        shapePaint.setColor(Color.argb(Math.max(0, Math.min(255, alpha)), 255, 255, 255));
+        for (int index = 0; index < 4; index++) {
+            float phase = positiveSin(now + index * 145L, 980L);
+            float height = minHeight + (maxHeight - minHeight) * (0.2f + phase * 0.8f);
+            float x = start + index * (barWidth + barGap);
+            canvas.drawRoundRect(x, centerY - height * 0.5f, x + barWidth, centerY + height * 0.5f, radius, radius, shapePaint);
+        }
+
+        if (showLabel) {
+            textPaint.setColor(Color.argb(alpha, 255, 255, 255));
+            canvas.drawText(label, start + iconWidth + labelGap, baseline, textPaint);
+        }
+    }
+
+    private void updatePreviewInterludeExit(long position) {
+        boolean hasInterlude = false;
+        for (PreviewLine line : lines) hasInterlude |= line.isInterlude();
+        if (!frameAnimationsEnabled || hasInterlude) exitingInterlude = null;
+        if (!hasInterlude && lastDrawnInterlude != null) {
+            if (InterludeTransition.canExit(lastDrawnInterlude.endMs, position, frameAnimationsEnabled)
+                    && lineStartMs >= lastDrawnInterlude.endMs && lineStartMs <= lastDrawnInterlude.endMs + 400L) {
+                exitingInterlude = lastDrawnInterlude;
+                exitingInterlude.startedMs = frameUptimeMs;
+            }
+            lastDrawnInterlude = null;
+        }
+        if (exitingInterlude != null && (position < exitingInterlude.endMs
+                || InterludeTransition.exit(frameUptimeMs - exitingInterlude.startedMs, frameAnimationsEnabled) <= 0f)) {
+            exitingInterlude = null;
+        }
+    }
+
+    private void drawPreviewInterludeExit(Canvas canvas, float left, float width) {
+        PreviewInterlude exit = exitingInterlude;
+        if (exit == null) return;
+        float opacity = InterludeTransition.exit(frameUptimeMs - exit.startedMs, frameAnimationsEnabled);
+        textPaint.setTextSize(exit.textSize);
+        textPaint.setTypeface(exit.typeface);
+        int save = canvas.save();
+        float scale = InterludeTransition.scale(opacity);
+        canvas.scale(scale, scale, left + width * 0.5f, exit.baseline - exit.textSize * 0.36f);
+        drawInterludeLine(canvas, exit.label, exit.baseline, exit.textSize, Math.round(244 * opacity), left, width);
+        canvas.restoreToCount(save);
+    }
+
+    private static final class PreviewInterlude {
+        final String label;
+        final long endMs;
+        float baseline;
+        float textSize;
+        Typeface typeface;
+        long startedMs;
+        PreviewInterlude(String label, long endMs) { this.label = label; this.endMs = endMs; }
+    }
+
+    private void drawLoadingLine(
+            Canvas canvas,
+            String label,
+            float baseline,
+            float textSize,
+            int alpha,
+            float left,
+            float width
+    ) {
+        long now = frameAnimationsEnabled ? frameUptimeMs : 0L;
+        float railWidth = Math.min(width * 0.72f, dp(210f));
+        float railHeight = dp(4.2f);
+        float railGap = dp(6.6f);
+        float totalHeight = railHeight * LOADING_ROW_WIDTH_FACTORS.length
+                + railGap * (LOADING_ROW_WIDTH_FACTORS.length - 1);
+        float startY = baseline - textSize * 0.34f - totalHeight * 0.5f;
+        float radius = railHeight * 0.9f;
+
+        shapePaint.setShader(null);
+        shapePaint.setStyle(Paint.Style.FILL);
+        for (int index = 0; index < LOADING_ROW_WIDTH_FACTORS.length; index++) {
+            float rowWidth = Math.max(dp(42f), railWidth * LOADING_ROW_WIDTH_FACTORS[index]);
+            float rowLeft = alignedStart(rowWidth, width, left);
+            float rowTop = startY + index * (railHeight + railGap);
+            shapePaint.setColor(Color.argb(index == 1 ? 76 : 46, 255, 255, 255));
+            canvas.drawRoundRect(rowLeft, rowTop, rowLeft + rowWidth, rowTop + railHeight, radius, radius, shapePaint);
+
+            float shimmerWidth = Math.max(dp(28f), rowWidth * 0.36f);
+            float phase = ((now + index * 145L) % 1280L) / 1280f;
+            float shimmerLeft = rowLeft - shimmerWidth + (rowWidth + shimmerWidth * 2f) * phase;
+            shapePaint.setShader(loadingShader(index, shimmerWidth, alpha));
+            int save = canvas.save();
+            canvas.clipRect(rowLeft, rowTop, rowLeft + rowWidth, rowTop + railHeight);
+            canvas.translate(shimmerLeft, 0f);
+            canvas.drawRoundRect(rowLeft - shimmerLeft, rowTop, rowLeft + rowWidth - shimmerLeft,
+                    rowTop + railHeight, radius, radius, shapePaint);
+            canvas.restoreToCount(save);
+            shapePaint.setShader(null);
+        }
+    }
+
+    private LinearGradient loadingShader(int index, float width, int alpha) {
+        int nextAlpha = Math.min(255, alpha);
+        if (loadingShaderAlpha != nextAlpha) {
+            java.util.Arrays.fill(loadingShaders, null);
+            loadingShimmerColors[1] = Color.argb(nextAlpha, 255, 255, 255);
+            loadingShaderAlpha = nextAlpha;
+        }
+        LinearGradient shader = loadingShaders[index];
+        if (shader == null || Float.compare(loadingShaderWidths[index], width) != 0) {
+            shader = new LinearGradient(0f, 0f, width, 0f, loadingShimmerColors,
+                    LOADING_SHIMMER_STOPS, Shader.TileMode.CLAMP);
+            loadingShaders[index] = shader;
+            loadingShaderWidths[index] = width;
+        }
+        return shader;
+    }
+
+    private float xForText(float textWidth, float width, float left, float progress) {
+        if (textWidth <= width) {
+            return alignedStart(textWidth, width, left);
+        }
+        float fadeWidth = edgeFadeWidth(width);
+        float startX = left + fadeWidth;
+        float endX = left + width - fadeWidth - textWidth;
+        return startX + (endX - startX) * slideProgress(progress);
+    }
+
+    private float alignedStart(float textWidth, float width, float left) {
+        float free = Math.max(0f, width - textWidth);
+        if (AiLyricsSettings.LYRICS_ALIGN_RIGHT.equals(lyricTextAlignment)) return left + free;
+        if (AiLyricsSettings.LYRICS_ALIGN_CENTER.equals(lyricTextAlignment)) return left + free * 0.5f;
+        return left;
+    }
+
+    private float slideProgress(float lineProgress) {
+        if (lineProgress <= SLIDE_START_HOLD) {
+            return 0f;
+        }
+        if (lineProgress >= SLIDE_START_HOLD + SLIDE_MOVE_DURATION) {
+            return 1f;
+        }
+        return clamp((lineProgress - SLIDE_START_HOLD) / SLIDE_MOVE_DURATION);
+    }
+
+    private void applyEdgeFadeMask(Canvas canvas, float left, float width) {
+        float fadeWidth = edgeFadeWidth(width);
+        if (fadeWidth <= 0f) {
+            return;
+        }
+        float fadeStop = clamp(fadeWidth / width);
+        float rightFadeStart = Math.max(fadeStop, 1f - fadeStop);
+        if (edgeFadeShader == null
+                || Float.compare(edgeFadeShaderLeft, left) != 0
+                || Float.compare(edgeFadeShaderWidth, width) != 0
+                || Float.compare(edgeFadeShaderStop, fadeStop) != 0) {
+            edgeFadeShader = new LinearGradient(
+                    left,
+                    0f,
+                    left + width,
+                    0f,
+                    new int[] {
+                            Color.TRANSPARENT,
+                            Color.BLACK,
+                            Color.BLACK,
+                            Color.TRANSPARENT
+                    },
+                    new float[] {
+                            0f,
+                            fadeStop,
+                            rightFadeStart,
+                            1f
+                    },
+                    Shader.TileMode.CLAMP
+            );
+            edgeFadeShaderLeft = left;
+            edgeFadeShaderWidth = width;
+            edgeFadeShaderStop = fadeStop;
+        }
+        edgeFadePaint.setShader(edgeFadeShader);
+        edgeFadePaint.setXfermode(edgeFadeXfermode);
+        canvas.drawRect(left, 0f, left + width, getHeight(), edgeFadePaint);
+        edgeFadePaint.setXfermode(null);
+        edgeFadePaint.setShader(null);
+    }
+
+    private float edgeFadeWidth(float width) {
+        return Math.min(dp(EDGE_FADE_DP), width * 0.28f);
+    }
+
+    /**
+     * The frame time of this draw on the Choreographer frame-callback clock: the host's
+     * time when it ticked this frame, otherwise the drawing time moved by the last observed
+     * difference so the extrapolated position never switches clocks. Call once per draw.
+     */
+    private long frameTimeNanos() {
+        long drawingTimeMs = getDrawingTime();
+        long drawingNanos = drawingTimeMs > 0L ? drawingTimeMs * 1_000_000L : SystemClock.uptimeMillis() * 1_000_000L;
+        if (hostFrameFresh) {
+            hostFrameFresh = false;
+            // getDrawingTime() may lead the frame-callback time by one frame interval.
+            hostFrameOffsetNanos = Math.max(0L, Math.min(34_000_000L, drawingNanos - hostFrameTimeNanos));
+            return hostFrameTimeNanos;
+        }
+        return drawingNanos - hostFrameOffsetNanos;
+    }
+
+    /** Playback position painted by a frame: paused exactly, playing extrapolated to its vsync. */
+    private double positionAtFrame(long frameNanos) {
+        if (!playing) {
+            return basePositionMs;
+        }
+        return basePositionMs + Math.max(0L, frameNanos - baseTimeNanos) / 1_000_000d;
+    }
+
+    private boolean measureLineWidths(float width) {
+        int lineCount = lines.size();
+        float scaledDensity = getResources().getDisplayMetrics().scaledDensity;
+        if (!measuredLineWidthsValid
+                || Float.compare(measuredLineWidthsScaledDensity, scaledDensity) != 0) {
+            if (measuredLineWidths.length < lineCount) {
+                measuredLineWidths = new float[lineCount];
+            }
+            for (int index = 0; index < lineCount; index++) {
+                PreviewLine line = lines.get(index);
+                if (line.isAnimatedVisual()) {
+                    measuredLineWidths[index] = Float.NaN;
+                    continue;
+                }
+                textPaint.setTypeface(typefaceForLine(line));
+                textPaint.setTextSize(sp(textSizeSp(line)));
+                measuredLineWidths[index] = measureLineWidth(line);
+            }
+            measuredLineWidthsValid = true;
+            measuredLineWidthsScaledDensity = scaledDensity;
+        }
+        for (int index = 0; index < lineCount; index++) {
+            if (measuredLineWidths[index] > width) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private float measureLineWidth(PreviewLine line) {
+        if (line != null && line.hasKaraoke()) {
+            if (line.continuousShaping) {
+                return textPaint.measureText(line.text);
+            }
+            float width = 0f;
+            for (LyricsLine.Syllable syllable : line.syllables) {
+                if (syllable == null || syllable.text == null || syllable.text.isEmpty()) {
+                    continue;
+                }
+                width += textPaint.measureText(syllable.text);
+            }
+            if (width > 0f) {
+                return width;
+            }
+        }
+        return line == null ? 0f : textPaint.measureText(line.text);
+    }
+
+    private boolean hasAnimatedLine() {
+        for (PreviewLine line : lines) {
+            if (line.isAnimatedVisual()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasKaraokeLine() {
+        if (isLineDisplayGranularity()) {
+            return false;
+        }
+        for (PreviewLine line : lines) {
+            if (line.hasKaraoke()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private float desiredContentHeight() {
+        if (lines.isEmpty()) {
+            return 0f;
+        }
+        float height = 0f;
+        for (int index = 0; index < lines.size(); index++) {
+            height += rowHeight(lines.get(index));
+            if (index + 1 < lines.size()) {
+                height += sp(rowGapSp());
+            }
+        }
+        return height;
+    }
+
+    private float reservedContentHeight() {
+        float primaryText = textSizeSp(AiLyricsSettings.TYPO_MAIN_PREVIEW_ORIGINAL, PRIMARY_TEXT_SP);
+        float primaryRow = sp(primaryText * 1.22f + primaryText * FURIGANA_TEXT_RATIO * 0.82f);
+        float secondaryRow = sp(Math.max(
+                textSizeSp(AiLyricsSettings.TYPO_MAIN_PREVIEW_PRONUNCIATION, SECONDARY_TEXT_SP),
+                textSizeSp(AiLyricsSettings.TYPO_MAIN_PREVIEW_TRANSLATION, SECONDARY_TEXT_SP)
+        ) * 1.18f);
+        float gap = sp(rowGapSp());
+        float height = primaryRow;
+        for (int index = 1; index < RESERVED_TEXT_ROWS; index++) {
+            height += gap + secondaryRow;
+        }
+        return height;
+    }
+
+    private float rowHeight(PreviewLine line) {
+        if (line.isAnimatedVisual()) {
+            return sp((line.primary ? 24f : 21f) * textScale * typographyStyle(slotForLine(line)).scale());
+        }
+        float textSize = sp(textSizeSp(line));
+        return textSize * (line.primary ? 1.22f : 1.18f) + rubyExtraHeight(line, textSize);
+    }
+
+    private float rubyExtraHeight(PreviewLine line, float textSize) {
+        if (line == null || !line.hasRuby()) {
+            return 0f;
+        }
+        return Math.max(sp(7f), textSize * FURIGANA_TEXT_RATIO * 0.82f);
+    }
+
+    private int comparePreviewLines(List<PreviewLine> nextLines) {
+        if (lines.size() != nextLines.size()) {
+            return 0;
+        }
+        int matches = PREVIEW_LAYOUT_MATCH | PREVIEW_INSTANCES_MATCH | PREVIEW_WIDTH_INPUTS_MATCH;
+        for (int index = 0; index < lines.size(); index++) {
+            PreviewLine current = lines.get(index);
+            PreviewLine next = nextLines.get(index);
+            if (current != next) {
+                matches &= ~PREVIEW_INSTANCES_MATCH;
+            }
+            if (current.primary != next.primary
+                    || current.type != next.type
+                    || current.hasKaraoke() != next.hasKaraoke()
+                    || !current.kind.equals(next.kind)
+                    || !current.slotId.equals(next.slotId)
+                    || !current.rubyText.equals(next.rubyText)
+                    || !current.text.equals(next.text)) {
+                matches &= ~PREVIEW_LAYOUT_MATCH;
+            }
+            if (current.primary != next.primary
+                    || current.type != next.type
+                    || current.hasKaraoke() != next.hasKaraoke()
+                    || !current.slotId.equals(next.slotId)
+                    || !current.text.equals(next.text)
+                    || (current.hasKaraoke() && !sameSyllableText(current.syllables, next.syllables))) {
+                matches &= ~PREVIEW_WIDTH_INPUTS_MATCH;
+            }
+            if (matches == 0) {
+                break;
+            }
+        }
+        return matches;
+    }
+
+    private boolean sameSyllableText(List<LyricsLine.Syllable> current, List<LyricsLine.Syllable> next) {
+        if (current.size() != next.size()) {
+            return false;
+        }
+        for (int index = 0; index < current.size(); index++) {
+            LyricsLine.Syllable currentSyllable = current.get(index);
+            LyricsLine.Syllable nextSyllable = next.get(index);
+            String currentText = currentSyllable == null || currentSyllable.text == null ? "" : currentSyllable.text;
+            String nextText = nextSyllable == null || nextSyllable.text == null ? "" : nextSyllable.text;
+            if (!currentText.equals(nextText)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private float positiveSin(long timeMs, long periodMs) {
+        return (float) ((Math.sin((timeMs % periodMs) / (double) periodMs * Math.PI * 2.0) + 1.0) * 0.5);
+    }
+
+    private float rowGapSp() {
+        return ROW_GAP_SP * Math.min(1.25f, textScale);
+    }
+
+    private float textSizeSp(PreviewLine line) {
+        if (line != null && line.isCultural()) {
+            return culturalAnnotationFontSize;
+        }
+        return textSizeSp(slotForLine(line), line != null && line.primary ? PRIMARY_TEXT_SP : SECONDARY_TEXT_SP);
+    }
+
+    private float textSizeSp(String slotId, float baseSizeSp) {
+        return Math.max(8f, baseSizeSp * textScale * typographyStyle(slotId).scale());
+    }
+
+    private Typeface typefaceForLine(PreviewLine line) {
+        if (line != null && line.isCultural()) {
+            return AppFonts.cultural(
+                    getContext(),
+                    culturalAnnotationFontFamily,
+                    culturalAnnotationFontWeight
+            );
+        }
+        return AppFonts.byWeight(getContext(), typographyStyle(slotForLine(line)).weight);
+    }
+
+    private AiLyricsSettings.TypographyStyle typographyStyle(String slotId) {
+        AiLyricsSettings.TypographySettings settings = typographySettings == null
+                ? AiLyricsSettings.TypographySettings.defaults()
+                : typographySettings;
+        return settings.style(slotId);
+    }
+
+    private String slotForLine(PreviewLine line) {
+        if (line == null) {
+            return AiLyricsSettings.TYPO_MAIN_PREVIEW_ORIGINAL;
+        }
+        String normalized = AiLyricsSettings.typographySlotById(line.slotId).id;
+        if (AiLyricsSettings.TYPO_MAIN_PREVIEW_PRONUNCIATION.equals(normalized)
+                || AiLyricsSettings.TYPO_MAIN_PREVIEW_TRANSLATION.equals(normalized)
+                || AiLyricsSettings.TYPO_MAIN_PREVIEW_ORIGINAL.equals(normalized)) {
+            return normalized;
+        }
+        return line.primary ? AiLyricsSettings.TYPO_MAIN_PREVIEW_ORIGINAL : AiLyricsSettings.TYPO_MAIN_PREVIEW_PRONUNCIATION;
+    }
+
+    private void drawKaraokeLine(Canvas canvas, PreviewLine line, float x, float baseline, float textSize, double positionMs) {
+        List<TextSegment> segments = textSegments(line);
+        if (segments.isEmpty()) {
+            textPaint.setColor(Color.argb(line.primary ? 244 : 208, 255, 255, 255));
+            canvas.drawText(line.text, x, baseline, textPaint);
+            return;
+        }
+
+        int inactiveColor = Color.argb(line.primary ? 116 : 96, 255, 255, 255);
+        int activeColor = line.primary ? PRIMARY_KARAOKE_ACTIVE_COLOR : SECONDARY_KARAOKE_ACTIVE_COLOR;
+        float rowWidth = karaokeRowWidth(line, segments);
+
+        if (line.continuousShaping) {
+            int rowSave = canvas.save();
+            applyCanvasEffect(canvas, line.kind, x + rowWidth * 0.5f, baseline, textSize, line.rowSeed());
+            configureTextPaint(inactiveColor, line.kind, textSize, false);
+            canvas.drawText(line.text, x, baseline, textPaint);
+            float fill = continuousFillFraction(segments, positionMs);
+            if (fill > 0f) {
+                drawContinuousActiveFill(
+                        canvas,
+                        line.text,
+                        x,
+                        rowWidth,
+                        baseline,
+                        line.kind,
+                        textSize,
+                        activeColor,
+                        fill
+                );
+            }
+            canvas.restoreToCount(rowSave);
+            resetPaintEffects();
+            return;
+        }
+
+        int rowSave = canvas.save();
+        applyCanvasEffect(canvas, line.kind, x + rowWidth * 0.5f, baseline, textSize, line.rowSeed());
+        float cursor = x;
+        for (int index = 0; index < segments.size(); index++) {
+            TextSegment segment = segments.get(index);
+            float offsetY = "wave".equals(line.kind)
+                    ? baseWaveOffset(line.kind, line.rowSeed(), index, textSize)
+                    : 0f;
+            float fill = segmentFillFraction(segment, positionMs);
+            KaraokeMotion.Values bounce = karaokeMotion(segment, line, positionMs, textSize);
+
+            // Only a bouncing glyph needs its own canvas state; idle glyphs draw in the row's.
+            int segmentSave = bounce.active ? canvas.save() : -1;
+            if (bounce.active) {
+                float pivotX = cursor + segment.width * 0.5f;
+                float pivotY = baseline + (rowHeight(line) - rubyExtraHeight(line, textSize)
+                        + textFontMetrics.ascent + textFontMetrics.descent) * 0.5f;
+                canvas.translate(0f, bounce.offsetY);
+                canvas.scale(bounce.scale, bounce.scale, pivotX, pivotY);
+            }
+
+            drawRubyText(canvas, segment, cursor, baseline + offsetY, line.kind, textSize, fill, line.primary);
+            float textLeft = cursor + segment.textInset;
+            configureTextPaint(inactiveColor, line.kind, textSize, false);
+            if (bounce.glow > 0.005f) {
+                // Expressive motion glows in the active color while a unit swells (desktop 0.24em shadow).
+                textPaint.setShadowLayer(textSize * 0.14f, 0f, 0f,
+                        withAlpha(activeColor, Math.round(255f * Math.min(1f, bounce.glow))));
+            }
+            canvas.drawText(segment.text, textLeft, baseline + offsetY, textPaint);
+            if (fill > 0f) {
+                drawActiveFill(canvas, segment, cursor, baseline, offsetY, line.kind, textSize, activeColor, fill);
+            }
+            if (segmentSave >= 0) {
+                canvas.restoreToCount(segmentSave);
+            }
+            cursor += segment.width;
+        }
+        canvas.restoreToCount(rowSave);
+        resetPaintEffects();
+    }
+
+    private float karaokeRowWidth(PreviewLine line, List<TextSegment> segments) {
+        if (line.continuousShaping) {
+            float textSize = textPaint.getTextSize();
+            Typeface typeface = textPaint.getTypeface();
+            if (Float.compare(line.cachedShapedTextSize, textSize) != 0 || line.cachedShapedTypeface != typeface) {
+                line.cachedShapedWidth = textPaint.measureText(line.text);
+                line.cachedShapedTextSize = textSize;
+                line.cachedShapedTypeface = typeface;
+            }
+            return line.cachedShapedWidth;
+        }
+        if (segments.isEmpty()) return 0f;
+        TextSegment first = segments.get(0);
+        // Segments are prepared together and retained only by textSegmentCache.
+        if (Float.isNaN(first.cachedRowWidth)) {
+            float width = 0f;
+            for (TextSegment segment : segments) width += segment.width;
+            first.cachedRowWidth = width;
+        }
+        return first.cachedRowWidth;
+    }
+
+    private float continuousFillFraction(List<TextSegment> segments, double positionMs) {
+        float total = 0f;
+        float filled = 0f;
+        for (TextSegment segment : segments) {
+            float weight = Math.max(0f, segment.textWidth);
+            total += weight;
+            filled += weight * segmentFillFraction(segment, positionMs);
+        }
+        return total <= 0f ? 0f : clamp(filled / total);
+    }
+
+    private void drawContinuousActiveFill(
+            Canvas canvas,
+            String text,
+            float left,
+            float width,
+            float baseline,
+            String kind,
+            float textSize,
+            int activeColor,
+            float fill
+    ) {
+        float safeFill = clamp(fill);
+        float right = left + width;
+        float fillWidth = width * safeFill;
+        float top = baseline - textSize * 1.28f;
+        float bottom = baseline + textSize * 0.48f;
+        float softWidth = Math.min(sp(7f), Math.max(0f, width * 0.10f));
+        boolean rightToLeft = isRightToLeftText(text);
+
+        int clipSave = canvas.save();
+        configureTextPaint(activeColor, kind, textSize, true);
+        if (rightToLeft) {
+            float fillLeft = right - fillWidth;
+            float clipLeft = safeFill >= 0.995f ? left : Math.max(left, fillLeft - softWidth);
+            canvas.clipRect(clipLeft, top, right, bottom);
+            if (safeFill < 0.995f && softWidth > 1f) {
+                float softStart = Math.max(left, fillLeft - softWidth);
+                float softEnd = Math.max(softStart + 1f, Math.min(right, fillLeft + softWidth * 0.42f));
+                textPaint.setShader(new LinearGradient(
+                        softStart,
+                        0f,
+                        softEnd,
+                        0f,
+                        new int[]{Color.argb(0, 255, 255, 255), activeColor, activeColor},
+                        new float[]{0f, 0.66f, 1f},
+                        Shader.TileMode.CLAMP
+                ));
+            }
+        } else {
+            float fillRight = left + fillWidth;
+            float clipRight = safeFill >= 0.995f ? right : Math.min(right, fillRight + softWidth);
+            canvas.clipRect(left, top, clipRight, bottom);
+            if (safeFill < 0.995f && softWidth > 1f) {
+                float softStart = Math.max(left, fillRight - softWidth * 0.42f);
+                float softEnd = Math.max(softStart + 1f, Math.min(right, fillRight + softWidth));
+                textPaint.setShader(new LinearGradient(
+                        softStart,
+                        0f,
+                        softEnd,
+                        0f,
+                        new int[]{activeColor, activeColor, Color.argb(0, 255, 255, 255)},
+                        new float[]{0f, 0.34f, 1f},
+                        Shader.TileMode.CLAMP
+                ));
+            }
+        }
+        canvas.drawText(text, left, baseline, textPaint);
+        textPaint.setShader(null);
+        canvas.restoreToCount(clipSave);
+    }
+
+    private static boolean isRightToLeftText(String text) {
+        String value = text == null ? "" : text;
+        for (int offset = 0; offset < value.length(); ) {
+            int codePoint = value.codePointAt(offset);
+            byte direction = Character.getDirectionality(codePoint);
+            if (direction == Character.DIRECTIONALITY_RIGHT_TO_LEFT
+                    || direction == Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC) {
+                return true;
+            }
+            if (direction == Character.DIRECTIONALITY_LEFT_TO_RIGHT) {
+                return false;
+            }
+            offset += Character.charCount(codePoint);
+        }
+        return false;
+    }
+
+    private void drawActiveFill(
+            Canvas canvas,
+            TextSegment segment,
+            float cursor,
+            float baseline,
+            float offsetY,
+            String kind,
+            float textSize,
+            int activeColor,
+            float fill
+    ) {
+        float safeFill = clamp(fill);
+        float textLeft = cursor + segment.textInset;
+        float textRight = textLeft + segment.textWidth;
+        float fillRight = textLeft + segment.textWidth * safeFill;
+        float top = baseline - textSize * 1.28f;
+        float bottom = baseline + textSize * 0.48f;
+        float softWidth = Math.min(sp(7f), Math.max(0f, segment.textWidth * 0.30f));
+        float clipRight = safeFill >= 0.995f
+                ? textRight
+                : Math.min(textRight, fillRight + softWidth);
+
+        int clipSave = canvas.save();
+        canvas.clipRect(textLeft, top, clipRight, bottom);
+        configureTextPaint(activeColor, kind, textSize, true);
+        if (safeFill < 0.995f && softWidth > 1f && clipRight > textLeft) {
+            float softStart = Math.max(textLeft, fillRight - softWidth * 0.42f);
+            float softEnd = Math.max(softStart + 1f, Math.min(textRight, fillRight + softWidth));
+            LinearGradient shader = activeColor == PRIMARY_KARAOKE_ACTIVE_COLOR
+                    ? primaryKaraokeFillShader
+                    : secondaryKaraokeFillShader;
+            karaokeFillShaderMatrix.setScale(softEnd - softStart, 1f);
+            karaokeFillShaderMatrix.postTranslate(softStart, 0f);
+            shader.setLocalMatrix(karaokeFillShaderMatrix);
+            textPaint.setShader(shader);
+        }
+        canvas.drawText(segment.text, textLeft, baseline + offsetY, textPaint);
+        textPaint.setShader(null);
+        canvas.restoreToCount(clipSave);
+    }
+
+    private static LinearGradient karaokeFillShader(int[] colors) {
+        return new LinearGradient(
+                0f,
+                0f,
+                1f,
+                0f,
+                colors,
+                KARAOKE_FILL_STOPS,
+                Shader.TileMode.CLAMP
+        );
+    }
+
+    private void drawPlainRubyText(
+            Canvas canvas,
+            PreviewLine line,
+            float x,
+            float baseline,
+            float textSize,
+            int alpha
+    ) {
+        if (line == null || !line.hasRuby()) {
+            return;
+        }
+        List<RubyAnnotation> annotations = line.rubyAnnotations();
+        if (annotations.isEmpty()) {
+            return;
+        }
+        String text = line.text == null ? "" : line.text;
+        float rubySize = Math.max(sp(7.4f), textSize * FURIGANA_TEXT_RATIO);
+        int rubyColor = Color.argb(Math.round(alpha * 0.82f), 255, 255, 255);
+        float rubyBaseline = baseline - textSize * 0.88f;
+        for (RubyAnnotation annotation : annotations) {
+            if (annotation.cachedTextStart < 0) {
+                annotation.cachedTextStart = charIndexForCodePointOffset(text, annotation.start);
+                annotation.cachedTextEnd = charIndexForCodePointOffset(text, annotation.end());
+            }
+            int startIndex = annotation.cachedTextStart;
+            int endIndex = annotation.cachedTextEnd;
+            if (endIndex <= startIndex) {
+                continue;
+            }
+            Typeface typeface = typefaceForLine(line);
+            textPaint.setTypeface(typeface);
+            textPaint.setTextSize(textSize);
+            boolean measure = annotation.cachedTypeface != typeface
+                    || Float.compare(annotation.cachedTextSize, textSize) != 0
+                    || Float.compare(annotation.cachedRubySize, rubySize) != 0;
+            if (measure) {
+                annotation.cachedBaseLeft = textPaint.measureText(text, 0, startIndex);
+                annotation.cachedBaseWidth = textPaint.measureText(text, startIndex, endIndex);
+            }
+            float baseLeft = x + annotation.cachedBaseLeft;
+            float baseWidth = annotation.cachedBaseWidth;
+            configureTextPaint(rubyColor, line.kind, rubySize, false);
+            if (measure) {
+                annotation.cachedRubyWidth = textPaint.measureText(annotation.reading);
+                annotation.cachedTypeface = typeface;
+                annotation.cachedTextSize = textSize;
+                annotation.cachedRubySize = rubySize;
+            }
+            float rubyWidth = annotation.cachedRubyWidth;
+            canvas.drawText(annotation.reading, baseLeft + baseWidth * 0.5f - rubyWidth * 0.5f, rubyBaseline, textPaint);
+        }
+    }
+
+    private void drawRubyText(
+            Canvas canvas,
+            TextSegment segment,
+            float cursor,
+            float baseline,
+            String kind,
+            float textSize,
+            float fill,
+            boolean primary
+    ) {
+        if (segment == null || segment.rubyText == null || segment.rubyText.trim().isEmpty()) {
+            return;
+        }
+        float rubySize = Math.max(sp(7.4f), textSize * FURIGANA_TEXT_RATIO);
+        int alpha = primary ? 214 : 186;
+        int color = fill > 0f
+                ? Color.argb(alpha, 255, 255, 255)
+                : Color.argb(Math.round(alpha * 0.66f), 255, 255, 255);
+        configureTextPaint(color, kind, rubySize, fill > 0f);
+        Typeface typeface = textPaint.getTypeface();
+        if (segment.cachedRubyTypeface != typeface || Float.compare(segment.cachedRubySize, rubySize) != 0) {
+            segment.cachedRubyWidth = textPaint.measureText(segment.rubyText);
+            segment.cachedRubyTypeface = typeface;
+            segment.cachedRubySize = rubySize;
+        }
+        float rubyWidth = segment.cachedRubyWidth;
+        float rubyLeft = cursor + segment.width * 0.5f - rubyWidth * 0.5f;
+        float rubyBaseline = baseline - textSize * 0.88f;
+        canvas.drawText(segment.rubyText, rubyLeft, rubyBaseline, textPaint);
+    }
+
+    private List<TextSegment> buildSegments(PreviewLine line) {
+        List<LyricsLine.Syllable> syllables = line == null ? Collections.emptyList() : line.syllables;
+        if (syllables == null || syllables.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<LyricsLine.Syllable> renderSyllables = isWordDisplayGranularity()
+                ? TimedSyllableNormalizer.groupForWordDisplay(syllables, lyricsSegmentationLocale)
+                : TimedSyllableNormalizer.normalize(syllables);
+        List<RubyAnnotation> rubyAnnotations = line.rubyAnnotations();
+        KaraokeMotion.Plan motionPlan = KaraokeMotion.prepare(syllables);
+        List<TextSegment> segments = new ArrayList<>(renderSyllables.size());
+        int charOffset = 0;
+        for (int index = 0; index < renderSyllables.size(); index++) {
+            LyricsLine.Syllable syllable = renderSyllables.get(index);
+            if (syllable == null || syllable.text == null || syllable.text.isEmpty()) {
+                continue;
+            }
+            String value = syllable.text;
+            int charLength = Math.max(1, value.codePointCount(0, value.length()));
+            TextSegment segment = createMeasuredSegment(
+                    value,
+                    syllable.startTimeMs,
+                    syllable.endTimeMs,
+                    charOffset,
+                    charLength,
+                    rubyForRange(rubyAnnotations, charOffset, charLength)
+            );
+            segment.motionProfile = motionPlan.profile(charOffset, charLength,
+                    syllable.startTimeMs, syllable.endTimeMs);
+            segments.add(segment);
+            charOffset += charLength;
+        }
+        // Expressive units are prepared with the row; the setting only decides whether they are read.
+        List<String> texts = new ArrayList<>(segments.size());
+        double[] starts = new double[segments.size()], ends = new double[segments.size()];
+        for (int index = 0; index < segments.size(); index++) {
+            TextSegment segment = segments.get(index);
+            texts.add(segment.text);
+            starts[index] = segment.startTimeMs;
+            ends[index] = segment.endTimeMs;
+        }
+        KaraokeExpressiveMotion.Unit[] units = KaraokeExpressiveMotion.units(texts, starts, ends, isWordDisplayGranularity());
+        for (int index = 0; index < segments.size(); index++) {
+            segments.get(index).expressiveUnit = units[index];
+        }
+        return segments;
+    }
+
+    private List<TextSegment> textSegments(PreviewLine line) {
+        List<TextSegment> cached = textSegmentCache.get(line);
+        if (cached != null) {
+            return cached;
+        }
+        List<TextSegment> segments = buildSegments(line);
+        textSegmentCache.put(line, segments);
+        return segments;
+    }
+
+    private TextSegment createMeasuredSegment(
+            String text,
+            long startTimeMs,
+            long endTimeMs,
+            int sourceIndex,
+            int sourceLength,
+            String rubyText
+    ) {
+        String safeText = text == null ? "" : text;
+        float textWidth = textPaint.measureText(safeText);
+        float width = rubyAwareSegmentWidth(textWidth, rubyText);
+        return new TextSegment(safeText, textWidth, width, startTimeMs, endTimeMs, sourceIndex, sourceLength, rubyText);
+    }
+
+    private float rubyAwareSegmentWidth(float textWidth, String rubyText) {
+        String ruby = rubyText == null ? "" : rubyText.trim();
+        if (ruby.isEmpty()) {
+            return textWidth;
+        }
+        float previousSize = textPaint.getTextSize();
+        Typeface previousTypeface = textPaint.getTypeface();
+        textPaint.setTextSize(Math.max(sp(7.4f), previousSize * FURIGANA_TEXT_RATIO));
+        textPaint.setTypeface(previousTypeface);
+        float rubyWidth = textPaint.measureText(ruby);
+        textPaint.setTextSize(previousSize);
+        textPaint.setTypeface(previousTypeface);
+        return Math.max(textWidth, rubyWidth + sp(2f));
+    }
+
+    private static List<RubyAnnotation> parseRubyAnnotations(String text, String rubyText) {
+        if (text == null || text.isEmpty() || rubyText == null || !rubyText.contains("<ruby>")) {
+            return Collections.emptyList();
+        }
+        List<RubyAnnotation> annotations = new ArrayList<>();
+        int currentChar = 0;
+        int cursor = 0;
+        while (cursor < rubyText.length()) {
+            int rubyStart = rubyText.indexOf("<ruby>", cursor);
+            if (rubyStart < 0) {
+                currentChar += codePointCount(MARKUP_TAG_PATTERN.matcher(rubyText.substring(cursor)).replaceAll(""));
+                break;
+            }
+            String before = rubyText.substring(cursor, rubyStart);
+            currentChar += codePointCount(MARKUP_TAG_PATTERN.matcher(before).replaceAll(""));
+
+            int baseStart = rubyStart + "<ruby>".length();
+            int rtStart = rubyText.indexOf("<rt>", baseStart);
+            int rtEnd = rtStart < 0 ? -1 : rubyText.indexOf("</rt>", rtStart);
+            int rubyEnd = rtEnd < 0 ? -1 : rubyText.indexOf("</ruby>", rtEnd);
+            if (rtStart < 0 || rtEnd < 0 || rubyEnd < 0) {
+                return Collections.emptyList();
+            }
+
+            String base = rubyText.substring(baseStart, rtStart);
+            String reading = rubyText.substring(rtStart + "<rt>".length(), rtEnd).trim();
+            int length = codePointCount(base);
+            if (length > 0 && !reading.isEmpty()) {
+                annotations.add(new RubyAnnotation(currentChar, length, reading));
+            }
+            currentChar += length;
+            cursor = rubyEnd + "</ruby>".length();
+        }
+
+        return plainRubyText(rubyText).equals(text) ? annotations : Collections.emptyList();
+    }
+
+    private String rubyForRange(List<RubyAnnotation> annotations, int start, int length) {
+        if (annotations == null || annotations.isEmpty() || length <= 0) {
+            return "";
+        }
+        int end = start + length;
+        StringBuilder builder = new StringBuilder();
+        for (RubyAnnotation annotation : annotations) {
+            if (annotation.start >= end || annotation.end() <= start) {
+                continue;
+            }
+            int overlapStart = Math.max(start, annotation.start);
+            int overlapEnd = Math.min(end, annotation.end());
+            String reading = annotation.readingForRange(overlapStart, overlapEnd);
+            if (reading.isEmpty()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(' ');
+            }
+            builder.append(reading);
+        }
+        return builder.toString();
+    }
+
+    private float segmentFillFraction(TextSegment segment, double positionMs) {
+        if (isWordDisplayGranularity()) {
+            return positionMs >= segment.startTimeMs ? 1f : 0f;
+        }
+        if (positionMs >= segment.endTimeMs) {
+            return 1f;
+        }
+        if (positionMs <= segment.startTimeMs || segment.endTimeMs <= segment.startTimeMs) {
+            return 0f;
+        }
+        // Whole milliseconds give the same float as before; the frame clock adds the rest.
+        return clamp((float) ((positionMs - segment.startTimeMs) / (double) (segment.endTimeMs - segment.startTimeMs)));
+    }
+
+    private boolean isLineDisplayGranularity() {
+        return AiLyricsSettings.KARAOKE_DISPLAY_LINE.equals(karaokeDisplayGranularity);
+    }
+
+    private boolean isWordDisplayGranularity() {
+        return AiLyricsSettings.KARAOKE_DISPLAY_WORD.equals(karaokeDisplayGranularity);
+    }
+
+    private KaraokeMotion.Values karaokeBounce(TextSegment segment, double positionMs, float textSize) {
+        if (!frameAnimationsEnabled || !karaokeBounceEffectEnabled) {
+            return karaokeBounceResult.idle();
+        }
+        return KaraokeMotion.evaluate(segment.motionProfile, positionMs, textSize, karaokeBounceResult);
+    }
+
+    /** The bounce or, when chosen, the expressive motion of one drawn segment this frame. */
+    private KaraokeMotion.Values karaokeMotion(TextSegment segment, PreviewLine line, double positionMs, float textSize) {
+        if (!karaokeExpressiveMotion || !frameAnimationsEnabled || !karaokeBounceEffectEnabled || isLineDisplayGranularity()) {
+            return karaokeBounce(segment, positionMs, textSize);
+        }
+        // The primary row is the line being sung; its pending units rest in the expressive pose.
+        double pose = line.primary
+                ? KaraokeExpressiveMotion.pendingPose(true, positionMs, lineStartMs, lineEndMs) : 0d;
+        return KaraokeExpressiveMotion.evaluate(segment.expressiveUnit, positionMs, pose, textSize, karaokeBounceResult);
+    }
+
+    private float baseWaveOffset(String kind, int rowIndex, int segmentIndex, float textSize) {
+        if (!frameAnimationsEnabled) return 0f;
+        return KaraokeMotion.waveOffset(frameUptimeMs + rowIndex * 95L, segmentIndex, textSize);
+    }
+
+    private void applyCanvasEffect(Canvas canvas, String kind, float centerX, float y, float textSize, int rowIndex) {
+        if (!frameAnimationsEnabled) return;
+        long now = frameUptimeMs + rowIndex * 73L;
+        switch (kind) {
+            case "effect": {
+                float density = textSize / KaraokeMotion.DESKTOP_TEXT_SIZE;
+                int step = (int) ((now / 45L) % 4L);
+                float dx = EFFECT_TRANSLATE_X[step] * density;
+                float dy = EFFECT_TRANSLATE_Y[step] * density;
+                canvas.translate(dx, dy);
+                break;
+            }
+            case "adlib":
+                canvas.translate(0f, KaraokeMotion.adlibOffset(now, textSize));
+                break;
+            case "pulse": {
+                float scale = KaraokeMotion.pulseScale(now);
+                canvas.scale(scale, scale, centerX, y - textSize * 0.45f);
+                break;
+            }
+            case "bounce":
+                canvas.translate(0f, KaraokeMotion.bounceOffset(now, textSize));
+                break;
+            case "sway":
+                float sway = KaraokeMotion.swayStrength(now);
+                canvas.rotate(sway * 0.84f, centerX, y);
+                canvas.translate(sway * textSize * 0.0245f, 0f);
+                break;
+            case "float":
+                float lift = KaraokeMotion.floatStrength(now);
+                canvas.rotate(lift * 0.45f, centerX, y);
+                canvas.translate(0f, -lift * textSize * 0.09f);
+                break;
+            case "pop": {
+                float scale = KaraokeMotion.popScale(now);
+                canvas.scale(scale, scale, centerX, y - textSize * 0.45f);
+                break;
+            }
+            case "glitch": {
+                int step = (int) ((now / 35L) % 32L);
+                if (step == 5 || step == 19) {
+                    canvas.translate(textSize * 0.035f, -textSize * 0.01f);
+                } else if (step == 6 || step == 20) {
+                    canvas.translate(-textSize * 0.035f, textSize * 0.01f);
+                }
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
+    private void configureTextPaint(int color, String kind, float textSize, boolean activeFill) {
+        resetPaintEffects();
+        textPaint.setTextSize(textSize);
+        textPaint.setColor(color);
+        textPaint.setAlpha(Color.alpha(color));
+
+        if (!frameAnimationsEnabled) return;
+
+        long now = frameWallTimeMs;
+        int alpha = Color.alpha(color);
+        switch (kind) {
+            case "sparkle": {
+                float glow = positiveSin(now, 1180L);
+                textPaint.setShadowLayer(textSize * (0.07f + glow * 0.18f), 0f, 0f, withAlpha(activeFill ? color : Color.WHITE, 70 + Math.round(glow * 90f)));
+                break;
+            }
+            case "echo":
+                textPaint.setShadowLayer(textSize * 0.12f, textSize * 0.06f, textSize * 0.035f, withAlpha(color, 78));
+                break;
+            case "whisper": {
+                float amount = positiveSin(now, 1450L);
+                textPaint.setAlpha(Math.round(alpha * (0.76f + (1f - amount) * 0.12f)));
+                break;
+            }
+            case "glow": {
+                float glow = 0.55f + positiveSin(now, 2800L) * 0.30f;
+                textPaint.setShadowLayer(textSize * (0.14f + glow * 0.14f), 0f, 0f, withAlpha(color, 105));
+                break;
+            }
+            case "blur": {
+                float blur = 0.30f + positiveSin(now, 1500L) * 0.35f;
+                textPaint.setAlpha(Math.round(alpha * (0.9f + (1f - blur) * 0.08f)));
+                textPaint.setShadowLayer(textSize * blur * 0.055f, 0f, 0f, withAlpha(color, 70));
+                break;
+            }
+            case "flicker": {
+                float phase = (now % 1220L) / 1220f;
+                float factor = (phase > 0.12f && phase < 0.15f) || (phase > 0.52f && phase < 0.56f) ? 0.78f : 1f;
+                textPaint.setAlpha(Math.round(alpha * factor));
+                break;
+            }
+            case "glitch":
+                textPaint.setShadowLayer(0f, textSize * 0.04f, 0f, Color.argb(78, 111, 211, 255));
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void resetPaintEffects() {
+        textPaint.setShader(null);
+        textPaint.clearShadowLayer();
+    }
+
+    private int withAlpha(int color, int alpha) {
+        return Color.argb(Math.max(0, Math.min(255, alpha)), Color.red(color), Color.green(color), Color.blue(color));
+    }
+
+    private float sin(long now, long periodMs) {
+        return (float) Math.sin((now % periodMs) / (double) periodMs * Math.PI * 2.0);
+    }
+
+    private float easeOutSine(float value) {
+        return (float) Math.sin(clamp(value) * Math.PI * 0.5);
+    }
+
+    private float easeSoftRelease(float value) {
+        return 0.5f + 0.5f * (float) Math.cos(clamp(value) * Math.PI);
+    }
+
+    private float sp(float value) {
+        return TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_SP,
+                value,
+                getResources().getDisplayMetrics()
+        );
+    }
+
+    private float dp(float value) {
+        return TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP,
+                value,
+                getResources().getDisplayMetrics()
+        );
+    }
+
+    private float clamp(float value) {
+        return Math.max(0f, Math.min(1f, value));
+    }
+
+    private int charIndexForCodePointOffset(String text, int codePointOffset) {
+        if (text == null || text.isEmpty()) {
+            return 0;
+        }
+        int safeOffset = Math.max(0, Math.min(codePointOffset, text.codePointCount(0, text.length())));
+        return text.offsetByCodePoints(0, safeOffset);
+    }
+
+    private static String plainRubyText(String value) {
+        if (value == null || value.isEmpty()) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder();
+        int cursor = 0;
+        while (cursor < value.length()) {
+            int rubyStart = value.indexOf("<ruby>", cursor);
+            if (rubyStart < 0) {
+                builder.append(MARKUP_TAG_PATTERN.matcher(value.substring(cursor)).replaceAll(""));
+                break;
+            }
+            builder.append(MARKUP_TAG_PATTERN.matcher(value.substring(cursor, rubyStart)).replaceAll(""));
+            int baseStart = rubyStart + "<ruby>".length();
+            int rtStart = value.indexOf("<rt>", baseStart);
+            int rtEnd = rtStart < 0 ? -1 : value.indexOf("</rt>", rtStart);
+            int rubyEnd = rtEnd < 0 ? -1 : value.indexOf("</ruby>", rtEnd);
+            if (rtStart < 0 || rtEnd < 0 || rubyEnd < 0) {
+                return MARKUP_TAG_PATTERN.matcher(value).replaceAll("");
+            }
+            builder.append(value, baseStart, rtStart);
+            cursor = rubyEnd + "</ruby>".length();
+        }
+        return builder.toString();
+    }
+
+    private static int codePointCount(String value) {
+        return value == null || value.isEmpty() ? 0 : value.codePointCount(0, value.length());
+    }
+
+    private static List<String> splitChars(String value) {
+        if (value == null || value.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<String> chars = new ArrayList<>();
+        for (int offset = 0; offset < value.length(); ) {
+            int codePoint = value.codePointAt(offset);
+            chars.add(new String(Character.toChars(codePoint)));
+            offset += Character.charCount(codePoint);
+        }
+        return chars;
+    }
+
+    static final class PreviewLine {
+        private static final int TYPE_TEXT = 0;
+        private static final int TYPE_INTERLUDE = 1;
+        private static final int TYPE_LOADING = 2;
+        private static final int TYPE_CULTURAL = 3;
+
+        final String text;
+        final String rubyText;
+        final boolean primary;
+        final long sourceStartTimeMs;
+        final long sourceEndTimeMs;
+        final List<LyricsLine.Syllable> syllables;
+        final String kind;
+        final int type;
+        final String slotId;
+        final boolean rubyMarkupMatchesText;
+        final boolean continuousShaping;
+        float cachedShapedWidth;
+        float cachedShapedTextSize = Float.NaN;
+        Typeface cachedShapedTypeface;
+        final int stableRowSeed;
+        String cachedBounceKeyPrefix;
+        List<RubyAnnotation> cachedRubyAnnotations;
+
+        PreviewLine(String text, boolean primary) {
+            this(text, primary, Collections.emptyList());
+        }
+
+        PreviewLine(String text, String rubyText, boolean primary, List<LyricsLine.Syllable> syllables, String kind, String slotId) {
+            this(text, rubyText, primary, syllables, kind, TYPE_TEXT, slotId);
+        }
+
+        PreviewLine(String text, boolean primary, List<LyricsLine.Syllable> syllables) {
+            this(text, primary, syllables, "vocal");
+        }
+
+        PreviewLine(String text, boolean primary, List<LyricsLine.Syllable> syllables, String kind) {
+            this(text, primary, syllables, kind, primary
+                    ? AiLyricsSettings.TYPO_MAIN_PREVIEW_ORIGINAL
+                    : AiLyricsSettings.TYPO_MAIN_PREVIEW_PRONUNCIATION);
+        }
+
+        PreviewLine(String text, boolean primary, List<LyricsLine.Syllable> syllables, String kind, String slotId) {
+            this(text, "", primary, syllables, kind, TYPE_TEXT, slotId);
+        }
+
+        private PreviewLine(String text, boolean primary, List<LyricsLine.Syllable> syllables, String kind, int type) {
+            this(text, "", primary, syllables, kind, type, primary
+                    ? AiLyricsSettings.TYPO_MAIN_PREVIEW_ORIGINAL
+                    : AiLyricsSettings.TYPO_MAIN_PREVIEW_PRONUNCIATION);
+        }
+
+        private PreviewLine(String text, boolean primary, List<LyricsLine.Syllable> syllables, String kind, int type, String slotId) {
+            this(text, "", primary, syllables, kind, type, slotId);
+        }
+
+        private PreviewLine(String text, String rubyText, boolean primary, List<LyricsLine.Syllable> syllables, String kind, int type, String slotId) {
+            this(text, rubyText, primary, syllables, kind, type, slotId, -1L, -1L);
+        }
+
+        private PreviewLine(String text, String rubyText, boolean primary, List<LyricsLine.Syllable> syllables,
+                String kind, int type, String slotId, long sourceStartTimeMs, long sourceEndTimeMs) {
+            this.text = text == null ? "" : text;
+            this.continuousShaping = TimedSyllableNormalizer.requiresContinuousShaping(this.text);
+            this.rubyText = rubyText == null ? "" : rubyText;
+            this.primary = primary;
+            this.sourceStartTimeMs = sourceStartTimeMs;
+            this.sourceEndTimeMs = sourceEndTimeMs;
+            this.syllables = syllables == null ? Collections.emptyList() : new ArrayList<>(syllables);
+            this.kind = normalizeKind(kind);
+            this.type = type;
+            this.slotId = AiLyricsSettings.typographySlotById(slotId).id;
+            this.rubyMarkupMatchesText = type == TYPE_TEXT
+                    && this.rubyText.contains("<ruby>")
+                    && plainRubyText(this.rubyText).equals(this.text);
+            int seed = 17;
+            seed = seed * 31 + this.text.hashCode();
+            seed = seed * 31 + this.rubyText.hashCode();
+            seed = seed * 31 + this.kind.hashCode();
+            this.stableRowSeed = Math.abs(seed);
+        }
+
+        PreviewLine withPlaybackWindow(long startTimeMs, long endTimeMs) {
+            return new PreviewLine(text, rubyText, primary, syllables, kind, type, slotId,
+                    Math.max(0L, startTimeMs), Math.max(startTimeMs, endTimeMs));
+        }
+
+        float progress(double positionMs, long fallbackStartMs, long fallbackEndMs) {
+            long start = sourceStartTimeMs >= 0L ? sourceStartTimeMs : fallbackStartMs;
+            long end = sourceEndTimeMs >= 0L ? sourceEndTimeMs : fallbackEndMs;
+            if (end <= start) return 0f;
+            return Math.max(0f, Math.min(1f, (float) ((positionMs - start) / (double) (end - start))));
+        }
+
+        static PreviewLine interlude(String text) {
+            return new PreviewLine(text, true, Collections.emptyList(), "vocal", TYPE_INTERLUDE, AiLyricsSettings.TYPO_MAIN_PREVIEW_ORIGINAL);
+        }
+
+        static PreviewLine loading(String text) {
+            return new PreviewLine(text, true, Collections.emptyList(), "vocal", TYPE_LOADING, AiLyricsSettings.TYPO_MAIN_PREVIEW_ORIGINAL);
+        }
+
+        static PreviewLine cultural(String text) {
+            return new PreviewLine(text, false, Collections.emptyList(), "vocal", TYPE_CULTURAL, AiLyricsSettings.TYPO_MAIN_PREVIEW_TRANSLATION);
+        }
+
+        static PreviewLine annotatedCopy(
+                PreviewLine source,
+                String text,
+                List<LyricsLine.Syllable> syllables
+        ) {
+            if (source == null) {
+                return new PreviewLine(text, true, syllables);
+            }
+            return new PreviewLine(
+                    text,
+                    "",
+                    source.primary,
+                    syllables,
+                    source.kind,
+                    TYPE_TEXT,
+                    source.slotId,
+                    source.sourceStartTimeMs,
+                    source.sourceEndTimeMs
+            );
+        }
+
+        boolean hasKaraoke() {
+            return type == TYPE_TEXT && !syllables.isEmpty();
+        }
+
+        boolean hasRuby() {
+            return rubyMarkupMatchesText;
+        }
+
+        List<RubyAnnotation> rubyAnnotations() {
+            if (cachedRubyAnnotations == null) {
+                cachedRubyAnnotations = parseRubyAnnotations(text, rubyText);
+            }
+            return cachedRubyAnnotations;
+        }
+
+        boolean isInterlude() {
+            return type == TYPE_INTERLUDE;
+        }
+
+        boolean isLoading() {
+            return type == TYPE_LOADING;
+        }
+
+        boolean isCultural() {
+            return type == TYPE_CULTURAL;
+        }
+
+        boolean isAnimatedVisual() {
+            return type == TYPE_INTERLUDE || type == TYPE_LOADING;
+        }
+
+        int rowSeed() {
+            return stableRowSeed;
+        }
+
+        String bounceKeyPrefix() {
+            if (cachedBounceKeyPrefix == null) {
+                cachedBounceKeyPrefix = type + ":" + stableRowSeed;
+            }
+            return cachedBounceKeyPrefix;
+        }
+
+        private static String normalizeKind(String kind) {
+            String value = kind == null ? "" : kind.trim().toLowerCase(Locale.ROOT);
+            return value.isEmpty() ? "vocal" : value;
+        }
+    }
+
+    private static final class TextSegment {
+        KaraokeMotion.Profile motionProfile;
+        KaraokeExpressiveMotion.Unit expressiveUnit;
+        final String text;
+        final float textWidth;
+        final float width;
+        final float textInset;
+        final long startTimeMs;
+        final long endTimeMs;
+        final int sourceIndex;
+        final int sourceLength;
+        final String rubyText;
+        float cachedRowWidth = Float.NaN;
+        float cachedRubyWidth;
+        float cachedRubySize = Float.NaN;
+        Typeface cachedRubyTypeface;
+        String cachedBounceKeyPrefix;
+        String cachedBounceKey;
+
+        TextSegment(String text, float width, long startTimeMs, long endTimeMs, int sourceIndex, int sourceLength) {
+            this(text, width, width, startTimeMs, endTimeMs, sourceIndex, sourceLength, "");
+        }
+
+        TextSegment(String text, float width, long startTimeMs, long endTimeMs, int sourceIndex, int sourceLength, String rubyText) {
+            this(text, width, width, startTimeMs, endTimeMs, sourceIndex, sourceLength, rubyText);
+        }
+
+        TextSegment(String text, float textWidth, float width, long startTimeMs, long endTimeMs, int sourceIndex, int sourceLength, String rubyText) {
+            this.text = text == null ? "" : text;
+            this.textWidth = Math.max(0f, textWidth);
+            this.width = Math.max(0f, width);
+            this.textInset = Math.max(0f, (this.width - this.textWidth) * 0.5f);
+            this.startTimeMs = Math.max(0L, startTimeMs);
+            this.endTimeMs = Math.max(this.startTimeMs, endTimeMs);
+            this.sourceIndex = Math.max(0, sourceIndex);
+            this.sourceLength = Math.max(1, sourceLength);
+            this.rubyText = rubyText == null ? "" : rubyText.trim();
+        }
+
+        String bounceKey(String prefix) {
+            boolean samePrefix = prefix == null
+                    ? cachedBounceKeyPrefix == null
+                    : prefix.equals(cachedBounceKeyPrefix);
+            if (cachedBounceKey == null || !samePrefix) {
+                cachedBounceKeyPrefix = prefix;
+                cachedBounceKey = prefix + ':' + sourceIndex;
+            }
+            return cachedBounceKey;
+        }
+
+        int centerSourceIndex() {
+            return sourceIndex + Math.max(0, sourceLength - 1) / 2;
+        }
+    }
+
+    private static final class RubyAnnotation {
+        final int start;
+        final int length;
+        final String reading;
+        final List<String> readingChars;
+        int cachedTextStart = -1;
+        int cachedTextEnd;
+        float cachedBaseLeft;
+        float cachedBaseWidth;
+        float cachedRubyWidth;
+        float cachedTextSize = Float.NaN;
+        float cachedRubySize = Float.NaN;
+        Typeface cachedTypeface;
+
+        RubyAnnotation(int start, int length, String reading) {
+            this.start = Math.max(0, start);
+            this.length = Math.max(1, length);
+            this.reading = reading == null ? "" : reading;
+            this.readingChars = splitChars(this.reading);
+        }
+
+        int end() {
+            return start + length;
+        }
+
+        String readingForRange(int overlapStart, int overlapEnd) {
+            int safeStart = Math.max(start, overlapStart);
+            int safeEnd = Math.min(end(), overlapEnd);
+            if (safeStart >= safeEnd || reading.isEmpty()) {
+                return "";
+            }
+            if (safeStart == start && safeEnd == end()) {
+                return reading;
+            }
+            if (length <= 1 || readingChars.isEmpty()) {
+                return reading;
+            }
+            int charsPerKanji = Math.max(1, readingChars.size() / length);
+            StringBuilder builder = new StringBuilder();
+            for (int sourceIndex = safeStart; sourceIndex < safeEnd; sourceIndex++) {
+                int relative = sourceIndex - start;
+                int readStart = Math.min(readingChars.size(), relative * charsPerKanji);
+                int readEnd = relative == length - 1
+                        ? readingChars.size()
+                        : Math.min(readingChars.size(), (relative + 1) * charsPerKanji);
+                for (int index = readStart; index < readEnd; index++) {
+                    builder.append(readingChars.get(index));
+                }
+            }
+            return builder.toString();
+        }
+    }
+
+}

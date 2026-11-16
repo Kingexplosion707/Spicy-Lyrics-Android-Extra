@@ -60,8 +60,14 @@ class AppSettings(private val prefs: SharedPreferences) {
     var rendererStyle by enum(RendererStyleMigration.KEY, RendererStyle.Spring)
     /** Shown as "Fade Away Previous Lines"; the key keeps its old name. */
     var minimalLyricsMode by boolean("minimalLyricsMode", false)
-    /** Word-synced songs play as moving type ([com.tx24.spicyplayer.lyrics.motion.MotionLyricsView]); others keep the usual lyrics. */
+    /** Word-synced songs play as moving type ([com.tx24.spicyplayer.ivlyrics.MotionLyricsView]); others keep the usual lyrics. */
     var motionLyrics by boolean("motionLyrics", false)
+    /** ivLyrics' vinyl player over the lyrics screen ([com.tx24.spicyplayer.ivlyrics.VinylMode]). */
+    var vinylMode by boolean("vinylMode", false)
+    /** The song's music video from ivLyrics behind the lyrics, over the picked background ([com.tx24.spicyplayer.ivlyrics.MusicVideoBackground]). */
+    var musicVideoBackground by boolean("musicVideoBackground", false)
+    /** ivLyrics' furigana as the reading of Japanese lines, in place of romaji. */
+    var furigana by boolean("furigana", false)
     var originalWordMotion by boolean("originalWordMotion", false)
     /**
      * The lyric text size against the screen's default, in percent, held apart for portrait and
