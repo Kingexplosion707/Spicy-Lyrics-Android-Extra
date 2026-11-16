@@ -355,6 +355,16 @@ internal fun LyricsContent(state: PlayerUiState, viewModel: ExternalPlaybackView
         icon = Icons.Rounded.Movie,
     )
     if (settings.motionLyrics) {
+        ToggleRow(label = "Motion lyrics in the app", checked = settings.motionOnApp, onCheckedChange = { settings.motionOnApp = it },
+            description = "On the lyrics screen.", icon = Icons.Rounded.Movie)
+        ToggleRow(label = "Motion lyrics on the wallpaper", checked = settings.motionOnWallpaper, onCheckedChange = { settings.motionOnWallpaper = it },
+            description = "On the live wallpaper.", icon = Icons.Rounded.Movie)
+        ToggleRow(label = "Motion lyrics in the overlay", checked = settings.motionOnOverlay, onCheckedChange = { settings.motionOnOverlay = it },
+            description = "In the floating lyrics window.", icon = Icons.Rounded.Movie)
+        ToggleRow(label = "Motion lyrics on the always-on display", checked = settings.motionOnAod, onCheckedChange = { settings.motionOnAod = it },
+            description = "On Spicy's always-on display.", icon = Icons.Rounded.Movie)
+    }
+    if (settings.motionLyrics) {
         SettingRow(
             label = "Motion lyrics shade",
             description = "How dark the shade behind motion lyrics is. 0 shows the background as it is.",

@@ -66,4 +66,27 @@ class IvLyricsDocumentTest {
         val ruby = "<ruby>愛<rt>あい</rt></ruby> してる"
         assertEquals(listOf("あい", null), FuriganaReadings.forWords(ruby, listOf("愛 ", "してる")))
     }
+
+    @Test fun `words keep their spaces however the source marks them`() {
+        fun words(vararg parts: String) = parts.mapIndexed { i, p -> IvSyllable(p, i * 100L, i * 100L + 90) }
+        val expected = listOf("I", "made", "sure")
+        for (syllables in listOf(
+            words("I ", "made ", "sure"),        // trailing space
+            words("I", " made", " sure"),        // leading space
+            words("I", " ", "made", " ", "sure"), // spaces of their own
+            words("I", "made", "sure"),          // only in the line's text
+        )) {
+            val ttml = IvLyricsDocument.ttml(listOf(IvLine("I made sure", 0, 300, syllables, false, null)))!!
+            val spans = Regex("<span[^>]*>([^<]*)</span>( ?)").findAll(ttml).map { it.groupValues[1] to it.groupValues[2] }.toList()
+            assertEquals(expected, spans.map { it.first })
+            assertEquals(listOf(" ", " ", ""), spans.map { it.second })
+        }
+    }
+
+    @Test fun `a word sung in syllables stays one word`() {
+        val syllables = listOf(IvSyllable("hel", 0, 100), IvSyllable("lo ", 100, 200), IvSyllable("you", 200, 300))
+        val ttml = IvLyricsDocument.ttml(listOf(IvLine("hello you", 0, 300, syllables, false, null)))!!
+        assertTrue(ttml.contains(">hel</span><span"))
+        assertTrue(ttml.contains(">lo</span> <span"))
+    }
 }

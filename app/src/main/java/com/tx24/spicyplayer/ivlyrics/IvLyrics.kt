@@ -6,6 +6,15 @@ import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -313,7 +322,28 @@ internal fun VinylMode(
             if (!playing) delay(200L)
         }
     }
-    AndroidView(factory = { view }, modifier = modifier)
+    // Back closes it, and so does a close button that always answers: the record only closes on a
+    // tap of its cover, and while it changes track it takes every touch, so a stuck change would
+    // leave the screen with no way out.
+    androidx.activity.compose.BackHandler { closeNow() }
+    Box(modifier) {
+        AndroidView(factory = { view }, modifier = Modifier.fillMaxSize())
+        androidx.compose.material3.IconButton(
+            onClick = { closeNow() },
+            modifier = Modifier
+                .align(androidx.compose.ui.Alignment.TopEnd)
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(12.dp)
+                .size(48.dp)
+                .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.35f), androidx.compose.foundation.shape.CircleShape),
+        ) {
+            androidx.compose.material3.Icon(
+                androidx.compose.material.icons.Icons.Rounded.Close,
+                contentDescription = "Close vinyl mode",
+                tint = androidx.compose.ui.graphics.Color.White,
+            )
+        }
+    }
 }
 
 /**

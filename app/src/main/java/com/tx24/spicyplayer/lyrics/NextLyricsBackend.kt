@@ -385,7 +385,7 @@ internal class NextLyricsBackend(context: Context, clientKey: String) {
         /** The most one request to a source may take, body included. */
         internal const val LOOKUP_CALL_TIMEOUT_S = 20L
         /** Bump when payload conversion changes, so stale conversions are refetched. */
-        private const val CACHE_VERSION = 38
+        private const val CACHE_VERSION = 39
         private const val LIVE_CAPTIONS = "liveCaptions"
         /** Outcomes that are no answer at all: a later lookup may get one. */
         private val UNANSWERED = setOf(
