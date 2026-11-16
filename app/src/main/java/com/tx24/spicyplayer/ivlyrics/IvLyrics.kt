@@ -13,6 +13,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -330,7 +332,7 @@ internal fun VinylMode(
             onClick = { closeNow() },
             modifier = Modifier
                 .align(androidx.compose.ui.Alignment.TopEnd)
-                .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.safeDrawing)
+                .windowInsetsPadding(WindowInsets.safeDrawing)
                 .padding(12.dp)
                 .size(48.dp)
                 .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.35f), androidx.compose.foundation.shape.CircleShape),
