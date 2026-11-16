@@ -87,3 +87,11 @@ class AlwaysOnTileService : FeatureTileService() {
     override fun missingPermission(): Intent? = if (Settings.canDrawOverlays(this)) null
         else Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
 }
+
+/** Quick Settings: ivLyrics' motion lyrics, on every surface that shows them. */
+@RequiresApi(Build.VERSION_CODES.N)
+class MotionLyricsTileService : FeatureTileService() {
+    override val pref = "motionLyrics"
+    // The screens showing lyrics read the setting as it changes; nothing to start.
+    override fun sync(context: Context) = true
+}

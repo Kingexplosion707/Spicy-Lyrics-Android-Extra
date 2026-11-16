@@ -372,6 +372,15 @@ class LyricsActivity : ComponentActivity() {
         }
         setContent {
             val settings = remember { AppSettings(getSharedPreferences("ui", Context.MODE_PRIVATE)) }
+            // A Quick Settings tile (ivLyrics) may change a setting while this screen is up.
+            DisposableEffect(settings) {
+                val prefs = getSharedPreferences("ui", Context.MODE_PRIVATE)
+                val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+                    if (key == "motionLyrics") settings.reload()
+                }
+                prefs.registerOnSharedPreferenceChangeListener(listener)
+                onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+            }
             // A change in Settings shows or hides the bars at once.
             LaunchedEffect(settings.systemBars) { applySystemBars(settings.systemBars) }
             LaunchedEffect(settings.pipShape, settings.pipCustomRatio) {
@@ -680,6 +689,8 @@ private fun LyricsApp(
     val stageCanvas = stageAllowed && StageArtChoice.wantsCanvas(settings.stageArt, lowPerformance)
     val portraitCanvas = portraitAllowed && StageArtChoice.wantsCanvas(settings.bigCoverArt, lowPerformance)
     val canvasBackground = settings.canvasBackground && !lowPerformance
+    // Motion lyrics take their colours from the cover.
+    LaunchedEffect(state.artwork) { com.tx24.spicyplayer.ivlyrics.MotionAccent.update(state.artwork) }
     val canvasWanted = stageCanvas || portraitCanvas || canvasBackground
     LaunchedEffect(canvasWanted) { viewModel.setCanvasWanted(canvasWanted) }
     // The song's canvas, held while the next song's is looked up, so it gives way to the next one
@@ -1441,6 +1452,7 @@ private fun LyricsApp(
                         LyricsPanel(
                             lyrics = state.lyrics,
                             motionLyrics = settings.motionLyrics,
+                            motionShade = settings.motionShade,
                             furigana = settings.furigana,
                             wordByWord = settings.wordByWord,
                             translation = state.translation.takeIf { state.translationEnabled },
@@ -2012,6 +2024,7 @@ private fun PipLyrics(
         LyricsPanel(
             lyrics = state.lyrics,
             motionLyrics = settings.motionLyrics,
+            motionShade = settings.motionShade,
             furigana = settings.furigana,
             wordByWord = settings.wordByWord,
             translation = state.translation.takeIf { state.translationEnabled },
@@ -2387,6 +2400,8 @@ private fun LyricsPanel(
     holdUntilFirstLine: Boolean = false,
     /** Word-synced songs play as motion lyrics. */
     motionLyrics: Boolean = false,
+    /** Motion lyrics' shade, 0-100. */
+    motionShade: Int = 35,
     /** Japanese lines read from ivLyrics' furigana. */
     furigana: Boolean = false,
     /** Line-timed songs light word by word. */
@@ -2412,6 +2427,7 @@ private fun LyricsPanel(
                 romanizationMode = romanizationMode,
                 visible = visible,
                 motionLyrics = motionLyrics,
+                motionShade = motionShade,
                 furigana = furigana,
                 wordByWord = wordByWord,
             )
@@ -2430,6 +2446,7 @@ private fun LyricsPanel(
             romanizationCredit = romanizationCredit,
             visible = visible,
             motionLyrics = motionLyrics,
+            motionShade = motionShade,
             furigana = furigana,
             wordByWord = wordByWord,
         )
@@ -2480,6 +2497,8 @@ private fun LyricsPanelContent(
     visible: () -> Boolean = { true },
     /** Word-synced songs play as motion lyrics. */
     motionLyrics: Boolean = false,
+    /** Motion lyrics' shade, 0-100. */
+    motionShade: Int = 35,
     /** Japanese lines read from ivLyrics' furigana. */
     furigana: Boolean = false,
     /** Line-timed songs light word by word. */
@@ -2546,6 +2565,7 @@ private fun LyricsPanelContent(
                     isPlaying = isPlaying,
                     romanize = romanize,
                     visible = { visible() && motionShown.value > 0f },
+                    shade = motionShade / 100f,
                     modifier = Modifier.fillMaxSize().graphicsLayer { alpha = motionShown.value },
                 )
             }

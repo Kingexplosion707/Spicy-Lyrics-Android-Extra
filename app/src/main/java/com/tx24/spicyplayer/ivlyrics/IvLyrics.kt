@@ -8,6 +8,7 @@ import android.widget.FrameLayout
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -162,18 +163,25 @@ internal fun MotionLyricsView(
     title: String = "",
     artist: String = "",
     spotifyId: String? = null,
+    /** The page's dark scrim, 0 (none) to 1 (ivLyrics' own). */
+    shade: Float = 0.35f,
 ) {
     val context = LocalContext.current
     val holder = remember(context) { PassThrough(context, SpicyBridge.createMotion(context)) }
     DisposableEffect(holder) { onDispose { SpicyBridge.release(holder.inner) } }
-    LaunchedEffect(holder, documentId, romanize) {
-        SpicyBridge.motionSong(holder.inner, spotifyId, documentId, title, artist, lines.toIvLyrics(romanize))
+    val accent by MotionAccent.hex.collectAsState()
+    LaunchedEffect(holder, documentId, romanize, accent) {
+        SpicyBridge.motionSong(holder.inner, spotifyId, documentId, title, artist, accent, lines.toIvLyrics(romanize))
     }
     val playing by rememberUpdatedState(isPlaying)
+    val shadeNow by rememberUpdatedState(shade)
     LaunchedEffect(holder) {
         // The page runs its own clock between reports; four a second keeps seeks prompt.
+        var tick = 0
         while (true) {
             if (visible()) SpicyBridge.motionPlayback(holder.inner, currentTimeMs(), playing)
+            // Spicy's look, laid over the page again now and then (it may have reloaded).
+            if (tick++ % 8 == 0) SpicyBridge.motionLook(holder.inner, shadeNow)
             delay(250L)
         }
     }

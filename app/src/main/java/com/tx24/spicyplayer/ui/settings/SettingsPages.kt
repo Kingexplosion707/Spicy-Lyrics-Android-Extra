@@ -101,6 +101,7 @@ import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.HideImage
 import androidx.compose.material.icons.rounded.FormatTextdirectionLToR
+import androidx.compose.material.icons.rounded.Contrast
 import androidx.compose.material.icons.rounded.Height
 import androidx.compose.material.icons.rounded.OndemandVideo
 import androidx.compose.material.icons.rounded.FormatSize
@@ -353,6 +354,23 @@ internal fun LyricsContent(state: PlayerUiState, viewModel: ExternalPlaybackView
         description = "Word-synced songs play as ivLyrics' moving type, like a lyric video, here and on the wallpaper, overlay and always-on display.",
         icon = Icons.Rounded.Movie,
     )
+    if (settings.motionLyrics) {
+        SettingRow(
+            label = "Motion lyrics shade",
+            description = "How dark the shade behind motion lyrics is. 0 shows the background as it is.",
+            icon = Icons.Rounded.Contrast,
+            stacked = true,
+        ) {
+            SpicyBipolarSlider(
+                value = settings.motionShade,
+                range = 0..100,
+                step = 5,
+                onValueChange = { settings.motionShade = it },
+                default = 35,
+                unit = "%",
+            )
+        }
+    }
     ToggleRow(
         label = "Word by word",
         checked = settings.wordByWord,

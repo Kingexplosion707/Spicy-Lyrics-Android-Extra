@@ -238,11 +238,28 @@ public final class SpicyBridge {
         return view;
     }
 
-    public static void motionSong(View view, String spotifyId, String key, String title, String artist, List<Line> lines) {
+    /** [accent] (#rrggbb, from the cover) is what the page builds its two colours from. */
+    public static void motionSong(View view, String spotifyId, String key, String title, String artist, String accent, List<Line> lines) {
         if (!(view instanceof MotionLyricsModeView)) return;
         LyricsResult result = result(lines, true);
         String uri = MotionLyricsSong.uri(spotifyId, key);
-        ((MotionLyricsModeView) view).setSong(uri, MotionLyricsSong.json(uri, title, artist, "#ffffff", "", result), true);
+        String colour = accent == null || accent.isEmpty() ? "" : accent;
+        ((MotionLyricsModeView) view).setSong(uri, MotionLyricsSong.json(uri, title, artist, colour, "", result), true);
+    }
+
+    /**
+     * Spicy's look over the page: its dark scrim at [shade] of ivLyrics' own (0 none, 1 as it
+     * was), and its shot counter hidden. Safe to call before the page is up; call it again.
+     */
+    public static void motionLook(View view, float shade) {
+        if (!(view instanceof ViewGroup) || ((ViewGroup) view).getChildCount() == 0) return;
+        View page = ((ViewGroup) view).getChildAt(0);
+        if (!(page instanceof WebView)) return;
+        String css = String.format(java.util.Locale.US,
+                ".ivlyrics-motion-scrim{opacity:%.2f!important}.ivlyrics-motion-hud{display:none!important}",
+                Math.max(0f, Math.min(1f, shade)));
+        ((WebView) page).evaluateJavascript("(function(){if(!document.head)return;var s=document.getElementById('spicy-look');"
+                + "if(!s){s=document.createElement('style');s.id='spicy-look';document.head.appendChild(s);}s.textContent='" + css + "';})()", null);
     }
 
     public static void motionPlayback(View view, long positionMs, boolean playing) {

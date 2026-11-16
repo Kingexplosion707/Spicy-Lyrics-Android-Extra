@@ -451,6 +451,7 @@ internal fun WallpaperLyrics(
             isPlaying = isPlaying,
             romanize = romanize,
             visible = { visible() && motionShown.value > 0f },
+            shade = settings.motionShade / 100f,
             // Saving power, half the frames are plenty for type this big.
             maxFrameRate = if (reduced && maxFrameRate <= 0f) 30f else maxFrameRate,
             modifier = Modifier.fillMaxSize().graphicsLayer { alpha = motionShown.value },

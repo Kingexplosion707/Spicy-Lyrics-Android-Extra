@@ -29,6 +29,7 @@
     <string name="sleep_timer_end_of_song">Pausing the music when this song ends</string>
     <string name="tile_overlay">Lyrics overlay</string>
     <string name="tile_aod">Lyrics AOD</string>
+    <string name="tile_motion">ivLyrics</string>
     <string name="tile_on">On</string>
     <string name="tile_off">Off</string>
     <string name="lyrics_overlay_title">Lyrics overlay</string>
