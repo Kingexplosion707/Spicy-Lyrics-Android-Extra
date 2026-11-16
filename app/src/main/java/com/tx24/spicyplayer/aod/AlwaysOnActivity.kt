@@ -644,6 +644,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.AodLyrics(live: LiveL
         Box(modifier.graphicsLayer { this.alpha = alpha }) {
             if (outgoing != null) {
                 WallpaperLyrics(
+                        motion = settings.motionOnAod,
                     lyrics = outgoing.lyrics,
                     translation = outgoing.translation,
                     settings = settings,
@@ -658,6 +659,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.AodLyrics(live: LiveL
             }
             if (lyrics != null && lyrics.lines.isNotEmpty()) {
                 WallpaperLyrics(
+                        motion = settings.motionOnAod,
                     lyrics = lyrics,
                     translation = live.translation,
                     settings = settings,

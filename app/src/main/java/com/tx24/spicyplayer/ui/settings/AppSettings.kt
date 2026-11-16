@@ -62,6 +62,11 @@ class AppSettings(private val prefs: SharedPreferences) {
     var minimalLyricsMode by boolean("minimalLyricsMode", false)
     /** Word-synced songs play as moving type ([com.tx24.spicyplayer.ivlyrics.MotionLyricsView]); others keep the usual lyrics. */
     var motionLyrics by boolean("motionLyrics", false)
+    /** Where motion lyrics show, each place on its own (all need [motionLyrics]). */
+    var motionOnApp by boolean("motionOnApp", true)
+    var motionOnWallpaper by boolean("motionOnWallpaper", true)
+    var motionOnOverlay by boolean("motionOnOverlay", true)
+    var motionOnAod by boolean("motionOnAod", true)
     /** Motion lyrics' dark scrim, as a share of ivLyrics' own: 0 none, 100 as it is. */
     var motionShade by int("motionShade", 35, 0..100)
     /** Spicy's lyrics, word by word with their glow, under the motion lyrics instead of only its interlude dots. */

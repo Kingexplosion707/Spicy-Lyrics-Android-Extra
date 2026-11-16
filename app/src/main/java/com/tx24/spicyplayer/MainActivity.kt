@@ -376,7 +376,7 @@ class LyricsActivity : ComponentActivity() {
             DisposableEffect(settings) {
                 val prefs = getSharedPreferences("ui", Context.MODE_PRIVATE)
                 val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-                    if (key == "motionLyrics") settings.reload()
+                    if (key == "motionLyrics" || key?.startsWith("motionOn") == true) settings.reload()
                 }
                 prefs.registerOnSharedPreferenceChangeListener(listener)
                 onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
@@ -1455,7 +1455,7 @@ private fun LyricsApp(
                         }
                         LyricsPanel(
                             lyrics = state.lyrics,
-                            motionLyrics = settings.motionLyrics,
+                            motionLyrics = settings.motionLyrics && settings.motionOnApp,
                             motionShade = settings.motionShade,
                             motionMerge = settings.motionMerge,
                             motionTheme = settings.motionTheme,
@@ -2029,7 +2029,7 @@ private fun PipLyrics(
         Column(Modifier.fillMaxSize()) {
         LyricsPanel(
             lyrics = state.lyrics,
-            motionLyrics = settings.motionLyrics,
+            motionLyrics = settings.motionLyrics && settings.motionOnApp,
             motionShade = settings.motionShade,
             motionMerge = settings.motionMerge,
             motionTheme = settings.motionTheme,
@@ -2604,7 +2604,7 @@ private fun LyricsPanelContent(
                     fontSizeScale = fontSizeScale,
                     viewState = if (dots) null else viewState,
                     pinnedFooter = if (dots) PinnedFooterMode.Off else pinnedFooter,
-                    maskBottomPx = if (dots) { { 0f } } else maskBottomPx,
+                    maskBottomPx = if (part != null) { { 0f } } else maskBottomPx,
                     maskScale = maskScale,
                     footer = if (dots) LyricsFooter() else remember(lyrics, translation, textCredits, romanizationCredit) {
                         LyricsFooter(
@@ -2633,7 +2633,9 @@ private fun LyricsPanelContent(
                     shade = motionShade / 100f,
                     merge = motionMerge,
                     theme = motionTheme,
-                    modifier = modifier,
+                    // Merged, the motion page and Spicy's lines both stay above the controls,
+                    // which would otherwise cover the lines at the bottom.
+                    modifier = if (motionMerge) modifier.padding(bottom = with(LocalDensity.current) { maskBottomPx().toDp() }) else modifier,
                 ) { lines, part, partModifier -> spicyLyrics(lines, part, partModifier) }
             } else {
                 spicyLyrics(rendererLines, null, modifier)

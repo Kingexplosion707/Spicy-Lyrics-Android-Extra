@@ -85,6 +85,7 @@ internal fun OverlayContent(live: LiveLyrics, prefs: SharedPreferences, visible:
             val frameCap = if (fullRate) 0f else OVERLAY_MAX_FPS
             if (outgoing != null) {
                 WallpaperLyrics(
+                        motion = settings.motionOnOverlay,
                     lyrics = outgoing.lyrics,
                     translation = outgoing.translation,
                     settings = settings,
@@ -103,6 +104,7 @@ internal fun OverlayContent(live: LiveLyrics, prefs: SharedPreferences, visible:
                 )
             }
             if (lyrics != null && lyrics.lines.isNotEmpty()) WallpaperLyrics(
+                        motion = settings.motionOnOverlay,
                 lyrics = lyrics,
                 translation = live.translation,
                 settings = settings,

@@ -324,6 +324,7 @@ internal fun WallpaperContent(
             Box(Modifier.offset { IntOffset(lyricsLeft, lyricsTop) }.size(widthDp, heightDp)) {
                 if (outgoing != null) {
                     WallpaperLyrics(
+                        motion = settings.motionOnWallpaper,
                         lyrics = shaped(outgoing.lyrics),
                         reduced = saving.simplerAnimation,
                         translation = outgoing.translation,
@@ -340,6 +341,7 @@ internal fun WallpaperContent(
                 }
                 if (ready != null && ready.lines.isNotEmpty()) {
                     WallpaperLyrics(
+                        motion = settings.motionOnWallpaper,
                         lyrics = shaped(ready),
                         reduced = saving.simplerAnimation,
                         translation = ui.translation,
@@ -387,6 +389,8 @@ internal fun WallpaperLyrics(
     brightness: Float = 1f,
     /** The most frames a second the lyrics draw; 0 for every frame. */
     maxFrameRate: Float = 0f,
+    /** Motion lyrics may show here (each place has its own setting). */
+    motion: Boolean = true,
 ) {
     val config = RenderConfig(
         bloom = settings.rendererStyle == RendererStyle.Bloom,
@@ -443,7 +447,7 @@ internal fun WallpaperLyrics(
     // Motion lyrics for word-synced songs, the whole song through, with Spicy's interlude dots in
     // the gaps (or, merged, Spicy's lyrics under it). The motion page stays out of the lyrics'
     // tint: a web view inside a tinted layer draws as a black band.
-    val motionFits = com.tx24.spicyplayer.ivlyrics.motionLyricsFit(settings.motionLyrics, originalLines, lyrics.lyricsType)
+    val motionFits = com.tx24.spicyplayer.ivlyrics.motionLyricsFit(settings.motionLyrics && motion, originalLines, lyrics.lyricsType)
     val documentId = remember(lyrics.lines) { lyrics.lines.hashCode().toString() }
     val spicyLyrics: @Composable (List<Line>, com.tx24.spicyplayer.ivlyrics.SpicyWithMotion?, Modifier) -> Unit = { lines, part, partModifier ->
         val dots = part == com.tx24.spicyplayer.ivlyrics.SpicyWithMotion.Dots
