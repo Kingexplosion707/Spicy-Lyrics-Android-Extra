@@ -36,11 +36,11 @@ object IvLyricsDocument {
                 out.append(" ttm:agent=\"").append(agent).append('"')
             }
             out.append('>')
-            if (lead.syllables.isNotEmpty()) spans(out, lead.syllables) else out.append(xml(lead.text))
+            if (lead.syllables.isNotEmpty()) spans(out, lead.syllables, lead.text) else out.append(xml(lead.text))
             for (line in backing) {
                 if (line.syllables.isEmpty()) continue
                 out.append("<span ttm:role=\"x-bg\">")
-                spans(out, line.syllables)
+                spans(out, line.syllables, line.text)
                 out.append("</span>")
             }
             out.append("</p>")
@@ -54,13 +54,32 @@ object IvLyricsDocument {
         "[%02d:%02d.%02d]%s".format(Locale.ROOT, total / 6000, total / 100 % 60, total % 100, line.text)
     }
 
-    private fun spans(out: StringBuilder, syllables: List<IvSyllable>) {
-        syllables.forEachIndexed { i, syllable ->
+    /**
+     * The syllables as spans, a space between two where the words part. ivLyrics' sources mark
+     * that differently (a trailing space, a leading one, a syllable of its own, or only in the
+     * line's text), so the gap is read from all of them.
+     */
+    private fun spans(out: StringBuilder, syllables: List<IvSyllable>, lineText: String) {
+        var at = 0
+        var spaced = false
+        var first = true
+        for (syllable in syllables) {
             val text = syllable.text.trim()
-            if (text.isEmpty()) return@forEachIndexed
+            if (text.isEmpty()) {
+                if (syllable.text.isNotEmpty()) spaced = true
+                continue
+            }
+            val found = lineText.indexOf(text, at)
+            if (found >= 0) {
+                if (found > at && lineText.substring(at, found).any(Char::isWhitespace)) spaced = true
+                at = found + text.length
+            }
+            if (syllable.text.first().isWhitespace()) spaced = true
+            if (!first && spaced) out.append(' ')
             out.append("<span begin=\"").append(t(syllable.startMs)).append("\" end=\"")
                 .append(t(maxOf(syllable.endMs, syllable.startMs))).append("\">").append(xml(text)).append("</span>")
-            if (i < syllables.lastIndex && syllable.text.last().isWhitespace()) out.append(' ')
+            first = false
+            spaced = syllable.text.last().isWhitespace()
         }
     }
 
