@@ -62,6 +62,8 @@ class AppSettings(private val prefs: SharedPreferences) {
     var minimalLyricsMode by boolean("minimalLyricsMode", false)
     /** Word-synced songs play as moving type ([com.tx24.spicyplayer.ivlyrics.MotionLyricsView]); others keep the usual lyrics. */
     var motionLyrics by boolean("motionLyrics", false)
+    /** Line-timed songs light word by word on made-up word timing ([com.tx24.spicyplayer.lyrics.spicy.models.GeneratedWordTiming]). */
+    var wordByWord by boolean("wordByWord", true)
     /** ivLyrics' vinyl player over the lyrics screen ([com.tx24.spicyplayer.ivlyrics.VinylMode]). */
     var vinylMode by boolean("vinylMode", false)
     /** The song's music video from ivLyrics behind the lyrics, over the picked background ([com.tx24.spicyplayer.ivlyrics.MusicVideoBackground]). */

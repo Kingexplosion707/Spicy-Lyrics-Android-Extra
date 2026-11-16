@@ -1349,7 +1349,7 @@ private fun LyricsApp(
                         var videoFound by remember { mutableStateOf(false) }
                         val videoShown by animateFloatAsState(if (videoFound) 1f else 0f, tween(STAGE_FADE_MS, easing = StageEaseOut), label = "musicVideo")
                         val videoLines = remember(state.lyrics) {
-                            (state.lyrics as? LyricsState.Ready)?.let(com.tx24.spicyplayer.ivlyrics::rendererLines).orEmpty()
+                            (state.lyrics as? LyricsState.Ready)?.let { com.tx24.spicyplayer.ivlyrics.rendererLines(it) }.orEmpty()
                         }
                         com.tx24.spicyplayer.ivlyrics.MusicVideoBackground(
                             title = state.title,
@@ -1442,6 +1442,7 @@ private fun LyricsApp(
                             lyrics = state.lyrics,
                             motionLyrics = settings.motionLyrics,
                             furigana = settings.furigana,
+                            wordByWord = settings.wordByWord,
                             translation = state.translation.takeIf { state.translationEnabled },
                             translationMode = settings.translationMode,
                             textCredits = settings.textCredits,
@@ -1918,7 +1919,7 @@ private fun LyricsApp(
         // ivLyrics' vinyl player, over everything but the toasts; its close turns it off.
         if (settings.vinylMode && kr.ivlis.ivlyricsandroid.SpicyBridge.supported() && !showIntro) {
             val vinylLines = remember(state.lyrics) {
-                (state.lyrics as? LyricsState.Ready)?.let(com.tx24.spicyplayer.ivlyrics::rendererLines).orEmpty()
+                (state.lyrics as? LyricsState.Ready)?.let { com.tx24.spicyplayer.ivlyrics.rendererLines(it) }.orEmpty()
             }
             com.tx24.spicyplayer.ivlyrics.VinylMode(
                 title = state.title,
@@ -2012,6 +2013,7 @@ private fun PipLyrics(
             lyrics = state.lyrics,
             motionLyrics = settings.motionLyrics,
             furigana = settings.furigana,
+            wordByWord = settings.wordByWord,
             translation = state.translation.takeIf { state.translationEnabled },
             translationMode = settings.translationMode,
             textCredits = settings.textCredits,
@@ -2387,6 +2389,8 @@ private fun LyricsPanel(
     motionLyrics: Boolean = false,
     /** Japanese lines read from ivLyrics' furigana. */
     furigana: Boolean = false,
+    /** Line-timed songs light word by word. */
+    wordByWord: Boolean = false,
 ) {
     val transition = com.tx24.spicyplayer.lyrics.rememberSongTransition(
         lyrics, translation, songKey, currentTimeMs, songTransition, holdUntilFirstLine,
@@ -2409,6 +2413,7 @@ private fun LyricsPanel(
                 visible = visible,
                 motionLyrics = motionLyrics,
                 furigana = furigana,
+                wordByWord = wordByWord,
             )
         }
         LyricsPanelContent(
@@ -2426,6 +2431,7 @@ private fun LyricsPanel(
             visible = visible,
             motionLyrics = motionLyrics,
             furigana = furigana,
+            wordByWord = wordByWord,
         )
         AnimatedVisibility(
             visible = lyrics == LyricsState.Loading && outgoing == null,
@@ -2476,6 +2482,8 @@ private fun LyricsPanelContent(
     motionLyrics: Boolean = false,
     /** Japanese lines read from ivLyrics' furigana. */
     furigana: Boolean = false,
+    /** Line-timed songs light word by word. */
+    wordByWord: Boolean = false,
 ) {
     when (lyrics) {
         LyricsState.Idle -> LyricsNotice("Waiting for a song", modifier, bottomPx = noticeBottomPx, compact = noticeActions == null)
@@ -2500,13 +2508,20 @@ private fun LyricsPanelContent(
                 }
             }
             // ivLyrics' furigana, where it's on and the song has kanji: shown as the lines' reading.
-            val originalLines = com.tx24.spicyplayer.ivlyrics.rememberFurigana(
+            val furiganaLines = com.tx24.spicyplayer.ivlyrics.rememberFurigana(
                 furigana, baseLines, remember(lyrics.lines) { lyrics.lines.hashCode().toString() },
             )
             @Suppress("NAME_SHADOWING")
-            val romanize = romanize || originalLines !== baseLines
+            val romanize = romanize || furiganaLines !== baseLines
+            // Line-timed songs, word by word on made-up timing, where that's on.
+            val wordTimed = wordByWord && lyrics.lyricsType == LyricsType.Line &&
+                remember(furiganaLines) { com.tx24.spicyplayer.lyrics.spicy.models.GeneratedWordTiming.applies(furiganaLines) }
+            val originalLines = remember(furiganaLines, wordTimed) {
+                if (wordTimed) com.tx24.spicyplayer.lyrics.spicy.models.GeneratedWordTiming.fillIn(furiganaLines) else furiganaLines
+            }
+            val lyricsType = if (wordTimed) LyricsType.Syllable else lyrics.lyricsType
             val rendererLines = remember(originalLines, config.isMinimal, config.isBloom) {
-                buildDisplayTimeline(originalLines, minimalMode = config.isMinimal, holdThroughShortGaps = when (lyrics.lyricsType) {
+                buildDisplayTimeline(originalLines, minimalMode = config.isMinimal, holdThroughShortGaps = when (lyricsType) {
                     LyricsType.Syllable -> config.isMinimal || config.isBloom
                     LyricsType.Line -> config.isBloom
                     else -> false
@@ -2518,7 +2533,7 @@ private fun LyricsPanelContent(
                 }
             }
             val copyContext = LocalContext.current
-            if (com.tx24.spicyplayer.ivlyrics.motionLyricsFit(motionLyrics, originalLines, lyrics.lyricsType)) {
+            if (com.tx24.spicyplayer.ivlyrics.motionLyricsFit(motionLyrics, originalLines, lyricsType)) {
                 com.tx24.spicyplayer.ivlyrics.MotionLyricsView(
                     lines = originalLines,
                     documentId = remember(lyrics.lines) { lyrics.lines.hashCode().toString() },
@@ -2546,7 +2561,7 @@ private fun LyricsPanelContent(
                 focusLiftPx = centredLiftPx,
                 // The list's `padding-top: 25cqh`.
                 restTopFraction = 0.25f,
-                lyricsType = lyrics.lyricsType,
+                lyricsType = lyricsType,
                 config = config,
                 fontSizeScale = fontSizeScale,
                 viewState = viewState,

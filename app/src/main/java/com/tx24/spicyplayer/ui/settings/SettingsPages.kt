@@ -100,6 +100,7 @@ import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.HideImage
+import androidx.compose.material.icons.rounded.FormatTextdirectionLToR
 import androidx.compose.material.icons.rounded.Height
 import androidx.compose.material.icons.rounded.OndemandVideo
 import androidx.compose.material.icons.rounded.FormatSize
@@ -351,6 +352,13 @@ internal fun LyricsContent(state: PlayerUiState, viewModel: ExternalPlaybackView
         onCheckedChange = { settings.motionLyrics = it },
         description = "Word-synced songs play as ivLyrics' moving type, like a lyric video, here and on the wallpaper, overlay and always-on display.",
         icon = Icons.Rounded.Movie,
+    )
+    ToggleRow(
+        label = "Word by word",
+        checked = settings.wordByWord,
+        onCheckedChange = { settings.wordByWord = it },
+        description = "Songs timed only by the line light word by word, on timing worked out from each word's length.",
+        icon = Icons.Rounded.FormatTextdirectionLToR,
     )
     ToggleRow(
         label = "Fade Away Previous Lines",

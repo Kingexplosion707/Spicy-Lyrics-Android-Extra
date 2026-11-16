@@ -17,6 +17,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import com.tx24.spicyplayer.lyrics.spicy.models.GeneratedWordTiming
 import com.tx24.spicyplayer.lyrics.spicy.models.Line
 import com.tx24.spicyplayer.lyrics.spicy.models.LineRole
 import com.tx24.spicyplayer.lyrics.spicy.models.LyricsType
@@ -95,10 +96,11 @@ internal fun rememberFurigana(enabled: Boolean, lines: List<Line>, documentId: S
 
 /** Whether [lines] play as motion lyrics; otherwise the usual lyrics are shown. */
 internal fun motionLyricsFit(enabled: Boolean, lines: List<Line>, type: LyricsType): Boolean {
-    if (!enabled || type != LyricsType.Syllable || !SpicyBridge.supported()) return false
+    // Line-timed songs play too, on made-up word timing ([GeneratedWordTiming]).
+    if (!enabled || (type != LyricsType.Syllable && type != LyricsType.Line) || !SpicyBridge.supported()) return false
     // Asked on every recomposition of the lyrics: answered once per set of lines.
     lastFit?.let { (seen, fits) -> if (seen === lines) return fits }
-    return SpicyBridge.motionCanPlay(lines.toIvLyrics()).also { lastFit = lines to it }
+    return SpicyBridge.motionCanPlay(GeneratedWordTiming.fillIn(lines).toIvLyrics()).also { lastFit = lines to it }
 }
 
 @Volatile private var lastFit: Pair<List<Line>, Boolean>? = null
@@ -132,7 +134,7 @@ internal fun MotionLyricsView(
     val holder = remember(context) { PassThrough(context, SpicyBridge.createMotion(context)) }
     DisposableEffect(holder) { onDispose { SpicyBridge.release(holder.inner) } }
     LaunchedEffect(holder, documentId, romanize) {
-        SpicyBridge.motionSong(holder.inner, spotifyId, documentId, title, artist, lines.toIvLyrics(romanize))
+        SpicyBridge.motionSong(holder.inner, spotifyId, documentId, title, artist, GeneratedWordTiming.fillIn(lines).toIvLyrics(romanize))
     }
     val playing by rememberUpdatedState(isPlaying)
     LaunchedEffect(holder) {
@@ -185,7 +187,7 @@ internal fun VinylMode(
     }
     val playing by rememberUpdatedState(isPlaying)
     val leadLines = remember(lines) { lines.filter { it.role == LineRole.LEAD && it.words.isNotEmpty() } }
-    val bridged = remember(leadLines) { leadLines.map { it.toIvLyrics() } }
+    val bridged = remember(leadLines) { GeneratedWordTiming.fillIn(leadLines).map { it.toIvLyrics() } }
     LaunchedEffect(view, bridged) {
         var shownLine = -2
         var lastPush = 0L
