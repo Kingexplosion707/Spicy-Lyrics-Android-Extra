@@ -15,6 +15,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
@@ -107,36 +110,83 @@ internal fun motionLyricsFit(enabled: Boolean, lines: List<Line>, type: LyricsTy
 
 @Volatile private var lastFit: Pair<List<Line>, Boolean>? = null
 
-/** A line longer than this reads better in Spicy's lyrics than as moving type. */
-private const val MOTION_MAX_CHARS = 45
-/** Spicy's lyrics take over this long before such a line, so it's there to be read from its start. */
-private const val SWITCH_LEAD_MS = 300L
+/**
+ * [lines] with the translation shown for each laid on it, so motion lyrics show it under the
+ * moving type as the lyrics do. [lines] are the song's own lines, one per entry of [result].
+ */
+internal fun withTranslations(lines: List<Line>, result: com.tx24.spicyplayer.translation.TranslationResult?): List<Line> {
+    if (result == null || result.texts.size != lines.size) return lines
+    return lines.mapIndexed { index, line ->
+        val text = result.texts[index]?.takeIf { it.isNotBlank() } ?: return@mapIndexed line
+        line.copy(translation = com.tx24.spicyplayer.translation.plainTranslation(line.words.joinToString("") { it.text }, text))
+    }
+}
 
-/** Whether [line] plays as moving type: it has its own word timing and isn't long. */
-internal fun motionFriendly(line: Line): Boolean =
-    !GeneratedWordTiming.needsTiming(line) && line.words.sumOf { it.text.length } <= MOTION_MAX_CHARS
+/** How much of the area the motion page keeps, at the top, when Spicy's lyrics show with it. */
+internal const val MOTION_MERGE_SHARE = 0.6f
+/** How far Spicy's lyrics reach up under the motion page's faded lower edge. */
+private const val MOTION_MERGE_OVERLAP = 0.05f
+/** The motion page's lower edge that fades out over Spicy's lyrics, as a share of its height. */
+private const val MOTION_MERGE_FADE = 0.2f
+
+/** What part of Spicy's lyrics shows with motion lyrics. */
+internal enum class SpicyWithMotion {
+    /** Every line, word by word with its glow, under the motion page (Merge with Spicy's lyrics). */
+    Lyrics,
+    /** Only the three interlude dots, in the gaps between vocals. */
+    Dots,
+}
 
 /**
- * How much of the motion lyrics shows now (1) against Spicy's lyrics (0): motion while the line
- * being sung is [motionFriendly], Spicy's lyrics for a long line or one with no word timing of
- * its own, crossfading between them.
+ * Motion lyrics for the whole song, with Spicy's lyrics alongside: its interlude dots in the
+ * gaps between vocals, or with [merge] every line under the moving type, each in its own part
+ * of the area so neither covers the other. [timeline] is Spicy's display timeline (interludes
+ * included); [spicy] draws Spicy's lyrics for the lines it's given in the place it's given.
+ *
+ * The motion page is never put in a layer of its own (alpha, tint, blur): a web view inside one
+ * draws black on some phones. Fades at its edges are done inside the page.
  */
 @Composable
-internal fun rememberMotionShown(lines: List<Line>, currentTimeMs: () -> Long): androidx.compose.runtime.State<Float> {
-    val spans = remember(lines) {
-        lines.filter { it.role == LineRole.LEAD && it.words.isNotEmpty() }.map { Triple(it.startMs, it.endMs, motionFriendly(it)) }
-    }
-    var motion by remember(spans) { mutableStateOf(spans.firstOrNull()?.third ?: true) }
-    LaunchedEffect(spans) {
-        while (true) {
-            val at = currentTimeMs() + SWITCH_LEAD_MS
-            spans.lastOrNull { it.first <= at }?.let { motion = it.third }
-            delay(120L)
+internal fun MotionWithSpicy(
+    motionLines: List<Line>,
+    timeline: List<Line>,
+    documentId: String,
+    currentTimeMs: () -> Long,
+    isPlaying: Boolean,
+    romanize: Boolean,
+    visible: () -> Boolean,
+    shade: Float,
+    merge: Boolean,
+    modifier: Modifier = Modifier,
+    maxFrameRate: Float = 0f,
+    spicy: @Composable (lines: List<Line>, part: SpicyWithMotion, modifier: Modifier) -> Unit,
+) {
+    androidx.compose.foundation.layout.Box(modifier) {
+        MotionLyricsView(
+            // Merged, the translations show under Spicy's lines instead.
+            lines = if (merge) remember(motionLines) { motionLines.map { if (it.translation == null) it else it.copy(translation = null) } } else motionLines,
+            documentId = documentId,
+            currentTimeMs = currentTimeMs,
+            isPlaying = isPlaying,
+            romanize = romanize,
+            visible = visible,
+            shade = shade,
+            maxFrameRate = maxFrameRate,
+            fadeBottom = if (merge) MOTION_MERGE_FADE else 0f,
+            modifier = if (merge) Modifier.fillMaxWidth().fillMaxHeight(MOTION_MERGE_SHARE) else Modifier.fillMaxSize(),
+        )
+        if (merge) {
+            spicy(
+                timeline,
+                SpicyWithMotion.Lyrics,
+                Modifier.fillMaxWidth().fillMaxHeight(1f - MOTION_MERGE_SHARE + MOTION_MERGE_OVERLAP)
+                    .align(androidx.compose.ui.Alignment.BottomCenter),
+            )
+        } else {
+            val dots = remember(timeline) { timeline.filter { it.role == LineRole.INTERLUDE } }
+            if (dots.isNotEmpty()) spicy(dots, SpicyWithMotion.Dots, Modifier.fillMaxSize())
         }
     }
-    return androidx.compose.animation.core.animateFloatAsState(
-        if (motion) 1f else 0f, androidx.compose.animation.core.tween(380), label = "motionShown",
-    )
 }
 
 /** Holds an ivLyrics view and lets touches through to what's around it. */
@@ -165,23 +215,28 @@ internal fun MotionLyricsView(
     spotifyId: String? = null,
     /** The page's dark scrim, 0 (none) to 1 (ivLyrics' own). */
     shade: Float = 0.35f,
+    /** How much of the page's lower edge fades out, as a share of its height (0 for the usual soft edge). */
+    fadeBottom: Float = 0f,
 ) {
     val context = LocalContext.current
     val holder = remember(context) { PassThrough(context, SpicyBridge.createMotion(context)) }
     DisposableEffect(holder) { onDispose { SpicyBridge.release(holder.inner) } }
     val accent by MotionAccent.hex.collectAsState()
-    LaunchedEffect(holder, documentId, romanize, accent) {
+    val translations = remember(lines) { lines.map { it.translation }.hashCode() }
+    LaunchedEffect(holder, documentId, romanize, accent, translations) {
         SpicyBridge.motionSong(holder.inner, spotifyId, documentId, title, artist, accent, lines.toIvLyrics(romanize))
     }
     val playing by rememberUpdatedState(isPlaying)
     val shadeNow by rememberUpdatedState(shade)
-    LaunchedEffect(holder) {
+    val fadeNow by rememberUpdatedState(fadeBottom)
+    LaunchedEffect(holder, fadeBottom) {
         // The page runs its own clock between reports; four a second keeps seeks prompt.
         var tick = 0
         while (true) {
             if (visible()) SpicyBridge.motionPlayback(holder.inner, currentTimeMs(), playing)
             // Spicy's look, laid over the page again now and then (it may have reloaded).
-            if (tick++ % 8 == 0) SpicyBridge.motionLook(holder.inner, shadeNow)
+            if (tick < 16 || tick % 8 == 0) SpicyBridge.motionLook(holder.inner, shadeNow, fadeNow)
+            tick++
             delay(250L)
         }
     }

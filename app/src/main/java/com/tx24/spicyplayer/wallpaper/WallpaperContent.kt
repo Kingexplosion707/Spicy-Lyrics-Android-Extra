@@ -383,6 +383,8 @@ internal fun WallpaperLyrics(
     glowStrength: Float? = null,
     /** The lyrics' colour (Lyrics colour); white draws them as they are. */
     tint: com.tx24.spicyplayer.lyrics.LyricsInk = com.tx24.spicyplayer.lyrics.LyricsInk.White,
+    /** The lyrics' brightness over the tint (the overlay's). */
+    brightness: Float = 1f,
     /** The most frames a second the lyrics draw; 0 for every frame. */
     maxFrameRate: Float = 0f,
 ) {
@@ -438,51 +440,57 @@ internal fun WallpaperLyrics(
     // Romanized as on the lyrics screen: with Romanize on, where the lyrics have it.
     val romanize = settings.romanize && remember(lyrics) { lyrics.lines.any { line -> line.words.any { it.romanized != null } } }
     val textCredits = settings.textCredits
-    // Motion lyrics for word-synced songs, giving way to these lyrics for long lines and lines with
-    // no word timing of their own.
+    // Motion lyrics for word-synced songs, the whole song through, with Spicy's interlude dots in
+    // the gaps (or, merged, Spicy's lyrics under it). The motion page stays out of the lyrics'
+    // tint: a web view inside a tinted layer draws as a black band.
     val motionFits = com.tx24.spicyplayer.ivlyrics.motionLyricsFit(settings.motionLyrics, originalLines, lyrics.lyricsType)
-    val motionShown = if (motionFits) com.tx24.spicyplayer.ivlyrics.rememberMotionShown(originalLines, positionMs) else null
-    Box(modifier.lyricsTint(tint)) {
-    if (motionShown != null) {
-        com.tx24.spicyplayer.ivlyrics.MotionLyricsView(
-            lines = originalLines,
-            documentId = remember(lyrics.lines) { lyrics.lines.hashCode().toString() },
+    val documentId = remember(lyrics.lines) { lyrics.lines.hashCode().toString() }
+    val spicyLyrics: @Composable (List<Line>, com.tx24.spicyplayer.ivlyrics.SpicyWithMotion?, Modifier) -> Unit = { lines, part, partModifier ->
+        val dots = part == com.tx24.spicyplayer.ivlyrics.SpicyWithMotion.Dots
+        LyricsView(
+            lines = lines,
+            documentId = documentId,
+            currentTimeMs = positionMs,
+            onSeekWord = {},
+            romanize = romanize,
+            translation = if (dots) null else presentation,
+            isPlaying = isPlaying,
+            visible = visible,
+            maxFrameRate = maxFrameRate,
+            focusAnchorFraction = if (part == null) focusAnchorFraction else 0.5f,
+            lyricsType = lyricsType,
+            config = config,
+            fontSizeScale = fontSizeScale,
+            romanizationMode = settings.romanizationMode,
+            footer = if (dots) LyricsFooter() else remember(lyrics, translation, textCredits) {
+                LyricsFooter(
+                    songwriters = lyrics.songwriters,
+                    translationCredit = translation?.credit()?.takeIf { textCredits },
+                    provenance = LyricsProvenance(lyrics.source ?: lyrics.provider),
+                    maker = lyrics.maker?.let { LyricsCredit(it.username, it.profileUrl, it.avatarUrl) },
+                    uploader = lyrics.uploader?.let { LyricsCredit(it.username, it.profileUrl, it.avatarUrl) },
+                )
+            },
+            modifier = partModifier.lyricsTint(tint, brightness),
+        )
+    }
+    if (motionFits) {
+        com.tx24.spicyplayer.ivlyrics.MotionWithSpicy(
+            motionLines = remember(originalLines, translation) { com.tx24.spicyplayer.ivlyrics.withTranslations(originalLines, translation) },
+            timeline = rendererLines,
+            documentId = documentId,
             currentTimeMs = positionMs,
             isPlaying = isPlaying,
             romanize = romanize,
-            visible = { visible() && motionShown.value > 0f },
+            visible = visible,
             shade = settings.motionShade / 100f,
+            merge = settings.motionMerge,
             // Saving power, half the frames are plenty for type this big.
             maxFrameRate = if (reduced && maxFrameRate <= 0f) 30f else maxFrameRate,
-            modifier = Modifier.fillMaxSize().graphicsLayer { alpha = motionShown.value },
-        )
-    }
-    LyricsView(
-        lines = rendererLines,
-        documentId = remember(lyrics.lines) { lyrics.lines.hashCode().toString() },
-        currentTimeMs = positionMs,
-        onSeekWord = {},
-        romanize = romanize,
-        translation = presentation,
-        isPlaying = isPlaying,
-        visible = { visible() && (motionShown?.value ?: 0f) < 1f },
-        maxFrameRate = maxFrameRate,
-        focusAnchorFraction = focusAnchorFraction,
-        lyricsType = lyricsType,
-        config = config,
-        fontSizeScale = fontSizeScale,
-        romanizationMode = settings.romanizationMode,
-        footer = remember(lyrics, translation, textCredits) {
-            LyricsFooter(
-                songwriters = lyrics.songwriters,
-                translationCredit = translation?.credit()?.takeIf { textCredits },
-                provenance = LyricsProvenance(lyrics.source ?: lyrics.provider),
-                maker = lyrics.maker?.let { LyricsCredit(it.username, it.profileUrl, it.avatarUrl) },
-                uploader = lyrics.uploader?.let { LyricsCredit(it.username, it.profileUrl, it.avatarUrl) },
-            )
-        },
-        modifier = Modifier.fillMaxSize().graphicsLayer { alpha = 1f - (motionShown?.value ?: 0f) },
-    )
+            modifier = modifier,
+        ) { lines, part, partModifier -> spicyLyrics(lines, part, partModifier) }
+    } else {
+        spicyLyrics(rendererLines, null, modifier)
     }
 }
 

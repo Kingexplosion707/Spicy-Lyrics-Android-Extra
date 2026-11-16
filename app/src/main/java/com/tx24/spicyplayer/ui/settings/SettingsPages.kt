@@ -370,6 +370,13 @@ internal fun LyricsContent(state: PlayerUiState, viewModel: ExternalPlaybackView
                 unit = "%",
             )
         }
+        ToggleRow(
+            label = "Merge with Spicy's lyrics",
+            checked = settings.motionMerge,
+            onCheckedChange = { settings.motionMerge = it },
+            description = "Spicy's word-by-word lyrics, glow and all, show under the motion lyrics, each in its own space.",
+            icon = Icons.Rounded.Layers,
+        )
     }
     ToggleRow(
         label = "Word by word",

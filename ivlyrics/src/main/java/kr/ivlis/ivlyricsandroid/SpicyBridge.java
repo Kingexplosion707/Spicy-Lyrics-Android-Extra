@@ -249,18 +249,29 @@ public final class SpicyBridge {
 
     /**
      * Spicy's look over the page: its dark scrim at [shade] of ivLyrics' own (0 none, 1 as it
-     * was), and its shot counter hidden. Safe to call before the page is up; call it again.
+     * was), and its shot counter hidden. The page's edges fade softly, so it sits in whatever
+     * is around it with no hard line; [fadeBottom] (a share of its height) fades its lower edge
+     * further, over what shows under it. Safe to call before the page is up; call it again.
      */
-    public static void motionLook(View view, float shade) {
+    public static void motionLook(View view, float shade, float fadeBottom) {
         if (!(view instanceof ViewGroup) || ((ViewGroup) view).getChildCount() == 0) return;
         View page = ((ViewGroup) view).getChildAt(0);
         if (!(page instanceof WebView)) return;
+        float bottom = Math.max(EDGE_FADE, Math.min(0.5f, fadeBottom));
+        String edges = String.format(java.util.Locale.US,
+                "linear-gradient(to bottom,transparent 0%%,#000 %.1f%%,#000 %.1f%%,transparent 100%%)",
+                EDGE_FADE * 100f, (1f - bottom) * 100f);
         String css = String.format(java.util.Locale.US,
-                ".ivlyrics-motion-scrim{opacity:%.2f!important}.ivlyrics-motion-hud{display:none!important}",
-                Math.max(0f, Math.min(1f, shade)));
+                ".ivlyrics-motion-scrim{opacity:%.2f!important;-webkit-mask-image:%s;mask-image:%s}"
+                        + ".ivlyrics-motion-hud{display:none!important}"
+                        + "#ivlyrics-motion-root{-webkit-mask-image:%s;mask-image:%s}",
+                Math.max(0f, Math.min(1f, shade)), edges, edges, edges, edges);
         ((WebView) page).evaluateJavascript("(function(){if(!document.head)return;var s=document.getElementById('spicy-look');"
                 + "if(!s){s=document.createElement('style');s.id='spicy-look';document.head.appendChild(s);}s.textContent='" + css + "';})()", null);
     }
+
+    /** How much of the page's top and bottom fades out at least. */
+    private static final float EDGE_FADE = 0.06f;
 
     public static void motionPlayback(View view, long positionMs, boolean playing) {
         if (view instanceof MotionLyricsModeView) ((MotionLyricsModeView) view).setPlayback(positionMs, playing, 1f);

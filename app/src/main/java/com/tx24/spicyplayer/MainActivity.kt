@@ -1453,6 +1453,7 @@ private fun LyricsApp(
                             lyrics = state.lyrics,
                             motionLyrics = settings.motionLyrics,
                             motionShade = settings.motionShade,
+                            motionMerge = settings.motionMerge,
                             furigana = settings.furigana,
                             wordByWord = settings.wordByWord,
                             translation = state.translation.takeIf { state.translationEnabled },
@@ -2025,6 +2026,7 @@ private fun PipLyrics(
             lyrics = state.lyrics,
             motionLyrics = settings.motionLyrics,
             motionShade = settings.motionShade,
+            motionMerge = settings.motionMerge,
             furigana = settings.furigana,
             wordByWord = settings.wordByWord,
             translation = state.translation.takeIf { state.translationEnabled },
@@ -2402,6 +2404,8 @@ private fun LyricsPanel(
     motionLyrics: Boolean = false,
     /** Motion lyrics' shade, 0-100. */
     motionShade: Int = 35,
+    /** Spicy's lyrics show under the motion lyrics. */
+    motionMerge: Boolean = false,
     /** Japanese lines read from ivLyrics' furigana. */
     furigana: Boolean = false,
     /** Line-timed songs light word by word. */
@@ -2420,8 +2424,10 @@ private fun LyricsPanel(
             LyricsPanelContent(
                 outgoing.lyrics, { outgoing.timeMs() }, {}, romanize, isPlaying && outgoing.runs, activeLineTopPx, centredLiftPx,
                 noticeBottomPx, outgoingState, PinnedFooterMode.Off, { 0f }, config, fontSizeScale, null,
-                Modifier.fillMaxSize().lyricsTint(tint).graphicsLayer { alpha = transition.outgoingAlpha() },
+                Modifier.fillMaxSize().graphicsLayer { alpha = transition.outgoingAlpha() },
                 maskScale = maskScale,
+                tint = tint,
+                motionMerge = motionMerge,
                 translation = outgoing.translation,
                 translationMode = translationMode,
                 romanizationMode = romanizationMode,
@@ -2435,10 +2441,12 @@ private fun LyricsPanel(
         LyricsPanelContent(
             lyrics, currentTimeMs, onSeek, romanize, isPlaying, activeLineTopPx, centredLiftPx, noticeBottomPx,
             viewState, pinnedFooter, maskBottomPx, config, fontSizeScale, noticeActions,
-            Modifier.fillMaxSize().lyricsTint(tint).let { base ->
+            Modifier.fillMaxSize().let { base ->
                 if (outgoing != null) base.graphicsLayer { alpha = transition.incomingAlpha() } else base
             },
             maskScale = maskScale,
+            tint = tint,
+            motionMerge = motionMerge,
             translation = translation,
             translationMode = translationMode,
             romanizationMode = romanizationMode,
@@ -2499,15 +2507,19 @@ private fun LyricsPanelContent(
     motionLyrics: Boolean = false,
     /** Motion lyrics' shade, 0-100. */
     motionShade: Int = 35,
+    /** Spicy's lyrics show under the motion lyrics, not only its interlude dots. */
+    motionMerge: Boolean = false,
+    /** The lyrics' colour; the motion page keeps its own (see [com.tx24.spicyplayer.ivlyrics.MotionWithSpicy]). */
+    tint: com.tx24.spicyplayer.lyrics.LyricsInk = com.tx24.spicyplayer.lyrics.LyricsInk.White,
     /** Japanese lines read from ivLyrics' furigana. */
     furigana: Boolean = false,
     /** Line-timed songs light word by word. */
     wordByWord: Boolean = false,
 ) {
     when (lyrics) {
-        LyricsState.Idle -> LyricsNotice("Waiting for a song", modifier, bottomPx = noticeBottomPx, compact = noticeActions == null)
+        LyricsState.Idle -> LyricsNotice("Waiting for a song", modifier.lyricsTint(tint), bottomPx = noticeBottomPx, compact = noticeActions == null)
         LyricsState.Loading -> Unit
-        is LyricsState.Error -> LyricsNotice(lyrics, noticeActions, noticeBottomPx, modifier)
+        is LyricsState.Error -> LyricsNotice(lyrics, noticeActions, noticeBottomPx, modifier.lyricsTint(tint))
         is LyricsState.Ready -> {
             val baseLines = remember(lyrics.lines) {
                 lyrics.lines.map { line ->
@@ -2552,60 +2564,66 @@ private fun LyricsPanelContent(
                 }
             }
             val copyContext = LocalContext.current
-            // Motion lyrics for word-synced songs, giving way to these lyrics for long lines and
-            // lines with no word timing of their own.
+            // Motion lyrics for word-synced songs, the whole song through, with Spicy's interlude
+            // dots in the gaps (or, merged, Spicy's lyrics under it).
             val motionFits = com.tx24.spicyplayer.ivlyrics.motionLyricsFit(motionLyrics, furiganaLines, lyrics.lyricsType)
-            val motionShown = if (motionFits) com.tx24.spicyplayer.ivlyrics.rememberMotionShown(furiganaLines, currentTimeMs) else null
-            Box(modifier) {
-            if (motionShown != null) {
-                com.tx24.spicyplayer.ivlyrics.MotionLyricsView(
-                    lines = furiganaLines,
-                    documentId = remember(lyrics.lines) { lyrics.lines.hashCode().toString() },
+            val documentId = remember(lyrics.lines) { lyrics.lines.hashCode().toString() }
+            val spicyLyrics: @Composable (List<Line>, com.tx24.spicyplayer.ivlyrics.SpicyWithMotion?, Modifier) -> Unit = { lines, part, partModifier ->
+                val dots = part == com.tx24.spicyplayer.ivlyrics.SpicyWithMotion.Dots
+                val full = part == null
+                LyricsView(
+                    lines = lines,
+                    documentId = documentId,
+                    currentTimeMs = currentTimeMs,
+                    onSeekWord = if (dots) { _ -> } else onSeek,
+                    onLineLongPress = if (dots) null else { line -> copyHeldLine(copyContext, line) },
+                    romanize = romanize,
+                    romanizationMode = romanizationMode,
+                    translation = if (dots) null else presentation,
+                    isPlaying = isPlaying,
+                    visible = visible,
+                    activeLineTopPx = if (full) activeLineTopPx else null,
+                    focusAnchorFraction = 0.5f,
+                    focusLiftPx = if (dots) 0f else centredLiftPx,
+                    // The list's `padding-top: 25cqh`.
+                    restTopFraction = if (full) 0.25f else null,
+                    lyricsType = lyricsType,
+                    config = config,
+                    fontSizeScale = fontSizeScale,
+                    viewState = if (dots) null else viewState,
+                    pinnedFooter = if (dots) PinnedFooterMode.Off else pinnedFooter,
+                    maskBottomPx = if (dots) { { 0f } } else maskBottomPx,
+                    maskScale = maskScale,
+                    footer = if (dots) LyricsFooter() else remember(lyrics, translation, textCredits, romanizationCredit) {
+                        LyricsFooter(
+                            songwriters = lyrics.songwriters,
+                            translationCredit = translation?.credit()?.takeIf { textCredits },
+                            romanizationCredit = romanizationCredit,
+                            // "Lyrics: Spicy Lyrics • Apple Music" when a provider syndicates another catalogue.
+                            // The source alone: Apple Music's lyrics read the same from every service that fetches them.
+                            provenance = LyricsProvenance(lyrics.source ?: lyrics.provider),
+                            maker = lyrics.maker?.let { LyricsCredit(it.username, it.profileUrl, it.avatarUrl) },
+                            uploader = lyrics.uploader?.let { LyricsCredit(it.username, it.profileUrl, it.avatarUrl) },
+                        )
+                    },
+                    modifier = partModifier.lyricsTint(tint),
+                )
+            }
+            if (motionFits) {
+                com.tx24.spicyplayer.ivlyrics.MotionWithSpicy(
+                    motionLines = remember(furiganaLines, translation) { com.tx24.spicyplayer.ivlyrics.withTranslations(furiganaLines, translation) },
+                    timeline = rendererLines,
+                    documentId = documentId,
                     currentTimeMs = currentTimeMs,
                     isPlaying = isPlaying,
                     romanize = romanize,
-                    visible = { visible() && motionShown.value > 0f },
+                    visible = visible,
                     shade = motionShade / 100f,
-                    modifier = Modifier.fillMaxSize().graphicsLayer { alpha = motionShown.value },
-                )
-            }
-            LyricsView(
-                lines = rendererLines,
-                documentId = remember(lyrics.lines) { lyrics.lines.hashCode().toString() },
-                currentTimeMs = currentTimeMs,
-                onSeekWord = onSeek,
-                onLineLongPress = { line -> copyHeldLine(copyContext, line) },
-                romanize = romanize,
-                romanizationMode = romanizationMode,
-                translation = presentation,
-                isPlaying = isPlaying,
-                visible = { visible() && (motionShown?.value ?: 0f) < 1f },
-                activeLineTopPx = activeLineTopPx,
-                focusAnchorFraction = 0.5f,
-                focusLiftPx = centredLiftPx,
-                // The list's `padding-top: 25cqh`.
-                restTopFraction = 0.25f,
-                lyricsType = lyricsType,
-                config = config,
-                fontSizeScale = fontSizeScale,
-                viewState = viewState,
-                pinnedFooter = pinnedFooter,
-                maskBottomPx = maskBottomPx,
-                maskScale = maskScale,
-                footer = remember(lyrics, translation, textCredits, romanizationCredit) {
-                    LyricsFooter(
-                        songwriters = lyrics.songwriters,
-                        translationCredit = translation?.credit()?.takeIf { textCredits },
-                        romanizationCredit = romanizationCredit,
-                        // "Lyrics: Spicy Lyrics • Apple Music" when a provider syndicates another catalogue.
-                        // The source alone: Apple Music's lyrics read the same from every service that fetches them.
-                        provenance = LyricsProvenance(lyrics.source ?: lyrics.provider),
-                        maker = lyrics.maker?.let { LyricsCredit(it.username, it.profileUrl, it.avatarUrl) },
-                        uploader = lyrics.uploader?.let { LyricsCredit(it.username, it.profileUrl, it.avatarUrl) },
-                    )
-                },
-                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = 1f - (motionShown?.value ?: 0f) },
-            )
+                    merge = motionMerge,
+                    modifier = modifier,
+                ) { lines, part, partModifier -> spicyLyrics(lines, part, partModifier) }
+            } else {
+                spicyLyrics(rendererLines, null, modifier)
             }
         }
     }
