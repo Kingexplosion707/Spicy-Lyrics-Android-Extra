@@ -240,27 +240,71 @@ public final class SpicyBridge {
 
     /** [accent] (#rrggbb, from the cover) is what the page builds its two colours from. */
     public static void motionSong(View view, String spotifyId, String key, String title, String artist, String accent, List<Line> lines) {
+        motionSong(view, spotifyId, key, title, artist, accent, lines, "", "");
+    }
+
+    /**
+     * As above, in a theme: [themeId] names it and [themeJson] is what the page's director
+     * takes from it (see assets/motion/SpicyThemes.js); empty for ivLyrics' own direction.
+     */
+    public static void motionSong(View view, String spotifyId, String key, String title, String artist, String accent,
+                                  List<Line> lines, String themeId, String themeJson) {
         if (!(view instanceof MotionLyricsModeView)) return;
+        MotionLyricsModeView motion = (MotionLyricsModeView) view;
         LyricsResult result = result(lines, true);
-        String uri = MotionLyricsSong.uri(spotifyId, key);
+        boolean themed = themeId != null && !themeId.isEmpty() && themeJson != null && !themeJson.isEmpty();
+        // The page composes a song once per URI: a theme's own URI has it composed again in that theme.
+        String uri = themed
+                ? MotionLyricsSong.uri(null, (spotifyId == null ? "" : spotifyId) + "|" + key + "|" + themeId)
+                : MotionLyricsSong.uri(spotifyId, key);
         String colour = accent == null || accent.isEmpty() ? "" : accent;
-        ((MotionLyricsModeView) view).setSong(uri, MotionLyricsSong.json(uri, title, artist, colour, "", result), true);
+        motion.setPrelude(themeScript(view.getContext()) + ";window.spicyMotionTheme=" + (themed ? themeJson : "null") + ";");
+        motion.setSong(uri, MotionLyricsSong.json(uri, title, artist, colour, "", result), true);
+    }
+
+    private static volatile String themeScript;
+
+    private static String themeScript(Context context) {
+        String script = themeScript;
+        if (script != null) return script;
+        try (java.io.InputStream input = context.getAssets().open("motion/SpicyThemes.js")) {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = input.read(buffer)) > 0) out.write(buffer, 0, read);
+            script = out.toString("UTF-8");
+        } catch (java.io.IOException error) {
+            script = "";
+        }
+        themeScript = script;
+        return script;
     }
 
     /**
      * Spicy's look over the page: its dark scrim at [shade] of ivLyrics' own (0 none, 1 as it
-     * was), and its shot counter hidden. Safe to call before the page is up; call it again.
+     * was), and its shot counter hidden. The page's edges fade softly, so it sits in whatever
+     * is around it with no hard line; [fadeBottom] (a share of its height) fades its lower edge
+     * further, over what shows under it. Safe to call before the page is up; call it again.
      */
-    public static void motionLook(View view, float shade) {
+    public static void motionLook(View view, float shade, float fadeBottom) {
         if (!(view instanceof ViewGroup) || ((ViewGroup) view).getChildCount() == 0) return;
         View page = ((ViewGroup) view).getChildAt(0);
         if (!(page instanceof WebView)) return;
+        float bottom = Math.max(EDGE_FADE, Math.min(0.5f, fadeBottom));
+        String edges = String.format(java.util.Locale.US,
+                "linear-gradient(to bottom,transparent 0%%,#000 %.1f%%,#000 %.1f%%,transparent 100%%)",
+                EDGE_FADE * 100f, (1f - bottom) * 100f);
         String css = String.format(java.util.Locale.US,
-                ".ivlyrics-motion-scrim{opacity:%.2f!important}.ivlyrics-motion-hud{display:none!important}",
-                Math.max(0f, Math.min(1f, shade)));
+                ".ivlyrics-motion-scrim{opacity:%.2f!important;-webkit-mask-image:%s;mask-image:%s}"
+                        + ".ivlyrics-motion-hud{display:none!important}"
+                        + "#ivlyrics-motion-root{-webkit-mask-image:%s;mask-image:%s}",
+                Math.max(0f, Math.min(1f, shade)), edges, edges, edges, edges);
         ((WebView) page).evaluateJavascript("(function(){if(!document.head)return;var s=document.getElementById('spicy-look');"
                 + "if(!s){s=document.createElement('style');s.id='spicy-look';document.head.appendChild(s);}s.textContent='" + css + "';})()", null);
     }
+
+    /** How much of the page's top and bottom fades out at least. */
+    private static final float EDGE_FADE = 0.06f;
 
     public static void motionPlayback(View view, long positionMs, boolean playing) {
         if (view instanceof MotionLyricsModeView) ((MotionLyricsModeView) view).setPlayback(positionMs, playing, 1f);

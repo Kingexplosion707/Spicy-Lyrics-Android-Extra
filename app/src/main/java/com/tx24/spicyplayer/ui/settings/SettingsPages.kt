@@ -370,6 +370,25 @@ internal fun LyricsContent(state: PlayerUiState, viewModel: ExternalPlaybackView
                 unit = "%",
             )
         }
+        SettingRow(
+            label = "Motion lyrics theme",
+            description = "The look of the moving type. Auto picks one by the song's genre: Street for hip-hop, Inferno for metal, Neon Night for dance and more.",
+            icon = Icons.Rounded.Palette,
+        ) {
+            SpicySelect(
+                value = settings.motionTheme.name,
+                options = com.tx24.spicyplayer.ivlyrics.MotionTheme.entries.map { it.name },
+                labels = com.tx24.spicyplayer.ivlyrics.MotionTheme.entries.map { it.label },
+                onChange = { settings.motionTheme = com.tx24.spicyplayer.ivlyrics.MotionTheme.valueOf(it) },
+            )
+        }
+        ToggleRow(
+            label = "Merge with Spicy's lyrics",
+            checked = settings.motionMerge,
+            onCheckedChange = { settings.motionMerge = it },
+            description = "Spicy's word-by-word lyrics, glow and all, show under the motion lyrics, each in its own space.",
+            icon = Icons.Rounded.Layers,
+        )
     }
     ToggleRow(
         label = "Word by word",

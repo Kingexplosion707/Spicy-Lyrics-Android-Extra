@@ -64,6 +64,10 @@ class AppSettings(private val prefs: SharedPreferences) {
     var motionLyrics by boolean("motionLyrics", false)
     /** Motion lyrics' dark scrim, as a share of ivLyrics' own: 0 none, 100 as it is. */
     var motionShade by int("motionShade", 35, 0..100)
+    /** Spicy's lyrics, word by word with their glow, under the motion lyrics instead of only its interlude dots. */
+    var motionMerge by boolean("motionMerge", false)
+    /** Motion lyrics' look ([com.tx24.spicyplayer.ivlyrics.MotionTheme]); Auto picks one by the song's genre. */
+    var motionTheme by enum("motionTheme", com.tx24.spicyplayer.ivlyrics.MotionTheme.Auto)
     /** Line-timed songs light word by word on made-up word timing ([com.tx24.spicyplayer.lyrics.spicy.models.GeneratedWordTiming]). */
     var wordByWord by boolean("wordByWord", true)
     /** ivLyrics' vinyl player over the lyrics screen ([com.tx24.spicyplayer.ivlyrics.VinylMode]). */

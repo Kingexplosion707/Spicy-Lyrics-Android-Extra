@@ -80,6 +80,9 @@ final class MotionLyricsModeView extends FrameLayout {
     private String wantedSong = "";
     private String sentSong;
     private String sentOptions;
+    /** A script the host runs on the page before each song (its theme); empty for none. */
+    private String prelude = "";
+    private String sentPrelude;
     private String songUri = "";
     private boolean songLoaded;
     /** The track the page last judged, and its verdict. */
@@ -177,6 +180,11 @@ final class MotionLyricsModeView extends FrameLayout {
      * The song for the page ({@link MotionLyricsSong#json}), or an empty string for none.
      * lyricsLoaded is false while the track's lyrics are still being fetched.
      */
+    /** A script run on the page before the next song is sent, and again whenever the page reloads. */
+    void setPrelude(String script) {
+        prelude = script == null ? "" : script;
+    }
+
     void setSong(String uri, String json, boolean lyricsLoaded) {
         songUri = uri == null ? "" : uri;
         songLoaded = lyricsLoaded;
@@ -350,6 +358,10 @@ final class MotionLyricsModeView extends FrameLayout {
             sentOptions = options;
             run("ivLyricsMotionHost.configure(" + options + ")");
         }
+        if (!prelude.isEmpty() && !prelude.equals(sentPrelude)) {
+            sentPrelude = prelude;
+            run(prelude);
+        }
         if (!wantedSong.equals(sentSong)) {
             sentSong = wantedSong;
             run("ivLyricsMotionHost.setTrack(" + (wantedSong.isEmpty() ? "null" : wantedSong) + ")");
@@ -389,6 +401,7 @@ final class MotionLyricsModeView extends FrameLayout {
                 pageReady = true;
                 sentSong = null;
                 sentOptions = null;
+                sentPrelude = null;
                 flush();
                 break;
             case "eligible":
