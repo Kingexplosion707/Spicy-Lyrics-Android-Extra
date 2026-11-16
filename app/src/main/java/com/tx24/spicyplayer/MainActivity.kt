@@ -1420,6 +1420,7 @@ private fun LyricsApp(
                         }
                         LyricsPanel(
                             lyrics = state.lyrics,
+                            motionLyrics = settings.motionLyrics,
                             translation = state.translation.takeIf { state.translationEnabled },
                             translationMode = settings.translationMode,
                             textCredits = settings.textCredits,
@@ -1965,6 +1966,7 @@ private fun PipLyrics(
         Column(Modifier.fillMaxSize()) {
         LyricsPanel(
             lyrics = state.lyrics,
+            motionLyrics = settings.motionLyrics,
             translation = state.translation.takeIf { state.translationEnabled },
             translationMode = settings.translationMode,
             textCredits = settings.textCredits,
@@ -2336,6 +2338,8 @@ private fun LyricsPanel(
      * line, as with a crossfade or Automix), its lyrics stay until the new song's first line.
      */
     holdUntilFirstLine: Boolean = false,
+    /** Word-synced songs play as motion lyrics. */
+    motionLyrics: Boolean = false,
 ) {
     val transition = com.tx24.spicyplayer.lyrics.rememberSongTransition(
         lyrics, translation, songKey, currentTimeMs, songTransition, holdUntilFirstLine,
@@ -2356,6 +2360,7 @@ private fun LyricsPanel(
                 translationMode = translationMode,
                 romanizationMode = romanizationMode,
                 visible = visible,
+                motionLyrics = motionLyrics,
             )
         }
         LyricsPanelContent(
@@ -2371,6 +2376,7 @@ private fun LyricsPanel(
             textCredits = textCredits,
             romanizationCredit = romanizationCredit,
             visible = visible,
+            motionLyrics = motionLyrics,
         )
         AnimatedVisibility(
             visible = lyrics == LyricsState.Loading && outgoing == null,
@@ -2417,6 +2423,8 @@ private fun LyricsPanelContent(
     textCredits: Boolean = true,
     romanizationCredit: String? = null,
     visible: () -> Boolean = { true },
+    /** Word-synced songs play as motion lyrics. */
+    motionLyrics: Boolean = false,
 ) {
     when (lyrics) {
         LyricsState.Idle -> LyricsNotice("Waiting for a song", modifier, bottomPx = noticeBottomPx, compact = noticeActions == null)
@@ -2453,6 +2461,18 @@ private fun LyricsPanelContent(
                 }
             }
             val copyContext = LocalContext.current
+            if (com.tx24.spicyplayer.lyrics.motion.motionLyricsFit(motionLyrics, originalLines, lyrics.lyricsType)) {
+                com.tx24.spicyplayer.lyrics.motion.MotionLyricsView(
+                    lines = originalLines,
+                    documentId = remember(lyrics.lines) { lyrics.lines.hashCode().toString() },
+                    currentTimeMs = currentTimeMs,
+                    isPlaying = isPlaying,
+                    romanize = romanize,
+                    visible = visible,
+                    modifier = modifier,
+                )
+                return
+            }
             LyricsView(
                 lines = rendererLines,
                 documentId = remember(lyrics.lines) { lyrics.lines.hashCode().toString() },
