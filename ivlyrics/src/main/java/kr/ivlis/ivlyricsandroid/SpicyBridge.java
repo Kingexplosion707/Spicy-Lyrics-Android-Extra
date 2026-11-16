@@ -291,20 +291,27 @@ public final class SpicyBridge {
         View page = ((ViewGroup) view).getChildAt(0);
         if (!(page instanceof WebView)) return;
         float bottom = Math.max(EDGE_FADE, Math.min(0.5f, fadeBottom));
+        // All four edges fade, the sides as well as the top and bottom, so the page has no
+        // outline wherever it sits (the always-on display, the wallpaper, a floating window).
         String edges = String.format(java.util.Locale.US,
-                "linear-gradient(to bottom,transparent 0%%,#000 %.1f%%,#000 %.1f%%,transparent 100%%)",
-                EDGE_FADE * 100f, (1f - bottom) * 100f);
+                "linear-gradient(to bottom,transparent 0%%,#000 %.1f%%,#000 %.1f%%,transparent 100%%),"
+                        + "linear-gradient(to right,transparent 0%%,#000 %.1f%%,#000 %.1f%%,transparent 100%%)",
+                EDGE_FADE * 100f, (1f - bottom) * 100f, SIDE_FADE * 100f, (1f - SIDE_FADE) * 100f);
+        String mask = "-webkit-mask-image:" + edges + ";mask-image:" + edges
+                + ";-webkit-mask-composite:source-in;mask-composite:intersect";
         String css = String.format(java.util.Locale.US,
-                ".ivlyrics-motion-scrim{opacity:%.2f!important;-webkit-mask-image:%s;mask-image:%s}"
+                ".ivlyrics-motion-scrim{opacity:%.2f!important;%s}"
                         + ".ivlyrics-motion-hud{display:none!important}"
-                        + "#ivlyrics-motion-root{-webkit-mask-image:%s;mask-image:%s}",
-                Math.max(0f, Math.min(1f, shade)), edges, edges, edges, edges);
+                        + "#ivlyrics-motion-root{%s}",
+                Math.max(0f, Math.min(1f, shade)), mask, mask);
         ((WebView) page).evaluateJavascript("(function(){if(!document.head)return;var s=document.getElementById('spicy-look');"
                 + "if(!s){s=document.createElement('style');s.id='spicy-look';document.head.appendChild(s);}s.textContent='" + css + "';})()", null);
     }
 
     /** How much of the page's top and bottom fades out at least. */
-    private static final float EDGE_FADE = 0.06f;
+    private static final float EDGE_FADE = 0.10f;
+    /** How much of the page's left and right fades out. */
+    private static final float SIDE_FADE = 0.12f;
 
     public static void motionPlayback(View view, long positionMs, boolean playing) {
         if (view instanceof MotionLyricsModeView) ((MotionLyricsModeView) view).setPlayback(positionMs, playing, 1f);
