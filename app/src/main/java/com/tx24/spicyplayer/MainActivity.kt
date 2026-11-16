@@ -2533,17 +2533,21 @@ private fun LyricsPanelContent(
                 }
             }
             val copyContext = LocalContext.current
-            if (com.tx24.spicyplayer.ivlyrics.motionLyricsFit(motionLyrics, originalLines, lyricsType)) {
+            // Motion lyrics for word-synced songs, giving way to these lyrics for long lines and
+            // lines with no word timing of their own.
+            val motionFits = com.tx24.spicyplayer.ivlyrics.motionLyricsFit(motionLyrics, furiganaLines, lyrics.lyricsType)
+            val motionShown = if (motionFits) com.tx24.spicyplayer.ivlyrics.rememberMotionShown(furiganaLines, currentTimeMs) else null
+            Box(modifier) {
+            if (motionShown != null) {
                 com.tx24.spicyplayer.ivlyrics.MotionLyricsView(
-                    lines = originalLines,
+                    lines = furiganaLines,
                     documentId = remember(lyrics.lines) { lyrics.lines.hashCode().toString() },
                     currentTimeMs = currentTimeMs,
                     isPlaying = isPlaying,
                     romanize = romanize,
-                    visible = visible,
-                    modifier = modifier,
+                    visible = { visible() && motionShown.value > 0f },
+                    modifier = Modifier.fillMaxSize().graphicsLayer { alpha = motionShown.value },
                 )
-                return
             }
             LyricsView(
                 lines = rendererLines,
@@ -2555,7 +2559,7 @@ private fun LyricsPanelContent(
                 romanizationMode = romanizationMode,
                 translation = presentation,
                 isPlaying = isPlaying,
-                visible = visible,
+                visible = { visible() && (motionShown?.value ?: 0f) < 1f },
                 activeLineTopPx = activeLineTopPx,
                 focusAnchorFraction = 0.5f,
                 focusLiftPx = centredLiftPx,
@@ -2580,8 +2584,9 @@ private fun LyricsPanelContent(
                         uploader = lyrics.uploader?.let { LyricsCredit(it.username, it.profileUrl, it.avatarUrl) },
                     )
                 },
-                modifier = modifier,
+                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = 1f - (motionShown?.value ?: 0f) },
             )
+            }
         }
     }
 }
