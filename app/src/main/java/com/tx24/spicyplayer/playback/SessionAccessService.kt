@@ -14,6 +14,8 @@ import com.tx24.spicyplayer.widget.NowPlayingHolder
 class SessionAccessService : NotificationListenerService() {
     override fun onListenerConnected() {
         NowPlayingHolder.start(this)
+        com.tx24.spicyplayer.spotify.SpotifyConnectSession.accessConnected = true
+        com.tx24.spicyplayer.spotify.SpotifyConnectSession.sync(this)
         // Access is (back) on: the listening stats, when they're on, follow the players from here.
         runCatching { com.tx24.spicyplayer.stats.ListeningTracker.sync(this, reconnect = true) }
         com.tx24.spicyplayer.aod.AodNotifications.refresher = { refreshAodIcons() }
@@ -35,6 +37,8 @@ class SessionAccessService : NotificationListenerService() {
 
     override fun onListenerDisconnected() {
         com.tx24.spicyplayer.aod.AodNotifications.refresher = null
+        com.tx24.spicyplayer.spotify.SpotifyConnectSession.accessConnected = false
+        com.tx24.spicyplayer.spotify.SpotifyConnectSession.sync(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             requestRebind(ComponentName(this, SessionAccessService::class.java))
         }

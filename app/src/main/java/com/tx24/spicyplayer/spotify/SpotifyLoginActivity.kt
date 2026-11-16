@@ -17,6 +17,7 @@ class SpotifyLoginActivity : ComponentActivity() {
         }
         lifecycleScope.launch {
             val error = SpotifyAccount.finishLogin(this@SpotifyLoginActivity, redirect)
+            SpotifyConnectSession.sync(this@SpotifyLoginActivity)
             val name = SpotifyAccount.accountName(this@SpotifyLoginActivity)
             Toast.makeText(
                 this@SpotifyLoginActivity,

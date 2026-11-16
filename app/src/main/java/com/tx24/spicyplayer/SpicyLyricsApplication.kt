@@ -19,10 +19,12 @@ class SpicyLyricsApplication : Application() {
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityStarted(activity: Activity) {
                 startedActivities++
+                com.tx24.spicyplayer.spotify.SpotifyConnectSession.sync(activity)
             }
 
             override fun onActivityStopped(activity: Activity) {
                 startedActivities = (startedActivities - 1).coerceAtLeast(0)
+                com.tx24.spicyplayer.spotify.SpotifyConnectSession.sync(activity)
             }
 
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit

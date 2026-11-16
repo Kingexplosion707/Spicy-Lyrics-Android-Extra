@@ -321,7 +321,7 @@ private fun WeatherRows(settings: AppSettings, on: Boolean) {
  * sign-in, through a Spotify app of your own (no secret).
  */
 @Composable
-private fun SpotifyAccountRows() {
+internal fun SpotifyAccountRows() {
     val context = LocalContext.current
     // Signing in finishes in another activity: read again on coming back.
     var seen by remember { mutableIntStateOf(0) }
@@ -337,13 +337,14 @@ private fun SpotifyAccountRows() {
         description = when {
             signedIn -> "Signed in${name?.let { " as $it" } ?: ""}."
             else -> "Make an app at developer.spotify.com with the redirect URI ${SpotifyAccount.REDIRECT_URI}, then paste its Client ID below. " +
-                "If you signed in before for the crossfade, sign in again: this asks to add to playlists too."
+                "If you signed in before, sign in again: this asks to control playback and add to playlists too."
         },
         icon = Icons.Rounded.AccountCircle,
     ) {
         if (signedIn) {
             SpicyButton("Sign out", onClick = {
                 SpotifyAccount.logOut(context)
+                com.tx24.spicyplayer.spotify.SpotifyConnectSession.sync(context)
                 seen++
             })
         } else {

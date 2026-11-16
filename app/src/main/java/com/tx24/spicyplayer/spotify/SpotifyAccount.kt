@@ -32,7 +32,8 @@ internal object SpotifyAccount {
     const val DEVELOPER_URL = "https://developer.spotify.com/dashboard"
     private const val AUTHORIZE_URL = "https://accounts.spotify.com/authorize"
     private const val TOKEN_URL = "https://accounts.spotify.com/api/token"
-    private const val SCOPE = "user-read-playback-state playlist-modify-public playlist-modify-private"
+    private const val SCOPE = "user-read-playback-state user-modify-playback-state playlist-modify-public playlist-modify-private"
+    private const val CONTROL_SCOPE = "user-modify-playback-state"
     private const val PREFS = "spotify_account"
 
     internal val client: OkHttpClient by lazy {
@@ -56,6 +57,13 @@ internal object SpotifyAccount {
     }
 
     fun signedIn(context: Context): Boolean = prefs(context).getString("refreshToken", null) != null
+
+    /** Signed in with permission to play, pause and skip (accounts that signed in earlier lack it until they sign in again). */
+    fun canControl(context: Context): Boolean =
+        prefs(context).getString("scope", "").orEmpty().split(' ').contains(CONTROL_SCOPE)
+
+    /** Spotify refused the access token: the next [accessToken] asks for a new one. */
+    fun expireAccessToken(context: Context) = prefs(context).edit().putLong("expiresAt", 0L).apply()
 
     /** The signed-in account's name, when Spotify gave it. */
     fun accountName(context: Context): String? = prefs(context).getString("accountName", null)
@@ -148,6 +156,7 @@ internal object SpotifyAccount {
             .putString("accessToken", token)
             .putLong("expiresAt", System.currentTimeMillis() + json.optLong("expires_in", 3_600L) * 1_000L)
         json.optString("refresh_token").takeIf { it.isNotBlank() }?.let { edit.putString("refreshToken", it) }
+        json.optString("scope").takeIf { it.isNotBlank() }?.let { edit.putString("scope", it) }
         edit.apply()
         return token
     }

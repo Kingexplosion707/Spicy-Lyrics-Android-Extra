@@ -257,6 +257,8 @@ class AppSettings(private val prefs: SharedPreferences) {
     var aodFingerprintUnlock by boolean("aodFingerprintUnlock", true)
     /** A button with the always-on display's controls that adds the song to the Spotify playlist playing ([com.tx24.spicyplayer.spotify.SpotifyPlaylist]). */
     var aodPlaylistButton by boolean("aodPlaylistButton", true)
+    /** Follows what the signed-in Spotify account plays when Spotify's app here isn't playing ([com.tx24.spicyplayer.spotify.SpotifyConnectSession]). */
+    var followSpotifyAccount by boolean("followSpotifyAccount", true)
     /** The notification list shows only each app until the phone is unlocked (face unlock, say). */
     var aodHideNotificationText by boolean("aodHideNotificationText", true)
     /** A notification coming in on the always-on display: light round the edge and a pill with its app. */
