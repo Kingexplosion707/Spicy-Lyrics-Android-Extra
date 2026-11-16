@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A film frame with lines of text slanting across it: moving lyrics. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M5,3h14a2,2 0,0 1,2 2v14a2,2 0,0 1,-2 2H5a2,2 0,0 1,-2 -2V5a2,2 0,0 1,2 -2zM5,5v14h14V5z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M7,8.5l9,-1.6v2.2l-9,1.6zM7,13.2l10,-1.8v2.2l-10,1.8z" />
+</vector>
