@@ -114,6 +114,7 @@ Modified by Behnoud.
 - A new song no longer starts its lyrics late when the player reports its start before naming it (Spotify): the lyrics screen, wallpaper, overlay, always-on display, haptics and widget keep that report instead of starting the song from 0 when its name arrives.
 - CI builds share one signing key and count their version up, so they install as updates: from the DEBUG_KEYSTORE_BASE64 secret, or else one made once and kept in the repository's Actions cache (kept from expiring by the scheduled update check).
 - Every change to main is also published as an optimised (R8) build, a prerelease the in-app updater offers (`android-ci.yml`).
+- New ivLyrics Android releases are watched by `ivlyrics-watch.yml`, which opens an issue labelled ivlyrics-update so their new features can be written into this app (its code has no licence, so none is copied).
 - New Spicy Lyrics Mobile releases are merged in by `tools/upstream_sync.sh`, run every six hours by `upstream-sync.yml`, which opens an issue when one needs a hand.
 
 ## Updates from Spicy Lyrics Mobile
