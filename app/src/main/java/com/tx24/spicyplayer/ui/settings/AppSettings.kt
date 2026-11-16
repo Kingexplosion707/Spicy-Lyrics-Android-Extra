@@ -60,6 +60,8 @@ class AppSettings(private val prefs: SharedPreferences) {
     var rendererStyle by enum(RendererStyleMigration.KEY, RendererStyle.Spring)
     /** Shown as "Fade Away Previous Lines"; the key keeps its old name. */
     var minimalLyricsMode by boolean("minimalLyricsMode", false)
+    /** Word-synced songs play as moving type ([com.tx24.spicyplayer.lyrics.motion.MotionLyricsView]); others keep the usual lyrics. */
+    var motionLyrics by boolean("motionLyrics", false)
     var originalWordMotion by boolean("originalWordMotion", false)
     /**
      * The lyric text size against the screen's default, in percent, held apart for portrait and
@@ -423,8 +425,6 @@ class AppSettings(private val prefs: SharedPreferences) {
     var overlayHideInLandscape by boolean("overlayHideInLandscape", false)
     /** The overlay steps aside while the Spicy live wallpaper shows (the home screen). */
     var overlayHideOnWallpaper by boolean("overlayHideOnWallpaper", true)
-    /** SuperShade Plus may show the lyrics as a live activity in its shade ([com.tx24.spicyplayer.shade.SuperShadeBridge]). */
-    var superShadeLiveActivity by boolean("superShadeLiveActivity", true)
     /** The lyrics on the Essentials island, as its island provider ([com.tx24.spicyplayer.island.SpicyIslandService]). */
     var essentialsIsland by boolean("essentialsIsland", true)
     /** The cover beside the lyrics in the island's pill (Essentials shows its own cover bubble). */

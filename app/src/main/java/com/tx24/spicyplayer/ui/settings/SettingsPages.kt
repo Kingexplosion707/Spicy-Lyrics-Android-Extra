@@ -345,6 +345,13 @@ internal fun LyricsContent(state: PlayerUiState, viewModel: ExternalPlaybackView
         )
     }
     ToggleRow(
+        label = "Motion lyrics",
+        checked = settings.motionLyrics,
+        onCheckedChange = { settings.motionLyrics = it },
+        description = "Word-synced songs play as moving type, like a lyric video, here and on the wallpaper, overlay and always-on display.",
+        icon = Icons.Rounded.Movie,
+    )
+    ToggleRow(
         label = "Fade Away Previous Lines",
         checked = settings.minimalLyricsMode,
         onCheckedChange = { settings.minimalLyricsMode = it },

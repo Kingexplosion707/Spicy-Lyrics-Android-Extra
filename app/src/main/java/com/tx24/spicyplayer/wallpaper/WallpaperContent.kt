@@ -429,6 +429,20 @@ internal fun WallpaperLyrics(
     // Romanized as on the lyrics screen: with Romanize on, where the lyrics have it.
     val romanize = settings.romanize && remember(lyrics) { lyrics.lines.any { line -> line.words.any { it.romanized != null } } }
     val textCredits = settings.textCredits
+    if (com.tx24.spicyplayer.lyrics.motion.motionLyricsFit(settings.motionLyrics, originalLines, lyrics.lyricsType)) {
+        com.tx24.spicyplayer.lyrics.motion.MotionLyricsView(
+            lines = originalLines,
+            documentId = remember(lyrics.lines) { lyrics.lines.hashCode().toString() },
+            currentTimeMs = positionMs,
+            isPlaying = isPlaying,
+            romanize = romanize,
+            visible = visible,
+            // Saving power, half the frames are plenty for type this big.
+            maxFrameRate = if (reduced && maxFrameRate <= 0f) 30f else maxFrameRate,
+            modifier = modifier.lyricsTint(tint),
+        )
+        return
+    }
     LyricsView(
         lines = rendererLines,
         documentId = remember(lyrics.lines) { lyrics.lines.hashCode().toString() },
