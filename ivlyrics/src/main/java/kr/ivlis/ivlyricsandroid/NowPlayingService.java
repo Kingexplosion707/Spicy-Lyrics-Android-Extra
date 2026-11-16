@@ -1,0 +1,909 @@
+package kr.ivlis.ivlyricsandroid;
+
+import android.content.ComponentName;
+import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.media.MediaDescription;
+import android.media.MediaMetadata;
+import android.media.session.MediaController;
+import android.media.session.MediaSessionManager;
+import android.media.session.PlaybackState;
+import android.net.Uri;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
+import android.provider.Settings;
+import android.service.notification.NotificationListenerService;
+import android.service.notification.StatusBarNotification;
+
+import java.io.InputStream;
+import java.lang.ref.WeakReference;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+public final class NowPlayingService extends NotificationListenerService {
+    private static final Pattern ISRC_PATTERN = Pattern.compile("[A-Z]{2}[A-Z0-9]{3}\\d{7}", Pattern.CASE_INSENSITIVE);
+    private static final String SPOTIFY_PACKAGE_PREFIX = "com.spotify.";
+    private static final String SPOTIFY_DJ_PLAYLIST_ID = "37i9dQZF1EYkqdzj48dyYq";
+    private static final Set<Listener> LISTENERS = new CopyOnWriteArraySet<>();
+    private static final Handler MAIN = new Handler(Looper.getMainLooper());
+
+    private static WeakReference<NowPlayingService> instance = new WeakReference<>(null);
+    private static volatile TrackSnapshot latestSnapshot;
+    private static volatile MediaController activeController;
+    private static volatile MediaController.Callback activeCallback;
+    private static volatile boolean embeddedPlayback;
+
+    private final ExecutorService artworkExecutor = Executors.newSingleThreadExecutor();
+    private final Map<String, Bitmap> artworkCache = new ConcurrentHashMap<>();
+    private final Set<String> artworkLoading = ConcurrentHashMap.newKeySet();
+    private SpotifyShortcutOverlayController shortcutOverlayController;
+
+    interface Listener {
+        void onNowPlayingChanged(TrackSnapshot snapshot);
+        default void onExplicitSeek(String trackKey, long positionMs, long elapsedRealtimeMs) {}
+    }
+
+    static void register(Listener listener) {
+        LISTENERS.add(listener);
+        TrackSnapshot snapshot = latestSnapshot;
+        if (snapshot != null) {
+            MAIN.post(() -> listener.onNowPlayingChanged(snapshot));
+        }
+    }
+
+    static void unregister(Listener listener) {
+        LISTENERS.remove(listener);
+    }
+
+    static TrackSnapshot getLatestSnapshot() {
+        return latestSnapshot;
+    }
+
+    static void requestRefresh(Context context) {
+        if (embeddedPlayback) {
+            refreshEmbeddedController();
+            return;
+        }
+        NowPlayingService service = instance.get();
+        if (service != null) {
+            service.refreshSessions();
+        }
+    }
+
+    static boolean isNotificationAccessEnabled(Context context) {
+        if (IvLyricsBridge.isEmbedded(context)) return true;
+        String enabled = Settings.Secure.getString(
+                context.getContentResolver(),
+                "enabled_notification_listeners"
+        );
+        if (enabled == null || enabled.isEmpty()) {
+            return false;
+        }
+
+        ComponentName expected = new ComponentName(context, NowPlayingService.class);
+        String[] flattenedNames = enabled.split(":");
+        for (String flattenedName : flattenedNames) {
+            ComponentName componentName = ComponentName.unflattenFromString(flattenedName);
+            if (expected.equals(componentName)) {
+                return true;
+            }
+        }
+        return enabled.toLowerCase(Locale.ROOT).contains(context.getPackageName().toLowerCase(Locale.ROOT));
+    }
+
+    static boolean togglePlayback() {
+        MediaController controller = activeController;
+        if (controller == null) return false;
+        PlaybackState state = controller.getPlaybackState();
+        int playbackState = state == null ? PlaybackState.STATE_NONE : state.getState();
+        if (playbackState == PlaybackState.STATE_PLAYING || playbackState == PlaybackState.STATE_BUFFERING) {
+            controller.getTransportControls().pause();
+        } else {
+            controller.getTransportControls().play();
+        }
+        return true;
+    }
+
+    static boolean pausePlayback() {
+        MediaController controller = activeController;
+        if (controller == null) return false;
+        // Pause is idempotent. Sending it unconditionally avoids a stale
+        // PlaybackState snapshot turning a tonearm ejection into a no-op.
+        controller.getTransportControls().pause();
+        return true;
+    }
+
+    static boolean skipToNext() {
+        MediaController controller = activeController;
+        if (controller == null) return false;
+        controller.getTransportControls().skipToNext();
+        return true;
+    }
+
+    static boolean skipToPrevious() {
+        MediaController controller = activeController;
+        if (controller == null) return false;
+        controller.getTransportControls().skipToPrevious();
+        return true;
+    }
+
+    static boolean seekTo(long positionMs) {
+        TrackSnapshot snapshot = latestSnapshot;
+        return snapshot != null && seekTo(snapshot.stableKey(), positionMs);
+    }
+
+    static boolean seekTo(String expectedTrackKey, long positionMs) {
+        MediaController controller = activeController;
+        TrackSnapshot snapshot = latestSnapshot;
+        if (controller == null || snapshot == null || !snapshot.stableKey().equals(expectedTrackKey)) return false;
+        registerExplicitSeek(snapshot, positionMs);
+        controller.getTransportControls().seekTo(Math.max(0L, positionMs));
+        return true;
+    }
+
+    static void registerExplicitSeek(TrackSnapshot track, long positionMs) {
+        if (track == null) return;
+        String key = track.stableKey();
+        long target = Math.max(0L, positionMs);
+        long now = SystemClock.elapsedRealtime();
+        Runnable notify = () -> {
+            for (Listener listener : LISTENERS) listener.onExplicitSeek(key, target, now);
+        };
+        if (Looper.myLooper() == Looper.getMainLooper()) notify.run();
+        else MAIN.post(notify);
+    }
+
+    static String navigationDestination(boolean album) {
+        MediaController controller = activeController;
+        if (controller == null) return "";
+        MediaMetadata metadata = controller.getMetadata();
+        PlaybackState state = controller.getPlaybackState();
+        Bundle extras = state == null ? null : state.getExtras();
+        String key = album ? "album_uri" : "context_uri";
+        String value = firstNamedPlaybackValue(metadata, extras, key);
+        if (value.isEmpty()) value = firstNamedPlaybackValue(metadata, extras, album ? "album.uri" : "context.uri");
+        return AppearanceOptions.spotifyDestination(value, album);
+    }
+
+    /** Uses Spotify's own media session; no notification-listener permission is needed. */
+    static void attachEmbeddedController(MediaController controller) {
+        MAIN.post(() -> {
+            embeddedPlayback = true;
+            if (controller == null || (activeController != null
+                    && activeController.getSessionToken().equals(controller.getSessionToken()))) {
+                refreshEmbeddedController();
+                return;
+            }
+            if (activeController != null && activeCallback != null) {
+                activeController.unregisterCallback(activeCallback);
+            }
+            activeController = controller;
+            activeCallback = new MediaController.Callback() {
+                @Override public void onMetadataChanged(MediaMetadata metadata) { refreshEmbeddedController(); }
+                @Override public void onPlaybackStateChanged(PlaybackState state) { refreshEmbeddedController(); }
+                @Override public void onExtrasChanged(Bundle extras) { refreshEmbeddedController(); }
+                @Override public void onQueueTitleChanged(CharSequence title) { refreshEmbeddedController(); }
+                @Override public void onSessionDestroyed() {
+                    if (activeController == controller) {
+                        activeController = null;
+                        activeCallback = null;
+                        publishEmbeddedSnapshot(null);
+                    }
+                }
+            };
+            controller.registerCallback(activeCallback, MAIN);
+            refreshEmbeddedController();
+        });
+    }
+
+    static void publishEmbeddedSnapshot(TrackSnapshot snapshot) {
+        embeddedPlayback = true;
+        MAIN.post(() -> {
+            TrackSnapshot published = snapshot;
+            TrackSnapshot current = latestSnapshot;
+            // Session callbacks may have queued snapshots before native metadata resolved.
+            // Preserve only that identity's ISRC, while keeping the incoming playback clock.
+            if (snapshot != null && current != null && !snapshot.mediaId.isEmpty()
+                    && snapshot.mediaId.equals(current.mediaId)
+                    && snapshot.isrc.isEmpty() && !current.isrc.isEmpty()) {
+                published = snapshot.withIsrc(current.isrc);
+            }
+            latestSnapshot = published;
+            for (Listener listener : LISTENERS) listener.onNowPlayingChanged(published);
+        });
+    }
+
+    /** Enrich only the matching current track at commit time; never republish an older snapshot. */
+    static void enrichEmbeddedIsrc(String expectedMediaId, String isrc) {
+        Runnable commit = () -> {
+            TrackSnapshot current = latestSnapshot;
+            if (current == null || expectedMediaId == null || expectedMediaId.isEmpty()
+                    || !expectedMediaId.equals(current.mediaId)) return;
+            String normalized = TrackSnapshot.normalizeIsrc(isrc);
+            if (normalized.isEmpty() || normalized.equals(current.isrc)) return;
+            TrackSnapshot enriched = current.withIsrc(normalized);
+            latestSnapshot = enriched;
+            for (Listener listener : LISTENERS) listener.onNowPlayingChanged(enriched);
+        };
+        if (Looper.myLooper() == Looper.getMainLooper()) commit.run();
+        else MAIN.post(commit);
+    }
+
+    private static void refreshEmbeddedController() {
+        MediaController controller = activeController;
+        if (controller == null) return;
+        try {
+            TrackSnapshot next = buildMetadataSnapshot(controller);
+            TrackSnapshot previous = latestSnapshot;
+            if (previous != null && next.title.equals(previous.title) && next.artist.equals(previous.artist)
+                    && Math.abs(next.durationMs - previous.durationMs) < 1000L
+                    && (next.mediaId.isEmpty() || next.mediaId.equals(previous.mediaId))) {
+                // Platform notifications sometimes omit URI/ISRC available in PlayerState.
+                next = new TrackSnapshot(next.title, next.artist, next.album, next.packageName,
+                        firstNonEmpty(next.mediaId, previous.mediaId), firstNonEmpty(next.isrc, previous.isrc),
+                        next.durationMs, next.positionMs, next.lastPositionUpdateElapsedMs,
+                        next.playbackSpeed, next.playing, firstNonNull(next.artwork, previous.artwork),
+                        firstNonEmpty(next.artworkUri, previous.artworkUri), next.spotifyAutomix, next.spotifyContextKnown,
+                        next.automixFadeInStartMs, next.automixFadeInCueMs, next.automixFadeOverlapMs);
+            }
+            publishEmbeddedSnapshot(next.hasUsableMetadata() ? next : null);
+        } catch (RuntimeException ignored) {
+            // A releasing session must never crash the host player.
+        }
+    }
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        instance = new WeakReference<>(this);
+        shortcutOverlayController = new SpotifyShortcutOverlayController(this);
+    }
+
+    @Override
+    public void onListenerConnected() {
+        super.onListenerConnected();
+        instance = new WeakReference<>(this);
+        refreshSessions();
+    }
+
+    @Override
+    public void onNotificationPosted(StatusBarNotification sbn) {
+        super.onNotificationPosted(sbn);
+        refreshSessions();
+        scheduleRefreshBurst();
+    }
+
+    @Override
+    public void onNotificationRemoved(StatusBarNotification sbn) {
+        super.onNotificationRemoved(sbn);
+        refreshSessions();
+    }
+
+    @Override
+    public void onDestroy() {
+        unregisterActiveCallback();
+        if (shortcutOverlayController != null) {
+            shortcutOverlayController.destroy();
+            shortcutOverlayController = null;
+        }
+        artworkExecutor.shutdownNow();
+        if (instance.get() == this) {
+            instance = new WeakReference<>(null);
+        }
+        super.onDestroy();
+    }
+
+    private void refreshSessions() {
+        try {
+            MediaSessionManager manager = (MediaSessionManager) getSystemService(Context.MEDIA_SESSION_SERVICE);
+            if (manager == null) return;
+
+            ComponentName componentName = new ComponentName(this, NowPlayingService.class);
+            List<MediaController> controllers = manager.getActiveSessions(componentName);
+            MediaController selected = selectController(controllers);
+            if (selected == null) {
+                publish(null);
+                return;
+            }
+
+            registerActiveCallback(selected);
+            publish(buildSnapshot(selected));
+        } catch (SecurityException ignored) {
+            publish(null);
+        }
+    }
+
+    private MediaController selectController(List<MediaController> controllers) {
+        if (controllers == null || controllers.isEmpty()) {
+            return null;
+        }
+
+        MediaController pausedCandidate = null;
+        for (MediaController controller : controllers) {
+            if (controller == null || controller.getMetadata() == null) {
+                continue;
+            }
+            if (!isSpotifyPackage(controller.getPackageName())) {
+                continue;
+            }
+            PlaybackState state = controller.getPlaybackState();
+            int playbackState = state == null ? PlaybackState.STATE_NONE : state.getState();
+            if (playbackState == PlaybackState.STATE_PLAYING || playbackState == PlaybackState.STATE_BUFFERING) {
+                return controller;
+            }
+            if (pausedCandidate == null && playbackState == PlaybackState.STATE_PAUSED) {
+                pausedCandidate = controller;
+            }
+        }
+        return pausedCandidate;
+    }
+
+    private static boolean isSpotifyPackage(String packageName) {
+        String value = packageName == null ? "" : packageName.trim().toLowerCase(Locale.ROOT);
+        return value.startsWith(SPOTIFY_PACKAGE_PREFIX);
+    }
+
+    private void registerActiveCallback(MediaController controller) {
+        if (activeController == controller && activeCallback != null) {
+            return;
+        }
+
+        unregisterActiveCallback();
+        activeController = controller;
+        activeCallback = new MediaController.Callback() {
+            @Override
+            public void onPlaybackStateChanged(PlaybackState state) {
+                publish(buildSnapshot(controller));
+                scheduleRefreshBurst();
+            }
+
+            @Override
+            public void onMetadataChanged(MediaMetadata metadata) {
+                publish(buildSnapshot(controller));
+                scheduleRefreshBurst();
+            }
+
+            @Override
+            public void onQueueTitleChanged(CharSequence title) {
+                publish(buildSnapshot(controller));
+                scheduleRefreshBurst();
+            }
+
+            @Override
+            public void onExtrasChanged(Bundle extras) {
+                publish(buildSnapshot(controller));
+                scheduleRefreshBurst();
+            }
+
+            @Override
+            public void onSessionDestroyed() {
+                refreshSessions();
+            }
+        };
+        controller.registerCallback(activeCallback);
+    }
+
+    private void unregisterActiveCallback() {
+        MediaController controller = activeController;
+        MediaController.Callback callback = activeCallback;
+        if (controller != null && callback != null) {
+            try {
+                controller.unregisterCallback(callback);
+            } catch (Exception ignored) {
+            }
+        }
+        activeController = null;
+        activeCallback = null;
+    }
+
+    private void scheduleRefreshBurst() {
+        MAIN.postDelayed(this::refreshSessions, 80L);
+        MAIN.postDelayed(this::refreshSessions, 240L);
+        MAIN.postDelayed(this::refreshSessions, 560L);
+    }
+
+    private TrackSnapshot buildSnapshot(MediaController controller) {
+        TrackSnapshot snapshot = buildMetadataSnapshot(controller);
+        Bitmap artwork = snapshot.artwork;
+        if (!snapshot.artworkUri.isEmpty()) {
+            Bitmap uriArtwork = artworkCache.get(snapshot.artworkUri);
+            if (isHigherResolutionArtwork(uriArtwork, artwork)) {
+                artwork = uriArtwork;
+            } else if (uriArtwork == null) {
+                requestArtworkLoad(controller, snapshot.artworkUri);
+            }
+        }
+        if (artwork == snapshot.artwork) return snapshot;
+        return new TrackSnapshot(snapshot.title, snapshot.artist, snapshot.album,
+                snapshot.packageName, snapshot.mediaId, snapshot.isrc, snapshot.durationMs,
+                snapshot.positionMs, snapshot.lastPositionUpdateElapsedMs, snapshot.playbackSpeed,
+                snapshot.playing, artwork, snapshot.artworkUri, snapshot.spotifyAutomix, snapshot.spotifyContextKnown,
+                snapshot.automixFadeInStartMs, snapshot.automixFadeInCueMs, snapshot.automixFadeOverlapMs);
+    }
+
+    private static TrackSnapshot buildMetadataSnapshot(MediaController controller) {
+        MediaMetadata metadata = controller.getMetadata();
+        PlaybackState state = controller.getPlaybackState();
+        boolean playing = state != null && (
+                state.getState() == PlaybackState.STATE_PLAYING
+                        || state.getState() == PlaybackState.STATE_BUFFERING
+        );
+        long position = state == null ? 0L : Math.max(0L, state.getPosition());
+        long updateTime = state == null || state.getLastPositionUpdateTime() <= 0L
+                ? SystemClock.elapsedRealtime()
+                : state.getLastPositionUpdateTime();
+        float speed = state == null || state.getPlaybackSpeed() <= 0f ? 1f : state.getPlaybackSpeed();
+
+        String title = firstNonEmpty(
+                metadataString(metadata, MediaMetadata.METADATA_KEY_TITLE),
+                metadataString(metadata, MediaMetadata.METADATA_KEY_DISPLAY_TITLE)
+        );
+        String artist = firstNonEmpty(
+                metadataString(metadata, MediaMetadata.METADATA_KEY_ARTIST),
+                firstNonEmpty(
+                        metadataString(metadata, MediaMetadata.METADATA_KEY_ALBUM_ARTIST),
+                        metadataString(metadata, MediaMetadata.METADATA_KEY_AUTHOR)
+                )
+        );
+        String album = metadataString(metadata, MediaMetadata.METADATA_KEY_ALBUM);
+        String mediaId = firstNonEmpty(
+                metadataString(metadata, MediaMetadata.METADATA_KEY_MEDIA_ID),
+                metadataString(metadata, MediaMetadata.METADATA_KEY_MEDIA_URI)
+        );
+        String isrc = findIsrc(metadata);
+        long duration = metadata == null ? 0L : Math.max(0L, metadata.getLong(MediaMetadata.METADATA_KEY_DURATION));
+        Bitmap artwork = firstNonNull(
+                metadataBitmap(metadata, MediaMetadata.METADATA_KEY_ALBUM_ART),
+                firstNonNull(
+                        metadataBitmap(metadata, MediaMetadata.METADATA_KEY_ART),
+                        firstNonNull(
+                                metadataBitmap(metadata, MediaMetadata.METADATA_KEY_DISPLAY_ICON),
+                                descriptionIconBitmap(metadata)
+                        )
+                )
+        );
+        String artworkUri = firstNonEmpty(
+                metadataString(metadata, MediaMetadata.METADATA_KEY_ALBUM_ART_URI),
+                firstNonEmpty(
+                        metadataString(metadata, MediaMetadata.METADATA_KEY_ART_URI),
+                        firstNonEmpty(
+                                metadataString(metadata, MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI),
+                                descriptionIconUri(metadata)
+                        )
+                )
+        );
+        SpotifyAutomixMetadata automix = spotifyAutomixMetadata(controller, metadata);
+
+        return new TrackSnapshot(
+                title,
+                artist,
+                album,
+                controller.getPackageName(),
+                mediaId,
+                isrc,
+                duration,
+                position,
+                updateTime,
+                speed,
+                playing,
+                artwork,
+                artworkUri,
+                automix.enabled,
+                automix.contextKnown,
+                automix.fadeInStartMs,
+                automix.fadeInCueMs,
+                automix.fadeOverlapMs
+        );
+    }
+
+    private void publish(TrackSnapshot snapshot) {
+        latestSnapshot = snapshot;
+        MAIN.post(() -> {
+            if (shortcutOverlayController != null) {
+                shortcutOverlayController.update(snapshot);
+            }
+            for (Listener listener : LISTENERS) {
+                listener.onNowPlayingChanged(snapshot);
+            }
+        });
+    }
+
+    private void requestArtworkLoad(MediaController controller, String artworkUri) {
+        if (controller == null || artworkUri == null || artworkUri.trim().isEmpty() || artworkExecutor.isShutdown()) {
+            return;
+        }
+        String cacheKey = artworkUri.trim();
+        if (!artworkLoading.add(cacheKey)) {
+            return;
+        }
+
+        try {
+            artworkExecutor.execute(() -> {
+                Bitmap bitmap = loadArtworkBitmap(cacheKey);
+                if (bitmap != null && !bitmap.isRecycled()) {
+                    if (artworkCache.size() > 24) {
+                        artworkCache.clear();
+                    }
+                    artworkCache.put(cacheKey, bitmap);
+                }
+                artworkLoading.remove(cacheKey);
+                if (bitmap != null && activeController == controller) {
+                    publish(buildSnapshot(controller));
+                }
+            });
+        } catch (RuntimeException ignored) {
+            artworkLoading.remove(cacheKey);
+        }
+    }
+
+    private boolean isHigherResolutionArtwork(Bitmap candidate, Bitmap current) {
+        if (candidate == null || candidate.isRecycled()) {
+            return false;
+        }
+        if (current == null || current.isRecycled()) {
+            return true;
+        }
+        long candidateArea = (long) candidate.getWidth() * candidate.getHeight();
+        long currentArea = (long) current.getWidth() * current.getHeight();
+        return candidateArea > currentArea;
+    }
+
+    private Bitmap loadArtworkBitmap(String artworkUri) {
+        String safeUri = artworkUri == null ? "" : artworkUri.trim();
+        if (safeUri.isEmpty()) {
+            return null;
+        }
+        if (safeUri.startsWith("spotify:image:")) {
+            String imageId = safeUri.substring("spotify:image:".length()).trim();
+            if (!imageId.isEmpty()) {
+                return loadHttpBitmap("https://i.scdn.co/image/" + imageId);
+            }
+        }
+
+        Uri uri;
+        try {
+            uri = Uri.parse(safeUri);
+        } catch (Exception ignored) {
+            return null;
+        }
+
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+        if ("http".equals(scheme) || "https".equals(scheme)) {
+            return loadHttpBitmap(safeUri);
+        }
+
+        try (InputStream stream = getContentResolver().openInputStream(uri)) {
+            return stream == null ? null : BitmapFactory.decodeStream(stream);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private Bitmap loadHttpBitmap(String urlValue) {
+        HttpURLConnection connection = null;
+        try {
+            URL url = new URL(urlValue);
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setConnectTimeout(5000);
+            connection.setReadTimeout(7000);
+            connection.setInstanceFollowRedirects(true);
+            connection.setRequestProperty("User-Agent", "ivLyrics-Android/0.1");
+            try (InputStream stream = connection.getInputStream()) {
+                return BitmapFactory.decodeStream(stream);
+            }
+        } catch (Exception ignored) {
+            return null;
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    private static String findIsrc(MediaMetadata metadata) {
+        if (metadata == null) {
+            return "";
+        }
+
+        for (String key : metadata.keySet()) {
+            String normalizedKey = key == null ? "" : key.toLowerCase(Locale.ROOT);
+            String value = "";
+            if (normalizedKey.contains("isrc")) {
+                value = metadataString(metadata, key);
+                String normalized = TrackSnapshot.normalizeIsrc(value);
+                if (!normalized.isEmpty()) {
+                    return normalized;
+                }
+            }
+            if (value.isEmpty() && isStringMetadataKey(key)) {
+                value = metadataString(metadata, key);
+            }
+            if (value != null) {
+                Matcher matcher = ISRC_PATTERN.matcher(value);
+                if (matcher.find()) {
+                    String normalized = TrackSnapshot.normalizeIsrc(matcher.group());
+                    if (!normalized.isEmpty()) {
+                        return normalized;
+                    }
+                }
+            }
+        }
+        return "";
+    }
+
+    private static String metadataString(MediaMetadata metadata, String key) {
+        if (metadata == null || key == null) {
+            return "";
+        }
+        try {
+            CharSequence value = metadata.getText(key);
+            return value == null ? "" : value.toString().trim();
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private static SpotifyAutomixMetadata spotifyAutomixMetadata(
+            MediaController controller,
+            MediaMetadata metadata
+    ) {
+        Bundle extras = controller == null ? null : controller.getExtras();
+        PlaybackState state = controller == null ? null : controller.getPlaybackState();
+        Bundle playbackExtras = state == null ? null : state.getExtras();
+        if (playbackExtras != null && !playbackExtras.isEmpty()) {
+            Bundle combined = new Bundle();
+            if (extras != null) combined.putAll(extras);
+            combined.putAll(playbackExtras);
+            extras = combined;
+        }
+        String productType = firstNamedPlaybackValue(
+                metadata,
+                extras,
+                "agentic_product_type"
+        );
+        String itemAutomixMode = firstNamedPlaybackValue(
+                metadata,
+                extras,
+                "audio.automix_mode"
+        );
+        String contextAutomixMode = firstNamedPlaybackValue(
+                metadata,
+                extras,
+                "automix.mode"
+        );
+        String lexiconSetType = firstNamedPlaybackValue(
+                metadata,
+                extras,
+                "lexicon_set_type"
+        );
+        String mixerEnabled = firstNamedPlaybackValue(
+                metadata,
+                extras,
+                "mixer_enabled"
+        );
+        String contextTitle = firstNonEmpty(
+                firstNamedPlaybackValue(metadata, extras, "context_title"),
+                firstNamedPlaybackValue(metadata, extras, "context_description")
+        );
+        String contextUri = firstNonEmpty(
+                firstNamedPlaybackValue(metadata, extras, "context_uri"),
+                firstNamedPlaybackValue(metadata, extras, "context.uri")
+        );
+        CharSequence queueTitleValue = controller == null ? null : controller.getQueueTitle();
+        String queueTitle = queueTitleValue == null
+                ? ""
+                : queueTitleValue.toString().trim().toLowerCase(Locale.ROOT);
+        String normalizedProductType = productType.toLowerCase(Locale.ROOT);
+        String normalizedItemAutomixMode = itemAutomixMode.toLowerCase(Locale.ROOT);
+        String normalizedContextAutomixMode = contextAutomixMode.toLowerCase(Locale.ROOT);
+        String normalizedLexiconSetType = lexiconSetType.toLowerCase(Locale.ROOT);
+        boolean enabled =
+                "dj".equals(normalizedProductType)
+                || "your_dj".equals(normalizedLexiconSetType)
+                || isEnabledAutomixMode(normalizedItemAutomixMode)
+                || isEnabledAutomixMode(normalizedContextAutomixMode)
+                || "true".equalsIgnoreCase(mixerEnabled)
+                || isSpotifyDjContext(contextTitle, contextUri)
+                || "dj".equals(queueTitle)
+                || "spotify dj".equals(queueTitle);
+        return new SpotifyAutomixMetadata(
+                enabled,
+                enabled || !contextTitle.isEmpty() || !contextUri.isEmpty(),
+                namedPlaybackLong(metadata, extras, "audio.fade_in_start_time"),
+                namedPlaybackLong(metadata, extras, "automix.fade_in_cuepoint.position"),
+                namedPlaybackLong(metadata, extras, "audio.fade_overlap")
+        );
+    }
+
+    private static boolean isEnabledAutomixMode(String value) {
+        return value != null
+                && !value.isEmpty()
+                && !"off".equals(value)
+                && !"none".equals(value);
+    }
+
+    private static boolean isSpotifyDjContext(String title, String uri) {
+        String normalizedTitle = title == null
+                ? ""
+                : title.trim().toLowerCase(Locale.ROOT);
+        if ("dj".equals(normalizedTitle) || "spotify dj".equals(normalizedTitle)) {
+            return true;
+        }
+        return uri != null && uri.toLowerCase(Locale.ROOT)
+                .contains(SPOTIFY_DJ_PLAYLIST_ID.toLowerCase(Locale.ROOT));
+    }
+
+    private static long namedPlaybackLong(
+            MediaMetadata metadata,
+            Bundle extras,
+            String targetKey
+    ) {
+        String value = firstNamedPlaybackValue(metadata, extras, targetKey);
+        if (value.isEmpty()) {
+            return 0L;
+        }
+        try {
+            return Math.max(0L, Long.parseLong(value));
+        } catch (NumberFormatException ignored) {
+            try {
+                return Math.max(0L, Math.round(Double.parseDouble(value)));
+            } catch (NumberFormatException ignoredAgain) {
+                return 0L;
+            }
+        }
+    }
+
+    private static String firstNamedPlaybackValue(
+            MediaMetadata metadata,
+            Bundle extras,
+            String targetKey
+    ) {
+        if (metadata != null) {
+            for (String key : metadata.keySet()) {
+                if (!playbackMetadataKeyMatches(key, targetKey)) {
+                    continue;
+                }
+                String text = metadataString(metadata, key);
+                if (!text.isEmpty()) {
+                    return text;
+                }
+                try {
+                    long value = metadata.getLong(key);
+                    if (value != 0L) {
+                        return String.valueOf(value);
+                    }
+                } catch (RuntimeException ignored) {
+                }
+            }
+        }
+        if (extras != null) {
+            for (String key : extras.keySet()) {
+                if (!playbackMetadataKeyMatches(key, targetKey)) {
+                    continue;
+                }
+                Object value = extras.get(key);
+                if (value != null) {
+                    return String.valueOf(value).trim();
+                }
+            }
+        }
+        return "";
+    }
+
+    private static boolean playbackMetadataKeyMatches(String key, String targetKey) {
+        String normalizedKey = key == null ? "" : key.trim().toLowerCase(Locale.ROOT);
+        String normalizedTarget = targetKey == null ? "" : targetKey.trim().toLowerCase(Locale.ROOT);
+        return normalizedKey.equals(normalizedTarget)
+                || normalizedKey.endsWith("." + normalizedTarget)
+                || normalizedKey.endsWith("/" + normalizedTarget)
+                || normalizedKey.endsWith(":" + normalizedTarget);
+    }
+
+    private static final class SpotifyAutomixMetadata {
+        final boolean enabled;
+        final boolean contextKnown;
+        final long fadeInStartMs;
+        final long fadeInCueMs;
+        final long fadeOverlapMs;
+
+        SpotifyAutomixMetadata(
+                boolean enabled,
+                boolean contextKnown,
+                long fadeInStartMs,
+                long fadeInCueMs,
+                long fadeOverlapMs
+        ) {
+            this.enabled = enabled;
+            this.contextKnown = contextKnown;
+            this.fadeInStartMs = fadeInStartMs;
+            this.fadeInCueMs = fadeInCueMs;
+            this.fadeOverlapMs = fadeOverlapMs;
+        }
+    }
+
+    private static boolean isStringMetadataKey(String key) {
+        if (key == null) {
+            return false;
+        }
+        switch (key) {
+            case MediaMetadata.METADATA_KEY_TITLE:
+            case MediaMetadata.METADATA_KEY_ARTIST:
+            case MediaMetadata.METADATA_KEY_ALBUM:
+            case MediaMetadata.METADATA_KEY_ALBUM_ARTIST:
+            case MediaMetadata.METADATA_KEY_AUTHOR:
+            case MediaMetadata.METADATA_KEY_WRITER:
+            case MediaMetadata.METADATA_KEY_COMPOSER:
+            case MediaMetadata.METADATA_KEY_COMPILATION:
+            case MediaMetadata.METADATA_KEY_DATE:
+            case MediaMetadata.METADATA_KEY_GENRE:
+            case MediaMetadata.METADATA_KEY_MEDIA_ID:
+            case MediaMetadata.METADATA_KEY_MEDIA_URI:
+            case MediaMetadata.METADATA_KEY_DISPLAY_TITLE:
+            case MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE:
+            case MediaMetadata.METADATA_KEY_DISPLAY_DESCRIPTION:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static Bitmap metadataBitmap(MediaMetadata metadata, String key) {
+        if (metadata == null || key == null) {
+            return null;
+        }
+        try {
+            return metadata.getBitmap(key);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static Bitmap descriptionIconBitmap(MediaMetadata metadata) {
+        if (metadata == null) {
+            return null;
+        }
+        try {
+            MediaDescription description = metadata.getDescription();
+            return description == null ? null : description.getIconBitmap();
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static String descriptionIconUri(MediaMetadata metadata) {
+        if (metadata == null) {
+            return "";
+        }
+        try {
+            MediaDescription description = metadata.getDescription();
+            Uri uri = description == null ? null : description.getIconUri();
+            return uri == null ? "" : uri.toString().trim();
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private static String firstNonEmpty(String first, String second) {
+        if (first != null && !first.trim().isEmpty()) {
+            return first.trim();
+        }
+        return second == null ? "" : second.trim();
+    }
+
+    private static <T> T firstNonNull(T first, T second) {
+        return first != null ? first : second;
+    }
+}

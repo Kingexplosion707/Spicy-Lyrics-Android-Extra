@@ -411,10 +411,19 @@ internal fun WallpaperLyrics(
         ),
     )
     // Prepared off the main thread: new lyrics arriving mid-transition don't stall its frames.
-    val prepared by androidx.compose.runtime.produceState<Pair<List<Line>, List<Line>>?>(null, lyrics.lines, config.isMinimal, config.isBloom, lyrics.lyricsType) {
+    // Line-timed songs, word by word on made-up timing, where that's on (not a word-synced song
+    // that power saving draws by the line: its words have their own timing).
+    val wordTimed = remember(lyrics.lines, lyrics.lyricsType, settings.wordByWord) {
+        settings.wordByWord && lyrics.lyricsType == LyricsType.Line &&
+            com.tx24.spicyplayer.lyrics.spicy.models.GeneratedWordTiming.applies(toRendererLines(lyrics))
+    }
+    val lyricsType = if (wordTimed) LyricsType.Syllable else lyrics.lyricsType
+    val prepared by androidx.compose.runtime.produceState<Pair<List<Line>, List<Line>>?>(null, lyrics.lines, config.isMinimal, config.isBloom, lyrics.lyricsType, wordTimed) {
         value = withContext(Dispatchers.Default) {
-            val original = toRendererLines(lyrics)
-            original to buildDisplayTimeline(original, minimalMode = config.isMinimal, holdThroughShortGaps = when (lyrics.lyricsType) {
+            val original = toRendererLines(lyrics).let {
+                if (wordTimed) com.tx24.spicyplayer.lyrics.spicy.models.GeneratedWordTiming.fillIn(it) else it
+            }
+            original to buildDisplayTimeline(original, minimalMode = config.isMinimal, holdThroughShortGaps = when (lyricsType) {
                 LyricsType.Syllable -> config.isMinimal
                 LyricsType.Line -> config.isBloom
                 else -> false
@@ -429,8 +438,8 @@ internal fun WallpaperLyrics(
     // Romanized as on the lyrics screen: with Romanize on, where the lyrics have it.
     val romanize = settings.romanize && remember(lyrics) { lyrics.lines.any { line -> line.words.any { it.romanized != null } } }
     val textCredits = settings.textCredits
-    if (com.tx24.spicyplayer.lyrics.motion.motionLyricsFit(settings.motionLyrics, originalLines, lyrics.lyricsType)) {
-        com.tx24.spicyplayer.lyrics.motion.MotionLyricsView(
+    if (com.tx24.spicyplayer.ivlyrics.motionLyricsFit(settings.motionLyrics, originalLines, lyricsType)) {
+        com.tx24.spicyplayer.ivlyrics.MotionLyricsView(
             lines = originalLines,
             documentId = remember(lyrics.lines) { lyrics.lines.hashCode().toString() },
             currentTimeMs = positionMs,
@@ -454,7 +463,7 @@ internal fun WallpaperLyrics(
         visible = visible,
         maxFrameRate = maxFrameRate,
         focusAnchorFraction = focusAnchorFraction,
-        lyricsType = lyrics.lyricsType,
+        lyricsType = lyricsType,
         config = config,
         fontSizeScale = fontSizeScale,
         romanizationMode = settings.romanizationMode,

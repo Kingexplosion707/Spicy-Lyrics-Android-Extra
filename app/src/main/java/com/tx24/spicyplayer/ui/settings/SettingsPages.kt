@@ -100,7 +100,9 @@ import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.HideImage
+import androidx.compose.material.icons.rounded.FormatTextdirectionLToR
 import androidx.compose.material.icons.rounded.Height
+import androidx.compose.material.icons.rounded.OndemandVideo
 import androidx.compose.material.icons.rounded.FormatSize
 import androidx.compose.material.icons.rounded.FormatAlignRight
 import androidx.compose.material.icons.rounded.FormatIndentIncrease
@@ -348,8 +350,15 @@ internal fun LyricsContent(state: PlayerUiState, viewModel: ExternalPlaybackView
         label = "Motion lyrics",
         checked = settings.motionLyrics,
         onCheckedChange = { settings.motionLyrics = it },
-        description = "Word-synced songs play as moving type, like a lyric video, here and on the wallpaper, overlay and always-on display.",
+        description = "Word-synced songs play as ivLyrics' moving type, like a lyric video, here and on the wallpaper, overlay and always-on display.",
         icon = Icons.Rounded.Movie,
+    )
+    ToggleRow(
+        label = "Word by word",
+        checked = settings.wordByWord,
+        onCheckedChange = { settings.wordByWord = it },
+        description = "Songs timed only by the line light word by word, on timing worked out from each word's length.",
+        icon = Icons.Rounded.FormatTextdirectionLToR,
     )
     ToggleRow(
         label = "Fade Away Previous Lines",
@@ -769,6 +778,14 @@ internal fun BackgroundContent(settings: AppSettings, viewModel: ExternalPlaybac
             enabled = !settings.lowPerformance,
         )
     }
+    ToggleRow(
+        label = "Music video",
+        checked = settings.musicVideoBackground && !settings.lowPerformance,
+        onCheckedChange = { settings.musicVideoBackground = it },
+        description = "Plays the song's music video from ivLyrics behind the lyrics, in time with the song. Other songs keep your background.",
+        icon = Icons.Rounded.OndemandVideo,
+        enabled = !settings.lowPerformance,
+    )
     // Next to the animated cover's rows: the other video a background can show.
     ToggleRow(
         label = "Show Canvas Where Available",
@@ -876,6 +893,13 @@ internal fun NowPlayingContent(settings: AppSettings, viewModel: ExternalPlaybac
         onCheckedChange = { settings.nextUpCard = it },
         description = "In the last 30 seconds of a song, show the one queued next at the bottom of the lyrics.",
         icon = Icons.Rounded.SkipNext,
+    )
+    ToggleRow(
+        label = "Vinyl mode",
+        checked = settings.vinylMode,
+        onCheckedChange = { settings.vinylMode = it },
+        description = "ivLyrics' record player over the lyrics: tap the record to play or pause, move the tonearm to seek.",
+        icon = Icons.Rounded.Album,
     )
     ToggleRow(
         label = "Animated Cover",

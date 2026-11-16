@@ -45,7 +45,7 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <!-- Gemini Nano (on-device translation) needs Android 8; it is only reached there (OnDeviceModel). -->
     <!-- Shizuku needs Android 7: its provider is off before that and the clock swap isn't offered. -->
-    <uses-sdk tools:overrideLibrary="com.google.mlkit.genai.prompt,com.google.mlkit.genai.common,rikka.shizuku.api,rikka.shizuku.provider,rikka.shizuku.shared,rikka.shizuku.aidl" />
+    <uses-sdk tools:overrideLibrary="com.google.mlkit.genai.prompt,com.google.mlkit.genai.common,rikka.shizuku.api,rikka.shizuku.provider,rikka.shizuku.shared,rikka.shizuku.aidl,kr.ivlis.ivlyricsandroid" />
 
     <!-- Makes media players visible (Android 11+) so their custom-action icons can be loaded. -->
     <queries>

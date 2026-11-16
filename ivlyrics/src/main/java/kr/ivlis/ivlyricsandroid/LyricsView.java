@@ -1,0 +1,6307 @@
+package kr.ivlis.ivlyricsandroid;
+
+import android.content.Context;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.LinearGradient;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
+import android.graphics.RectF;
+import android.graphics.Rect;
+import android.graphics.Shader;
+import android.graphics.Typeface;
+import android.os.SystemClock;
+import android.os.Bundle;
+import android.util.AttributeSet;
+import android.view.KeyEvent;
+import android.util.TypedValue;
+import android.view.MotionEvent;
+import android.view.VelocityTracker;
+import android.view.View;
+import android.view.ViewConfiguration;
+import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityManager;
+import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityNodeProvider;
+import android.widget.OverScroller;
+
+import java.text.Normalizer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+public final class LyricsView extends View {
+    private static final int VISIBLE_RADIUS = 2;
+    private static final float MAIN_TEXT_SP = 25f;
+    private static final float SUPPLEMENT_TEXT_SP = 14f;
+    private static final int SUPPLEMENT_PLACEHOLDER_COLOR = Color.TRANSPARENT;
+    private static final float EMPTY_TEXT_SP = 22f;
+    private static final float LINE_HEIGHT_MULTIPLIER = 1.34f;
+    private static final float FURIGANA_TEXT_RATIO = 0.42f;
+    private static final float FURIGANA_EXTRA_HEIGHT_RATIO = 0.34f;
+    private static final float PART_GAP_SP = 4f;
+    private static final float FURIGANA_MULTI_VOCAL_GAP_SP = 8f;
+    private static final float SUPPLEMENT_GAP_SP = 2f;
+    private static final float BLOCK_GAP_SP = 32f;
+    private static final float BOTTOM_EDGE_FADE_DP = 34f;
+    private static final int KARAOKE_VOCAL_STACK_CENTER_THRESHOLD = 4;
+    private static final long KARAOKE_RELEASE_WINDOW_MS = 820L;
+    private static final long KARAOKE_COMPLETED_COLOR_FADE_MS = 520L;
+    private static final long LYRICS_CENTERING_DURATION_MS = 300L;
+    private static final long LYRICS_CENTERING_LEAD_MS = 300L;
+    private static final long LYRICS_CENTERING_MAX_STAGGER_MS = 112L;
+    private static final long LYRICS_CENTERING_SETTLE_RESERVE_MS = 24L;
+    private static final long LYRICS_CENTERING_MIN_TOTAL_MS = 80L;
+    // Row travel planning: rows rest on the target's layout, follow the manual or
+    // smooth-seek center rigidly, or snap.
+    private static final int TRAVEL_REST = 0;
+    private static final int TRAVEL_TARGET = 1;
+    private static final int TRAVEL_FOLLOW = 2;
+    private static final int MAX_ROW_SHIFTS = 8;
+    private static final float[] EFFECT_TRANSLATE_X = {0f, -0.5f, 0.45f, -0.25f};
+    private static final float[] EFFECT_TRANSLATE_Y = {0f, 0.25f, -0.25f, -0.35f};
+    private static final long INTERLUDE_MIN_DURATION_MS = 500L;
+    private static final long KARAOKE_TRAILING_INTERLUDE_DELAY_MS = 3_500L;
+    private static final long MANUAL_SCROLL_HOLD_MS = 4_000L;
+    private static final int SPEAKER_B_COLOR = Color.rgb(139, 211, 255);
+    private static final int SPEAKER_C_COLOR = Color.rgb(255, 209, 102);
+    private static final int SPEAKER_D_COLOR = Color.rgb(196, 167, 255);
+    private static final int SPEAKER_SFX_COLOR = Color.rgb(244, 166, 200);
+    private static final int SPEAKER_KEY_CACHE_LIMIT = 64;
+    private static final Pattern MARKUP_TAG_PATTERN = Pattern.compile("<[^>]+>");
+    private static final Pattern INTERLUDE_HTML_TAG_PATTERN = Pattern.compile("</?[a-z][^>]*>", Pattern.CASE_INSENSITIVE);
+    private static final Pattern INTERLUDE_NUMERIC_ENTITY_PATTERN = Pattern.compile("&#(?:x([0-9a-f]+)|([0-9]+));?", Pattern.CASE_INSENSITIVE);
+    private static final String[][] INTERLUDE_MARKER_WRAPPERS = {
+            {"<", ">"}, {"＜", "＞"}, {"〈", "〉"}, {"《", "》"},
+            {"[", "]"}, {"［", "］"}, {"【", "】"},
+            {"(", ")"}, {"（", "）"}, {"{", "}"}, {"｛", "｝"}
+    };
+    private static final float[] LOADING_SKELETON_WIDTH_FACTORS = {0.62f, 0.86f, 0.74f, 0.92f, 0.56f};
+    private static final float[] LOADING_SKELETON_SHIMMER_STOPS = {0f, 0.5f, 1f};
+    private static final int[] LOADING_SKELETON_SHIMMER_COLORS = {0x00ffffff, 0x4effffff, 0x00ffffff};
+    private static final int[] LOADING_SKELETON_ACTIVE_SHIMMER_COLORS = {0x00ffffff, 0x76ffffff, 0x00ffffff};
+
+    private final Paint backgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint interludePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint skeletonPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final LinearGradient[] loadingSkeletonShaders = new LinearGradient[LOADING_SKELETON_WIDTH_FACTORS.length];
+    private final float[] loadingSkeletonShaderWidths = new float[LOADING_SKELETON_WIDTH_FACTORS.length];
+    private final Paint emptyIconPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint edgeFadePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final PorterDuffXfermode bottomEdgeFadeXfermode = new PorterDuffXfermode(PorterDuff.Mode.DST_IN);
+    private final Path emptyIconPath = new Path();
+    private final RectF edgeFadeBounds = new RectF();
+    private final RectF emptyIconOval = new RectF();
+    private final List<LineHitTarget> hitTargets = new ArrayList<>();
+    private final LineHitTarget pressedTargetSnapshot = new LineHitTarget();
+    private final KaraokeMotion.Values karaokeBounceResult = new KaraokeMotion.Values();
+    private long frameEffectTimeMs;
+    private boolean frameAnimationsEnabled;
+    private boolean frameHasLiveEffects;
+    private boolean frameProbeEnabled;
+    private String frameProbeOwner = "";
+    private long frameProbeHostCallNanos;
+    private final StringBuilder frameProbeLine = new StringBuilder(384);
+    private final Map<String, List<TextRow>> rowLayoutCache = new HashMap<>();
+    private final Map<String, String> normalizedSpeakerKeys = new HashMap<>();
+    private final Runnable rowPrewarmRunnable = this::prewarmRowLayouts;
+    private LinearGradient bottomEdgeFadeShader;
+    private float bottomEdgeFadeShaderTop = Float.NaN;
+    private int bottomEdgeFadeShaderBottom = Integer.MIN_VALUE;
+    private Typeface lyricTypeface;
+    private AiLyricsSettings.TypographySettings typographySettings = AiLyricsSettings.TypographySettings.defaults();
+    private AiLyricsSettings.SpeakerColorSettings speakerColorSettings = AiLyricsSettings.SpeakerColorSettings.defaults();
+    private final int[][] numberedSpeakerColors = new int[3][5];
+    private int normalSpeakerColor;
+    private boolean useCreatorSpeakerColors = true;
+    private String lyricsTextAlignment = AiLyricsSettings.LYRICS_ALIGN_LEFT;
+    private float typographySizeMultiplier = 1f;
+    private float sidePaddingSp = 18f;
+
+    private List<LyricsLine> lines = Collections.emptyList();
+    private List<DisplayLine> cachedDisplayLines = Collections.emptyList();
+    private List<DisplayLine> activeDisplayIndexCacheLines;
+    private FrameLineLayouts previousFrameLayouts = new FrameLineLayouts();
+    private InterludeExit exitingInterlude;
+    private FrameLineLayouts nextFrameLayouts = new FrameLineLayouts();
+    private boolean displayLineCacheValid;
+    private long displayLineCacheStartMs = Long.MIN_VALUE;
+    private long displayLineCacheEndMs = Long.MAX_VALUE;
+    private long activeDisplayIndexCacheStartMs = Long.MIN_VALUE;
+    private long activeDisplayIndexCacheEndMs = Long.MAX_VALUE;
+    private int activeDisplayIndexCacheValue;
+    private int activeDisplayFirstSingingCacheValue = -1;
+    private List<DisplayLine> visualCenterIndexCacheLines;
+    private long visualCenterIndexCacheStartMs = Long.MIN_VALUE;
+    private long visualCenterIndexCacheEndMs = Long.MAX_VALUE;
+    private int visualCenterIndexCacheValue;
+    private long positionMs;
+    /** Playback position at the frame's vsync, without rounding; continuous fill and bounce only. */
+    private double framePositionMs;
+    private final PlaybackRenderWindow playbackRenderWindow = new PlaybackRenderWindow();
+    /** Choreographer frame time supplied with {@link #framePositionMs}; System.nanoTime() clock. */
+    private long hostFrameTimeNanos;
+    /** Set by the host for the frame in progress; consumed by that frame's draw. */
+    private boolean hostFrameFresh;
+    /** Drawing time minus the host's frame time, last observed; estimates frames without a host. */
+    private long hostFrameOffsetNanos;
+    private boolean frameUsedHostTime;
+    private String emptyMessage = AppI18n.t("en", "status.lyrics_waiting");
+    private String loadingMessage = AppI18n.t("en", "status.lyrics_loading");
+    private String emptyFallbackMessage = AppI18n.t("en", "lyrics.empty_none");
+    private boolean loadingState;
+    /** The empty result is a loading placeholder ({@link LyricsResult#loading}), in any UI language. */
+    private boolean emptyLoading;
+    private String preludeLabel = AppI18n.t("en", "interlude.prelude");
+    private String breakLabel = AppI18n.t("en", "interlude.break");
+    private String postludeLabel = AppI18n.t("en", "interlude.postlude");
+    private boolean karaoke;
+    private boolean autoInstrumentalBreakEnabled = true;
+    private boolean interludeLabelsEnabled = true;
+    private boolean originalVisible = true;
+    private boolean emptyNoticeVisible = true;
+    private boolean syncedLyricsKaraokeAnimationEnabled = false;
+    private boolean karaokeBounceEffectEnabled = true;
+    /** Desktop's expressive karaoke motion, a style of the bounce (Settings > Karaoke). */
+    private boolean karaokeExpressiveMotion;
+    // Pronunciation rows that fill along karaoke timing (Settings > Karaoke).
+    private PronunciationFirst.Fill pronunciationFill = PronunciationFirst.Fill.NONE;
+    private String karaokeDisplayGranularity = AiLyricsSettings.KARAOKE_DISPLAY_CHARACTER;
+    private String lyricsSegmentationLocale = "auto";
+    private boolean japaneseFuriganaEnabled;
+    private boolean pronunciationLoading;
+    private boolean translationLoading;
+    private List<CulturalAnnotation> culturalAnnotations = Collections.emptyList();
+    private final Map<Integer, LineRenderInput> lineRenderInputs = new HashMap<>();
+    private String culturalAnnotationFontFamily = AiLyricsSettings.CULTURAL_FONT_PRETENDARD;
+    private int culturalAnnotationFontSize = 14;
+    private int culturalAnnotationFontWeight = 300;
+    private int culturalAnnotationOpacity = 60;
+    private boolean centerInitialized;
+    private float animatedCenterIndex;
+    private float centerTransitionStartIndex;
+    private int centerTransitionTargetIndex = Integer.MIN_VALUE;
+    private long centerTransitionStartUptimeMs;
+    private long centerTransitionDurationMs = LYRICS_CENTERING_DURATION_MS;
+    private boolean centerSnapped;
+    // Row travel: shifts still to cover toward the resting layout; presentation keeps
+    // animatedCenterIndex and its own curve.
+    private final List<LyricsLineMotion.Shift> rowShifts = new ArrayList<>();
+    private int rowTravelMode = TRAVEL_REST;
+    private float rowTravelCenter = Float.NaN;
+    private final List<DisplayLine> rowReflowLines = new ArrayList<>();
+    private boolean rowReflowPending;
+    private boolean rowReflowActive;
+    private long rowReflowStartUptimeMs;
+    private long rowReflowDurationMs;
+    private float rowReflowInitialRemaining = 1f;
+    private float rowReflowLastRemaining;
+    private int rowReflowCenterTargetIndex = Integer.MIN_VALUE;
+    private int currentDisplayLineCount;
+    private long trackDurationMs;
+    private float verticalCenterBias = 0.50f;
+    private long lastFrameMs;
+    private float animatedVocalAnchorOffsetPx;
+    private float vocalAnchorTransitionStartPx;
+    private float vocalAnchorTransitionTargetPx;
+    private long vocalAnchorTransitionStartUptimeMs;
+    private boolean vocalAnchorOffsetInitialized;
+    private int retainedVocalAnchorSourceIndex = Integer.MIN_VALUE;
+    private float retainedVocalAnchorOffsetPx = Float.NaN;
+    private long retainedVocalAnchorPositionMs = Long.MIN_VALUE;
+    private float manualCenterIndex;
+    private float scrollPixelsPerIndex = 1f;
+    private float manualScrollPixelsPerIndex = 1f;
+    private float touchStartY;
+    private float touchLastY;
+    private int touchSlop;
+    private boolean manualScrollActive;
+    private boolean draggingLyrics;
+    private long lastManualScrollUptimeMs;
+    private int rowPrewarmIndex;
+    private int minimumFlingVelocity;
+    private int maximumFlingVelocity;
+    private OverScroller manualScroller;
+    private VelocityTracker velocityTracker;
+    private OnSeekListener seekListener;
+    private LineHitTarget pressedTarget;
+    private int hitTargetCount;
+    private int accessibilityFocusedId = View.NO_ID;
+    private int hoveredVirtualId = View.NO_ID;
+    private final AccessibilityNodeProvider accessibilityNodeProvider = new LyricsAccessibilityNodeProvider();
+    private boolean smoothNextSeekCenter;
+    private boolean smoothSeekCenterActive;
+
+    public LyricsView(Context context) {
+        super(context);
+        init();
+    }
+
+    public LyricsView(Context context, AttributeSet attrs) {
+        super(context, attrs);
+        init();
+    }
+
+    void setResult(LyricsResult result) {
+        clearRowReflow();
+        boolean softUpdate = canSoftUpdateResult(result);
+        if (!softUpdate) exitingInterlude = null;
+        if (result == null || result.lines.isEmpty()) {
+            lines = Collections.emptyList();
+            emptyMessage = result == null || result.detail.isEmpty() ? emptyFallbackMessage : result.detail;
+            emptyLoading = result != null && result.loading;
+            karaoke = false;
+        } else {
+            lines = result.lines;
+            emptyMessage = "";
+            emptyLoading = false;
+            karaoke = result.karaoke || hasTimedKaraokeData(lines);
+        }
+        normalizedSpeakerKeys.clear();
+        lineRenderInputs.clear();
+        invalidateDisplayLineCache();
+        invalidateFrameGroupCache();
+        if (softUpdate) {
+            currentDisplayLineCount = Math.max(0, lines.size());
+            postInvalidateOnAnimation();
+            return;
+        }
+        centerInitialized = false;
+        centerTransitionTargetIndex = Integer.MIN_VALUE;
+        centerTransitionStartUptimeMs = 0L;
+        clearRowTravel();
+        lastFrameMs = 0L;
+        animatedVocalAnchorOffsetPx = 0f;
+        vocalAnchorTransitionStartPx = 0f;
+        vocalAnchorTransitionTargetPx = 0f;
+        vocalAnchorTransitionStartUptimeMs = 0L;
+        vocalAnchorOffsetInitialized = false;
+        retainedVocalAnchorSourceIndex = Integer.MIN_VALUE;
+        retainedVocalAnchorOffsetPx = Float.NaN;
+        retainedVocalAnchorPositionMs = Long.MIN_VALUE;
+        releaseHitTargets();
+        rowLayoutCache.clear();
+        rowPrewarmIndex = 0;
+        currentDisplayLineCount = Math.max(0, lines.size());
+        manualScrollActive = false;
+        draggingLyrics = false;
+        smoothNextSeekCenter = false;
+        smoothSeekCenterActive = false;
+        pressedTarget = null;
+        if (manualScroller != null) {
+            manualScroller.abortAnimation();
+        }
+        scheduleRowPrewarm();
+        postInvalidateOnAnimation();
+    }
+
+    private boolean canSoftUpdateResult(LyricsResult result) {
+        if (result == null || result.lines.isEmpty() || lines == null || lines.isEmpty()) {
+            return false;
+        }
+        if (result.lines.size() != lines.size()) {
+            return false;
+        }
+        for (int index = 0; index < lines.size(); index++) {
+            if (!sameRenderableLineStructure(lines.get(index), result.lines.get(index))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean sameRenderableLineStructure(LyricsLine current, LyricsLine next) {
+        if (current == next) {
+            return true;
+        }
+        if (current == null || next == null) {
+            return false;
+        }
+        if (current.startTimeMs != next.startTimeMs
+                || current.endTimeMs != next.endTimeMs
+                || !sameString(current.text, next.text)
+                || !sameString(current.speaker, next.speaker)
+                || !sameString(current.kind, next.kind)
+                || !sameSyllableStructure(current.syllables, next.syllables)) {
+            return false;
+        }
+        List<LyricsLine.VocalPart> currentParts = current.vocalParts == null
+                ? Collections.emptyList()
+                : current.vocalParts;
+        List<LyricsLine.VocalPart> nextParts = next.vocalParts == null
+                ? Collections.emptyList()
+                : next.vocalParts;
+        if (currentParts.size() != nextParts.size()) {
+            return false;
+        }
+        for (int index = 0; index < currentParts.size(); index++) {
+            if (!sameRenderablePartStructure(currentParts.get(index), nextParts.get(index))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean sameRenderablePartStructure(LyricsLine.VocalPart current, LyricsLine.VocalPart next) {
+        if (current == next) {
+            return true;
+        }
+        if (current == null || next == null) {
+            return false;
+        }
+        return current.startTimeMs == next.startTimeMs
+                && current.endTimeMs == next.endTimeMs
+                && sameString(current.id, next.id)
+                && sameString(current.role, next.role)
+                && sameString(current.speaker, next.speaker)
+                && sameString(current.kind, next.kind)
+                && sameString(current.text, next.text)
+                && sameSyllableStructure(current.syllables, next.syllables);
+    }
+
+    private boolean sameSyllableStructure(List<LyricsLine.Syllable> current, List<LyricsLine.Syllable> next) {
+        List<LyricsLine.Syllable> currentSyllables = current == null ? Collections.emptyList() : current;
+        List<LyricsLine.Syllable> nextSyllables = next == null ? Collections.emptyList() : next;
+        if (currentSyllables.size() != nextSyllables.size()) {
+            return false;
+        }
+        for (int index = 0; index < currentSyllables.size(); index++) {
+            LyricsLine.Syllable currentSyllable = currentSyllables.get(index);
+            LyricsLine.Syllable nextSyllable = nextSyllables.get(index);
+            if (currentSyllable == nextSyllable) {
+                continue;
+            }
+            if (currentSyllable == null
+                    || nextSyllable == null
+                    || currentSyllable.startTimeMs != nextSyllable.startTimeMs
+                    || currentSyllable.endTimeMs != nextSyllable.endTimeMs
+                    || !sameString(currentSyllable.text, nextSyllable.text)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean sameString(String current, String next) {
+        return (current == null ? "" : current).equals(next == null ? "" : next);
+    }
+
+    void setUiText(
+            String loadingMessage,
+            String emptyFallbackMessage,
+            String preludeLabel,
+            String breakLabel,
+            String postludeLabel
+    ) {
+        String nextLoadingMessage = loadingMessage == null || loadingMessage.trim().isEmpty()
+                ? AppI18n.t("en", "status.lyrics_loading")
+                : loadingMessage;
+        String nextEmptyFallbackMessage = emptyFallbackMessage == null || emptyFallbackMessage.trim().isEmpty()
+                ? AppI18n.t("en", "lyrics.empty_none")
+                : emptyFallbackMessage;
+        String nextPreludeLabel = preludeLabel == null || preludeLabel.trim().isEmpty()
+                ? AppI18n.t("en", "interlude.prelude")
+                : preludeLabel;
+        String nextBreakLabel = breakLabel == null || breakLabel.trim().isEmpty()
+                ? AppI18n.t("en", "interlude.break")
+                : breakLabel;
+        String nextPostludeLabel = postludeLabel == null || postludeLabel.trim().isEmpty()
+                ? AppI18n.t("en", "interlude.postlude")
+                : postludeLabel;
+        if (sameString(this.loadingMessage, nextLoadingMessage)
+                && sameString(this.emptyFallbackMessage, nextEmptyFallbackMessage)
+                && sameString(this.preludeLabel, nextPreludeLabel)
+                && sameString(this.breakLabel, nextBreakLabel)
+                && sameString(this.postludeLabel, nextPostludeLabel)) {
+            return;
+        }
+
+        this.loadingMessage = nextLoadingMessage;
+        this.emptyFallbackMessage = nextEmptyFallbackMessage;
+        this.preludeLabel = nextPreludeLabel;
+        this.breakLabel = nextBreakLabel;
+        this.postludeLabel = nextPostludeLabel;
+        if (lines.isEmpty() && (emptyMessage == null || emptyMessage.trim().isEmpty())) {
+            emptyMessage = this.emptyFallbackMessage;
+        }
+        postInvalidateOnAnimation();
+    }
+
+    void setLoadingState(boolean loading) {
+        if (loadingState == loading) {
+            return;
+        }
+        loadingState = loading;
+        postInvalidateOnAnimation();
+    }
+
+    void setTrackDuration(long durationMs) {
+        long nextDurationMs = Math.max(0L, durationMs);
+        if (trackDurationMs == nextDurationMs) {
+            return;
+        }
+        trackDurationMs = nextDurationMs;
+        invalidateDisplayLineCache();
+        postInvalidateOnAnimation();
+    }
+
+    void setAutoInstrumentalBreakEnabled(boolean enabled) {
+        if (autoInstrumentalBreakEnabled == enabled) {
+            return;
+        }
+        autoInstrumentalBreakEnabled = enabled;
+        invalidateDisplayLineCache();
+        centerInitialized = false;
+        postInvalidateOnAnimation();
+    }
+
+    void setInterludeLabelsEnabled(boolean enabled) {
+        if (interludeLabelsEnabled == enabled) {
+            return;
+        }
+        interludeLabelsEnabled = enabled;
+        postInvalidateOnAnimation();
+    }
+
+    void setOriginalVisible(boolean visible) {
+        if (originalVisible == visible) return;
+        originalVisible = visible;
+        rowLayoutCache.clear();
+        invalidateFrameGroupCache();
+        postInvalidateOnAnimation();
+    }
+
+    void setEmptyNoticeVisible(boolean visible) {
+        emptyNoticeVisible = visible;
+        postInvalidateOnAnimation();
+    }
+
+    void setSyncedLyricsKaraokeAnimationEnabled(boolean enabled) {
+        if (syncedLyricsKaraokeAnimationEnabled == enabled) {
+            return;
+        }
+        syncedLyricsKaraokeAnimationEnabled = enabled;
+        rowLayoutCache.clear();
+        invalidateFrameGroupCache();
+        postInvalidateOnAnimation();
+    }
+
+    void setKaraokeBounceEffectEnabled(boolean enabled) {
+        if (karaokeBounceEffectEnabled == enabled) {
+            return;
+        }
+        karaokeBounceEffectEnabled = enabled;
+        postInvalidateOnAnimation();
+    }
+
+    void setKaraokeExpressiveMotion(boolean enabled) {
+        if (karaokeExpressiveMotion == enabled) {
+            return;
+        }
+        karaokeExpressiveMotion = enabled;
+        postInvalidateOnAnimation();
+    }
+
+    /** Timed units for pronunciation rows; rows without units keep their plain text. */
+    void setPronunciationFill(PronunciationFirst.Fill fill) {
+        PronunciationFirst.Fill next = fill == null ? PronunciationFirst.Fill.NONE : fill;
+        if (pronunciationFill == next) {
+            return;
+        }
+        pronunciationFill = next;
+        invalidateFrameGroupCache();
+        postInvalidateOnAnimation();
+    }
+
+    void setKaraokeDisplayGranularity(String granularity) {
+        String normalized = AiLyricsSettings.normalizeKaraokeDisplayGranularity(granularity);
+        if (karaokeDisplayGranularity.equals(normalized)) {
+            return;
+        }
+        karaokeDisplayGranularity = normalized;
+        rowLayoutCache.clear();
+        invalidateFrameGroupCache();
+        postInvalidateOnAnimation();
+    }
+
+    void setLyricsSegmentationLocale(String locale) {
+        String normalized = locale == null || locale.trim().isEmpty() ? "auto" : locale.trim();
+        if (lyricsSegmentationLocale.equalsIgnoreCase(normalized)) {
+            return;
+        }
+        lyricsSegmentationLocale = normalized;
+        rowLayoutCache.clear();
+        invalidateFrameGroupCache();
+        postInvalidateOnAnimation();
+    }
+
+    void setJapaneseFuriganaEnabled(boolean enabled) {
+        if (japaneseFuriganaEnabled == enabled) {
+            return;
+        }
+        japaneseFuriganaEnabled = enabled;
+        rowLayoutCache.clear();
+        invalidateFrameGroupCache();
+        postInvalidateOnAnimation();
+    }
+
+    void setTypographySettings(AiLyricsSettings.TypographySettings settings) {
+        typographySettings = settings == null ? AiLyricsSettings.TypographySettings.defaults() : settings;
+        rowLayoutCache.clear();
+        invalidateFrameGroupCache();
+        requestLayout();
+        postInvalidateOnAnimation();
+    }
+
+    void setTypographySizeMultiplier(float multiplier) {
+        float safeMultiplier = Math.max(0.5f, Math.min(1.8f, multiplier));
+        if (Math.abs(typographySizeMultiplier - safeMultiplier) < 0.001f) {
+            return;
+        }
+        typographySizeMultiplier = safeMultiplier;
+        rowLayoutCache.clear();
+        invalidateFrameGroupCache();
+        requestLayout();
+        postInvalidateOnAnimation();
+    }
+
+    void setSidePaddingSp(float paddingSp) {
+        float safePaddingSp = Math.max(0f, paddingSp);
+        if (sidePaddingSp == safePaddingSp) return;
+        sidePaddingSp = safePaddingSp;
+        clearRowReflow();
+        rowLayoutCache.clear();
+        invalidateFrameGroupCache();
+        releaseHitTargets();
+        rowPrewarmIndex = 0;
+        scheduleRowPrewarm();
+        postInvalidateOnAnimation();
+    }
+
+    void setSpeakerColorSettings(AiLyricsSettings.SpeakerColorSettings settings) {
+        speakerColorSettings = settings == null ? AiLyricsSettings.SpeakerColorSettings.defaults() : settings;
+        normalSpeakerColor = 0;
+        for (int[] colors : numberedSpeakerColors) {
+            Arrays.fill(colors, 0);
+        }
+        invalidateFrameGroupCache();
+        postInvalidateOnAnimation();
+    }
+
+    void setUseCreatorSpeakerColors(boolean enabled) {
+        if (useCreatorSpeakerColors == enabled) {
+            return;
+        }
+        useCreatorSpeakerColors = enabled;
+        invalidateFrameGroupCache();
+        postInvalidateOnAnimation();
+    }
+
+    void setLyricTextAlignment(String alignment) {
+        String normalized = AiLyricsSettings.normalizeLyricsTextAlignment(alignment);
+        if (normalized.equals(lyricsTextAlignment)) {
+            return;
+        }
+        lyricsTextAlignment = normalized;
+        postInvalidateOnAnimation();
+    }
+
+    void setSupplementLoading(boolean pronunciation, boolean translation) {
+        if (pronunciationLoading == pronunciation && translationLoading == translation) {
+            return;
+        }
+        pronunciationLoading = pronunciation;
+        translationLoading = translation;
+        invalidateFrameGroupCache();
+        postInvalidateOnAnimation();
+    }
+
+    void setCulturalAnnotations(
+            List<CulturalAnnotation> annotations,
+            String fontFamily,
+            int fontSize,
+            int fontWeight,
+            int opacity
+    ) {
+        List<CulturalAnnotation> nextAnnotations = annotations == null
+                ? Collections.emptyList()
+                : Collections.unmodifiableList(new ArrayList<>(annotations));
+        String nextFamily = AiLyricsSettings.normalizeCulturalFontFamily(fontFamily);
+        int nextSize = Math.max(10, Math.min(28, fontSize));
+        int nextWeight = AiLyricsSettings.normalizeCulturalFontWeight(fontWeight);
+        int nextOpacity = Math.max(20, Math.min(100, opacity));
+        if (culturalAnnotations.equals(nextAnnotations)
+                && culturalAnnotationFontFamily.equals(nextFamily)
+                && culturalAnnotationFontSize == nextSize
+                && culturalAnnotationFontWeight == nextWeight
+                && culturalAnnotationOpacity == nextOpacity) {
+            return;
+        }
+        culturalAnnotations = nextAnnotations;
+        lineRenderInputs.clear();
+        culturalAnnotationFontFamily = nextFamily;
+        culturalAnnotationFontSize = nextSize;
+        culturalAnnotationFontWeight = nextWeight;
+        culturalAnnotationOpacity = nextOpacity;
+        rowLayoutCache.clear();
+        invalidateFrameGroupCache();
+        requestLayout();
+        postInvalidateOnAnimation();
+    }
+
+    void setPlaybackPosition(long positionMs) {
+        long nextPositionMs = Math.max(0L, positionMs);
+        updatePlaybackPosition(nextPositionMs, nextPositionMs);
+    }
+
+    /**
+     * The host stopped drawing this view while another window covered it. Transitions that a
+     * frame starts when it first sees a change (centering, row travel and reflow, the vocal
+     * anchor) could not run meanwhile, so the next frame shows the resting layout of the
+     * current position, as a seek does, instead of starting them late.
+     */
+    void resumeAfterCover() {
+        playbackRenderWindow.invalidate();
+        clearRowReflow();
+        clearRowTravel();
+        centerInitialized = false;
+        smoothSeekCenterActive = false;
+        vocalAnchorOffsetInitialized = false;
+        lastFrameMs = 0L;
+    }
+
+    /**
+     * Playback position at a Choreographer frame time. Discrete line and glyph states
+     * use its whole milliseconds; the continuous fill edge and bounce use the exact value,
+     * so every display frame paints the position of its own vsync.
+     */
+    void setPlaybackFrame(double positionMs, long frameTimeNanos) {
+        double exact = Double.isFinite(positionMs) ? Math.max(0d, positionMs) : 0d;
+        hostFrameTimeNanos = frameTimeNanos;
+        hostFrameFresh = frameTimeNanos > 0L;
+        if (frameProbeEnabled) frameProbeHostCallNanos = System.nanoTime();
+        updatePlaybackPosition((long) Math.floor(exact), exact);
+    }
+
+    private void updatePlaybackPosition(long nextPositionMs, double nextFramePositionMs) {
+        if (lines.isEmpty()) {
+            this.positionMs = nextPositionMs;
+            framePositionMs = nextFramePositionMs;
+            // Empty content is independent of playback; loading drives its own animation.
+            // Still notice system motion changes while its fixed loading frame is idle.
+            if (isLoadingEmptyMessage()
+                    && frameAnimationsEnabled != MotionPreferences.animationsEnabled(getContext())) {
+                postInvalidateOnAnimation();
+            }
+            return;
+        }
+        if (this.positionMs == nextPositionMs && framePositionMs == nextFramePositionMs && !smoothNextSeekCenter) {
+            return;
+        }
+        boolean smoothSeekCenter = smoothNextSeekCenter && centerInitialized;
+        smoothNextSeekCenter = false;
+        if (smoothSeekCenter || nextPositionMs + 120L < this.positionMs
+                || Math.abs(nextPositionMs - this.positionMs) > 1600L) {
+            clearRowReflow();
+            invalidateFrameGroupCache();
+        }
+        if (nextPositionMs + 120L < this.positionMs || Math.abs(nextPositionMs - this.positionMs) > 1600L) {
+            smoothSeekCenterActive = smoothSeekCenter;
+            centerInitialized = smoothSeekCenter;
+            manualScrollActive = false;
+            draggingLyrics = false;
+            pressedTarget = null;
+            if (manualScroller != null) {
+                manualScroller.abortAnimation();
+            }
+            lastFrameMs = 0L;
+        } else if (smoothSeekCenter) {
+            smoothSeekCenterActive = true;
+            manualScrollActive = false;
+            draggingLyrics = false;
+            lastFrameMs = 0L;
+        }
+        this.positionMs = nextPositionMs;
+        framePositionMs = nextFramePositionMs;
+        if (smoothSeekCenter || !canReusePlaybackFrame(nextFramePositionMs)) postInvalidateOnAnimation();
+    }
+
+    private boolean canReusePlaybackFrame(double nextPositionMs) {
+        return !manualScrollActive && !draggingLyrics && !smoothNextSeekCenter
+                && playbackRenderWindow.contains(nextPositionMs);
+    }
+
+    void refreshMotionPreferences() {
+        if (frameAnimationsEnabled != MotionPreferences.animationsEnabled(getContext())) {
+            playbackRenderWindow.invalidate();
+            postInvalidateOnAnimation();
+        }
+    }
+
+    void setOnSeekListener(OnSeekListener seekListener) {
+        this.seekListener = seekListener;
+    }
+
+    void setVerticalCenterBias(float verticalCenterBias) {
+        this.verticalCenterBias = Math.max(0.30f, Math.min(0.58f, verticalCenterBias));
+        postInvalidateOnAnimation();
+    }
+
+    private void init() {
+        setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
+        lyricTypeface = AppFonts.semiBold(getContext());
+        setWillNotDraw(false);
+        setClickable(true);
+        setFocusable(true);
+        setFocusableInTouchMode(false);
+        setDefaultFocusHighlightEnabled(true);
+        ViewConfiguration configuration = ViewConfiguration.get(getContext());
+        touchSlop = configuration.getScaledTouchSlop();
+        minimumFlingVelocity = configuration.getScaledMinimumFlingVelocity();
+        maximumFlingVelocity = configuration.getScaledMaximumFlingVelocity();
+        manualScroller = new OverScroller(getContext());
+        textPaint.setTypeface(lyricTypeface);
+        textPaint.setSubpixelText(true);
+    }
+
+    @Override
+    public AccessibilityNodeProvider getAccessibilityNodeProvider() {
+        return accessibilityNodeProvider;
+    }
+
+    @Override
+    public boolean dispatchHoverEvent(MotionEvent event) {
+        AccessibilityManager manager = (AccessibilityManager) getContext().getSystemService(Context.ACCESSIBILITY_SERVICE);
+        if (manager == null || !manager.isTouchExplorationEnabled() || hitTargetCount == 0) {
+            return super.dispatchHoverEvent(event);
+        }
+        int id = virtualIdAt(event.getY());
+        if (event.getActionMasked() == MotionEvent.ACTION_HOVER_EXIT) id = View.NO_ID;
+        if (id != hoveredVirtualId) {
+            if (hoveredVirtualId != View.NO_ID) sendVirtualEvent(hoveredVirtualId, AccessibilityEvent.TYPE_VIEW_HOVER_EXIT);
+            hoveredVirtualId = id;
+            if (id != View.NO_ID) sendVirtualEvent(id, AccessibilityEvent.TYPE_VIEW_HOVER_ENTER);
+        }
+        return id != View.NO_ID || event.getActionMasked() == MotionEvent.ACTION_HOVER_EXIT;
+    }
+
+    private int virtualIdAt(float y) {
+        for (int i = 0; i < hitTargetCount; i++) {
+            LineHitTarget target = hitTargets.get(i);
+            if (y >= target.top && y <= target.bottom) return target.virtualId;
+        }
+        return View.NO_ID;
+    }
+
+    private void sendVirtualEvent(int id, int type) {
+        LineHitTarget target = hitTargetForVirtualId(id);
+        if (id == View.NO_ID) return;
+        AccessibilityEvent event = AccessibilityEvent.obtain(type);
+        event.setPackageName(getContext().getPackageName());
+        event.setClassName(android.widget.Button.class.getName());
+        event.setSource(this, id);
+        if (target != null && !target.label.isEmpty()) event.getText().add(target.label);
+        if (getParent() != null) getParent().requestSendAccessibilityEvent(this, event);
+    }
+
+    private final class LyricsAccessibilityNodeProvider extends AccessibilityNodeProvider {
+        @Override public AccessibilityNodeInfo createAccessibilityNodeInfo(int virtualViewId) {
+            if (virtualViewId == View.NO_ID) {
+                AccessibilityNodeInfo host = AccessibilityNodeInfo.obtain(LyricsView.this);
+                onInitializeAccessibilityNodeInfo(host);
+                host.setClassName(android.widget.ScrollView.class.getName());
+                for (int i = 0; i < hitTargetCount; i++) host.addChild(LyricsView.this, hitTargets.get(i).virtualId);
+                return host;
+            }
+            LineHitTarget target = hitTargetForVirtualId(virtualViewId);
+            if (target == null) return null;
+            AccessibilityNodeInfo node = AccessibilityNodeInfo.obtain();
+            node.setPackageName(getContext().getPackageName());
+            node.setClassName(android.widget.Button.class.getName());
+            node.setSource(LyricsView.this, virtualViewId);
+            node.setParent(LyricsView.this);
+            node.setText(target.label);
+            node.setContentDescription(target.label);
+            node.setClickable(seekListener != null);
+            node.setEnabled(true);
+            node.setVisibleToUser(target.bottom > 0 && target.top < getHeight());
+            node.setSelected(target.active);
+            node.setBoundsInParent(new Rect(0, Math.max(0, Math.round(target.top)), getWidth(), Math.min(getHeight(), Math.round(target.bottom))));
+            int[] location = new int[2];
+            getLocationOnScreen(location);
+            node.setBoundsInScreen(new Rect(
+                    location[0],
+                    location[1] + Math.max(0, Math.round(target.top)),
+                    location[0] + getWidth(),
+                    location[1] + Math.min(getHeight(), Math.round(target.bottom))
+            ));
+            if (seekListener != null) node.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_CLICK);
+            if (accessibilityFocusedId == virtualViewId) {
+                node.setAccessibilityFocused(true);
+                node.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_CLEAR_ACCESSIBILITY_FOCUS);
+            } else node.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_ACCESSIBILITY_FOCUS);
+            return node;
+        }
+
+        @Override public boolean performAction(int virtualViewId, int action, Bundle arguments) {
+            LineHitTarget target = hitTargetForVirtualId(virtualViewId);
+            if (target == null) return false;
+            if (action == AccessibilityNodeInfo.ACTION_CLICK && seekListener != null) {
+                seekListener.onSeekRequested(target.seekTimeMs);
+                sendVirtualEvent(virtualViewId, AccessibilityEvent.TYPE_VIEW_CLICKED);
+                return true;
+            }
+            if (action == AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS) {
+                int previous = accessibilityFocusedId;
+                if (previous != View.NO_ID && previous != virtualViewId) {
+                    accessibilityFocusedId = View.NO_ID;
+                    sendVirtualEvent(previous, AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUS_CLEARED);
+                }
+                accessibilityFocusedId = virtualViewId;
+                sendVirtualEvent(virtualViewId, AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED);
+                invalidate();
+                return true;
+            }
+            if (action == AccessibilityNodeInfo.ACTION_CLEAR_ACCESSIBILITY_FOCUS && accessibilityFocusedId == virtualViewId) {
+                accessibilityFocusedId = View.NO_ID;
+                sendVirtualEvent(virtualViewId, AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUS_CLEARED);
+                invalidate();
+                return true;
+            }
+            return false;
+        }
+
+        @Override public AccessibilityNodeInfo findFocus(int focus) {
+            if (focus != AccessibilityNodeInfo.FOCUS_ACCESSIBILITY || accessibilityFocusedId == View.NO_ID) return null;
+            return createAccessibilityNodeInfo(accessibilityFocusedId);
+        }
+    }
+
+    private LineHitTarget hitTargetForVirtualId(int virtualId) {
+        for (int i = 0; i < hitTargetCount; i++) {
+            LineHitTarget target = hitTargets.get(i);
+            if (target.virtualId == virtualId) return target;
+        }
+        return null;
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (lines.isEmpty()) {
+            return super.onKeyDown(keyCode, event);
+        }
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_UP:
+                return moveRemoteSelection(event != null && event.isShiftPressed() ? -5 : -1);
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+                return moveRemoteSelection(event != null && event.isShiftPressed() ? 5 : 1);
+            case KeyEvent.KEYCODE_PAGE_UP:
+                return moveRemoteSelection(-5);
+            case KeyEvent.KEYCODE_PAGE_DOWN:
+                return moveRemoteSelection(5);
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+            case KeyEvent.KEYCODE_NUMPAD_ENTER:
+                return seekRemoteSelection() || super.onKeyDown(keyCode, event);
+            default:
+                return super.onKeyDown(keyCode, event);
+        }
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        frameProbeEnabled = LyricsFrameProbe.enabled(getContext());
+        if (frameProbeEnabled) frameProbeOwner = LyricsFrameProbe.owner(getContext());
+    }
+
+    @Override
+    protected void onDraw(Canvas canvas) {
+        super.onDraw(canvas);
+        playbackRenderWindow.invalidate();
+        long frameProbeStartNs = frameProbeEnabled ? System.nanoTime() : 0L;
+        // Every glyph and its fill pass share one monotonic clock and preference
+        // snapshot. Settings.Global must not be queried several times per glyph.
+        frameEffectTimeMs = SystemClock.uptimeMillis();
+        frameAnimationsEnabled = MotionPreferences.animationsEnabled(getContext());
+        frameHasLiveEffects = false;
+        drawBackground(canvas);
+
+        if (lines.isEmpty()) {
+            releaseHitTargets();
+            invalidateFrameGroupCache();
+            drawEmpty(canvas);
+            return;
+        }
+
+        List<DisplayLine> displayLines = buildDisplayLines();
+        if (displayLines.isEmpty()) {
+            releaseHitTargets();
+            invalidateFrameGroupCache();
+            drawEmpty(canvas);
+            return;
+        }
+        currentDisplayLineCount = displayLines.size();
+
+        int activeIndex = findActiveDisplayIndex(displayLines);
+        int visualCenterIndex = findVisualCenterDisplayIndex(displayLines, activeIndex);
+        centerSnapped = false;
+        updateDisplayCenter(visualCenterIndex, adaptiveCenteringDuration(displayLines, visualCenterIndex));
+
+        int anchorIndex = Math.max(0, Math.min(displayLines.size() - 1, (int) Math.floor(animatedCenterIndex)));
+        int firstIndex = Math.max(0, anchorIndex - VISIBLE_RADIUS - 2);
+        if (!manualScrollActive && activeDisplayFirstSingingCacheValue >= 0) {
+            firstIndex = Math.min(firstIndex, activeDisplayFirstSingingCacheValue);
+        }
+        int lastIndex = Math.min(displayLines.size() - 1, anchorIndex + VISIBLE_RADIUS + 3);
+        FrameLineLayouts layouts = nextFrameLayouts;
+        layouts.beginFrame();
+        for (int displayIndex = firstIndex; displayIndex <= lastIndex; displayIndex++) {
+            DisplayLine displayLine = displayLines.get(displayIndex);
+            LineVisualState visualState = lineVisualState(displayLines, displayIndex);
+            boolean active = visualState.highlighted;
+            float distance = Math.abs(displayIndex - animatedCenterIndex);
+            LineLayout previousLayout = layoutAt(previousFrameLayouts, displayIndex);
+            List<DrawGroup> groups = !active
+                    && !visualState.animating
+                    && visualState.completedColorOpacity <= 0f
+                    && previousLayout != null
+                    && !previousLayout.active
+                    && !previousLayout.animationActive
+                    && previousLayout.displayLine == displayLine
+                    && Float.compare(previousLayout.distance, distance) == 0
+                    ? previousLayout.groups
+                    : buildLyricGroups(
+                            displayLine,
+                            active,
+                            visualState.animating,
+                            visualState.completedColorOpacity,
+                            distance
+                    );
+            layouts.addValues(
+                    displayIndex,
+                    displayLine,
+                    active,
+                    visualState.animating,
+                    distance,
+                    groups,
+                    groupsHeight(groups)
+            );
+        }
+        layouts.finishFrame();
+        captureExitingInterlude(previousFrameLayouts, layouts);
+        FrameLineLayouts reusableFrameLayouts = previousFrameLayouts;
+        previousFrameLayouts = layouts;
+        nextFrameLayouts = reusableFrameLayouts;
+
+        float centerY = getHeight() * verticalCenterBias;
+        float blockGap = Math.max(sp(BLOCK_GAP_SP), getHeight() * 0.037f);
+        updateScrollPixelsPerIndex(layouts, blockGap);
+        float targetVocalAnchorOffset = manualScrollActive
+                ? 0f
+                : activeVocalAnchorOffset(layoutAt(layouts, activeIndex));
+        updateAnimatedVocalAnchorOffset(targetVocalAnchorOffset);
+        float anchoredCenterY = centerY - animatedVocalAnchorOffsetPx;
+        prepareRowReflow();
+        float reflowRemaining = rowReflowRemaining();
+        prepareAnchorOffsets(layouts, anchorIndex, blockGap);
+        long frameNanos = frameTimeNanos();
+        float restingCenter = updateRowTravel(displayLines, layouts, frameNanos, blockGap);
+        float restingScroll = scrollOffsetAt(layouts, restingCenter, blockGap);
+
+        beginHitTargetFrame();
+        int lyricLayer = canvas.saveLayer(edgeFadeBounds(0f, 0f, getWidth(), getHeight()), null);
+        for (LineLayout layout : layouts) {
+            float baselineCenter = anchoredCenterY + layout.anchorOffset - restingScroll
+                    + rowTravelOffset(layout.index, frameNanos);
+            RowReflow reflow = layout.displayLine.reflow;
+            if (reflow != null) {
+                baselineCenter += reflow.offset(baselineCenter, reflowRemaining);
+            }
+            layout.baselineCenter = baselineCenter;
+            if (baselineCenter + layout.height * 0.5f < -blockGap
+                    || baselineCenter - layout.height * 0.5f > getHeight() + blockGap) {
+                continue;
+            }
+            addHitTarget(layout, baselineCenter, blockGap);
+            float fadeAlpha = layout.active
+                    ? 1f
+                    : topFadeAlpha(baselineCenter, layout.height);
+            if (reflow != null) {
+                fadeAlpha *= reflow.opacity(reflowRemaining);
+            }
+            if (fadeAlpha <= 0f && !layout.animationActive) {
+                // Fully faded at the top edge and not animating: every paint would be transparent.
+                continue;
+            }
+            drawGroups(canvas, layout.groups, baselineCenter, fadeAlpha);
+        }
+        drawExitingInterlude(canvas, layouts);
+        applyBottomEdgeFade(canvas);
+        canvas.restoreToCount(lyricLayer);
+        if (frameProbeEnabled) {
+            logFrameProbe(frameProbeStartNs, activeIndex, visualCenterIndex, layouts, frameNanos, restingCenter);
+        }
+
+        boolean activeInterlude = activeIndex >= 0
+                && activeIndex < displayLines.size()
+                && displayLines.get(activeIndex).isInterlude();
+        boolean vocalAnchorMoving = Math.abs(targetVocalAnchorOffset - animatedVocalAnchorOffsetPx) > 0.5f;
+        rememberPlaybackFrame(displayLines, layouts, visualCenterIndex, vocalAnchorMoving);
+        // Playback-driven fill/motion is invalidated by the host's frame clock.
+        // Continue locally only for wall-clock effects, interludes and layout settling.
+        if (frameAnimationsEnabled
+                && (frameHasLiveEffects || activeInterlude || exitingInterlude != null
+                || Math.abs(visualCenterIndex - animatedCenterIndex) > 0.002f)) {
+            postInvalidateOnAnimation();
+        } else if (vocalAnchorMoving || rowReflowActive || !rowShifts.isEmpty()) {
+            postInvalidateOnAnimation();
+        }
+    }
+
+    /** Capture every position-dependent input of the frame just drawn. */
+    private void rememberPlaybackFrame(List<DisplayLine> displayed, FrameLineLayouts layouts,
+            int centerIndex, boolean vocalAnchorMoving) {
+        PlaybackRenderWindow window = playbackRenderWindow;
+        window.begin(framePositionMs);
+        window.boundary(displayLineCacheStartMs);
+        window.boundary(displayLineCacheEndMs);
+        window.boundary(activeDisplayIndexCacheStartMs);
+        window.boundary(activeDisplayIndexCacheEndMs);
+        if (karaoke && syncedLyricsKaraokeAnimationEnabled && frameAnimationsEnabled) {
+            window.boundary(visualCenterIndexCacheStartMs - (double) LYRICS_CENTERING_LEAD_MS);
+            window.boundary(visualCenterIndexCacheEndMs - (double) LYRICS_CENTERING_LEAD_MS);
+        }
+        if (manualScrollActive || draggingLyrics || smoothSeekCenterActive || rowReflowActive
+                || rowReflowPending || !rowShifts.isEmpty() || vocalAnchorMoving
+                || frameHasLiveEffects || exitingInterlude != null
+                || Math.abs(centerIndex - animatedCenterIndex) > 0.002f) {
+            window.invalidate();
+            return;
+        }
+        for (LineLayout layout : layouts) {
+            DisplayLine row = layout.displayLine;
+            if (row.isTimed()) {
+                long start = row.startTimeMs();
+                long contentEnd = displayLineContentEndTime(row);
+                long holdEnd = contentEnd;
+                for (int i = layout.index + 1; i < displayed.size(); i++) {
+                    DisplayLine next = displayed.get(i);
+                    if (next.isTimed() && next.startTimeMs() > start) {
+                        holdEnd = Math.max(contentEnd, next.startTimeMs());
+                        break;
+                    }
+                }
+                window.boundary(start);
+                window.boundary(contentEnd + KARAOKE_RELEASE_WINDOW_MS);
+                window.motion(holdEnd, holdEnd + KARAOKE_COMPLETED_COLOR_FADE_MS);
+                if (!window.contains(framePositionMs)) return;
+            }
+            if (row.line != null) {
+                for (LyricsLine.VocalPart part : row.line.vocalParts) {
+                    window.boundary(part.startTimeMs);
+                    window.boundary(Math.max(part.startTimeMs, part.endTimeMs) + KARAOKE_RELEASE_WINDOW_MS);
+                    // The stacked-vocal anchor falls back to the parent bounds for untimed
+                    // parts, and includes the effective end millisecond.
+                    long anchorStart = part.startTimeMs > 0L ? part.startTimeMs : row.line.startTimeMs;
+                    long anchorEnd = part.endTimeMs > anchorStart ? part.endTimeMs
+                            : Math.max(anchorStart, row.line.endTimeMs);
+                    window.boundary(anchorStart);
+                    window.boundary(anchorEnd + 1d);
+                }
+            }
+            for (DrawGroup group : layout.groups) {
+                if (group.isInterlude() && frameAnimationsEnabled) {
+                    window.invalidate();
+                    return;
+                }
+                boolean expressive = expressiveMotionActive(group);
+                if (expressive && group.active) {
+                    // The line being sung eases its pending pose in before it starts.
+                    window.motion(group.lineStartTimeMs - KaraokeExpressiveMotion.POSE_EASE_MS, group.lineStartTimeMs);
+                    window.boundary(group.lineEndTimeMs);
+                }
+                for (TextRow textRow : group.rows) {
+                    for (TextSegment segment : textRow.segments) {
+                        window.boundary(segment.startTimeMs);
+                        if (group.rendersTimedFill()) {
+                            if (isWordDisplayGranularity()) window.boundary(segment.fillStartTimeMs);
+                            else window.motion(segment.fillStartTimeMs, segment.fillEndTimeMs);
+                        }
+                        if (expressive) {
+                            KaraokeExpressiveMotion.Unit unit = segment.expressiveUnit;
+                            if (unit != null) {
+                                window.motion(unit.start, Math.max(unit.start, unit.end) + KaraokeExpressiveMotion.SETTLE_MS);
+                            }
+                        } else if (frameAnimationsEnabled && !isLineDisplayGranularity()
+                                && karaokeBounceEffectEnabled && !group.supplement && segment.motionProfile != null) {
+                            window.motion(segment.motionProfile.startTime,
+                                    segment.motionProfile.endTime + segment.motionProfile.releaseDuration);
+                        }
+                        if (!window.contains(framePositionMs)) return;
+                    }
+                }
+            }
+        }
+    }
+
+    /** Debug-only: one line per drawn frame with the values this frame painted. */
+    private void logFrameProbe(long startNs, int activeIndex, int targetIndex, List<LineLayout> layouts,
+            long frameNanos, float restingCenter) {
+        LineLayout activeLayout = layoutAt(layouts, activeIndex);
+        double fillPx = 0d;
+        float lift = 0f;
+        float liftScale = 1f;
+        if (activeLayout != null) {
+            for (DrawGroup group : activeLayout.groups) {
+                if (group.isInterlude() || group.supplement || !group.rendersTimedFill()) continue;
+                for (TextRow row : group.rows) {
+                    for (TextSegment segment : row.segments) {
+                        fillPx += segment.textWidth * segmentFillFraction(segment);
+                        KaraokeMotion.Values bounce = karaokeMotion(segment, group);
+                        if (bounce.active && bounce.offsetY < lift) {
+                            lift = bounce.offsetY;
+                            liftScale = bounce.scale;
+                        }
+                    }
+                }
+            }
+        }
+        StringBuilder line = frameProbeLine;
+        line.setLength(0);
+        line.append("LV vsync=").append(getDrawingTime()).append(" vsyncExact=");
+        LyricsFrameProbe.appendFixed(line, frameNanos / 1_000_000d, 4);
+        line.append(" host=").append(frameUsedHostTime ? 1 : 0).append(" hostMs=");
+        LyricsFrameProbe.appendFixed(line, hostFrameTimeNanos / 1_000_000d, 4);
+        line.append(" hostCallAgo=");
+        LyricsFrameProbe.appendFixed(line, (startNs - frameProbeHostCallNanos) / 1_000_000d, 3);
+        line.append(" draw=");
+        LyricsFrameProbe.appendFixed(line, startNs / 1_000_000d, 3);
+        line.append(" pos=").append(positionMs).append(" posExact=");
+        LyricsFrameProbe.appendFixed(line, framePositionMs, 4);
+        line.append(" active=").append(activeIndex).append(" target=").append(targetIndex).append(" center=");
+        LyricsFrameProbe.appendFixed(line, animatedCenterIndex, 4);
+        line.append(" rest=");
+        LyricsFrameProbe.appendFixed(line, restingCenter, 4);
+        line.append(" shifts=").append(rowShifts.size());
+        line.append(" fillPx=");
+        LyricsFrameProbe.appendFixed(line, fillPx, 3);
+        line.append(" lift=");
+        LyricsFrameProbe.appendFixed(line, lift, 4);
+        line.append(" scale=");
+        LyricsFrameProbe.appendFixed(line, liftScale, 5);
+        line.append(" rows=");
+        for (int index = 0; index < layouts.size(); index++) {
+            LineLayout layout = layouts.get(index);
+            if (Float.isNaN(layout.baselineCenter)) continue;
+            line.append(layout.index).append(':');
+            LyricsFrameProbe.appendFixed(line, layout.baselineCenter, 2).append(',');
+        }
+        line.append(" us=").append((System.nanoTime() - startNs) / 1000L);
+        line.append(" owner=").append(frameProbeOwner);
+        LyricsFrameProbe.log(line);
+    }
+
+    @Override
+    protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
+        super.onSizeChanged(width, height, oldWidth, oldHeight);
+        if (width != oldWidth || height != oldHeight) {
+            clearRowReflow();
+            // Wrapped rows depend on the width (part of their cache key), never on the height.
+            // A page whose top padding follows a drag changes only the height, every frame;
+            // re-wrapping every visible row each time made those frames several times slower.
+            if (width != oldWidth) {
+                rowLayoutCache.clear();
+                rowPrewarmIndex = 0;
+                scheduleRowPrewarm();
+            }
+            invalidateFrameGroupCache();
+            releaseHitTargets();
+        }
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        if (lines.isEmpty()) {
+            return super.onTouchEvent(event);
+        }
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN: {
+                if (manualScroller != null) {
+                    manualScroller.abortAnimation();
+                }
+                recycleVelocityTracker();
+                velocityTracker = VelocityTracker.obtain();
+                velocityTracker.addMovement(event);
+                touchStartY = event.getY();
+                touchLastY = touchStartY;
+                draggingLyrics = false;
+                LineHitTarget target = findHitTarget(event.getY());
+                if (target == null) {
+                    pressedTarget = null;
+                } else {
+                    pressedTargetSnapshot.set(target);
+                    pressedTarget = pressedTargetSnapshot;
+                }
+                return true;
+            }
+            case MotionEvent.ACTION_MOVE: {
+                if (velocityTracker != null) {
+                    velocityTracker.addMovement(event);
+                }
+                float y = event.getY();
+                float totalDy = y - touchStartY;
+                if (!draggingLyrics && Math.abs(totalDy) > touchSlop) {
+                    draggingLyrics = true;
+                    manualScrollActive = true;
+                    manualCenterIndex = animatedCenterIndex;
+                    manualScrollPixelsPerIndex = Math.max(1f, scrollPixelsPerIndex);
+                    pressedTarget = null;
+                    if (getParent() != null) {
+                        getParent().requestDisallowInterceptTouchEvent(true);
+                    }
+                }
+                if (draggingLyrics) {
+                    float dy = y - touchLastY;
+                    manualCenterIndex = clampCenterIndex(manualCenterIndex - dy / Math.max(1f, manualScrollPixelsPerIndex));
+                    animatedCenterIndex = manualCenterIndex;
+                    centerInitialized = true;
+                    lastManualScrollUptimeMs = SystemClock.uptimeMillis();
+                    postInvalidateOnAnimation();
+                }
+                touchLastY = y;
+                return true;
+            }
+            case MotionEvent.ACTION_UP: {
+                if (velocityTracker != null) {
+                    velocityTracker.addMovement(event);
+                }
+                if (draggingLyrics) {
+                    draggingLyrics = false;
+                    lastManualScrollUptimeMs = SystemClock.uptimeMillis();
+                    if (getParent() != null) {
+                        getParent().requestDisallowInterceptTouchEvent(false);
+                    }
+                    startManualFling();
+                    recycleVelocityTracker();
+                    return true;
+                }
+                LineHitTarget target = pressedTarget != null ? pressedTarget : findHitTarget(event.getY());
+                pressedTarget = null;
+                recycleVelocityTracker();
+                if (seekListener != null && target != null && findHitTarget(event.getY()) != null) {
+                    prepareSmoothSeekCenter();
+                    seekListener.onSeekRequested(target.seekTimeMs);
+                    performClick();
+                    return true;
+                }
+                return super.onTouchEvent(event);
+            }
+            case MotionEvent.ACTION_CANCEL:
+                pressedTarget = null;
+                draggingLyrics = false;
+                recycleVelocityTracker();
+                if (manualScroller != null) {
+                    manualScroller.abortAnimation();
+                }
+                if (getParent() != null) {
+                    getParent().requestDisallowInterceptTouchEvent(false);
+                }
+                return true;
+            default:
+                return true;
+        }
+    }
+
+    @Override
+    public boolean performClick() {
+        super.performClick();
+        return true;
+    }
+
+    private void updateDisplayCenter(int activeIndex, long durationMs) {
+        long now = SystemClock.uptimeMillis();
+        if (!frameAnimationsEnabled && !manualScrollActive) {
+            animatedCenterIndex = activeIndex;
+            centerInitialized = true;
+            return;
+        }
+        if (manualScrollActive) {
+            if (!draggingLyrics && manualScroller != null && manualScroller.computeScrollOffset()) {
+                manualCenterIndex = clampCenterIndex(manualScroller.getCurrY() / Math.max(1f, manualScrollPixelsPerIndex));
+                animatedCenterIndex = manualCenterIndex;
+                centerInitialized = true;
+                lastManualScrollUptimeMs = now;
+                postInvalidateOnAnimation();
+                return;
+            }
+            if (!draggingLyrics && now - lastManualScrollUptimeMs > MANUAL_SCROLL_HOLD_MS) {
+                manualScrollActive = false;
+                centerInitialized = false;
+            } else {
+                animatedCenterIndex = clampCenterIndex(manualCenterIndex);
+                centerInitialized = true;
+                return;
+            }
+        }
+        updateAnimatedCenter(activeIndex, durationMs);
+    }
+
+    private void startManualFling() {
+        if (velocityTracker == null || manualScroller == null || Math.max(currentDisplayLineCount, lines.size()) <= 1) {
+            scheduleReturnToPlayback();
+            return;
+        }
+        velocityTracker.computeCurrentVelocity(1000, maximumFlingVelocity);
+        float velocityY = velocityTracker.getYVelocity();
+        if (Math.abs(velocityY) < minimumFlingVelocity) {
+            scheduleReturnToPlayback();
+            return;
+        }
+
+        manualScrollPixelsPerIndex = Math.max(1f, manualScrollPixelsPerIndex);
+        int startY = Math.round(clampCenterIndex(manualCenterIndex) * manualScrollPixelsPerIndex);
+        int maxY = Math.round((Math.max(currentDisplayLineCount, lines.size()) - 1f) * manualScrollPixelsPerIndex);
+        manualScroller.fling(
+                0,
+                startY,
+                0,
+                Math.round(-velocityY),
+                0,
+                0,
+                0,
+                maxY
+        );
+        manualScrollActive = true;
+        lastManualScrollUptimeMs = SystemClock.uptimeMillis();
+        postInvalidateOnAnimation();
+        scheduleReturnToPlayback();
+    }
+
+    private void recycleVelocityTracker() {
+        if (velocityTracker == null) {
+            return;
+        }
+        velocityTracker.recycle();
+        velocityTracker = null;
+    }
+
+    private void scheduleReturnToPlayback() {
+        postDelayed(() -> {
+            if (!draggingLyrics
+                    && manualScrollActive
+                    && (manualScroller == null || manualScroller.isFinished())
+                    && SystemClock.uptimeMillis() - lastManualScrollUptimeMs >= MANUAL_SCROLL_HOLD_MS) {
+                manualScrollActive = false;
+                centerInitialized = false;
+                postInvalidateOnAnimation();
+            }
+        }, MANUAL_SCROLL_HOLD_MS + 80L);
+    }
+
+    private boolean moveRemoteSelection(int delta) {
+        List<DisplayLine> displayLines = buildDisplayLines();
+        if (displayLines.isEmpty()) {
+            return false;
+        }
+        int currentIndex = remoteSelectionIndex(displayLines);
+        int nextIndex = Math.max(0, Math.min(displayLines.size() - 1, currentIndex + delta));
+        if (nextIndex == currentIndex) {
+            return true;
+        }
+        if (manualScroller != null) {
+            manualScroller.abortAnimation();
+        }
+        manualScrollActive = true;
+        draggingLyrics = false;
+        smoothSeekCenterActive = false;
+        manualCenterIndex = nextIndex;
+        animatedCenterIndex = nextIndex;
+        centerInitialized = true;
+        lastManualScrollUptimeMs = SystemClock.uptimeMillis();
+        postInvalidateOnAnimation();
+        scheduleReturnToPlayback();
+        return true;
+    }
+
+    private boolean seekRemoteSelection() {
+        if (seekListener == null) {
+            return false;
+        }
+        List<DisplayLine> displayLines = buildDisplayLines();
+        if (displayLines.isEmpty()) {
+            return false;
+        }
+        int index = remoteSelectionIndex(displayLines);
+        DisplayLine displayLine = displayLines.get(Math.max(0, Math.min(displayLines.size() - 1, index)));
+        if (displayLine == null || !displayLine.isTimed()) {
+            return false;
+        }
+        prepareSmoothSeekCenter();
+        seekListener.onSeekRequested(displayLine.seekTimeMs());
+        performClick();
+        return true;
+    }
+
+    private int remoteSelectionIndex(List<DisplayLine> displayLines) {
+        if (displayLines == null || displayLines.isEmpty()) {
+            return 0;
+        }
+        int index;
+        if (manualScrollActive || centerInitialized) {
+            index = Math.round(animatedCenterIndex);
+        } else {
+            index = findActiveDisplayIndex(displayLines);
+        }
+        return Math.max(0, Math.min(displayLines.size() - 1, index));
+    }
+
+    private void updateAnimatedCenter(int activeIndex, long durationMs) {
+        long now = SystemClock.uptimeMillis();
+        float distance = Math.abs(activeIndex - animatedCenterIndex);
+        if (!centerInitialized || (!smoothSeekCenterActive && distance > 3.2f)) {
+            animatedCenterIndex = activeIndex;
+            centerTransitionStartIndex = activeIndex;
+            centerTransitionTargetIndex = activeIndex;
+            centerTransitionStartUptimeMs = now;
+            centerTransitionDurationMs = Math.max(1L, durationMs);
+            centerInitialized = true;
+            centerSnapped = true;
+            smoothSeekCenterActive = false;
+            lastFrameMs = now;
+            return;
+        }
+
+        if (centerTransitionTargetIndex != activeIndex) {
+            centerTransitionStartIndex = animatedCenterIndex;
+            centerTransitionTargetIndex = activeIndex;
+            centerTransitionStartUptimeMs = now;
+            centerTransitionDurationMs = Math.max(1L, durationMs);
+        }
+
+        float progress = clamp(
+                (now - centerTransitionStartUptimeMs)
+                        / (float) Math.max(1L, centerTransitionDurationMs)
+        );
+        float eased = lyricsCenteringProgress(progress);
+        animatedCenterIndex = centerTransitionStartIndex
+                + (centerTransitionTargetIndex - centerTransitionStartIndex) * eased;
+        lastFrameMs = now;
+        if (Math.abs(activeIndex - animatedCenterIndex) < 0.002f) {
+            animatedCenterIndex = activeIndex;
+            centerTransitionStartIndex = activeIndex;
+            smoothSeekCenterActive = false;
+        }
+    }
+
+    private void updateAnimatedVocalAnchorOffset(float targetOffsetPx) {
+        long now = SystemClock.uptimeMillis();
+        if (!vocalAnchorOffsetInitialized) {
+            animatedVocalAnchorOffsetPx = targetOffsetPx;
+            vocalAnchorTransitionStartPx = targetOffsetPx;
+            vocalAnchorTransitionTargetPx = targetOffsetPx;
+            vocalAnchorTransitionStartUptimeMs = now;
+            vocalAnchorOffsetInitialized = true;
+            return;
+        }
+
+        if (Math.abs(targetOffsetPx - vocalAnchorTransitionTargetPx) > 0.5f) {
+            vocalAnchorTransitionStartPx = animatedVocalAnchorOffsetPx;
+            vocalAnchorTransitionTargetPx = targetOffsetPx;
+            vocalAnchorTransitionStartUptimeMs = now;
+        }
+
+        float progress = clamp(
+                (now - vocalAnchorTransitionStartUptimeMs)
+                        / (float) LYRICS_CENTERING_DURATION_MS
+        );
+        animatedVocalAnchorOffsetPx = vocalAnchorTransitionStartPx
+                + (vocalAnchorTransitionTargetPx - vocalAnchorTransitionStartPx)
+                * lyricsCenteringProgress(progress);
+        if (progress >= 1f || Math.abs(targetOffsetPx - animatedVocalAnchorOffsetPx) < 0.5f) {
+            animatedVocalAnchorOffsetPx = targetOffsetPx;
+            vocalAnchorTransitionStartPx = targetOffsetPx;
+            vocalAnchorTransitionTargetPx = targetOffsetPx;
+        }
+    }
+
+    private float activeVocalAnchorOffset(LineLayout layout) {
+        if (layout == null || layout.displayLine == null || layout.displayLine.line == null) {
+            resetRetainedVocalAnchor();
+            return 0f;
+        }
+        LyricsLine line = layout.displayLine.line;
+        if (line.vocalParts == null
+                || line.vocalParts.isEmpty()
+                || displayableVocalPartCount(line) < KARAOKE_VOCAL_STACK_CENTER_THRESHOLD) {
+            resetRetainedVocalAnchor();
+            return 0f;
+        }
+
+        float nextOffset = activeVocalAnchorOffsetCandidate(layout, line);
+        int sourceIndex = layout.displayLine.sourceIndex;
+        boolean positionWentBack = retainedVocalAnchorPositionMs != Long.MIN_VALUE
+                && positionMs < retainedVocalAnchorPositionMs - 250L;
+        if (retainedVocalAnchorSourceIndex != sourceIndex || positionWentBack) {
+            retainedVocalAnchorSourceIndex = sourceIndex;
+            retainedVocalAnchorOffsetPx = nextOffset;
+            retainedVocalAnchorPositionMs = positionMs;
+            return Float.isNaN(nextOffset) ? 0f : nextOffset;
+        }
+
+        retainedVocalAnchorPositionMs = positionMs;
+        if (Float.isNaN(nextOffset)) {
+            return Float.isNaN(retainedVocalAnchorOffsetPx) ? 0f : retainedVocalAnchorOffsetPx;
+        }
+
+        retainedVocalAnchorOffsetPx = Float.isNaN(retainedVocalAnchorOffsetPx)
+                ? nextOffset
+                : Math.max(retainedVocalAnchorOffsetPx, nextOffset);
+        return retainedVocalAnchorOffsetPx;
+    }
+
+    private void resetRetainedVocalAnchor() {
+        retainedVocalAnchorSourceIndex = Integer.MIN_VALUE;
+        retainedVocalAnchorOffsetPx = Float.NaN;
+        retainedVocalAnchorPositionMs = Long.MIN_VALUE;
+    }
+
+    private float activeVocalAnchorOffsetCandidate(LineLayout layout, LyricsLine line) {
+        int targetPartIndex = activeVocalPartTargetIndex(line);
+        if (targetPartIndex < 0) {
+            return Float.NaN;
+        }
+
+        float totalHeight = groupsHeight(layout.groups);
+        float top = 0f;
+        int primaryIndex = -1;
+        float targetCenter = Float.NaN;
+        for (int groupIndex = 0; groupIndex < layout.groups.size(); groupIndex++) {
+            DrawGroup group = layout.groups.get(groupIndex);
+            boolean primaryVocalGroup = !group.supplement && !group.isInterlude();
+            if (primaryVocalGroup) {
+                primaryIndex++;
+                if (primaryIndex == targetPartIndex) {
+                    targetCenter = top + group.height() * 0.5f;
+                }
+            }
+            top += group.height();
+            if (groupIndex + 1 < layout.groups.size()) {
+                top += gapBetweenGroups(layout.groups, groupIndex, groupIndex + 1);
+            }
+        }
+
+        if (Float.isNaN(targetCenter)) {
+            return Float.NaN;
+        }
+        return targetCenter - totalHeight * 0.5f;
+    }
+
+    private int activeVocalPartTargetIndex(LyricsLine line) {
+        if (line == null || line.vocalParts == null || line.vocalParts.isEmpty()) {
+            return -1;
+        }
+
+        int firstActiveIndex = -1;
+        int lastActiveIndex = -1;
+        int orderedIndex = 0;
+        int partCount = line.vocalParts.size();
+        for (int rolePass = 0; rolePass < 2; rolePass++) {
+            boolean leadPass = rolePass == 0;
+            for (int sourceIndex = 0; sourceIndex < partCount; sourceIndex++) {
+                LyricsLine.VocalPart part = line.vocalParts.get(sourceIndex);
+                if ("lead".equals(part.role) != leadPass) {
+                    continue;
+                }
+
+                long startTimeMs = part.startTimeMs > 0L ? part.startTimeMs : line.startTimeMs;
+                long endTimeMs = part.endTimeMs > startTimeMs ? part.endTimeMs : Math.max(startTimeMs, line.endTimeMs);
+                if (positionMs >= startTimeMs && positionMs <= endTimeMs) {
+                    if (firstActiveIndex < 0) {
+                        firstActiveIndex = orderedIndex;
+                    }
+                    lastActiveIndex = orderedIndex;
+                }
+                orderedIndex++;
+            }
+        }
+
+        return firstActiveIndex >= 0 && lastActiveIndex >= 0
+                ? (firstActiveIndex + lastActiveIndex + 1) / 2
+                : -1;
+    }
+
+    private void prepareSmoothSeekCenter() {
+        smoothNextSeekCenter = true;
+        smoothSeekCenterActive = centerInitialized;
+        manualScrollActive = false;
+        draggingLyrics = false;
+        lastFrameMs = 0L;
+        if (manualScroller != null) {
+            manualScroller.abortAnimation();
+        }
+    }
+
+    /**
+     * The frame time of this draw on the Choreographer frame-callback clock: the host's
+     * time when it ticked this frame (the usual case), otherwise the drawing time moved by
+     * the last observed difference so animations never switch clocks. Call once per draw.
+     */
+    private long frameTimeNanos() {
+        long drawingTimeMs = getDrawingTime();
+        long drawingNanos = drawingTimeMs > 0L ? drawingTimeMs * 1_000_000L : System.nanoTime();
+        frameUsedHostTime = hostFrameFresh;
+        if (hostFrameFresh) {
+            hostFrameFresh = false;
+            // getDrawingTime() may lead the frame-callback time by one frame interval.
+            hostFrameOffsetNanos = Math.max(0L, Math.min(34_000_000L, drawingNanos - hostFrameTimeNanos));
+            return hostFrameTimeNanos;
+        }
+        return drawingNanos - hostFrameOffsetNanos;
+    }
+
+    /**
+     * Plans this frame's row travel and returns the display index the rows rest on.
+     * During playback the rows rest on the centering target and travel there on a
+     * spring; a one-line advance cascades, rows below the target trailing. Manual
+     * scrolling and smooth seeks keep the presentation center, which the rows follow
+     * rigidly as before. Snaps, jumps and disabled animations drop any travel.
+     */
+    private float updateRowTravel(
+            List<DisplayLine> displayLines,
+            FrameLineLayouts layouts,
+            long frameNanos,
+            float blockGap
+    ) {
+        int mode;
+        float center;
+        if (!frameAnimationsEnabled || !centerInitialized || centerSnapped) {
+            mode = TRAVEL_REST;
+            center = animatedCenterIndex;
+        } else if (manualScrollActive || smoothSeekCenterActive
+                || centerTransitionTargetIndex < 0 || centerTransitionTargetIndex >= displayLines.size()) {
+            mode = TRAVEL_FOLLOW;
+            center = animatedCenterIndex;
+        } else {
+            mode = TRAVEL_TARGET;
+            center = centerTransitionTargetIndex;
+        }
+        float previousCenter = rowTravelCenter;
+        int previousMode = rowTravelMode;
+        rowTravelMode = mode;
+        rowTravelCenter = center;
+        for (int index = rowShifts.size() - 1; index >= 0; index--) {
+            if (rowShifts.get(index).finishedAt(frameNanos)) rowShifts.remove(index);
+        }
+        if (mode == TRAVEL_REST || previousMode == TRAVEL_REST || Float.isNaN(previousCenter)
+                || Math.abs(center - previousCenter) > 3.2f) {
+            rowShifts.clear();
+            return center;
+        }
+        if (mode == previousMode && (mode != TRAVEL_TARGET || center == previousCenter)) {
+            return center;
+        }
+        LyricsLineMotion.Timing timing;
+        boolean cascade = false;
+        if (mode == TRAVEL_TARGET && previousMode == TRAVEL_TARGET) {
+            double windowMs = travelWindowMs(displayLines, centerTransitionTargetIndex);
+            if (windowMs > 0d && windowMs < LyricsLineMotion.MIN_TOTAL_MS) {
+                // Too close to the next line for any travel: the rows snap, as before.
+                rowShifts.clear();
+                return center;
+            }
+            timing = LyricsLineMotion.timing(windowMs);
+            cascade = center == previousCenter + 1f;
+        } else {
+            // Entering or leaving a followed center keeps every row where it is.
+            timing = LyricsLineMotion.timing(-1d);
+        }
+        float shift = scrollOffsetAt(layouts, center, blockGap) - scrollOffsetAt(layouts, previousCenter, blockGap);
+        if (Math.abs(shift) >= 0.25f) {
+            if (rowShifts.size() >= MAX_ROW_SHIFTS) rowShifts.clear();
+            rowShifts.add(new LyricsLineMotion.Shift(shift, frameNanos, timing, cascade, center));
+        }
+        return center;
+    }
+
+    /** Distance from the anchor row's baseline center to the fractional display index. */
+    private float scrollOffsetAt(FrameLineLayouts layouts, float center, float blockGap) {
+        if (layouts.isEmpty() || Float.isNaN(center)) {
+            return 0f;
+        }
+        int base = (int) Math.floor(center);
+        LineLayout layout = layoutAt(layouts, base);
+        if (layout != null) {
+            LineLayout next = layoutAt(layouts, base + 1);
+            return next != null
+                    ? layout.anchorOffset + clamp(center - base) * distanceBetween(layout, next, blockGap)
+                    : layout.anchorOffset;
+        }
+        // Outside the prepared rows: continue at the average row pitch.
+        LineLayout edge = center < layouts.get(0).index ? layouts.get(0) : layouts.get(layouts.size() - 1);
+        return edge.anchorOffset + (center - edge.index) * scrollPixelsPerIndex;
+    }
+
+    /** Remaining travel of one display row; zero once every shift has arrived. */
+    private float rowTravelOffset(int rowIndex, long frameNanos) {
+        float offset = 0f;
+        for (int index = 0; index < rowShifts.size(); index++) {
+            offset += rowShifts.get(index).offsetAt(rowIndex, frameNanos);
+        }
+        return offset;
+    }
+
+    /** Time from the target line's start to the next line start; negative for the last line. */
+    private double travelWindowMs(List<DisplayLine> displayLines, int targetIndex) {
+        if (targetIndex < 0 || targetIndex >= displayLines.size()) {
+            return -1d;
+        }
+        DisplayLine target = displayLines.get(targetIndex);
+        if (!target.isTimed()) {
+            return -1d;
+        }
+        long targetStart = target.startTimeMs();
+        for (int index = targetIndex + 1; index < displayLines.size(); index++) {
+            DisplayLine candidate = displayLines.get(index);
+            if (candidate.isTimed() && candidate.startTimeMs() > targetStart) {
+                return candidate.startTimeMs() - targetStart;
+            }
+        }
+        return -1d;
+    }
+
+    private void clearRowTravel() {
+        rowShifts.clear();
+        rowTravelMode = TRAVEL_REST;
+        rowTravelCenter = Float.NaN;
+    }
+
+    private void updateScrollPixelsPerIndex(List<LineLayout> layouts, float blockGap) {
+        float total = 0f;
+        int count = 0;
+        for (int index = 0; index + 1 < layouts.size(); index++) {
+            LineLayout current = layouts.get(index);
+            LineLayout next = layouts.get(index + 1);
+            if (next.index == current.index + 1) {
+                total += distanceBetween(current, next, blockGap);
+                count++;
+            }
+        }
+        if (count > 0) {
+            scrollPixelsPerIndex = Math.max(sp(44f), total / count);
+        } else if (!layouts.isEmpty()) {
+            scrollPixelsPerIndex = Math.max(sp(44f), layouts.get(0).height + blockGap);
+        }
+    }
+
+    private void scheduleRowPrewarm() {
+        removeCallbacks(rowPrewarmRunnable);
+        if (lines.isEmpty()) {
+            return;
+        }
+        postDelayed(rowPrewarmRunnable, 16L);
+    }
+
+    private void prewarmRowLayouts() {
+        if (lines.isEmpty() || getWidth() <= 0) {
+            return;
+        }
+
+        long start = SystemClock.uptimeMillis();
+        float textSize = sp(typographyTextSizeSp(AiLyricsSettings.TYPO_LYRICS_ORIGINAL, MAIN_TEXT_SP));
+        int warmed = 0;
+        while (rowPrewarmIndex < lines.size()
+                && warmed < 18
+                && SystemClock.uptimeMillis() - start < 7L) {
+            prewarmLineRows(rowPrewarmIndex, lines.get(rowPrewarmIndex), textSize);
+            rowPrewarmIndex++;
+            warmed++;
+        }
+
+        if (rowPrewarmIndex < lines.size()) {
+            postDelayed(rowPrewarmRunnable, 16L);
+        }
+    }
+
+    private void prewarmLineRows(int lineIndex, LyricsLine line, float textSize) {
+        if (line == null) {
+            return;
+        }
+        if (line.vocalParts != null && !line.vocalParts.isEmpty()) {
+            int renderIndex = 0;
+            for (int rolePass = 0; rolePass < 2; rolePass++) {
+                boolean leadPass = rolePass == 0;
+                for (LyricsLine.VocalPart part : line.vocalParts) {
+                    if ("lead".equals(part.role) != leadPass) {
+                        continue;
+                    }
+                    cachedRows(
+                            "line:" + lineIndex + ":part:" + partKey(part, renderIndex) + typographyCacheKey(AiLyricsSettings.TYPO_LYRICS_ORIGINAL),
+                            part.text,
+                            japaneseFuriganaEnabled ? part.furiganaText : "",
+                            part.syllables,
+                            part.startTimeMs,
+                            part.endTimeMs,
+                            textSize
+                    );
+                    renderIndex++;
+                }
+            }
+            return;
+        }
+        cachedRows("line:" + lineIndex + typographyCacheKey(AiLyricsSettings.TYPO_LYRICS_ORIGINAL), line.text, japaneseFuriganaEnabled ? line.furiganaText : "", line.syllables, line.startTimeMs, line.endTimeMs, textSize);
+    }
+
+    private boolean hasTimedKaraokeData(List<LyricsLine> lyricLines) {
+        if (lyricLines == null || lyricLines.isEmpty()) {
+            return false;
+        }
+        for (LyricsLine line : lyricLines) {
+            if (line == null) {
+                continue;
+            }
+            if (hasTimedSyllables(line.syllables)) {
+                return true;
+            }
+            if (line.vocalParts == null) {
+                continue;
+            }
+            for (LyricsLine.VocalPart part : line.vocalParts) {
+                if (part != null && hasTimedSyllables(part.syllables)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean hasTimedSyllables(List<LyricsLine.Syllable> syllables) {
+        if (syllables == null || syllables.isEmpty()) {
+            return false;
+        }
+        for (LyricsLine.Syllable syllable : syllables) {
+            if (syllable != null && syllable.endTimeMs > syllable.startTimeMs) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean shouldRenderKaraokeTiming() {
+        return karaoke && !isLineDisplayGranularity();
+    }
+
+    private boolean isLineDisplayGranularity() {
+        return AiLyricsSettings.KARAOKE_DISPLAY_LINE.equals(karaokeDisplayGranularity);
+    }
+
+    private boolean isWordDisplayGranularity() {
+        return AiLyricsSettings.KARAOKE_DISPLAY_WORD.equals(karaokeDisplayGranularity);
+    }
+
+    private List<DrawGroup> buildLyricGroups(
+            DisplayLine displayLine,
+            boolean highlighted,
+            boolean animationActive,
+            float completedColorOpacity,
+            float distance
+    ) {
+        if (displayLine == null) {
+            return Collections.emptyList();
+        }
+        if (displayLine.isInterlude()) {
+            return Collections.singletonList(buildInterludeGroup(displayLine.interludeInfo, highlighted, distance));
+        }
+
+        int lineIndex = displayLine.sourceIndex;
+        LyricsLine line = displayLine.line;
+        List<DrawGroup> groups = new ArrayList<>();
+        if (line.vocalParts != null && !line.vocalParts.isEmpty()) {
+            boolean partSupplements = shouldUseVocalPartSupplements(line);
+            groups.addAll(buildVocalGroups(
+                    lineIndex,
+                    line,
+                    highlighted,
+                    animationActive,
+                    completedColorOpacity,
+                    distance,
+                    partSupplements
+            ));
+            if (!partSupplements) {
+                addSupplementGroups(groups, lineIndex, line, animationActive, completedColorOpacity, distance);
+            }
+            addCulturalAnnotationGroups(groups, lineIndex, line, highlighted, distance);
+            return visibleLyricGroups(groups);
+        }
+
+        List<CulturalAnnotation> lineAnnotations = lineRenderInput(line, lineIndex).annotations;
+        int inactiveColor = inactiveColorForSpeaker(line.speaker, line.speakerColor, line.speakerFallback, distance);
+        int activeColor = shouldRenderKaraokeTiming()
+                ? colorForSpeaker(line.speaker, line.speakerColor, line.speakerFallback, "", normalActiveColor())
+                : normalActiveColor();
+        groups.add(buildGroup(
+                CulturalAnnotation.annotateText(line.text, lineAnnotations),
+                japaneseFuriganaEnabled ? line.furiganaText : "",
+                CulturalAnnotation.annotateSyllables(line.text, line.syllables, lineAnnotations),
+                line.startTimeMs,
+                line.endTimeMs,
+                MAIN_TEXT_SP,
+                inactiveColor,
+                activeColor,
+                line.kind,
+                animationActive,
+                completedColorOpacity,
+                0,
+                "line:" + lineIndex,
+                "line:" + lineIndex,
+                AiLyricsSettings.TYPO_LYRICS_ORIGINAL
+        ));
+        addSupplementGroups(groups, lineIndex, line, animationActive, completedColorOpacity, distance);
+        addCulturalAnnotationGroups(groups, lineIndex, line, highlighted, distance);
+        return visibleLyricGroups(groups);
+    }
+
+    private List<DrawGroup> visibleLyricGroups(List<DrawGroup> groups) {
+        // Keep generated supplements and their timing even when native/original rows are hidden.
+        if (!originalVisible) groups.removeIf(group -> !group.supplement);
+        return groups;
+    }
+
+    private DrawGroup buildInterludeGroup(InterludeInfo info, boolean active, float distance) {
+        int inactiveColor = Color.argb(
+                Math.max(52, Math.round(150f - Math.min(2.6f, distance) * 34f)),
+                212,
+                218,
+                230
+        );
+        int activeColor = Color.rgb(245, 247, 252);
+        return DrawGroup.interlude(
+                sp(16f),
+                inactiveColor,
+                activeColor,
+                active,
+                info == null ? InterludeInfo.none() : info,
+                typographyTypeface(AiLyricsSettings.TYPO_LYRICS_ORIGINAL)
+        );
+    }
+
+    private List<DrawGroup> buildVocalGroups(
+            int lineIndex,
+            LyricsLine line,
+            boolean highlighted,
+            boolean animationActive,
+            float completedColorOpacity,
+            float distance,
+            boolean partSupplements
+    ) {
+        int groupCapacity = line.vocalParts.size() * (partSupplements ? 3 : 1);
+        List<DrawGroup> groups = new ArrayList<>(groupCapacity);
+        int renderIndex = 0;
+        for (int rolePass = 0; rolePass < 2; rolePass++) {
+            boolean leadPass = rolePass == 0;
+            for (LyricsLine.VocalPart part : line.vocalParts) {
+                if ("lead".equals(part.role) != leadPass) {
+                    continue;
+                }
+                boolean partHighlighted = highlighted && positionMs >= part.startTimeMs;
+                boolean partAnimationActive = animationActive
+                        && positionMs >= part.startTimeMs
+                        && positionMs < Math.max(part.endTimeMs, part.startTimeMs) + KARAOKE_RELEASE_WINDOW_MS;
+                int inactiveColor = inactiveColorForSpeaker(
+                        part.speaker,
+                        part.speakerColor,
+                        part.speakerFallback,
+                        distance + (partHighlighted ? 0f : 0.45f)
+                );
+                int activeColor = colorForSpeaker(
+                        part.speaker,
+                        part.speakerColor,
+                        part.speakerFallback,
+                        part.role,
+                        normalActiveColor()
+                );
+                String groupKey = "line:" + lineIndex + ":part:" + partKey(part, renderIndex);
+                List<CulturalAnnotation> lineAnnotations = lineRenderInput(line, lineIndex).annotations;
+                groups.add(buildGroup(
+                        CulturalAnnotation.annotateText(part.text, lineAnnotations),
+                        japaneseFuriganaEnabled ? part.furiganaText : "",
+                        CulturalAnnotation.annotateSyllables(part.text, part.syllables, lineAnnotations),
+                        part.startTimeMs,
+                        part.endTimeMs,
+                        MAIN_TEXT_SP,
+                        inactiveColor,
+                        activeColor,
+                        part.kind,
+                        partAnimationActive,
+                        completedColorOpacity,
+                        renderIndex,
+                        groupKey,
+                        groupKey,
+                        AiLyricsSettings.TYPO_LYRICS_ORIGINAL
+                ));
+                if (partSupplements) {
+                    addVocalPartSupplementGroups(
+                            groups,
+                            lineIndex,
+                            part,
+                            renderIndex,
+                            partAnimationActive,
+                            completedColorOpacity,
+                            distance
+                    );
+                }
+                renderIndex++;
+            }
+        }
+        return groups;
+    }
+
+    private void addVocalPartSupplementGroups(
+            List<DrawGroup> groups,
+            int lineIndex,
+            LyricsLine.VocalPart part,
+            int partIndex,
+            boolean animationActive,
+            float completedColorOpacity,
+            float distance
+    ) {
+        if (part == null) {
+            return;
+        }
+        String pronunciation = distinctPronunciation(part.pronunciationText, part.text);
+        String translation = part.translationText == null ? "" : part.translationText.trim();
+        int activePronunciationColor = withAlpha(
+                colorForSpeaker(part.speaker, part.speakerColor, part.speakerFallback, part.role, normalActiveColor()),
+                212
+        );
+        int activeTranslationColor = withAlpha(
+                colorForSpeaker(part.speaker, part.speakerColor, part.speakerFallback, part.role, normalActiveColor()),
+                184
+        );
+        int inactiveColor = supplementInactiveColorForSpeaker(
+                part.speaker,
+                part.speakerColor,
+                part.speakerFallback,
+                distance + (completedColorOpacity > 0f ? 0f : 0.45f)
+        );
+        int pronunciationColor = blendColor(inactiveColor, activePronunciationColor, completedColorOpacity);
+        int translationColor = blendColor(inactiveColor, activeTranslationColor, completedColorOpacity);
+        String key = partKey(part, partIndex);
+        List<LyricsLine.Syllable> fillUnits = pronunciation.isEmpty()
+                ? null
+                : PronunciationFirst.Fill.matching(pronunciationFill.parts.get(part), pronunciation);
+        if (fillUnits != null) {
+            groups.add(buildPronunciationFillGroup(
+                    fillUnits,
+                    part.startTimeMs,
+                    part.endTimeMs,
+                    inactiveColor,
+                    activePronunciationColor,
+                    animationActive,
+                    completedColorOpacity,
+                    lineIndex,
+                    "part:" + key + ":pron",
+                    groups.size(),
+                    supplementPlaceholderText(part)
+            ));
+        } else if (!pronunciation.isEmpty()) {
+            groups.add(buildSupplementGroup(
+                    pronunciation,
+                    pronunciationColor,
+                    lineIndex,
+                    "part:" + key + ":pron",
+                    groups.size(),
+                    AiLyricsSettings.TYPO_LYRICS_PRONUNCIATION,
+                    supplementPlaceholderText(part)
+            ));
+        } else if (pronunciationLoading) {
+            groups.add(buildSupplementPlaceholderGroup(
+                    supplementPlaceholderText(part),
+                    lineIndex,
+                    "part:" + key + ":pron",
+                    groups.size(),
+                    AiLyricsSettings.TYPO_LYRICS_PRONUNCIATION
+            ));
+        }
+        if (!translation.isEmpty()) {
+            groups.add(buildSupplementGroup(
+                    translation,
+                    translationColor,
+                    lineIndex,
+                    "part:" + key + ":trans",
+                    groups.size(),
+                    AiLyricsSettings.TYPO_LYRICS_TRANSLATION,
+                    supplementPlaceholderText(part)
+            ));
+        } else if (translationLoading) {
+            groups.add(buildSupplementPlaceholderGroup(
+                    supplementPlaceholderText(part),
+                    lineIndex,
+                    "part:" + key + ":trans",
+                    groups.size(),
+                    AiLyricsSettings.TYPO_LYRICS_TRANSLATION
+            ));
+        }
+    }
+
+    private boolean shouldUseVocalPartSupplements(LyricsLine line) {
+        return hasVocalPartSupplements(line) || displayableVocalPartCount(line) > 1;
+    }
+
+    private boolean hasVocalPartSupplements(LyricsLine line) {
+        if (line == null || line.vocalParts == null) {
+            return false;
+        }
+        for (LyricsLine.VocalPart part : line.vocalParts) {
+            if (part == null) {
+                continue;
+            }
+            String pronunciation = distinctPronunciation(part.pronunciationText, part.text);
+            String translation = part.translationText == null ? "" : part.translationText.trim();
+            if (!pronunciation.isEmpty() || !translation.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private int displayableVocalPartCount(LyricsLine line) {
+        if (line == null || line.vocalParts == null || line.vocalParts.isEmpty()) {
+            return 0;
+        }
+        int count = 0;
+        for (LyricsLine.VocalPart part : line.vocalParts) {
+            if (part != null && !supplementPlaceholderText(part).trim().isEmpty()) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private void addSupplementGroups(
+            List<DrawGroup> groups,
+            int lineIndex,
+            LyricsLine line,
+            boolean animationActive,
+            float completedColorOpacity,
+            float distance
+    ) {
+        if (line == null) {
+            return;
+        }
+        String pronunciation = distinctPronunciation(line.pronunciationText, line.text);
+        String translation = line.translationText == null ? "" : line.translationText.trim();
+        int activePronunciationColor = withAlpha(
+                colorForSpeaker(line.speaker, line.speakerColor, line.speakerFallback, "", normalActiveColor()),
+                212
+        );
+        int activeTranslationColor = withAlpha(
+                colorForSpeaker(line.speaker, line.speakerColor, line.speakerFallback, "", normalActiveColor()),
+                184
+        );
+        int inactiveColor = supplementInactiveColorForSpeaker(
+                line.speaker,
+                line.speakerColor,
+                line.speakerFallback,
+                distance
+        );
+        int pronunciationColor = blendColor(inactiveColor, activePronunciationColor, completedColorOpacity);
+        int translationColor = blendColor(inactiveColor, activeTranslationColor, completedColorOpacity);
+        List<LyricsLine.Syllable> fillUnits = pronunciation.isEmpty()
+                ? null
+                : PronunciationFirst.Fill.matching(pronunciationFill.lines.get(line), pronunciation);
+        if (fillUnits != null) {
+            groups.add(buildPronunciationFillGroup(
+                    fillUnits,
+                    line.startTimeMs,
+                    line.endTimeMs,
+                    inactiveColor,
+                    activePronunciationColor,
+                    animationActive,
+                    completedColorOpacity,
+                    lineIndex,
+                    "pron",
+                    groups.size(),
+                    supplementPlaceholderText(line)
+            ));
+        } else if (!pronunciation.isEmpty()) {
+            groups.add(buildSupplementGroup(
+                    pronunciation,
+                    pronunciationColor,
+                    lineIndex,
+                    "pron",
+                    groups.size(),
+                    AiLyricsSettings.TYPO_LYRICS_PRONUNCIATION,
+                    supplementPlaceholderText(line)
+            ));
+        } else if (pronunciationLoading) {
+            groups.add(buildSupplementPlaceholderGroup(
+                    supplementPlaceholderText(line),
+                    lineIndex,
+                    "pron",
+                    groups.size(),
+                    AiLyricsSettings.TYPO_LYRICS_PRONUNCIATION
+            ));
+        }
+        if (!translation.isEmpty()) {
+            groups.add(buildSupplementGroup(
+                    translation,
+                    translationColor,
+                    lineIndex,
+                    "trans",
+                    groups.size(),
+                    AiLyricsSettings.TYPO_LYRICS_TRANSLATION,
+                    supplementPlaceholderText(line)
+            ));
+        } else if (translationLoading) {
+            groups.add(buildSupplementPlaceholderGroup(
+                    supplementPlaceholderText(line),
+                    lineIndex,
+                    "trans",
+                    groups.size(),
+                    AiLyricsSettings.TYPO_LYRICS_TRANSLATION
+            ));
+        }
+    }
+
+    private void addCulturalAnnotationGroups(
+            List<DrawGroup> groups,
+            int lineIndex,
+            LyricsLine line,
+            boolean active,
+            float distance
+    ) {
+        if (line == null) {
+            return;
+        }
+        List<CulturalAnnotation> annotations = lineRenderInput(line, lineIndex).annotations;
+        if (annotations.isEmpty()) {
+            return;
+        }
+        int alpha = Math.round(255f * culturalAnnotationOpacity / 100f);
+        int activeColor = Color.argb(alpha, 255, 255, 255);
+        int inactiveAlpha = Math.max(30, Math.round(alpha * Math.max(0.42f, 1f - distance * 0.18f)));
+        int color = active ? activeColor : Color.argb(inactiveAlpha, 226, 230, 238);
+        for (int index = 0; index < annotations.size(); index++) {
+            CulturalAnnotation annotation = annotations.get(index);
+            String text = (index + 1) + ". " + annotation.note;
+            float textSize = sp(culturalAnnotationFontSize) * typographySizeMultiplier;
+            List<TextRow> rows = cachedRows(
+                    "line:" + lineIndex + ":cultural:" + index + ":" + text.hashCode()
+                            + ":font:" + culturalAnnotationFontFamily
+                            + ":" + culturalAnnotationFontWeight
+                            + ":" + culturalAnnotationOpacity,
+                    text,
+                    "",
+                    Collections.emptyList(),
+                    0L,
+                    0L,
+                    textSize
+            );
+            groups.add(new DrawGroup(
+                    rows,
+                    textSize,
+                    color,
+                color,
+                "vocal",
+                false,
+                0f,
+                false,
+                    groups.size(),
+                    "line:" + lineIndex + ":cultural:" + index,
+                    AppFonts.cultural(getContext(), culturalAnnotationFontFamily, culturalAnnotationFontWeight),
+                    true
+            ));
+        }
+    }
+
+    // iOS PR #7 (oneulddu): prepare stable display/annotation inputs once per source revision.
+    private LineRenderInput lineRenderInput(LyricsLine line, int lineIndex) {
+        LineRenderInput cached = lineRenderInputs.get(lineIndex);
+        if (cached != null && cached.line == line) return cached;
+        String text = AiLyricsRepository.displayLineText(line);
+        LineRenderInput input = new LineRenderInput(line, text,
+                CulturalAnnotation.forLine(culturalAnnotations, lineIndex, text));
+        lineRenderInputs.put(lineIndex, input);
+        return input;
+    }
+
+    private static final class LineRenderInput {
+        final LyricsLine line;
+        final String displayText;
+        final List<CulturalAnnotation> annotations;
+
+        LineRenderInput(LyricsLine line, String displayText, List<CulturalAnnotation> annotations) {
+            this.line = line;
+            this.displayText = displayText;
+            this.annotations = annotations;
+        }
+    }
+
+    private String supplementPlaceholderText(LyricsLine line) {
+        if (line == null) {
+            return " ";
+        }
+        String text = supplementPlaceholderText(line.text);
+        if (!text.trim().isEmpty()) {
+            return text;
+        }
+        StringBuilder builder = new StringBuilder();
+        if (line.vocalParts != null) {
+            for (LyricsLine.VocalPart part : line.vocalParts) {
+                String partText = supplementPlaceholderText(part);
+                if (partText.trim().isEmpty()) {
+                    continue;
+                }
+                if (builder.length() > 0) {
+                    builder.append(' ');
+                }
+                builder.append(partText.trim());
+            }
+        }
+        return builder.length() == 0 ? " " : builder.toString();
+    }
+
+    private String supplementPlaceholderText(LyricsLine.VocalPart part) {
+        if (part == null) {
+            return " ";
+        }
+        String text = supplementPlaceholderText(part.text);
+        if (!text.trim().isEmpty()) {
+            return text;
+        }
+        StringBuilder builder = new StringBuilder();
+        if (part.syllables != null) {
+            for (LyricsLine.Syllable syllable : part.syllables) {
+                if (syllable != null && syllable.text != null) {
+                    builder.append(syllable.text);
+                }
+            }
+        }
+        return builder.length() == 0 ? " " : builder.toString();
+    }
+
+    private String supplementPlaceholderText(String sourceText) {
+        String text = sourceText == null ? "" : sourceText.trim();
+        return text.isEmpty() ? "" : text;
+    }
+
+    private DrawGroup buildSupplementGroup(
+            String text,
+            int color,
+            int lineIndex,
+            String type,
+            int rowSeed,
+            String typographySlotId,
+            String reserveText
+    ) {
+        DrawGroup group = buildGroup(
+                text,
+                "",
+                Collections.emptyList(),
+                0L,
+                0L,
+                SUPPLEMENT_TEXT_SP,
+                color,
+                color,
+                "vocal",
+                false,
+                1f,
+                rowSeed,
+                "line:" + lineIndex + ":supp:" + type + ":" + text.hashCode(),
+                "line:" + lineIndex + ":supp:" + type,
+                typographySlotId
+        );
+        return withSupplementReserveRows(group, lineIndex, type, typographySlotId, reserveText);
+    }
+
+    private DrawGroup buildSupplementPlaceholderGroup(String text, int lineIndex, String type, int rowSeed, String typographySlotId) {
+        return buildGroup(
+                text,
+                "",
+                Collections.emptyList(),
+                0L,
+                0L,
+                SUPPLEMENT_TEXT_SP,
+                SUPPLEMENT_PLACEHOLDER_COLOR,
+                SUPPLEMENT_PLACEHOLDER_COLOR,
+                "vocal",
+                false,
+                1f,
+                rowSeed,
+                "line:" + lineIndex + ":supp-placeholder:" + type + ":" + text.hashCode(),
+                "line:" + lineIndex + ":supp-placeholder:" + type,
+                typographySlotId
+        );
+    }
+
+    /**
+     * A pronunciation row that fills along its timed units like the karaoke row above it. It keeps
+     * the pronunciation row's typography and colors (inactive until sung, then the row's active
+     * color) and gets no bounce or other karaoke effect.
+     */
+    private DrawGroup buildPronunciationFillGroup(
+            List<LyricsLine.Syllable> units,
+            long startTimeMs,
+            long endTimeMs,
+            int inactiveColor,
+            int activeColor,
+            boolean active,
+            float completedColorOpacity,
+            int lineIndex,
+            String type,
+            int rowSeed,
+            String reserveText
+    ) {
+        // Characters, as in a plain pronunciation row, so the row wraps exactly as before;
+        // each unit's time is shared evenly by its sounding characters.
+        StringBuilder text = new StringBuilder();
+        List<LyricsLine.Syllable> characters = new ArrayList<>();
+        int timing = 17;
+        for (LyricsLine.Syllable unit : units) {
+            text.append(unit.text);
+            timing = timing * 31 + unit.text.length();
+            timing = timing * 31 + Long.hashCode(unit.startTimeMs);
+            timing = timing * 31 + Long.hashCode(unit.endTimeMs);
+            List<String> pieces = splitChars(unit.text);
+            int sounding = 0;
+            for (String piece : pieces) {
+                if (!isWhitespace(piece)) sounding++;
+            }
+            long duration = Math.max(0L, unit.endTimeMs - unit.startTimeMs);
+            int sung = 0;
+            for (String piece : pieces) {
+                long start = unit.startTimeMs + Math.round(duration * (sung / (float) Math.max(1, sounding)));
+                if (!isWhitespace(piece)) sung++;
+                long end = unit.startTimeMs + Math.round(duration * (sung / (float) Math.max(1, sounding)));
+                characters.add(new LyricsLine.Syllable(piece, start, end));
+            }
+        }
+        String value = text.toString();
+        DrawGroup group = buildGroup(
+                value,
+                "",
+                characters,
+                startTimeMs,
+                endTimeMs,
+                SUPPLEMENT_TEXT_SP,
+                inactiveColor,
+                activeColor,
+                "vocal",
+                active,
+                completedColorOpacity,
+                rowSeed,
+                "line:" + lineIndex + ":supp-fill:" + type + ":" + value.hashCode() + ":" + timing,
+                "line:" + lineIndex + ":supp:" + type,
+                AiLyricsSettings.TYPO_LYRICS_PRONUNCIATION
+        );
+        return withSupplementReserveRows(group, lineIndex, type, AiLyricsSettings.TYPO_LYRICS_PRONUNCIATION, reserveText);
+    }
+
+    private DrawGroup withSupplementReserveRows(
+            DrawGroup group,
+            int lineIndex,
+            String type,
+            String typographySlotId,
+            String reserveText
+    ) {
+        if (group == null) {
+            return null;
+        }
+        String reserve = reserveText == null ? "" : reserveText.trim();
+        if (reserve.isEmpty()) {
+            return group;
+        }
+        String slotId = AiLyricsSettings.typographySlotById(typographySlotId).id;
+        float textSize = sp(typographyTextSizeSp(slotId, SUPPLEMENT_TEXT_SP));
+        List<TextRow> reserveRows = cachedRows(
+                "line:" + lineIndex + ":supp-reserve:" + type + ":" + reserve.hashCode() + typographyCacheKey(slotId),
+                reserve,
+                "",
+                Collections.emptyList(),
+                0L,
+                0L,
+                textSize
+        );
+        int missingRows = reserveRows.size() - group.rows.size();
+        if (missingRows <= 0) {
+            return group;
+        }
+        List<TextRow> rows = new ArrayList<>(group.rows);
+        for (int index = 0; index < missingRows; index++) {
+            rows.add(emptyTextRow());
+        }
+        DrawGroup reserved = new DrawGroup(
+                rows,
+                group.textSize,
+                group.inactiveColor,
+                group.activeColor,
+                group.kind,
+                group.active,
+                group.completedColorOpacity,
+                group.timingStarted,
+                group.rowSeed,
+                group.bounceKeyPrefix,
+                group.typeface,
+                group.supplement
+        );
+        reserved.lineStartTimeMs = group.lineStartTimeMs;
+        reserved.lineEndTimeMs = group.lineEndTimeMs;
+        return reserved;
+    }
+
+    private TextRow emptyTextRow() {
+        return new TextRow(Collections.singletonList(
+                new TextSegment("", 0f, 0f, 0L, 0L, 0, 1, "")
+        ));
+    }
+
+    private DrawGroup buildGroup(
+            String text,
+            String rubyText,
+            List<LyricsLine.Syllable> syllables,
+            long startTimeMs,
+            long endTimeMs,
+            float textSizeSp,
+            int inactiveColor,
+            int activeColor,
+            String kind,
+            boolean active,
+            float completedColorOpacity,
+            int rowSeed,
+            String rowCacheKey,
+            String bounceKeyPrefix,
+            String typographySlotId
+    ) {
+        String slotId = AiLyricsSettings.typographySlotById(typographySlotId).id;
+        float textSize = sp(typographyTextSizeSp(slotId, textSizeSp));
+        List<TextRow> rows = cachedRows(rowCacheKey + typographyCacheKey(slotId), text, rubyText, syllables, startTimeMs, endTimeMs, textSize);
+        DrawGroup group = new DrawGroup(
+                rows,
+                textSize,
+                inactiveColor,
+                activeColor,
+                normalizeKind(kind),
+                active,
+                clamp(completedColorOpacity),
+                endTimeMs > startTimeMs && positionMs >= startTimeMs,
+                rowSeed,
+                bounceKeyPrefix,
+                typographyTypeface(slotId),
+                isSupplementTypographySlot(slotId)
+        );
+        group.lineStartTimeMs = startTimeMs;
+        group.lineEndTimeMs = endTimeMs;
+        return group;
+    }
+
+    private float typographyTextSizeSp(String slotId, float baseSizeSp) {
+        return Math.max(8f, baseSizeSp * typographyStyle(slotId).scale() * typographySizeMultiplier);
+    }
+
+    private Typeface typographyTypeface(String slotId) {
+        return AppFonts.byWeight(getContext(), typographyStyle(slotId).weight);
+    }
+
+    private AiLyricsSettings.TypographyStyle typographyStyle(String slotId) {
+        AiLyricsSettings.TypographySettings settings = typographySettings == null
+                ? AiLyricsSettings.TypographySettings.defaults()
+                : typographySettings;
+        return settings.style(slotId);
+    }
+
+    private String typographyCacheKey(String slotId) {
+        AiLyricsSettings.TypographySlot slot = AiLyricsSettings.typographySlotById(slotId);
+        AiLyricsSettings.TypographyStyle style = typographyStyle(slot.id);
+        return ":typo:" + slot.id + ":" + style.sizePercent + ":" + style.weight + ":" + Math.round(typographySizeMultiplier * 100f);
+    }
+
+    private boolean isSupplementTypographySlot(String slotId) {
+        String normalized = AiLyricsSettings.typographySlotById(slotId).id;
+        return AiLyricsSettings.TYPO_LYRICS_PRONUNCIATION.equals(normalized)
+                || AiLyricsSettings.TYPO_LYRICS_TRANSLATION.equals(normalized);
+    }
+
+    private List<TextRow> cachedRows(
+            String cacheKey,
+            String text,
+            String rubyText,
+            List<LyricsLine.Syllable> syllables,
+            long startTimeMs,
+            long endTimeMs,
+            float textSize
+    ) {
+        String key = cacheKey
+                + ":w:" + Math.round(contentWidth())
+                + ":s:" + Math.round(textSize)
+                + ":ruby:" + (japaneseFuriganaEnabled ? (rubyText == null ? 0 : rubyText.hashCode()) : 0)
+                + ":fake:" + syncedLyricsKaraokeAnimationEnabled
+                + ":granularity:" + karaokeDisplayGranularity
+                + ":styles:" + inlineStyleHash(syllables);
+        List<TextRow> cached = rowLayoutCache.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        List<TextRow> rows = wrapSegments(text, rubyText, syllables, startTimeMs, endTimeMs, textSize);
+        rowLayoutCache.put(key, rows);
+        return rows;
+    }
+
+    private int inlineStyleHash(List<LyricsLine.Syllable> syllables) {
+        if (syllables == null || syllables.isEmpty()) return 0;
+        int hash = 1;
+        for (LyricsLine.Syllable syllable : syllables) {
+            if (syllable == null || !syllable.inlineStyle) continue;
+            hash = 31 * hash + syllable.text.hashCode();
+            hash = 31 * hash + syllable.styleKey().hashCode();
+        }
+        return hash;
+    }
+
+    private String partKey(LyricsLine.VocalPart part, int index) {
+        if (part != null && part.id != null && !part.id.trim().isEmpty()) {
+            return part.id.trim();
+        }
+        return String.valueOf(index);
+    }
+
+    private void addHitTarget(LineLayout layout, float baselineCenter, float blockGap) {
+        if (layout.displayLine == null || !layout.displayLine.isTimed()) {
+            return;
+        }
+        float padding = Math.min(blockGap * 0.22f, sp(18f));
+        LineHitTarget target;
+        if (hitTargetCount < hitTargets.size()) {
+            target = hitTargets.get(hitTargetCount);
+        } else {
+            target = new LineHitTarget();
+            hitTargets.add(target);
+        }
+        target.set(
+                baselineCenter - layout.height * 0.5f - padding,
+                baselineCenter + layout.height * 0.5f + padding,
+                baselineCenter,
+                layout.displayLine.seekTimeMs(),
+                accessibilityLabel(layout.displayLine),
+                layout.active,
+                layout.displayLine.displayIndex + 1
+        );
+        hitTargetCount++;
+    }
+
+    private String accessibilityLabel(DisplayLine displayLine) {
+        if (displayLine == null) return "";
+        if (displayLine.isInterlude()) {
+            return "prelude".equals(displayLine.interludeInfo.kind) ? preludeLabel
+                    : "postlude".equals(displayLine.interludeInfo.kind) ? postludeLabel : breakLabel;
+        }
+        LyricsLine line = displayLine.line;
+        if (line == null) return "";
+        if (displayLine.cachedAccessibilityLabel != null) {
+            return displayLine.cachedAccessibilityLabel;
+        }
+        LinkedHashSet<String> originals = new LinkedHashSet<>();
+        LinkedHashSet<String> pronunciations = new LinkedHashSet<>();
+        LinkedHashSet<String> translations = new LinkedHashSet<>();
+        addAccessibilityText(originals, line.text);
+        addAccessibilityText(pronunciations, distinctPronunciation(line.pronunciationText, line.text));
+        addAccessibilityText(translations, line.translationText);
+        for (LyricsLine.VocalPart part : line.vocalParts) {
+            addAccessibilityText(originals, part.text);
+            addAccessibilityText(pronunciations, distinctPronunciation(part.pronunciationText, part.text));
+            addAccessibilityText(translations, part.translationText);
+        }
+        List<String> ordered = new ArrayList<>(originals);
+        ordered.addAll(pronunciations);
+        ordered.addAll(translations);
+        displayLine.cachedAccessibilityLabel = android.text.TextUtils.join(". ", ordered);
+        return displayLine.cachedAccessibilityLabel;
+    }
+
+    private void addAccessibilityText(Set<String> values, String text) {
+        String normalized = text == null ? "" : text.trim();
+        if (!normalized.isEmpty()) values.add(normalized);
+    }
+
+    private String distinctPronunciation(String pronunciationText, String originalText) {
+        String pronunciation = pronunciationText == null ? "" : pronunciationText.trim();
+        if (pronunciation.isEmpty() || LyricsTextComparison.areEquivalent(pronunciation, originalText)) {
+            return "";
+        }
+        return pronunciation;
+    }
+
+    private void beginHitTargetFrame() {
+        hitTargetCount = 0;
+    }
+
+    private void releaseHitTargets() {
+        hitTargets.clear();
+        hitTargetCount = 0;
+    }
+
+    private LineHitTarget findHitTarget(float y) {
+        LineHitTarget best = null;
+        float bestDistance = Float.MAX_VALUE;
+        for (int index = 0; index < hitTargetCount; index++) {
+            LineHitTarget target = hitTargets.get(index);
+            if (y < target.top || y > target.bottom) {
+                continue;
+            }
+            float distance = Math.abs(y - target.centerY);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = target;
+            }
+        }
+        return best;
+    }
+
+    private void drawGroups(Canvas canvas, List<DrawGroup> groups, float baselineCenter, float fadeAlpha) {
+        float totalHeight = groupsHeight(groups);
+
+        float top = baselineCenter - totalHeight * 0.5f;
+        for (int groupIndex = 0; groupIndex < groups.size(); groupIndex++) {
+            DrawGroup group = groups.get(groupIndex);
+            if (group.isInterlude()) {
+                drawInterludeGroup(canvas, group, top + group.height() * 0.5f, fadeAlpha);
+                top += group.height();
+                if (groupIndex + 1 < groups.size()) {
+                    top += sp(PART_GAP_SP);
+                }
+                continue;
+            }
+            float rowTop = top;
+            for (int rowIndex = 0; rowIndex < group.rows.size(); rowIndex++) {
+                TextRow row = group.rows.get(rowIndex);
+                float baseline = rowTop + group.baselineOffset(row);
+                drawTextRow(canvas, row, baseline, group, rowIndex, fadeAlpha);
+                rowTop += group.rowHeight(row);
+            }
+            top = rowTop;
+            if (groupIndex + 1 < groups.size()) {
+                top += gapBetweenGroups(groups, groupIndex, groupIndex + 1);
+            }
+        }
+    }
+
+    private float groupsHeight(List<DrawGroup> groups) {
+        float totalHeight = 0f;
+        for (int index = 0; index < groups.size(); index++) {
+            if (index > 0) {
+                totalHeight += gapBetweenGroups(groups, index - 1, index);
+            }
+            DrawGroup group = groups.get(index);
+            totalHeight += group.height();
+        }
+        return totalHeight;
+    }
+
+    private float gapBetweenGroups(List<DrawGroup> groups, int previousIndex, int nextIndex) {
+        DrawGroup previous = groups.get(previousIndex);
+        DrawGroup next = groups.get(nextIndex);
+        float gap = previous.supplement || next.supplement ? sp(SUPPLEMENT_GAP_SP) : sp(PART_GAP_SP);
+        if (isFuriganaMultiVocalBoundary(groups, nextIndex)) {
+            gap = Math.max(gap, sp(FURIGANA_MULTI_VOCAL_GAP_SP));
+        }
+        return gap;
+    }
+
+    private boolean isFuriganaMultiVocalBoundary(List<DrawGroup> groups, int nextIndex) {
+        if (!japaneseFuriganaEnabled || nextIndex <= 0 || nextIndex >= groups.size()) {
+            return false;
+        }
+        DrawGroup next = groups.get(nextIndex);
+        if (next.supplement || next.isInterlude() || !next.firstRowHasRuby()) {
+            return false;
+        }
+        int primaryCount = 0;
+        for (DrawGroup group : groups) {
+            if (!group.supplement && !group.isInterlude()) {
+                primaryCount++;
+                if (primaryCount > 1) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private void drawInterludeGroup(Canvas canvas, DrawGroup group, float centerY, float fadeAlpha) {
+        InterludeInfo info = group.interludeInfo == null ? InterludeInfo.none() : group.interludeInfo;
+        float enterOpacity = InterludeTransition.enter(info.startTimeMs, framePositionMs, frameAnimationsEnabled);
+        fadeAlpha *= enterOpacity;
+        int color = scaleAlpha(group.active ? group.activeColor : group.inactiveColor, fadeAlpha);
+        long now = frameAnimationsEnabled ? SystemClock.uptimeMillis() : 0L;
+        float barWidth = sp(3.2f);
+        float gap = sp(3.8f);
+        float minHeight = sp(7f);
+        float maxHeight = sp(23f);
+        float radius = barWidth * 0.7f;
+        float iconWidth = 4f * barWidth + 3f * gap;
+        float labelTextSize = sp(15f);
+        String label = interludeLabelsEnabled ? interludeLabel(info.kind) : "";
+        boolean showLabel = !label.trim().isEmpty();
+        float labelGap = sp(11f);
+        float labelWidth = 0f;
+        if (showLabel) {
+            configurePaint(color, "vocal", false, labelTextSize, false, group.typeface);
+            labelWidth = textPaint.measureText(label);
+        }
+        float left = alignedContentLeft(iconWidth + (showLabel ? labelGap + labelWidth : 0f));
+        int entrySave = canvas.save();
+        float scale = InterludeTransition.scale(enterOpacity);
+        canvas.scale(scale, scale, left + (iconWidth + (showLabel ? labelGap + labelWidth : 0f)) * 0.5f, centerY);
+
+        interludePaint.setShader(null);
+        interludePaint.setStyle(Paint.Style.FILL);
+        interludePaint.setColor(color);
+        interludePaint.setAlpha(Color.alpha(color));
+
+        for (int index = 0; index < 4; index++) {
+            float phase = positiveSin(now + index * 145L, 980L);
+            float height = minHeight + (maxHeight - minHeight) * (0.18f + phase * 0.82f);
+            float x = left + index * (barWidth + gap);
+            canvas.drawRoundRect(x, centerY - height * 0.5f, x + barWidth, centerY + height * 0.5f, radius, radius, interludePaint);
+        }
+
+        if (!showLabel) {
+            canvas.restoreToCount(entrySave);
+            return;
+        }
+
+        Paint.FontMetrics metrics = textPaint.getFontMetrics();
+        float baseline = centerY - (metrics.ascent + metrics.descent) * 0.5f;
+        float labelLeft = left + iconWidth + labelGap;
+        canvas.drawText(label, labelLeft, baseline, textPaint);
+        resetPaintEffects();
+        canvas.restoreToCount(entrySave);
+    }
+
+    private void captureExitingInterlude(List<LineLayout> previous, List<LineLayout> next) {
+        if (!frameAnimationsEnabled) {
+            exitingInterlude = null;
+            return;
+        }
+        for (LineLayout old : previous) {
+            if (old.displayLine == null || !old.displayLine.isInterlude() || !old.active
+                    || Float.isNaN(old.baselineCenter) || old.groups.isEmpty()
+                    || !InterludeTransition.canExit(old.displayLine.endTimeMs(), positionMs, true)) continue;
+            boolean retained = false;
+            for (LineLayout current : next) retained |= sameDisplayIdentity(old.displayLine, current.displayLine);
+            if (retained) continue;
+            DisplayLine follow = null;
+            float gap = 0f;
+            for (LineLayout candidate : previous) {
+                if (candidate.index <= old.index || candidate.displayLine == null || candidate.displayLine.isInterlude()
+                        || Float.isNaN(candidate.baselineCenter)) continue;
+                for (LineLayout current : next) {
+                    if (sameDisplayIdentity(candidate.displayLine, current.displayLine)) {
+                        follow = current.displayLine;
+                        gap = old.baselineCenter - candidate.baselineCenter;
+                        break;
+                    }
+                }
+                if (follow != null) break;
+            }
+            exitingInterlude = new InterludeExit(old.groups.get(0), old.baselineCenter, follow, gap, frameEffectTimeMs);
+            break;
+        }
+    }
+
+    private void drawExitingInterlude(Canvas canvas, List<LineLayout> layouts) {
+        InterludeExit exit = exitingInterlude;
+        if (exit == null) return;
+        float opacity = InterludeTransition.exit(frameEffectTimeMs - exit.startedMs, frameAnimationsEnabled);
+        if (opacity <= 0f || positionMs < exit.group.interludeInfo.endTimeMs
+                || positionMs > exit.group.interludeInfo.endTimeMs + 1000L) {
+            exitingInterlude = null;
+            return;
+        }
+        float centerY = exit.centerY;
+        for (LineLayout layout : layouts) {
+            if (exit.follow != null && sameDisplayIdentity(exit.follow, layout.displayLine)
+                    && !Float.isNaN(layout.baselineCenter)) {
+                float followingCenter = layout.baselineCenter + exit.gap;
+                centerY = exit.centerY + (followingCenter - exit.centerY) * (1f - opacity);
+                break;
+            }
+        }
+        int save = canvas.save();
+        float scale = InterludeTransition.scale(opacity);
+        canvas.scale(scale, scale, getWidth() * 0.5f, centerY);
+        drawInterludeGroup(canvas, exit.group, centerY, opacity);
+        canvas.restoreToCount(save);
+    }
+
+    private static final class InterludeExit {
+        final DrawGroup group;
+        final float centerY;
+        final DisplayLine follow;
+        final float gap;
+        final long startedMs;
+        InterludeExit(DrawGroup group, float centerY, DisplayLine follow, float gap, long startedMs) {
+            this.group = group; this.centerY = centerY; this.follow = follow; this.gap = gap; this.startedMs = startedMs;
+        }
+    }
+
+    private String interludeLabel(String kind) {
+        if ("prelude".equals(kind)) {
+            return preludeLabel;
+        }
+        if ("postlude".equals(kind)) {
+            return postludeLabel;
+        }
+        return breakLabel;
+    }
+
+    private LineLayout layoutAt(List<LineLayout> layouts, int index) {
+        if (layouts instanceof FrameLineLayouts && !layouts.isEmpty()) {
+            int offset = index - layouts.get(0).index;
+            return offset >= 0 && offset < layouts.size() ? layouts.get(offset) : null;
+        }
+        for (LineLayout layout : layouts) {
+            if (layout.index == index) {
+                return layout;
+            }
+        }
+        return null;
+    }
+
+    private void prepareAnchorOffsets(List<LineLayout> layouts, int anchorIndex, float blockGap) {
+        if (layouts.isEmpty()) return;
+        int anchor = anchorIndex - layouts.get(0).index;
+        if (anchor < 0 || anchor >= layouts.size()) return;
+        layouts.get(anchor).anchorOffset = 0f;
+        float offset = 0f;
+        for (int index = anchor + 1; index < layouts.size(); index++) {
+            offset += distanceBetween(layouts.get(index - 1), layouts.get(index), blockGap);
+            layouts.get(index).anchorOffset = offset;
+        }
+        offset = 0f;
+        for (int index = anchor - 1; index >= 0; index--) {
+            offset -= distanceBetween(layouts.get(index), layouts.get(index + 1), blockGap);
+            layouts.get(index).anchorOffset = offset;
+        }
+    }
+
+    private float distanceBetween(LineLayout previous, LineLayout next, float blockGap) {
+        return previous.height * 0.5f + blockGap + next.height * 0.5f;
+    }
+
+    private void drawTextRow(Canvas canvas, TextRow row, float baseline, DrawGroup group, int rowIndex, float fadeAlpha) {
+        float left = alignedRowLeft(row);
+        int canvasSave = canvas.save();
+        applyCanvasEffect(
+                canvas,
+                row.hasInlineEffects ? "vocal" : group.kind,
+                group.active,
+                left + row.width * 0.5f,
+                baseline,
+                group.textSize,
+                group.rowSeed + rowIndex
+        );
+
+        // Joining scripts must stay in one shaping context. Inline range styling is
+        // intentionally degraded to the row style here instead of splitting glyphs.
+        if (row.continuousShaping && !row.hasRuby()) {
+            drawContinuouslyShapedRow(canvas, row, left, baseline, group, rowIndex, fadeAlpha);
+            canvas.restoreToCount(canvasSave);
+            resetPaintEffects();
+            return;
+        }
+
+        if (!group.rendersTimedFill() && !row.hasRuby() && !row.hasInlineStyles) {
+            configurePaint(scaleAlpha(group.inactiveColor, fadeAlpha), group.kind, false, group.textSize, false, group.typeface);
+            canvas.drawText(row.text, left, baseline, textPaint);
+            canvas.restoreToCount(canvasSave);
+            resetPaintEffects();
+            return;
+        }
+
+        float cursor = left;
+        for (int index = 0; index < row.segments.size(); index++) {
+            TextSegment segment = row.segments.get(index);
+            String segmentKind = segment.inlineStyle ? normalizeKind(segment.styleKind) : group.kind;
+            int segmentActiveColor = segment.inlineStyle && !segment.styleSpeaker.isEmpty()
+                    ? colorForSpeaker(
+                            segment.styleSpeaker,
+                            segment.styleSpeakerColor,
+                            segment.styleSpeakerFallback,
+                            "",
+                            group.activeColor
+                    )
+                    : group.activeColor;
+            int segmentInactiveColor = segment.inlineStyle && !segment.styleSpeaker.isEmpty()
+                    ? withAlpha(segmentActiveColor, Color.alpha(group.inactiveColor))
+                    : group.inactiveColor;
+            float offsetY = group.active && "wave".equals(segmentKind)
+                    ? baseWaveOffset(segmentKind, group.rowSeed + rowIndex, index, group.textSize)
+                    : 0f;
+            KaraokeMotion.Values bounce = karaokeMotion(segment, group);
+            // Only a glyph that moves needs its own canvas state; idle glyphs draw in the row's.
+            boolean transformed = bounce.active || (segment.inlineStyle && group.active && frameAnimationsEnabled);
+            int segmentSave = transformed ? canvas.save() : -1;
+            if (segment.inlineStyle) {
+                applyCanvasEffect(
+                        canvas,
+                        segmentKind,
+                        group.active,
+                        cursor + segment.width * 0.5f,
+                        baseline,
+                        group.textSize,
+                        group.rowSeed + rowIndex + segment.sourceIndex
+                );
+            }
+            if (bounce.active) {
+                float pivotX = cursor + segment.width * 0.5f;
+                float pivotY = baseline + group.textSize * (LINE_HEIGHT_MULTIPLIER - 1f);
+                canvas.translate(0f, bounce.offsetY);
+                canvas.scale(bounce.scale, bounce.scale, pivotX, pivotY);
+            }
+
+            float fill = group.rendersTimedFill() ? segmentFillFraction(segment) : 0f;
+            drawRubyText(
+                    canvas, segment, cursor, baseline + offsetY, group, fill, fadeAlpha,
+                    segmentKind, segmentInactiveColor, segmentActiveColor
+            );
+
+            float textLeft = cursor + segment.textInset;
+            configurePaint(scaleAlpha(segmentInactiveColor, fadeAlpha), segmentKind, group.active, group.textSize, false, group.typeface);
+            if (bounce.glow > 0.005f) {
+                // Expressive motion glows in the active color while a unit swells (desktop 0.24em shadow).
+                textPaint.setShadowLayer(group.textSize * 0.14f, 0f, 0f, withAlpha(segmentActiveColor,
+                        Math.round(255f * Math.min(1f, bounce.glow) * Math.max(0f, Math.min(1f, fadeAlpha)))));
+            }
+            canvas.drawText(segment.text, textLeft, baseline + offsetY, textPaint);
+
+            if (fill > 0f) {
+                drawActiveFill(
+                        canvas, segment, cursor, baseline, offsetY, group, fill, fadeAlpha,
+                        segmentKind, segmentActiveColor
+                );
+            }
+            if (segmentSave >= 0) {
+                canvas.restoreToCount(segmentSave);
+            }
+            cursor += segment.width;
+        }
+
+        canvas.restoreToCount(canvasSave);
+        resetPaintEffects();
+    }
+
+    private void drawContinuouslyShapedRow(
+            Canvas canvas,
+            TextRow row,
+            float left,
+            float baseline,
+            DrawGroup group,
+            int rowIndex,
+            float fadeAlpha
+    ) {
+        float offsetY = group.active && "wave".equals(group.kind)
+                ? baseWaveOffset(group.kind, group.rowSeed + rowIndex, 0, group.textSize)
+                : 0f;
+        configurePaint(
+                scaleAlpha(group.inactiveColor, fadeAlpha),
+                group.kind,
+                group.active,
+                group.textSize,
+                false,
+                group.typeface
+        );
+        canvas.drawText(row.text, left, baseline + offsetY, textPaint);
+
+        if (!group.rendersTimedFill()) {
+            return;
+        }
+        float fill = continuousRowFillFraction(row);
+        if (fill <= 0f) {
+            return;
+        }
+        drawContinuousActiveFill(
+                canvas,
+                row,
+                left,
+                baseline + offsetY,
+                group,
+                fill,
+                fadeAlpha
+        );
+    }
+
+    private float continuousRowFillFraction(TextRow row) {
+        if (row == null || row.segments.isEmpty()) {
+            return 0f;
+        }
+        float total = 0f;
+        float filled = 0f;
+        for (TextSegment segment : row.segments) {
+            float weight = Math.max(0f, segment.textWidth);
+            total += weight;
+            filled += weight * segmentFillFraction(segment);
+        }
+        return total <= 0f ? 0f : clamp(filled / total);
+    }
+
+    private void drawContinuousActiveFill(
+            Canvas canvas,
+            TextRow row,
+            float left,
+            float baseline,
+            DrawGroup group,
+            float fill,
+            float fadeAlpha
+    ) {
+        float safeFill = clamp(fill);
+        float right = left + row.width;
+        float fillWidth = row.width * safeFill;
+        float top = baseline - group.textSize * 1.28f;
+        float bottom = baseline + group.textSize * 0.48f;
+        float softWidth = Math.min(sp(7f), Math.max(0f, row.width * 0.10f));
+        int activeColor = scaleAlpha(
+                group.activeColor,
+                fadeAlpha * group.completedColorOpacity
+        );
+        if (!paintsFill(activeColor, group.active)) {
+            return;
+        }
+        boolean rightToLeft = isRightToLeftText(row.text);
+
+        int clipSave = canvas.save();
+        configurePaint(activeColor, group.kind, group.active, group.textSize, true, group.typeface);
+        if (rightToLeft) {
+            float fillLeft = right - fillWidth;
+            float clipLeft = safeFill >= 0.995f
+                    ? left
+                    : Math.max(left, fillLeft - softWidth);
+            canvas.clipRect(clipLeft, top, right, bottom);
+            if (safeFill < 0.995f && softWidth > 1f) {
+                float softStart = Math.max(left, fillLeft - softWidth);
+                float softEnd = Math.max(softStart + 1f, Math.min(right, fillLeft + softWidth * 0.42f));
+                textPaint.setShader(new LinearGradient(
+                        softStart,
+                        0f,
+                        softEnd,
+                        0f,
+                        new int[]{
+                                withAlpha(activeColor, 0),
+                                activeColor,
+                                activeColor
+                        },
+                        new float[]{0f, 0.66f, 1f},
+                        Shader.TileMode.CLAMP
+                ));
+            }
+        } else {
+            float fillRight = left + fillWidth;
+            float clipRight = safeFill >= 0.995f
+                    ? right
+                    : Math.min(right, fillRight + softWidth);
+            canvas.clipRect(left, top, clipRight, bottom);
+            if (safeFill < 0.995f && softWidth > 1f) {
+                float softStart = Math.max(left, fillRight - softWidth * 0.42f);
+                float softEnd = Math.max(softStart + 1f, Math.min(right, fillRight + softWidth));
+                textPaint.setShader(new LinearGradient(
+                        softStart,
+                        0f,
+                        softEnd,
+                        0f,
+                        new int[]{
+                                activeColor,
+                                activeColor,
+                                withAlpha(activeColor, 0)
+                        },
+                        new float[]{0f, 0.34f, 1f},
+                        Shader.TileMode.CLAMP
+                ));
+            }
+        }
+        canvas.drawText(row.text, left, baseline, textPaint);
+        textPaint.setShader(null);
+        canvas.restoreToCount(clipSave);
+    }
+
+    /**
+     * A completed row's fill fades to fully transparent. Unless an animated paint effect
+     * adds a shadow with its own alpha, that pass would draw nothing.
+     */
+    private boolean paintsFill(int color, boolean animate) {
+        return Color.alpha(color) > 0 || (animate && frameAnimationsEnabled);
+    }
+
+    private static boolean isRightToLeftText(String text) {
+        String value = text == null ? "" : text;
+        for (int offset = 0; offset < value.length(); ) {
+            int codePoint = value.codePointAt(offset);
+            byte direction = Character.getDirectionality(codePoint);
+            if (direction == Character.DIRECTIONALITY_RIGHT_TO_LEFT
+                    || direction == Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC) {
+                return true;
+            }
+            if (direction == Character.DIRECTIONALITY_LEFT_TO_RIGHT) {
+                return false;
+            }
+            offset += Character.charCount(codePoint);
+        }
+        return false;
+    }
+
+    private float alignedRowLeft(TextRow row) {
+        return alignedContentLeft(row == null ? 0f : row.width);
+    }
+
+    private float alignedContentLeft(float width) {
+        float left = contentLeft();
+        float freeWidth = Math.max(0f, contentWidth() - Math.max(0f, width));
+        if (AiLyricsSettings.LYRICS_ALIGN_RIGHT.equals(lyricsTextAlignment)) {
+            return left + freeWidth;
+        }
+        if (AiLyricsSettings.LYRICS_ALIGN_CENTER.equals(lyricsTextAlignment)) {
+            return left + freeWidth * 0.5f;
+        }
+        return left;
+    }
+
+    private void drawRubyText(
+            Canvas canvas,
+            TextSegment segment,
+            float cursor,
+            float baseline,
+            DrawGroup group,
+            float fill,
+            float fadeAlpha,
+            String kind,
+            int inactiveColor,
+            int activeColor
+    ) {
+        if (segment.rubyText == null || segment.rubyText.trim().isEmpty() || group.supplement) {
+            return;
+        }
+        float rubySize = Math.max(sp(9f), group.textSize * FURIGANA_TEXT_RATIO);
+        int color = fill > 0f
+                ? blendColor(inactiveColor, activeColor, group.completedColorOpacity)
+                : inactiveColor;
+        configurePaint(scaleAlpha(color, fadeAlpha * 0.84f), kind, false, rubySize, false, group.typeface);
+        float rubyWidth = segment.cachedRubyWidth;
+        if (Float.isNaN(rubyWidth)) {
+            rubyWidth = textPaint.measureText(segment.rubyText);
+            segment.cachedRubyWidth = rubyWidth;
+        }
+        float rubyLeft = cursor + segment.width * 0.5f - rubyWidth * 0.5f;
+        float rubyBaseline = baseline - group.textSize * 0.90f;
+        canvas.drawText(segment.rubyText, rubyLeft, rubyBaseline, textPaint);
+    }
+
+    private void drawActiveFill(
+            Canvas canvas,
+            TextSegment segment,
+            float cursor,
+            float baseline,
+            float offsetY,
+            DrawGroup group,
+            float fill,
+            float fadeAlpha,
+            String kind,
+            int segmentActiveColor
+    ) {
+        float safeFill = clamp(fill);
+        float textLeft = cursor + segment.textInset;
+        float textRight = textLeft + segment.textWidth;
+        float fillRight = textLeft + segment.textWidth * safeFill;
+        float top = baseline - group.textSize * 1.28f;
+        float bottom = baseline + group.textSize * 0.48f;
+        float softWidth = Math.min(sp(7f), Math.max(0f, segment.textWidth * 0.30f));
+        int activeColor = scaleAlpha(
+                segmentActiveColor,
+                fadeAlpha * group.completedColorOpacity
+        );
+        if (!paintsFill(activeColor, group.active)) {
+            return;
+        }
+        float clipRight = safeFill >= 0.995f
+                ? textRight
+                : Math.min(textRight, fillRight + softWidth);
+
+        int clipSave = canvas.save();
+        canvas.clipRect(textLeft, top, clipRight, bottom);
+        configurePaint(activeColor, kind, group.active, group.textSize, true, group.typeface);
+
+        if (safeFill < 0.995f && softWidth > 1f && clipRight > textLeft) {
+            float softStart = Math.max(textLeft, fillRight - softWidth * 0.42f);
+            float softEnd = Math.max(softStart + 1f, Math.min(textRight, fillRight + softWidth));
+            textPaint.setShader(new LinearGradient(
+                    softStart,
+                    0f,
+                    softEnd,
+                    0f,
+                    new int[]{
+                            activeColor,
+                            activeColor,
+                            withAlpha(activeColor, 0)
+                    },
+                    new float[]{0f, 0.34f, 1f},
+                    Shader.TileMode.CLAMP
+            ));
+        }
+
+        canvas.drawText(segment.text, textLeft, baseline + offsetY, textPaint);
+        textPaint.setShader(null);
+        canvas.restoreToCount(clipSave);
+    }
+
+    private List<TextRow> wrapSegments(
+            String text,
+            String rubyText,
+            List<LyricsLine.Syllable> syllables,
+            long startTimeMs,
+            long endTimeMs,
+            float textSize
+    ) {
+        textPaint.setTextSize(textSize);
+        textPaint.setTypeface(lyricTypeface);
+
+        List<TextSegment> segments = applyLatinWordFillTiming(splitSegmentsAtWhitespace(
+                buildSegments(text, rubyText, syllables, startTimeMs, endTimeMs)
+        ));
+        if (segments.isEmpty()) {
+            return Collections.singletonList(new TextRow(Collections.singletonList(
+                    new TextSegment("", 0f, 0f, 0L, 0L, 0, 1, "")
+            )));
+        }
+
+        KaraokeMotion.Plan motionPlan = isLineDisplayGranularity() ? null : prepareMotionPlan(segments, syllables);
+        KaraokeExpressiveMotion.Unit[] expressiveUnits = isLineDisplayGranularity() ? null : prepareExpressiveUnits(segments);
+        float maxWidth = contentWidth();
+        List<TextRow> rows = shouldWrapByWords(segments)
+                ? wrapWordUnits(buildWordWrapUnits(segments), maxWidth)
+                : wrapIndividualSegments(segments, maxWidth);
+        if (rows.isEmpty()) {
+            rows = Collections.singletonList(new TextRow(segments));
+        }
+        for (TextRow row : rows) {
+            if (motionPlan != null) {
+                for (TextSegment segment : row.segments) {
+                    segment.motionProfile = motionPlan.profile(segment.sourceIndex, segment.sourceLength,
+                            segment.fillStartTimeMs, segment.fillEndTimeMs);
+                }
+            }
+            if (expressiveUnits != null) {
+                for (TextSegment segment : row.segments) {
+                    segment.expressiveUnit = expressiveUnitFor(segment, segments, expressiveUnits);
+                }
+            }
+            if (row.continuousShaping) {
+                row.width = Math.max(0f, textPaint.measureText(row.text));
+            }
+        }
+        return rows;
+    }
+
+    private KaraokeMotion.Plan prepareMotionPlan(List<TextSegment> segments, List<LyricsLine.Syllable> syllables) {
+        if (syllables != null && !syllables.isEmpty()) return KaraokeMotion.prepare(syllables);
+        List<LyricsLine.Syllable> synthetic = new ArrayList<>(segments.size());
+        for (TextSegment segment : segments) {
+            synthetic.add(new LyricsLine.Syllable(segment.text, segment.startTimeMs, segment.endTimeMs));
+        }
+        return KaraokeMotion.prepare(synthetic);
+    }
+
+    /** Expressive units of a row's display segments, prepared with its layout. */
+    private KaraokeExpressiveMotion.Unit[] prepareExpressiveUnits(List<TextSegment> segments) {
+        List<String> texts = new ArrayList<>(segments.size());
+        double[] starts = new double[segments.size()], ends = new double[segments.size()];
+        for (int index = 0; index < segments.size(); index++) {
+            TextSegment segment = segments.get(index);
+            texts.add(segment.text);
+            boolean timed = segment.fillEndTimeMs >= segment.fillStartTimeMs
+                    && (segment.fillEndTimeMs > 0L || segment.fillStartTimeMs > 0L);
+            starts[index] = timed ? segment.fillStartTimeMs : Double.NaN;
+            ends[index] = timed ? segment.fillEndTimeMs : Double.NaN;
+        }
+        return KaraokeExpressiveMotion.units(texts, starts, ends, isWordDisplayGranularity());
+    }
+
+    /** Wrapping may split a segment; every piece keeps the unit of the source segment it came from. */
+    private static KaraokeExpressiveMotion.Unit expressiveUnitFor(TextSegment piece, List<TextSegment> segments,
+            KaraokeExpressiveMotion.Unit[] units) {
+        for (int index = 0; index < segments.size(); index++) {
+            TextSegment source = segments.get(index);
+            if (source == piece) return units[index];
+            int end = source.sourceIndex + Math.max(1, source.sourceLength);
+            if (piece.sourceIndex >= source.sourceIndex && piece.sourceIndex < end) return units[index];
+        }
+        return null;
+    }
+
+    private List<TextRow> wrapIndividualSegments(List<TextSegment> segments, float maxWidth) {
+        List<TextRow> rows = new ArrayList<>();
+        List<TextSegment> current = new ArrayList<>();
+        float currentWidth = 0f;
+
+        for (TextSegment segment : segments) {
+            for (TextSegment piece : splitSegmentForWrap(segment, maxWidth)) {
+                if (currentWidth > 0f
+                        && currentWidth + piece.width > maxWidth
+                        && canBreakBetweenSegments(current, piece)) {
+                    addTrimmedRow(rows, current);
+                    current = new ArrayList<>();
+                    currentWidth = 0f;
+                }
+                if (current.isEmpty() && isWhitespace(piece.text)) {
+                    continue;
+                }
+                current.add(piece);
+                currentWidth += piece.width;
+            }
+        }
+
+        addTrimmedRow(rows, current);
+        return rows;
+    }
+
+    private List<TextSegment> splitSegmentForWrap(TextSegment segment, float maxWidth) {
+        if (segment == null) {
+            return Collections.emptyList();
+        }
+        if (maxWidth <= 0f || segment.width <= maxWidth || isWhitespace(segment.text)) {
+            return Collections.singletonList(segment);
+        }
+
+        List<String> chars = splitChars(segment.text);
+        if (chars.size() <= 1) {
+            return Collections.singletonList(segment);
+        }
+
+        List<Integer> safeOffsets = LyricsWrapPolicy.safeBreakOffsets(segment.text);
+        if (safeOffsets.isEmpty()) {
+            return Collections.singletonList(segment);
+        }
+
+        List<List<String>> atoms = new ArrayList<>();
+        int atomStart = 0;
+        for (int offset : safeOffsets) {
+            if (offset > atomStart && offset < chars.size()) {
+                atoms.add(new ArrayList<>(chars.subList(atomStart, offset)));
+                atomStart = offset;
+            }
+        }
+        atoms.add(new ArrayList<>(chars.subList(atomStart, chars.size())));
+
+        List<TextSegment> pieces = new ArrayList<>();
+        List<String> current = new ArrayList<>();
+        int currentStart = 0;
+        int atomOffset = 0;
+        for (List<String> atom : atoms) {
+            List<String> next = new ArrayList<>(current);
+            next.addAll(atom);
+            TextSegment nextSegment = createSplitSegment(segment, next, currentStart);
+            if (!current.isEmpty() && nextSegment.width > maxWidth) {
+                pieces.add(createSplitSegment(segment, current, currentStart));
+                current = new ArrayList<>();
+                currentStart = atomOffset;
+            }
+            current.addAll(atom);
+            atomOffset += atom.size();
+        }
+
+        if (!current.isEmpty()) {
+            pieces.add(createSplitSegment(segment, current, currentStart));
+        }
+        return pieces.isEmpty() ? Collections.singletonList(segment) : pieces;
+    }
+
+    private List<TextSegment> splitSegmentsAtWhitespace(List<TextSegment> segments) {
+        if (segments == null || segments.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<TextSegment> result = new ArrayList<>();
+        for (TextSegment segment : segments) {
+            List<String> runs = LyricsWrapPolicy.splitWhitespaceRuns(segment.text);
+            if (runs.size() <= 1) {
+                result.add(segment);
+                continue;
+            }
+            int offset = 0;
+            for (String run : runs) {
+                List<String> chars = splitChars(run);
+                if (!chars.isEmpty()) {
+                    result.add(createSplitSegment(segment, chars, offset));
+                    offset += chars.size();
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Keep the original segments for per-glyph motion, but let the fill travel evenly
+     * across each Latin word's complete timing span.
+     */
+    private List<TextSegment> applyLatinWordFillTiming(List<TextSegment> segments) {
+        if (segments == null || segments.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<TextSegment> result = new ArrayList<>(segments.size());
+        List<TextSegment> word = new ArrayList<>();
+        for (TextSegment segment : segments) {
+            if (isWhitespace(segment.text)) {
+                appendLatinWordFillTiming(result, word);
+                result.add(segment);
+            } else {
+                word.add(segment);
+            }
+        }
+        appendLatinWordFillTiming(result, word);
+        return result;
+    }
+
+    private void appendLatinWordFillTiming(List<TextSegment> result, List<TextSegment> word) {
+        if (word == null || word.isEmpty()) {
+            return;
+        }
+
+        StringBuilder text = new StringBuilder();
+        boolean hasRuby = false;
+        for (TextSegment segment : word) {
+            text.append(segment.text);
+            hasRuby |= segment.rubyText != null && !segment.rubyText.trim().isEmpty();
+        }
+        if (!hasRuby && isLatinWordText(text.toString())) {
+            TextSegment first = word.get(0);
+            long wordEndTimeMs = first.endTimeMs;
+            int totalUnits = 0;
+            for (TextSegment segment : word) {
+                wordEndTimeMs = Math.max(wordEndTimeMs, segment.endTimeMs);
+                totalUnits += Math.max(1, codePointCount(segment.text));
+            }
+            long wordStartTimeMs = first.startTimeMs;
+            long durationMs = Math.max(0L, wordEndTimeMs - wordStartTimeMs);
+            int completedUnits = 0;
+            for (TextSegment segment : word) {
+                int units = Math.max(1, codePointCount(segment.text));
+                long fillStartTimeMs = wordStartTimeMs + Math.round(
+                        durationMs * (completedUnits / (float) totalUnits)
+                );
+                completedUnits += units;
+                long fillEndTimeMs = wordStartTimeMs + Math.round(
+                        durationMs * (completedUnits / (float) totalUnits)
+                );
+                result.add(segment.withFillTiming(fillStartTimeMs, fillEndTimeMs));
+            }
+        } else {
+            result.addAll(word);
+        }
+        word.clear();
+    }
+
+    private static boolean isLatinWordText(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+        boolean hasLatinLetter = false;
+        for (int offset = 0; offset < text.length();) {
+            int codePoint = text.codePointAt(offset);
+            if (Character.isLetter(codePoint)) {
+                if (Character.UnicodeScript.of(codePoint) != Character.UnicodeScript.LATIN) {
+                    return false;
+                }
+                hasLatinLetter = true;
+            }
+            offset += Character.charCount(codePoint);
+        }
+        return hasLatinLetter;
+    }
+
+    private boolean canBreakBetweenSegments(List<TextSegment> left, TextSegment right) {
+        if (left == null || left.isEmpty() || right == null) {
+            return true;
+        }
+        for (int index = left.size() - 1; index >= 0; index--) {
+            TextSegment segment = left.get(index);
+            if (segment != null && segment.text != null && !segment.text.isEmpty()) {
+                return LyricsWrapPolicy.canBreakBetween(segment.text, right.text);
+            }
+        }
+        return true;
+    }
+
+    private TextSegment createSplitSegment(TextSegment source, List<String> chars, int sourceOffset) {
+        StringBuilder builder = new StringBuilder();
+        for (String value : chars) {
+            builder.append(value);
+        }
+
+        int length = Math.max(1, chars.size());
+        int totalLength = Math.max(length, source.sourceLength);
+        int safeOffset = Math.max(0, Math.min(sourceOffset, totalLength));
+        int safeEnd = Math.min(totalLength, safeOffset + length);
+        long duration = Math.max(0L, source.endTimeMs - source.startTimeMs);
+        long start = duration <= 0L
+                ? source.startTimeMs
+                : source.startTimeMs + Math.round(duration * (safeOffset / (float) totalLength));
+        long end = duration <= 0L
+                ? source.endTimeMs
+                : source.startTimeMs + Math.round(duration * (Math.min(totalLength, safeEnd) / (float) totalLength));
+        long fillDuration = Math.max(0L, source.fillEndTimeMs - source.fillStartTimeMs);
+        long fillStart = fillDuration <= 0L
+                ? source.fillStartTimeMs
+                : source.fillStartTimeMs + Math.round(fillDuration * (safeOffset / (float) totalLength));
+        long fillEnd = fillDuration <= 0L
+                ? source.fillEndTimeMs
+                : source.fillStartTimeMs + Math.round(fillDuration * (Math.min(totalLength, safeEnd) / (float) totalLength));
+        TextSegment split = createMeasuredSegment(
+                builder.toString(),
+                start,
+                Math.max(start, end),
+                source.sourceIndex + safeOffset,
+                length,
+                rubyForSplitSegment(source, safeOffset, length),
+                source.styleSyllable()
+        );
+        return split.withFillTiming(fillStart, Math.max(fillStart, fillEnd));
+    }
+
+    private String rubyForSplitSegment(TextSegment source, int start, int length) {
+        if (source == null || source.rubyText == null || source.rubyText.trim().isEmpty() || length <= 0) {
+            return "";
+        }
+        if (start <= 0 && length >= source.sourceLength) {
+            return source.rubyText;
+        }
+
+        List<String> rubyChars = splitChars(source.rubyText.replace(" ", ""));
+        if (rubyChars.isEmpty()) {
+            return source.rubyText;
+        }
+
+        int sourceLength = Math.max(1, source.sourceLength);
+        int readStart = Math.min(rubyChars.size(), Math.round(rubyChars.size() * (start / (float) sourceLength)));
+        int readEnd = start + length >= sourceLength
+                ? rubyChars.size()
+                : Math.min(rubyChars.size(), Math.round(rubyChars.size() * ((start + length) / (float) sourceLength)));
+        if (readEnd <= readStart) {
+            readEnd = Math.min(rubyChars.size(), readStart + 1);
+        }
+
+        StringBuilder builder = new StringBuilder();
+        for (int index = readStart; index < readEnd; index++) {
+            builder.append(rubyChars.get(index));
+        }
+        return builder.toString();
+    }
+
+    private List<TextRow> wrapWordUnits(List<WrapUnit> units, float maxWidth) {
+        List<TextRow> rows = new ArrayList<>();
+        List<TextSegment> current = new ArrayList<>();
+        float currentWidth = 0f;
+
+        for (WrapUnit unit : units) {
+            float unitVisibleWidth = visibleWidth(unit.segments);
+            if (unitVisibleWidth <= 0f) {
+                continue;
+            }
+
+            if (unitVisibleWidth > maxWidth) {
+                addTrimmedRow(rows, current);
+                current = new ArrayList<>();
+                currentWidth = 0f;
+                rows.addAll(wrapIndividualSegments(trimWhitespaceSegments(unit.segments), maxWidth));
+                continue;
+            }
+
+            if (currentWidth > 0f && currentWidth + unitVisibleWidth > maxWidth) {
+                addTrimmedRow(rows, current);
+                current = new ArrayList<>();
+                currentWidth = 0f;
+            }
+
+            current.addAll(unit.segments);
+            currentWidth += unit.width;
+        }
+
+        addTrimmedRow(rows, current);
+        return rows;
+    }
+
+    private boolean shouldWrapByWords(List<TextSegment> segments) {
+        boolean seenWord = false;
+        boolean seenSeparatorAfterWord = false;
+        for (TextSegment segment : segments) {
+            if (isWhitespace(segment.text)) {
+                if (seenWord) {
+                    seenSeparatorAfterWord = true;
+                }
+            } else {
+                if (seenSeparatorAfterWord) {
+                    return true;
+                }
+                seenWord = true;
+            }
+        }
+        return false;
+    }
+
+    private List<WrapUnit> buildWordWrapUnits(List<TextSegment> segments) {
+        List<WrapUnit> units = new ArrayList<>();
+        List<TextSegment> current = new ArrayList<>();
+        float currentWidth = 0f;
+        boolean currentHasWord = false;
+
+        for (TextSegment segment : segments) {
+            boolean whitespace = isWhitespace(segment.text);
+            if (whitespace && !currentHasWord) {
+                continue;
+            }
+            if (!whitespace && currentHasWord && endsWithWhitespace(current)) {
+                units.add(new WrapUnit(current, currentWidth));
+                current = new ArrayList<>();
+                currentWidth = 0f;
+                currentHasWord = false;
+            }
+            current.add(segment);
+            currentWidth += segment.width;
+            if (!whitespace) {
+                currentHasWord = true;
+            }
+        }
+
+        if (!current.isEmpty()) {
+            units.add(new WrapUnit(current, currentWidth));
+        }
+        return units;
+    }
+
+    private void addTrimmedRow(List<TextRow> rows, List<TextSegment> segments) {
+        List<TextSegment> trimmed = trimWhitespaceSegments(segments);
+        if (!trimmed.isEmpty()) {
+            rows.add(new TextRow(trimmed));
+        }
+    }
+
+    private List<TextSegment> trimWhitespaceSegments(List<TextSegment> segments) {
+        if (segments == null || segments.isEmpty()) {
+            return Collections.emptyList();
+        }
+        int start = 0;
+        int end = segments.size();
+        while (start < end && isWhitespace(segments.get(start).text)) {
+            start++;
+        }
+        while (end > start && isWhitespace(segments.get(end - 1).text)) {
+            end--;
+        }
+        if (start >= end) {
+            return Collections.emptyList();
+        }
+        return new ArrayList<>(segments.subList(start, end));
+    }
+
+    private float visibleWidth(List<TextSegment> segments) {
+        if (segments == null || segments.isEmpty()) {
+            return 0f;
+        }
+        int start = 0;
+        int end = segments.size();
+        while (start < end && isWhitespace(segments.get(start).text)) {
+            start++;
+        }
+        while (end > start && isWhitespace(segments.get(end - 1).text)) {
+            end--;
+        }
+        float width = 0f;
+        for (int index = start; index < end; index++) {
+            width += segments.get(index).width;
+        }
+        return width;
+    }
+
+    private boolean endsWithWhitespace(List<TextSegment> segments) {
+        return segments != null && !segments.isEmpty() && isWhitespace(segments.get(segments.size() - 1).text);
+    }
+
+    private List<TextSegment> buildSegments(
+            String text,
+            String rubyText,
+            List<LyricsLine.Syllable> syllables,
+            long startTimeMs,
+            long endTimeMs
+    ) {
+        List<TextSegment> segments = new ArrayList<>();
+        List<RubyAnnotation> rubyAnnotations = parseRubyAnnotations(text, rubyText);
+        boolean hasInlineStyles = hasInlineSyllableStyles(syllables);
+        if (isLineDisplayGranularity() && !hasInlineStyles) {
+            return buildUntimedSegments(text, rubyAnnotations);
+        }
+        if (syllables != null && !syllables.isEmpty()) {
+            List<LyricsLine.Syllable> renderSyllables = isWordDisplayGranularity()
+                    ? TimedSyllableNormalizer.groupForWordDisplay(syllables, lyricsSegmentationLocale)
+                    : TimedSyllableNormalizer.normalize(syllables);
+            int charOffset = 0;
+            for (int index = 0; index < renderSyllables.size(); index++) {
+                LyricsLine.Syllable syllable = renderSyllables.get(index);
+                String value = syllable.text == null ? "" : syllable.text;
+                int charLength = Math.max(1, value.codePointCount(0, value.length()));
+                segments.add(createMeasuredSegment(
+                        value,
+                        isLineDisplayGranularity() ? 0L : syllable.startTimeMs,
+                        isLineDisplayGranularity() ? 0L : syllable.endTimeMs,
+                        charOffset,
+                        charLength,
+                        rubyForRange(rubyAnnotations, charOffset, charLength),
+                        syllable
+                ));
+                charOffset += charLength;
+            }
+            return segments;
+        }
+
+        if (!syncedLyricsKaraokeAnimationEnabled) {
+            return buildUntimedSegments(text, rubyAnnotations);
+        }
+
+        List<String> chars = splitChars(text);
+        long duration = Math.max(0L, endTimeMs - startTimeMs);
+        List<LyricsLine.Syllable> syntheticSyllables = new ArrayList<>(chars.size());
+        for (int index = 0; index < chars.size(); index++) {
+            String value = chars.get(index);
+            long start = duration <= 0L ? 0L : startTimeMs + Math.round(duration * (index / (float) Math.max(1, chars.size())));
+            long end = duration <= 0L ? 0L : startTimeMs + Math.round(duration * ((index + 1) / (float) Math.max(1, chars.size())));
+            syntheticSyllables.add(new LyricsLine.Syllable(value, start, end));
+        }
+        int charOffset = 0;
+        List<LyricsLine.Syllable> renderSyllables = isWordDisplayGranularity()
+                ? TimedSyllableNormalizer.groupForWordDisplay(syntheticSyllables, lyricsSegmentationLocale)
+                : TimedSyllableNormalizer.normalize(syntheticSyllables);
+        for (LyricsLine.Syllable syllable : renderSyllables) {
+            String value = syllable.text == null ? "" : syllable.text;
+            int charLength = Math.max(1, value.codePointCount(0, value.length()));
+            segments.add(createMeasuredSegment(
+                    value,
+                    syllable.startTimeMs,
+                    syllable.endTimeMs,
+                    charOffset,
+                    charLength,
+                    rubyForRange(rubyAnnotations, charOffset, charLength)
+            ));
+            charOffset += charLength;
+        }
+        return segments;
+    }
+
+    private boolean hasInlineSyllableStyles(List<LyricsLine.Syllable> syllables) {
+        if (syllables == null) return false;
+        for (LyricsLine.Syllable syllable : syllables) {
+            if (syllable != null && syllable.inlineStyle) return true;
+        }
+        return false;
+    }
+
+    private List<TextSegment> buildUntimedSegments(String text, List<RubyAnnotation> annotations) {
+        String value = text == null ? "" : text;
+        int totalLength = Math.max(1, codePointCount(value));
+        if (annotations == null || annotations.isEmpty()) {
+            return Collections.singletonList(createMeasuredSegment(
+                    value,
+                    0L,
+                    0L,
+                    0,
+                    totalLength,
+                    ""
+            ));
+        }
+
+        List<TextSegment> segments = new ArrayList<>();
+        int cursor = 0;
+        for (RubyAnnotation annotation : annotations) {
+            int start = Math.max(cursor, Math.min(totalLength, annotation.start));
+            int end = Math.max(start, Math.min(totalLength, annotation.end()));
+            if (start > cursor) {
+                addUntimedSegment(segments, value, cursor, start, "");
+            }
+            if (end > start) {
+                addUntimedSegment(segments, value, start, end, annotation.readingForRange(start, end));
+                cursor = end;
+            }
+        }
+        if (cursor < totalLength) {
+            addUntimedSegment(segments, value, cursor, totalLength, "");
+        }
+
+        return segments.isEmpty()
+                ? Collections.singletonList(createMeasuredSegment(value, 0L, 0L, 0, totalLength, ""))
+                : segments;
+    }
+
+    private void addUntimedSegment(List<TextSegment> segments, String text, int start, int end, String rubyText) {
+        if (segments == null || end <= start) {
+            return;
+        }
+        String value = substringByCodePointRange(text, start, end);
+        if (value.isEmpty()) {
+            return;
+        }
+        segments.add(createMeasuredSegment(
+                value,
+                0L,
+                0L,
+                start,
+                Math.max(1, end - start),
+                rubyText
+        ));
+    }
+
+    private static String substringByCodePointRange(String text, int start, int end) {
+        String value = text == null ? "" : text;
+        if (value.isEmpty()) {
+            return "";
+        }
+        int totalLength = codePointCount(value);
+        int safeStart = Math.max(0, Math.min(totalLength, start));
+        int safeEnd = Math.max(safeStart, Math.min(totalLength, end));
+        if (safeStart >= safeEnd) {
+            return "";
+        }
+        int startOffset = value.offsetByCodePoints(0, safeStart);
+        int endOffset = value.offsetByCodePoints(0, safeEnd);
+        return value.substring(startOffset, endOffset);
+    }
+
+    private TextSegment createMeasuredSegment(
+            String text,
+            long startTimeMs,
+            long endTimeMs,
+            int sourceIndex,
+            int sourceLength,
+            String rubyText
+    ) {
+        return createMeasuredSegment(text, startTimeMs, endTimeMs, sourceIndex, sourceLength, rubyText, null);
+    }
+
+    private TextSegment createMeasuredSegment(
+            String text,
+            long startTimeMs,
+            long endTimeMs,
+            int sourceIndex,
+            int sourceLength,
+            String rubyText,
+            LyricsLine.Syllable styleSource
+    ) {
+        String safeText = text == null ? "" : text;
+        float textWidth = textPaint.measureText(safeText);
+        float width = rubyAwareSegmentWidth(textWidth, rubyText);
+        return new TextSegment(
+                safeText,
+                textWidth,
+                width,
+                startTimeMs,
+                endTimeMs,
+                sourceIndex,
+                sourceLength,
+                rubyText,
+                styleSource != null && styleSource.inlineStyle,
+                styleSource == null ? "" : styleSource.styleKind,
+                styleSource == null ? "" : styleSource.styleSpeaker,
+                styleSource == null ? "" : styleSource.styleSpeakerColor,
+                styleSource == null ? "" : styleSource.styleSpeakerFallback
+        );
+    }
+
+    private float rubyAwareSegmentWidth(float textWidth, String rubyText) {
+        String ruby = rubyText == null ? "" : rubyText.trim();
+        if (ruby.isEmpty()) {
+            return textWidth;
+        }
+        float previousSize = textPaint.getTextSize();
+        Typeface previousTypeface = textPaint.getTypeface();
+        textPaint.setTextSize(Math.max(sp(9f), previousSize * FURIGANA_TEXT_RATIO));
+        textPaint.setTypeface(previousTypeface);
+        float rubyWidth = textPaint.measureText(ruby);
+        textPaint.setTextSize(previousSize);
+        textPaint.setTypeface(previousTypeface);
+        return Math.max(textWidth, rubyWidth + sp(2.5f));
+    }
+
+    private List<RubyAnnotation> parseRubyAnnotations(String text, String rubyText) {
+        if (!japaneseFuriganaEnabled || text == null || text.isEmpty() || rubyText == null || !rubyText.contains("<ruby>")) {
+            return Collections.emptyList();
+        }
+        List<RubyAnnotation> annotations = new ArrayList<>();
+        int currentChar = 0;
+        int cursor = 0;
+        while (cursor < rubyText.length()) {
+            int rubyStart = rubyText.indexOf("<ruby>", cursor);
+            if (rubyStart < 0) {
+                currentChar += codePointCount(MARKUP_TAG_PATTERN.matcher(rubyText.substring(cursor)).replaceAll(""));
+                break;
+            }
+            String before = rubyText.substring(cursor, rubyStart);
+            currentChar += codePointCount(MARKUP_TAG_PATTERN.matcher(before).replaceAll(""));
+
+            int baseStart = rubyStart + "<ruby>".length();
+            int rtStart = rubyText.indexOf("<rt>", baseStart);
+            int rtEnd = rtStart < 0 ? -1 : rubyText.indexOf("</rt>", rtStart);
+            int rubyEnd = rtEnd < 0 ? -1 : rubyText.indexOf("</ruby>", rtEnd);
+            if (rtStart < 0 || rtEnd < 0 || rubyEnd < 0) {
+                return Collections.emptyList();
+            }
+
+            String base = rubyText.substring(baseStart, rtStart);
+            String reading = rubyText.substring(rtStart + "<rt>".length(), rtEnd).trim();
+            int length = codePointCount(base);
+            if (length > 0 && !reading.isEmpty()) {
+                annotations.add(new RubyAnnotation(currentChar, length, reading));
+            }
+            currentChar += length;
+            cursor = rubyEnd + "</ruby>".length();
+        }
+
+        String plain = plainRubyText(rubyText);
+        if (!plain.equals(text)) {
+            return Collections.emptyList();
+        }
+        return annotations;
+    }
+
+    private String rubyForRange(List<RubyAnnotation> annotations, int start, int length) {
+        if (annotations == null || annotations.isEmpty() || length <= 0) {
+            return "";
+        }
+        int end = start + length;
+        StringBuilder builder = new StringBuilder();
+        for (RubyAnnotation annotation : annotations) {
+            if (annotation.start >= end || annotation.end() <= start) {
+                continue;
+            }
+            int overlapStart = Math.max(start, annotation.start);
+            int overlapEnd = Math.min(end, annotation.end());
+            String reading = annotation.readingForRange(overlapStart, overlapEnd);
+            if (reading.isEmpty()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(' ');
+            }
+            builder.append(reading);
+        }
+        return builder.toString();
+    }
+
+    private static String plainRubyText(String value) {
+        if (value == null || value.isEmpty()) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder();
+        int cursor = 0;
+        while (cursor < value.length()) {
+            int rubyStart = value.indexOf("<ruby>", cursor);
+            if (rubyStart < 0) {
+                builder.append(MARKUP_TAG_PATTERN.matcher(value.substring(cursor)).replaceAll(""));
+                break;
+            }
+            builder.append(MARKUP_TAG_PATTERN.matcher(value.substring(cursor, rubyStart)).replaceAll(""));
+            int baseStart = rubyStart + "<ruby>".length();
+            int rtStart = value.indexOf("<rt>", baseStart);
+            int rtEnd = rtStart < 0 ? -1 : value.indexOf("</rt>", rtStart);
+            int rubyEnd = rtEnd < 0 ? -1 : value.indexOf("</ruby>", rtEnd);
+            if (rtStart < 0 || rtEnd < 0 || rubyEnd < 0) {
+                return MARKUP_TAG_PATTERN.matcher(value).replaceAll("");
+            }
+            builder.append(value, baseStart, rtStart);
+            cursor = rubyEnd + "</ruby>".length();
+        }
+        return builder.toString();
+    }
+
+    private static int codePointCount(String value) {
+        return value == null || value.isEmpty() ? 0 : value.codePointCount(0, value.length());
+    }
+
+    private void drawBackground(Canvas canvas) {
+        backgroundPaint.setShader(null);
+    }
+
+    private RectF edgeFadeBounds(float left, float top, float right, float bottom) {
+        edgeFadeBounds.set(left, top, right, bottom);
+        return edgeFadeBounds;
+    }
+
+    private void applyBottomEdgeFade(Canvas canvas) {
+        int bottom = getHeight();
+        float fadeHeight = Math.min(dp(BOTTOM_EDGE_FADE_DP), bottom * 0.12f);
+        if (fadeHeight <= 1f) {
+            return;
+        }
+        float top = bottom - fadeHeight;
+        if (bottomEdgeFadeShader == null
+                || Float.compare(bottomEdgeFadeShaderTop, top) != 0
+                || bottomEdgeFadeShaderBottom != bottom) {
+            bottomEdgeFadeShader = new LinearGradient(
+                    0f,
+                    top,
+                    0f,
+                    bottom,
+                    Color.BLACK,
+                    Color.TRANSPARENT,
+                    Shader.TileMode.CLAMP
+            );
+            bottomEdgeFadeShaderTop = top;
+            bottomEdgeFadeShaderBottom = bottom;
+        }
+        edgeFadePaint.setShader(bottomEdgeFadeShader);
+        edgeFadePaint.setXfermode(bottomEdgeFadeXfermode);
+        canvas.drawRect(0f, top, getWidth(), bottom, edgeFadePaint);
+        edgeFadePaint.setXfermode(null);
+        edgeFadePaint.setShader(null);
+    }
+
+    private float topFadeAlpha(float baselineCenter, float layoutHeight) {
+        float fadeHeight = Math.min(getHeight() * 0.28f, sp(150f));
+        if (fadeHeight <= 1f) {
+            return 1f;
+        }
+        float fadeY = baselineCenter - layoutHeight * 0.35f;
+        return clamp(fadeY / fadeHeight);
+    }
+
+    private void drawEmpty(Canvas canvas) {
+        if (isLoadingEmptyMessage()) {
+            drawLoadingSkeleton(canvas);
+            if (frameAnimationsEnabled) postInvalidateOnAnimation();
+            return;
+        }
+        if (!emptyNoticeVisible) return;
+        float centerX = getWidth() * 0.5f;
+        float centerY = getHeight() * verticalCenterBias;
+        drawEmptyNoteIcon(canvas, centerX, centerY - sp(14f));
+
+        String message = emptyMessage == null || emptyMessage.trim().isEmpty()
+                ? emptyFallbackMessage
+                : emptyMessage.trim();
+        float textSize = sp(15f);
+        textPaint.setTextAlign(Paint.Align.CENTER);
+        configurePaint(Color.argb(126, 255, 255, 255), "vocal", false, textSize, false, AppFonts.regular(getContext()));
+        shrinkTextToFit(message, contentWidth() * 0.86f, textSize, sp(11f));
+        canvas.drawText(message, centerX, centerY + sp(46f), textPaint);
+        textPaint.setTextAlign(Paint.Align.LEFT);
+        resetPaintEffects();
+    }
+
+    private void drawEmptyNoteIcon(Canvas canvas, float centerX, float centerY) {
+        float size = Math.min(sp(58f), Math.max(sp(42f), getWidth() * 0.13f));
+        int alpha = 150;
+
+        emptyIconPaint.setShader(null);
+        emptyIconPaint.clearShadowLayer();
+        emptyIconPaint.setStyle(Paint.Style.STROKE);
+        emptyIconPaint.setStrokeCap(Paint.Cap.ROUND);
+        emptyIconPaint.setStrokeJoin(Paint.Join.ROUND);
+        emptyIconPaint.setStrokeWidth(Math.max(sp(2.2f), size * 0.055f));
+        emptyIconPaint.setColor(Color.argb(alpha, 255, 255, 255));
+        emptyIconPaint.setShadowLayer(size * 0.10f, 0f, 0f, Color.argb(44, 255, 255, 255));
+
+        float stemX = centerX + size * 0.16f;
+        float topY = centerY - size * 0.46f;
+        float bottomY = centerY + size * 0.18f;
+        emptyIconPath.reset();
+        emptyIconPath.moveTo(stemX, bottomY);
+        emptyIconPath.lineTo(stemX, topY);
+        emptyIconPath.cubicTo(
+                stemX + size * 0.04f,
+                topY + size * 0.02f,
+                stemX + size * 0.24f,
+                topY + size * 0.02f,
+                stemX + size * 0.31f,
+                topY + size * 0.12f
+        );
+        emptyIconPath.lineTo(stemX + size * 0.31f, topY + size * 0.27f);
+        canvas.drawPath(emptyIconPath, emptyIconPaint);
+
+        emptyIconOval.set(
+                centerX - size * 0.39f,
+                centerY + size * 0.08f,
+                centerX + size * 0.08f,
+                centerY + size * 0.39f
+        );
+        int save = canvas.save();
+        canvas.rotate(-18f, emptyIconOval.centerX(), emptyIconOval.centerY());
+        canvas.drawOval(emptyIconOval, emptyIconPaint);
+        canvas.restoreToCount(save);
+        emptyIconPaint.clearShadowLayer();
+    }
+
+    private void shrinkTextToFit(String text, float maxWidth, float initialSize, float minSize) {
+        float size = initialSize;
+        while (size > minSize && textPaint.measureText(text) > maxWidth) {
+            size -= sp(0.8f);
+            textPaint.setTextSize(size);
+        }
+    }
+
+    private void drawLoadingSkeleton(Canvas canvas) {
+        long now = frameAnimationsEnabled ? frameEffectTimeMs : 0L;
+        float left = contentLeft();
+        float availableWidth = contentWidth();
+        float centerY = getHeight() * verticalCenterBias;
+        float rowHeight = sp(16f);
+        float activeHeight = sp(25f);
+        float rowGap = sp(20f);
+        float totalHeight = rowHeight * 4f + activeHeight + rowGap * 4f;
+        float top = centerY - totalHeight * 0.5f;
+
+        String message = emptyMessage == null ? "" : emptyMessage.trim();
+        if (!message.isEmpty()) {
+            float textSize = sp(13f);
+            textPaint.setTextAlign(Paint.Align.LEFT);
+            configurePaint(
+                    Color.argb(196, 255, 255, 255),
+                    "vocal",
+                    false,
+                    textSize,
+                    false,
+                    AppFonts.semiBold(getContext())
+            );
+            shrinkTextToFit(message, availableWidth, textSize, sp(9f));
+            canvas.drawText(message, left, top - sp(18f), textPaint);
+        }
+
+        for (int index = 0; index < LOADING_SKELETON_WIDTH_FACTORS.length; index++) {
+            boolean active = index == 2;
+            float height = active ? activeHeight : rowHeight;
+            float width = Math.max(sp(86f), availableWidth * LOADING_SKELETON_WIDTH_FACTORS[index]);
+            float rowTop = top;
+            float radius = height * 0.45f;
+            int baseAlpha = active ? 82 : 36;
+
+            skeletonPaint.setShader(null);
+            skeletonPaint.setStyle(Paint.Style.FILL);
+            skeletonPaint.setColor(Color.argb(baseAlpha, 255, 255, 255));
+            canvas.drawRoundRect(left, rowTop, left + width, rowTop + height, radius, radius, skeletonPaint);
+
+            float shimmerWidth = Math.max(sp(48f), width * 0.34f);
+            float phase = ((now + index * 130L) % 1350L) / 1350f;
+            float shimmerLeft = left - shimmerWidth + (width + shimmerWidth * 2f) * phase;
+            skeletonPaint.setShader(loadingSkeletonShader(index, shimmerWidth, active));
+            int save = canvas.save();
+            canvas.clipRect(left, rowTop, left + width, rowTop + height);
+            canvas.translate(shimmerLeft, 0f);
+            canvas.drawRoundRect(
+                    left - shimmerLeft,
+                    rowTop,
+                    left + width - shimmerLeft,
+                    rowTop + height,
+                    radius,
+                    radius,
+                    skeletonPaint
+            );
+            canvas.restoreToCount(save);
+
+            top += height + rowGap;
+        }
+        skeletonPaint.setShader(null);
+    }
+
+    private LinearGradient loadingSkeletonShader(int index, float width, boolean active) {
+        LinearGradient shader = loadingSkeletonShaders[index];
+        if (shader == null || Float.compare(loadingSkeletonShaderWidths[index], width) != 0) {
+            shader = new LinearGradient(
+                    0f,
+                    0f,
+                    width,
+                    0f,
+                    active ? LOADING_SKELETON_ACTIVE_SHIMMER_COLORS : LOADING_SKELETON_SHIMMER_COLORS,
+                    LOADING_SKELETON_SHIMMER_STOPS,
+                    Shader.TileMode.CLAMP
+            );
+            loadingSkeletonShaders[index] = shader;
+            loadingSkeletonShaderWidths[index] = width;
+        }
+        return shader;
+    }
+
+    private boolean isLoadingEmptyMessage() {
+        return loadingState || emptyLoading;
+    }
+
+    private float segmentFillFraction(TextSegment segment) {
+        // The exact frame position: whole milliseconds give the same result as before.
+        double position = framePositionMs;
+        if (isWordDisplayGranularity()) {
+            return position >= segment.fillStartTimeMs ? 1f : 0f;
+        }
+        if (position >= segment.fillEndTimeMs) {
+            return 1f;
+        }
+        if (position <= segment.fillStartTimeMs || segment.fillEndTimeMs <= segment.fillStartTimeMs) {
+            return 0f;
+        }
+        return clamp((float) ((position - segment.fillStartTimeMs)
+                / (double) (segment.fillEndTimeMs - segment.fillStartTimeMs)));
+    }
+
+    private float baseWaveOffset(String kind, int rowIndex, int segmentIndex, float textSize) {
+        if (!frameAnimationsEnabled) return 0f;
+        frameHasLiveEffects = true;
+        return KaraokeMotion.waveOffset(frameEffectTimeMs + rowIndex * 95L, segmentIndex, textSize);
+    }
+
+    private void applyCanvasEffect(
+            Canvas canvas,
+            String kind,
+            boolean animate,
+            float centerX,
+            float y,
+            float textSize,
+            int rowIndex
+    ) {
+        if (!animate || !frameAnimationsEnabled) {
+            return;
+        }
+
+        frameHasLiveEffects |= isInlineEffectKind(kind);
+        long now = frameEffectTimeMs + rowIndex * 73L;
+        switch (kind) {
+            case "effect": {
+                int step = (int) ((now / 45L) % 4L);
+                float relativePixel = textSize / KaraokeMotion.DESKTOP_TEXT_SIZE;
+                float dx = EFFECT_TRANSLATE_X[step] * relativePixel;
+                float dy = EFFECT_TRANSLATE_Y[step] * relativePixel;
+                canvas.translate(dx, dy);
+                break;
+            }
+            case "adlib":
+                canvas.translate(0f, KaraokeMotion.adlibOffset(now, textSize));
+                break;
+            case "pulse": {
+                float scale = KaraokeMotion.pulseScale(now);
+                canvas.scale(scale, scale, centerX, y - textSize * 0.45f);
+                break;
+            }
+            case "bounce":
+                canvas.translate(0f, KaraokeMotion.bounceOffset(now, textSize));
+                break;
+            case "sway":
+                float sway = KaraokeMotion.swayStrength(now);
+                canvas.rotate(sway * 0.84f, centerX, y);
+                canvas.translate(sway * textSize * 0.0245f, 0f);
+                break;
+            case "float":
+                float floating = KaraokeMotion.floatStrength(now);
+                canvas.rotate(floating * 0.45f, centerX, y);
+                canvas.translate(0f, -floating * textSize * 0.09f);
+                break;
+            case "pop": {
+                float scale = KaraokeMotion.popScale(now);
+                canvas.scale(scale, scale, centerX, y - textSize * 0.45f);
+                break;
+            }
+            case "glitch": {
+                int step = (int) ((now / 35L) % 32L);
+                if (step == 5 || step == 19) {
+                    canvas.translate(textSize * 0.035f, -textSize * 0.01f);
+                } else if (step == 6 || step == 20) {
+                    canvas.translate(-textSize * 0.035f, textSize * 0.01f);
+                }
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
+    private void configurePaint(int color, String kind, boolean animate, float textSize, boolean activeFill) {
+        configurePaint(color, kind, animate, textSize, activeFill, lyricTypeface);
+    }
+
+    private void configurePaint(int color, String kind, boolean animate, float textSize, boolean activeFill, Typeface typeface) {
+        resetPaintEffects();
+        textPaint.setTypeface(typeface == null ? lyricTypeface : typeface);
+        textPaint.setTextSize(textSize);
+        textPaint.setColor(color);
+        textPaint.setAlpha(Color.alpha(color));
+        if (!animate || !frameAnimationsEnabled) {
+            return;
+        }
+
+        frameHasLiveEffects |= isInlineEffectKind(kind);
+        long now = frameEffectTimeMs;
+        int alpha = Color.alpha(color);
+        switch (kind) {
+            case "sparkle": {
+                float glow = positiveSin(now, 1180L);
+                textPaint.setShadowLayer(textSize * (0.07f + glow * 0.18f), 0f, 0f, withAlpha(activeFill ? color : Color.WHITE, 70 + Math.round(glow * 90f)));
+                break;
+            }
+            case "echo": {
+                textPaint.setShadowLayer(textSize * 0.12f, textSize * 0.06f, textSize * 0.035f, withAlpha(color, 78));
+                break;
+            }
+            case "whisper": {
+                float amount = positiveSin(now, 1450L);
+                textPaint.setAlpha(Math.round(alpha * (0.76f + (1f - amount) * 0.12f)));
+                break;
+            }
+            case "glow": {
+                float glow = 0.55f + positiveSin(now, 2800L) * 0.30f;
+                textPaint.setShadowLayer(textSize * (0.14f + glow * 0.14f), 0f, 0f, withAlpha(color, 105));
+                break;
+            }
+            case "blur": {
+                float blur = 0.30f + positiveSin(now, 1500L) * 0.35f;
+                textPaint.setAlpha(Math.round(alpha * (0.9f + (1f - blur) * 0.08f)));
+                textPaint.setShadowLayer(textSize * blur * 0.055f, 0f, 0f, withAlpha(color, 70));
+                break;
+            }
+            case "flicker": {
+                float phase = (now % 1220L) / 1220f;
+                float factor = (phase > 0.12f && phase < 0.15f) || (phase > 0.52f && phase < 0.56f) ? 0.78f : 1f;
+                textPaint.setAlpha(Math.round(alpha * factor));
+                break;
+            }
+            case "glitch": {
+                textPaint.setShadowLayer(0f, textSize * 0.04f, 0f, Color.argb(78, 111, 211, 255));
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
+    private void resetPaintEffects() {
+        textPaint.setShader(null);
+        textPaint.clearShadowLayer();
+    }
+
+    private List<DisplayLine> buildDisplayLines() {
+        if (lines.isEmpty()) {
+            return Collections.emptyList();
+        }
+        if (displayLineCacheValid
+                && positionMs >= displayLineCacheStartMs
+                && positionMs < displayLineCacheEndMs) {
+            return cachedDisplayLines;
+        }
+
+        List<DisplayLine> displayLines = new ArrayList<>(lines.size() + 1);
+        long cacheStartMs = Long.MIN_VALUE;
+        long cacheEndMs = Long.MAX_VALUE;
+        int lineCount = lines.size();
+        boolean singing = false;
+        // Explicit/interpolated breaks in one stream must not replace an overlapping voice.
+        // Cache changes at lyric boundaries so this scan runs only when the visible set changes.
+        for (LyricsLine line : lines) {
+            if (line == null || !line.isTimed() || isInterludeMarkerText(interludeCandidateText(line))) continue;
+            long end = Math.max(line.endTimeMs, lastLyricEndTime(line));
+            singing |= positionMs >= line.startTimeMs && positionMs < end;
+            if (line.startTimeMs <= positionMs) cacheStartMs = Math.max(cacheStartMs, line.startTimeMs);
+            else cacheEndMs = Math.min(cacheEndMs, line.startTimeMs);
+            if (end <= positionMs) cacheStartMs = Math.max(cacheStartMs, end);
+            else cacheEndMs = Math.min(cacheEndMs, end);
+        }
+        long latestLyricEnd = -1L;
+        for (int index = 0; index < lineCount; index++) {
+            LyricsLine line = lines.get(index);
+            InterludeInfo lineInterlude = interludeInfoForLine(line, index, lineCount);
+            cacheStartMs = cacheIntervalStart(lineInterlude, cacheStartMs);
+            cacheEndMs = cacheIntervalEnd(lineInterlude, cacheEndMs);
+            boolean markerInterlude = lineInterlude.isInterlude;
+            if (!markerInterlude || (!singing && isPositionInside(lineInterlude) && !hasVisibleInterludeOverlap(displayLines, lineInterlude))) {
+                displayLines.add(DisplayLine.real(line, index, displayLines.size(), markerInterlude ? lineInterlude : InterludeInfo.none()));
+            }
+
+            if (!isInterludeMarkerText(interludeCandidateText(line))) {
+                latestLyricEnd = Math.max(latestLyricEnd, lastLyricEndTime(line));
+            }
+            InterludeInfo trailingInterlude = trailingInterludeInfo(line, index, lineCount, latestLyricEnd);
+            cacheStartMs = cacheIntervalStart(trailingInterlude, cacheStartMs);
+            cacheEndMs = cacheIntervalEnd(trailingInterlude, cacheEndMs);
+            if (!singing && trailingInterlude.isInterlude
+                    && isPositionInside(trailingInterlude)
+                    && !hasVisibleInterludeOverlap(displayLines, trailingInterlude)) {
+                displayLines.add(DisplayLine.virtual(index, displayLines.size(), trailingInterlude));
+            }
+        }
+
+        if (displayLines.isEmpty()) {
+            LyricsLine line = lines.get(0);
+            displayLines.add(DisplayLine.real(line, 0, 0, interludeInfoForLine(line, 0, lineCount)));
+        }
+        remapDisplayCenter(cachedDisplayLines, displayLines);
+        cachedDisplayLines = displayLines;
+        displayLineCacheStartMs = cacheStartMs;
+        displayLineCacheEndMs = cacheEndMs;
+        displayLineCacheValid = true;
+        return cachedDisplayLines;
+    }
+
+    private void remapDisplayCenter(List<DisplayLine> previous, List<DisplayLine> next) {
+        if (previous.isEmpty() || next.isEmpty()) {
+            return;
+        }
+        int[] previousToNext = new int[previous.size()];
+        Arrays.fill(previousToNext, -1);
+        boolean changed = previous.size() != next.size();
+        int nextSearchStart = 0;
+        for (int previousIndex = 0; previousIndex < previous.size(); previousIndex++) {
+            DisplayLine previousLine = previous.get(previousIndex);
+            for (int nextIndex = nextSearchStart; nextIndex < next.size(); nextIndex++) {
+                if (sameDisplayIdentity(previousLine, next.get(nextIndex))) {
+                    previousToNext[previousIndex] = nextIndex;
+                    nextSearchStart = nextIndex + 1;
+                    break;
+                }
+            }
+            changed |= previousToNext[previousIndex] != previousIndex;
+        }
+        if (!changed) {
+            return;
+        }
+
+        // Interludes occupy a slot only while they are visible. Keep animation
+        // coordinates attached to the same lyric rows when those slots change.
+        DisplayIndexMapping mapping = new DisplayIndexMapping(previousToNext, next.size());
+        scheduleRowReflow(previous, next, mapping);
+        float mappedStart = mapping.map(centerTransitionStartIndex);
+        if (centerInitialized && !manualScrollActive) {
+            float progress = lyricsCenteringProgress((lastFrameMs - centerTransitionStartUptimeMs)
+                    / (float) Math.max(1L, centerTransitionDurationMs));
+            mappedStart = mapping.mapTransitionStart(centerTransitionStartIndex,
+                    centerTransitionTargetIndex, animatedCenterIndex, progress);
+        }
+        animatedCenterIndex = mapping.map(animatedCenterIndex);
+        centerTransitionStartIndex = mappedStart;
+        centerTransitionTargetIndex = mapping.mapTarget(centerTransitionTargetIndex);
+        manualCenterIndex = mapping.map(manualCenterIndex);
+        // Row travel keeps the same rows: its resting center and cascade anchors move
+        // with them; the shifts themselves are pixels.
+        if (!Float.isNaN(rowTravelCenter)) {
+            rowTravelCenter = mapping.map(rowTravelCenter);
+        }
+        for (LyricsLineMotion.Shift shift : rowShifts) {
+            shift.anchorIndex = mapping.map(shift.anchorIndex);
+        }
+        currentDisplayLineCount = next.size();
+        if (manualScroller != null && !manualScroller.isFinished()) {
+            // OverScroller still contains pixels in the old index coordinate system.
+            manualScroller.abortAnimation();
+        }
+        pressedTarget = null;
+    }
+
+    private void scheduleRowReflow(List<DisplayLine> previous, List<DisplayLine> next,
+            DisplayIndexMapping mapping) {
+        if (previousFrameLayouts.isEmpty()) {
+            clearRowReflow();
+            return;
+        }
+        boolean[] surviving = new boolean[next.size()];
+        for (int index = 0; index < previous.size(); index++) {
+            int mapped = mapping.mapTarget(index);
+            if (mapped >= 0) surviving[mapped] = true;
+        }
+        boolean insertedInterlude = false;
+        for (int index = 0; index < next.size(); index++) {
+            insertedInterlude |= !surviving[index] && next.get(index).isInterlude();
+        }
+        if (!insertedInterlude && !rowReflowActive && !rowReflowPending) {
+            return;
+        }
+        clearRowReflow();
+        // Only rows prepared for the previous frame have a screen position to
+        // preserve. There is no whole-song identity search in the animation loop.
+        for (LineLayout layout : previousFrameLayouts) {
+            int mapped = mapping.mapTarget(layout.index);
+            if (mapped < 0 || Float.isNaN(layout.baselineCenter)) continue;
+            DisplayLine line = next.get(mapped);
+            line.reflow = new RowReflow(layout.baselineCenter, false);
+            rowReflowLines.add(line);
+        }
+        for (int index = 0; index < next.size(); index++) {
+            DisplayLine line = next.get(index);
+            if (!surviving[index] && line.isInterlude()) {
+                line.reflow = new RowReflow(Float.NaN, true);
+                rowReflowLines.add(line);
+            }
+        }
+        rowReflowPending = !rowReflowLines.isEmpty();
+    }
+
+    private void prepareRowReflow() {
+        if (!rowReflowPending && !rowReflowActive) return;
+        if (!frameAnimationsEnabled) {
+            clearRowReflow();
+            return;
+        }
+        if (!rowReflowPending) {
+            if (rowReflowCenterTargetIndex != Integer.MIN_VALUE
+                    && (rowReflowCenterTargetIndex != centerTransitionTargetIndex
+                    || rowReflowStartUptimeMs != centerTransitionStartUptimeMs
+                    || rowReflowDurationMs != centerTransitionDurationMs)) {
+                if (manualScrollActive || !centerInitialized
+                        || centerTransitionTargetIndex == Integer.MIN_VALUE
+                        || rowReflowLastRemaining <= 0f
+                        || animatedCenterIndex == centerTransitionTargetIndex) {
+                    clearRowReflow();
+                    return;
+                }
+                // A short interlude can hand off to the next lyric before this
+                // reflow ends. Retain the last rendered offset, then follow the
+                // new center curve instead of completing the old curve alone.
+                rowReflowStartUptimeMs = centerTransitionStartUptimeMs;
+                rowReflowDurationMs = centerTransitionDurationMs;
+                rowReflowCenterTargetIndex = centerTransitionTargetIndex;
+                float remaining = 1f - lyricsCenteringProgress(
+                        (SystemClock.uptimeMillis() - rowReflowStartUptimeMs)
+                                / (float) Math.max(1L, rowReflowDurationMs));
+                rowReflowInitialRemaining = Math.max(0.0001f, remaining)
+                        / rowReflowLastRemaining;
+            }
+            return;
+        }
+        rowReflowPending = false;
+        rowReflowActive = true;
+        long now = SystemClock.uptimeMillis();
+        rowReflowStartUptimeMs = now;
+        rowReflowDurationMs = LYRICS_CENTERING_DURATION_MS;
+        rowReflowInitialRemaining = 1f;
+        rowReflowCenterTargetIndex = Integer.MIN_VALUE;
+        if (!manualScrollActive && centerInitialized
+                && centerTransitionTargetIndex != Integer.MIN_VALUE
+                && centerTransitionStartUptimeMs + centerTransitionDurationMs > now
+                && Math.abs(animatedCenterIndex - centerTransitionTargetIndex) > 0.002f) {
+            rowReflowStartUptimeMs = centerTransitionStartUptimeMs;
+            rowReflowDurationMs = centerTransitionDurationMs;
+            rowReflowCenterTargetIndex = centerTransitionTargetIndex;
+            rowReflowInitialRemaining = Math.max(0.0001f, 1f - lyricsCenteringProgress(
+                    (now - rowReflowStartUptimeMs) / (float) Math.max(1L, rowReflowDurationMs)));
+        }
+    }
+
+    private float rowReflowRemaining() {
+        if (!rowReflowActive) return 0f;
+        if (rowReflowCenterTargetIndex != Integer.MIN_VALUE
+                && rowReflowCenterTargetIndex == centerTransitionTargetIndex
+                && rowReflowStartUptimeMs == centerTransitionStartUptimeMs
+                && rowReflowDurationMs == centerTransitionDurationMs
+                && animatedCenterIndex == centerTransitionTargetIndex) {
+            // Centering snaps its final sub-pixel distance before its clock ends.
+            // Finish the compensation in that same frame so it cannot pass the target.
+            clearRowReflow();
+            return 0f;
+        }
+        float progress = lyricsCenteringProgress((SystemClock.uptimeMillis() - rowReflowStartUptimeMs)
+                / (float) Math.max(1L, rowReflowDurationMs));
+        float remaining = clamp((1f - progress) / rowReflowInitialRemaining);
+        rowReflowLastRemaining = remaining;
+        if (remaining <= 0f) clearRowReflow();
+        return remaining;
+    }
+
+    private void clearRowReflow() {
+        for (DisplayLine line : rowReflowLines) line.reflow = null;
+        rowReflowLines.clear();
+        rowReflowPending = false;
+        rowReflowActive = false;
+        rowReflowLastRemaining = 0f;
+        rowReflowCenterTargetIndex = Integer.MIN_VALUE;
+    }
+
+    private static boolean sameDisplayIdentity(DisplayLine first, DisplayLine second) {
+        if (first.sourceIndex != second.sourceIndex
+                || (first.line == null) != (second.line == null)
+                || first.isInterlude() != second.isInterlude()) {
+            return false;
+        }
+        return !first.isInterlude()
+                || (first.interludeInfo.startTimeMs == second.interludeInfo.startTimeMs
+                && first.interludeInfo.endTimeMs == second.interludeInfo.endTimeMs
+                && first.interludeInfo.kind.equals(second.interludeInfo.kind));
+    }
+
+    private long cacheIntervalStart(InterludeInfo info, long currentStartMs) {
+        if (info == null || !info.isInterlude) {
+            return currentStartMs;
+        }
+        long nextStartMs = currentStartMs;
+        if (info.startTimeMs <= positionMs) {
+            nextStartMs = Math.max(nextStartMs, info.startTimeMs);
+        }
+        if (info.endTimeMs <= positionMs) {
+            nextStartMs = Math.max(nextStartMs, info.endTimeMs);
+        }
+        return nextStartMs;
+    }
+
+    private long cacheIntervalEnd(InterludeInfo info, long currentEndMs) {
+        if (info == null || !info.isInterlude) {
+            return currentEndMs;
+        }
+        long nextEndMs = currentEndMs;
+        if (info.startTimeMs > positionMs) {
+            nextEndMs = Math.min(nextEndMs, info.startTimeMs);
+        }
+        if (info.endTimeMs > positionMs) {
+            nextEndMs = Math.min(nextEndMs, info.endTimeMs);
+        }
+        return nextEndMs;
+    }
+
+    private void invalidateDisplayLineCache() {
+        cachedDisplayLines = Collections.emptyList();
+        displayLineCacheValid = false;
+        displayLineCacheStartMs = Long.MIN_VALUE;
+        displayLineCacheEndMs = Long.MAX_VALUE;
+        activeDisplayIndexCacheLines = null;
+        activeDisplayIndexCacheStartMs = Long.MIN_VALUE;
+        activeDisplayIndexCacheEndMs = Long.MAX_VALUE;
+        activeDisplayIndexCacheValue = 0;
+        visualCenterIndexCacheLines = null;
+        visualCenterIndexCacheStartMs = Long.MIN_VALUE;
+        visualCenterIndexCacheEndMs = Long.MAX_VALUE;
+        visualCenterIndexCacheValue = 0;
+    }
+
+    private void invalidateFrameGroupCache() {
+        exitingInterlude = null;
+        previousFrameLayouts.clearReferences();
+        nextFrameLayouts.clearReferences();
+    }
+
+    private boolean hasVisibleInterludeOverlap(List<DisplayLine> displayLines, InterludeInfo info) {
+        if (displayLines == null || displayLines.isEmpty() || info == null || !info.isInterlude) {
+            return false;
+        }
+        for (DisplayLine displayLine : displayLines) {
+            if (displayLine != null
+                    && displayLine.isInterlude()
+                    && interludesOverlap(displayLine.interludeInfo, info)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean interludesOverlap(InterludeInfo first, InterludeInfo second) {
+        return first != null
+                && second != null
+                && first.isInterlude
+                && second.isInterlude
+                && first.startTimeMs < second.endTimeMs
+                && second.startTimeMs < first.endTimeMs;
+    }
+
+    private int findActiveDisplayIndex(List<DisplayLine> displayLines) {
+        return findActiveDisplayIndexAt(displayLines, positionMs, true);
+    }
+
+    private int findActiveDisplayIndexAt(List<DisplayLine> displayLines, long targetPositionMs, boolean useCache) {
+        if (displayLines == null || displayLines.isEmpty()) {
+            return 0;
+        }
+        if (useCache
+                && activeDisplayIndexCacheLines == displayLines
+                && targetPositionMs >= activeDisplayIndexCacheStartMs
+                && targetPositionMs < activeDisplayIndexCacheEndMs) {
+            return activeDisplayIndexCacheValue;
+        }
+        // The 300 ms look-ahead crosses boundaries before playback does. Keep its
+        // interval separate so the two per-frame queries cannot evict each other.
+        if (!useCache
+                && visualCenterIndexCacheLines == displayLines
+                && targetPositionMs >= visualCenterIndexCacheStartMs
+                && targetPositionMs < visualCenterIndexCacheEndMs) {
+            return visualCenterIndexCacheValue;
+        }
+
+        int activeIndex = 0;
+        int firstSingingIndex = -1;
+        long cacheStartMs = Long.MIN_VALUE;
+        long cacheEndMs = Long.MAX_VALUE;
+        for (int index = 0; index < displayLines.size(); index++) {
+            DisplayLine displayLine = displayLines.get(index);
+            if (!displayLine.isTimed()) {
+                if (index == 0) {
+                    activeIndex = 0;
+                }
+                continue;
+            }
+            long startTimeMs = displayLine.startTimeMs();
+            long endTimeMs = displayLine.endTimeMs();
+            if (startTimeMs <= targetPositionMs) {
+                cacheStartMs = Math.max(cacheStartMs, startTimeMs);
+                // The playback anchor follows the latest line start. A previous
+                // line may keep singing past this point, but it must not prevent
+                // the next line from becoming the center anchor.
+                activeIndex = index;
+                if (firstSingingIndex < 0 && targetPositionMs < endTimeMs) firstSingingIndex = index;
+            } else {
+                cacheEndMs = Math.min(cacheEndMs, startTimeMs);
+            }
+            if (endTimeMs <= targetPositionMs) {
+                cacheStartMs = Math.max(cacheStartMs, endTimeMs);
+            } else {
+                cacheEndMs = Math.min(cacheEndMs, endTimeMs);
+            }
+        }
+        if (useCache) {
+            activeDisplayIndexCacheLines = displayLines;
+            activeDisplayIndexCacheStartMs = cacheStartMs;
+            activeDisplayIndexCacheEndMs = cacheEndMs;
+            activeDisplayIndexCacheValue = activeIndex;
+            activeDisplayFirstSingingCacheValue = firstSingingIndex;
+        } else {
+            visualCenterIndexCacheLines = displayLines;
+            visualCenterIndexCacheStartMs = cacheStartMs;
+            visualCenterIndexCacheEndMs = cacheEndMs;
+            visualCenterIndexCacheValue = activeIndex;
+        }
+        return activeIndex;
+    }
+
+    private int findVisualCenterDisplayIndex(List<DisplayLine> displayLines, int activeIndex) {
+        if (!karaoke
+                || !syncedLyricsKaraokeAnimationEnabled
+                || !frameAnimationsEnabled) {
+            return activeIndex;
+        }
+        int advancedIndex = findActiveDisplayIndexAt(
+                displayLines,
+                positionMs + LYRICS_CENTERING_LEAD_MS,
+                false
+        );
+        // Match the desktop hand-off: even if several starts fall inside the
+        // 300 ms look-ahead, reveal only the immediately following row.
+        return Math.min(
+                displayLines.size() - 1,
+                Math.min(activeIndex + 1, Math.max(activeIndex, advancedIndex))
+        );
+    }
+
+    private long adaptiveCenteringDuration(List<DisplayLine> displayLines, int targetIndex) {
+        if (displayLines == null || targetIndex < 0 || targetIndex >= displayLines.size()) {
+            return LYRICS_CENTERING_DURATION_MS;
+        }
+        long targetStart = displayLines.get(targetIndex).startTimeMs();
+        long nextStart = Long.MAX_VALUE;
+        for (int index = targetIndex + 1; index < displayLines.size(); index++) {
+            DisplayLine candidate = displayLines.get(index);
+            if (candidate.isTimed() && candidate.startTimeMs() > targetStart) {
+                nextStart = candidate.startTimeMs();
+                break;
+            }
+        }
+        if (nextStart == Long.MAX_VALUE) {
+            return LYRICS_CENTERING_DURATION_MS;
+        }
+        long availableMs = Math.max(
+                LYRICS_CENTERING_MIN_TOTAL_MS,
+                nextStart - targetStart - LYRICS_CENTERING_SETTLE_RESERVE_MS
+        );
+        float scale = Math.min(
+                1f,
+                availableMs / (float) (LYRICS_CENTERING_DURATION_MS + LYRICS_CENTERING_MAX_STAGGER_MS)
+        );
+        return Math.max(1L, Math.round(LYRICS_CENTERING_DURATION_MS * scale));
+    }
+
+    private float lyricsCenteringProgress(float progress) {
+        float clamped = clamp(progress);
+        float parameter = clamped;
+        for (int iteration = 0; iteration < 5; iteration++) {
+            float difference = cubicBezierCoordinate(parameter, 0.42f, 0.58f) - clamped;
+            float derivative = cubicBezierDerivative(parameter, 0.42f, 0.58f);
+            if (Math.abs(difference) < 0.0001f || Math.abs(derivative) < 0.0001f) {
+                break;
+            }
+            parameter = clamp(parameter - difference / derivative);
+        }
+        // The desktop curve uses y1=0 and y2=1.
+        return cubicBezierCoordinate(parameter, 0f, 1f);
+    }
+
+    private float cubicBezierCoordinate(float t, float first, float second) {
+        float inverse = 1f - t;
+        return 3f * inverse * inverse * t * first
+                + 3f * inverse * t * t * second
+                + t * t * t;
+    }
+
+    private float cubicBezierDerivative(float t, float first, float second) {
+        float inverse = 1f - t;
+        return 3f * inverse * inverse * first
+                + 6f * inverse * t * (second - first)
+                + 3f * t * t * (1f - second);
+    }
+
+    private LineVisualState lineVisualState(List<DisplayLine> displayLines, int index) {
+        if (displayLines == null || index < 0 || index >= displayLines.size()) {
+            return LineVisualState.INACTIVE;
+        }
+        DisplayLine displayLine = displayLines.get(index);
+        if (!displayLine.isTimed()) {
+            return index == findActiveDisplayIndex(displayLines)
+                    ? LineVisualState.ACTIVE
+                    : LineVisualState.INACTIVE;
+        }
+        long startTimeMs = displayLine.startTimeMs();
+        if (positionMs < startTimeMs) {
+            return LineVisualState.INACTIVE;
+        }
+        long contentEndTimeMs = displayLineContentEndTime(displayLine);
+        long nextStartTimeMs = Long.MIN_VALUE;
+        for (int nextIndex = index + 1; nextIndex < displayLines.size(); nextIndex++) {
+            DisplayLine candidate = displayLines.get(nextIndex);
+            if (candidate.isTimed() && candidate.startTimeMs() > startTimeMs) {
+                nextStartTimeMs = candidate.startTimeMs();
+                break;
+            }
+        }
+        long holdEndTimeMs = nextStartTimeMs == Long.MIN_VALUE
+                ? contentEndTimeMs
+                : Math.max(contentEndTimeMs, nextStartTimeMs);
+        if (positionMs < holdEndTimeMs) {
+            return LineVisualState.ACTIVE;
+        }
+        float completedColorOpacity = 1f - clamp(
+                (positionMs - holdEndTimeMs) / (float) KARAOKE_COMPLETED_COLOR_FADE_MS
+        );
+        boolean animating = positionMs < contentEndTimeMs + KARAOKE_RELEASE_WINDOW_MS;
+        return new LineVisualState(false, animating, completedColorOpacity);
+    }
+
+    private long displayLineContentEndTime(DisplayLine displayLine) {
+        if (displayLine == null) {
+            return 0L;
+        }
+        if (displayLine.isInterlude()) {
+            return displayLine.endTimeMs();
+        }
+        LyricsLine line = displayLine.line;
+        if (line == null) {
+            return displayLine.endTimeMs();
+        }
+        if (displayLine.cachedContentEndTimeMs == Long.MIN_VALUE) {
+            displayLine.cachedContentEndTimeMs = Math.max(displayLine.endTimeMs(), lastLyricEndTime(line));
+        }
+        return displayLine.cachedContentEndTimeMs;
+    }
+
+    private InterludeInfo interludeInfoForLine(LyricsLine line, int lineIndex, int lineCount) {
+        String markerText = interludeCandidateText(line);
+        if (line == null || !line.isTimed() || !isInterludeMarkerText(markerText)) {
+            return InterludeInfo.none();
+        }
+        long endTimeMs = Math.max(line.endTimeMs, nextRenderableLineStartAfter(lineIndex));
+        long durationMs = endTimeMs > line.startTimeMs ? endTimeMs - line.startTimeMs : 0L;
+        long minimumDurationMs = isMusicNoteInterludeMarkerText(markerText)
+                ? 0L
+                : INTERLUDE_MIN_DURATION_MS;
+        if (durationMs <= minimumDurationMs) {
+            return InterludeInfo.none();
+        }
+        return new InterludeInfo(true, line.startTimeMs, endTimeMs, instrumentalKind(lineIndex, lineCount), false);
+    }
+
+    private InterludeInfo trailingInterludeInfo(LyricsLine line, int lineIndex, int lineCount, long latestLyricEnd) {
+        if (!autoInstrumentalBreakEnabled || line == null || !line.isTimed() || isInterludeMarkerText(interludeCandidateText(line))) {
+            return InterludeInfo.none();
+        }
+
+        long lyricEndTime = Math.max(lastLyricEndTime(line), latestLyricEnd);
+        if (lyricEndTime < 0L) {
+            return InterludeInfo.none();
+        }
+
+        long startTime = lyricEndTime + KARAOKE_TRAILING_INTERLUDE_DELAY_MS;
+        long nextLyricStartTime = nextRenderableLineStartAfter(lineIndex);
+        if (hasRenderableInterludeMarkerBeforeNextRenderableLine(lineIndex, lineCount)) {
+            return InterludeInfo.none();
+        }
+        long endTime = nextLyricStartTime > startTime
+                ? nextLyricStartTime
+                : (lineIndex >= Math.max(0, lineCount - 1) ? trackDurationMs : 0L);
+        long durationMs = endTime > startTime ? endTime - startTime : 0L;
+        if (durationMs <= INTERLUDE_MIN_DURATION_MS) {
+            return InterludeInfo.none();
+        }
+        return new InterludeInfo(true, startTime, endTime, nextLyricStartTime > 0L ? "break" : "postlude", true);
+    }
+
+    private long nextRenderableLineStartAfter(int lineIndex) {
+        for (int index = Math.max(0, lineIndex + 1); index < lines.size(); index++) {
+            LyricsLine candidate = lines.get(index);
+            if (candidate == null || !candidate.isTimed()) {
+                continue;
+            }
+            if (isInterludeMarkerText(interludeCandidateText(candidate))) {
+                continue;
+            }
+            return candidate.startTimeMs;
+        }
+        return 0L;
+    }
+
+    private boolean hasRenderableInterludeMarkerBeforeNextRenderableLine(int lineIndex, int lineCount) {
+        for (int index = Math.max(0, lineIndex + 1); index < lines.size(); index++) {
+            LyricsLine candidate = lines.get(index);
+            if (candidate == null || !candidate.isTimed()) {
+                continue;
+            }
+            if (!isInterludeMarkerText(interludeCandidateText(candidate))) {
+                return false;
+            }
+            if (interludeInfoForLine(candidate, index, lineCount).isInterlude) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private long lastLyricEndTime(LyricsLine line) {
+        if (line == null) {
+            return -1L;
+        }
+
+        long lastEnd = maxSyllableEnd(line.syllables, line.endTimeMs);
+        if (line.vocalParts != null) {
+            for (LyricsLine.VocalPart part : line.vocalParts) {
+                lastEnd = Math.max(lastEnd, maxSyllableEnd(part.syllables, line.endTimeMs));
+            }
+        }
+        if (lastEnd >= 0L) {
+            return lastEnd;
+        }
+        return line.endTimeMs > line.startTimeMs ? line.endTimeMs : -1L;
+    }
+
+    private long maxSyllableEnd(List<LyricsLine.Syllable> syllables, long fallbackLineEndMs) {
+        if (syllables == null || syllables.isEmpty()) {
+            return -1L;
+        }
+        long lastEnd = -1L;
+        for (LyricsLine.Syllable syllable : syllables) {
+            if (syllable == null) {
+                continue;
+            }
+            long endTime = syllable.endTimeMs > syllable.startTimeMs ? syllable.endTimeMs : fallbackLineEndMs;
+            if (endTime >= syllable.startTimeMs) {
+                lastEnd = Math.max(lastEnd, endTime);
+            }
+        }
+        return lastEnd;
+    }
+
+    private boolean isPositionInside(InterludeInfo info) {
+        return info != null && info.isInterlude && positionMs >= info.startTimeMs && positionMs < info.endTimeMs;
+    }
+
+    private String instrumentalKind(int lineIndex, int lineCount) {
+        if (lineIndex == 0) {
+            return "prelude";
+        }
+        if (lineIndex == Math.max(0, lineCount - 1)) {
+            return "postlude";
+        }
+        return "break";
+    }
+
+    private String interludeCandidateText(LyricsLine line) {
+        if (line == null) {
+            return "";
+        }
+        String text = line.text == null ? "" : line.text;
+        if (!text.trim().isEmpty()) {
+            return text;
+        }
+        StringBuilder builder = new StringBuilder();
+        if (line.vocalParts != null) {
+            for (LyricsLine.VocalPart part : line.vocalParts) {
+                if (part != null && part.text != null) {
+                    builder.append(part.text);
+                }
+            }
+        }
+        return builder.toString();
+    }
+
+    private boolean isInterludeMarkerText(String text) {
+        String normalized = unwrapInterludeMarkerText(decodeInterludeMarkerText(text));
+        normalized = Normalizer.normalize(normalized, Normalizer.Form.NFKC).trim();
+        if (normalized.isEmpty()) {
+            return true;
+        }
+        for (int offset = 0; offset < normalized.length(); ) {
+            int codePoint = normalized.codePointAt(offset);
+            if (!isInterludeMarkerCodePoint(codePoint)) {
+                return false;
+            }
+            offset += Character.charCount(codePoint);
+        }
+        return true;
+    }
+
+    private boolean isMusicNoteInterludeMarkerText(String text) {
+        String normalized = unwrapInterludeMarkerText(decodeInterludeMarkerText(text));
+        normalized = Normalizer.normalize(normalized, Normalizer.Form.NFKC).trim();
+        if (normalized.isEmpty()) {
+            return false;
+        }
+
+        boolean containsMusicNote = false;
+        for (int offset = 0; offset < normalized.length(); ) {
+            int codePoint = normalized.codePointAt(offset);
+            if (!isInterludeMarkerCodePoint(codePoint)) {
+                return false;
+            }
+            containsMusicNote |= isInterludeMusicNoteCodePoint(codePoint);
+            offset += Character.charCount(codePoint);
+        }
+        return containsMusicNote;
+    }
+
+    private boolean isInterludeMusicNoteCodePoint(int codePoint) {
+        return (codePoint >= 0x2669 && codePoint <= 0x266F)
+                || (codePoint >= 0x1D100 && codePoint <= 0x1D1FF)
+                || (codePoint >= 0x1F3B5 && codePoint <= 0x1F3BC);
+    }
+
+    private boolean isInterludeMarkerCodePoint(int codePoint) {
+        return Character.isWhitespace(codePoint)
+                || Character.isSpaceChar(codePoint)
+                || codePoint == 0x00A0
+                || (codePoint >= 0x200B && codePoint <= 0x200F)
+                || (codePoint >= 0x202A && codePoint <= 0x202E)
+                || (codePoint >= 0x2060 && codePoint <= 0x2069)
+                || codePoint == 0xFE0E
+                || codePoint == 0xFE0F
+                || codePoint == 0xFEFF
+                || (codePoint >= 0x2669 && codePoint <= 0x266F)
+                || (codePoint >= 0x1D100 && codePoint <= 0x1D1FF)
+                || (codePoint >= 0x1F3B5 && codePoint <= 0x1F3BC);
+    }
+
+    private String decodeInterludeMarkerText(String text) {
+        String decoded = text == null ? "" : text;
+        if (decoded.indexOf('&') >= 0) {
+            decoded = decoded
+                    .replaceAll("(?i)&amp;", "&")
+                    .replaceAll("(?i)&lt;", "<")
+                    .replaceAll("(?i)&gt;", ">")
+                    .replaceAll("(?i)&nbsp;", " ")
+                    .replaceAll("(?i)&sung;", "♪")
+                    .replaceAll("(?i)&flat;", "♭")
+                    .replaceAll("(?i)&natur;", "♮")
+                    .replaceAll("(?i)&sharp;", "♯");
+        }
+
+        Matcher matcher = INTERLUDE_NUMERIC_ENTITY_PATTERN.matcher(decoded);
+        StringBuffer result = new StringBuffer();
+        while (matcher.find()) {
+            String value = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
+            int radix = matcher.group(1) != null ? 16 : 10;
+            String replacement = matcher.group();
+            try {
+                int codePoint = Integer.parseInt(value, radix);
+                if (Character.isValidCodePoint(codePoint)) {
+                    replacement = new String(Character.toChars(codePoint));
+                }
+            } catch (NumberFormatException ignored) {
+                // Keep malformed entities intact so they are not mistaken for a marker.
+            }
+            matcher.appendReplacement(result, Matcher.quoteReplacement(replacement));
+        }
+        matcher.appendTail(result);
+        String resolved = result.toString();
+        return resolved.indexOf('<') >= 0
+                ? INTERLUDE_HTML_TAG_PATTERN.matcher(resolved).replaceAll("")
+                : resolved;
+    }
+
+    private String unwrapInterludeMarkerText(String text) {
+        String value = text == null ? "" : text.trim();
+        for (int depth = 0; depth < 3 && value.length() >= 2; depth++) {
+            boolean unwrapped = false;
+            for (String[] wrapper : INTERLUDE_MARKER_WRAPPERS) {
+                if (value.startsWith(wrapper[0]) && value.endsWith(wrapper[1])) {
+                    value = value.substring(wrapper[0].length(), value.length() - wrapper[1].length()).trim();
+                    unwrapped = true;
+                    break;
+                }
+            }
+            if (!unwrapped) {
+                break;
+            }
+        }
+        return value;
+    }
+
+    private KaraokeMotion.Values karaokeBounce(TextSegment segment, DrawGroup group) {
+        // Pronunciation and translation rows never bounce, including a filling pronunciation row.
+        if (!frameAnimationsEnabled || isLineDisplayGranularity() || !karaokeBounceEffectEnabled || group.supplement) {
+            return karaokeBounceResult.idle();
+        }
+        // Each source unit owns its hold/release window. A subsequent character,
+        // row, or simultaneous vocal must not abruptly cut off that movement.
+        return KaraokeMotion.evaluate(segment.motionProfile, framePositionMs, group.textSize, karaokeBounceResult);
+    }
+
+    /** Expressive motion is a style of the bounce, with the same gates. */
+    private boolean expressiveMotionActive(DrawGroup group) {
+        return karaokeExpressiveMotion && frameAnimationsEnabled && !isLineDisplayGranularity()
+                && karaokeBounceEffectEnabled && !group.supplement;
+    }
+
+    /** The bounce or, when chosen, the expressive motion of one drawn segment this frame. */
+    private KaraokeMotion.Values karaokeMotion(TextSegment segment, DrawGroup group) {
+        if (!expressiveMotionActive(group)) return karaokeBounce(segment, group);
+        double pose = KaraokeExpressiveMotion.pendingPose(group.active, framePositionMs,
+                group.lineStartTimeMs, group.lineEndTimeMs);
+        return KaraokeExpressiveMotion.evaluate(segment.expressiveUnit, framePositionMs, pose, group.textSize,
+                karaokeBounceResult);
+    }
+
+    private int inactiveColor(float distance) {
+        int alpha = Math.round(185f - Math.min(2.6f, distance) * 46f);
+        return Color.argb(Math.max(54, Math.min(190, alpha)), 174, 181, 195);
+    }
+
+    private String normalizeKind(String kind) {
+        String value = kind == null ? "" : kind.trim().toLowerCase(Locale.ROOT);
+        return value.isEmpty() ? "vocal" : value;
+    }
+
+    private static boolean isInlineEffectKind(String kind) {
+        String value = kind == null ? "" : kind.trim().toLowerCase(Locale.ROOT);
+        switch (value) {
+            case "effect":
+            case "adlib":
+            case "pulse":
+            case "wave":
+            case "sparkle":
+            case "echo":
+            case "whisper":
+            case "bounce":
+            case "sway":
+            case "glow":
+            case "glitch":
+            case "flicker":
+            case "float":
+            case "blur":
+            case "pop":
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private int colorForSpeaker(String speaker, String speakerColor, String speakerFallback, String role, int fallback) {
+        String key = normalizeSpeakerKey(speaker);
+        int color = resolvedSpeakerColor(key, speakerColor, speakerFallback);
+        return color != 0 ? color : fallback;
+    }
+
+    private int normalActiveColor() {
+        if (normalSpeakerColor == 0) {
+            normalSpeakerColor = speakerColorSettings.color(AiLyricsSettings.SPEAKER_COLOR_NORMAL);
+        }
+        return normalSpeakerColor;
+    }
+
+    private int inactiveColorForSpeaker(String speaker, String speakerColor, String speakerFallback, float distance) {
+        String rawKey = normalizeSpeakerKey(speaker);
+        String key = fallbackCustomSpeakerKey(rawKey, speakerFallback);
+        int color = resolvedSpeakerColor(rawKey, speakerColor, speakerFallback);
+        if (color == 0) {
+            return inactiveColor(distance);
+        }
+        int distanceAlpha = Color.alpha(inactiveColor(distance));
+        float distanceFactor = distanceAlpha / 185f;
+        int alpha = Math.round(255f * speakerInactiveAlpha(key) * distanceFactor);
+        alpha = Math.max(40, Math.min(150, alpha));
+        return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color));
+    }
+
+    private int supplementInactiveColorForSpeaker(
+            String speaker,
+            String speakerColor,
+            String speakerFallback,
+            float distance
+    ) {
+        int alpha = Math.max(34, Math.round(105f - Math.min(2.8f, distance) * 24f));
+        int color = resolvedSpeakerColor(normalizeSpeakerKey(speaker), speakerColor, speakerFallback);
+        if (color == 0) {
+            return Color.argb(alpha, 210, 216, 226);
+        }
+        return withAlpha(color, alpha);
+    }
+
+    private int resolvedSpeakerColor(String key, String speakerColor, String speakerFallback) {
+        if (isCustomSpeakerKey(key) && useCreatorSpeakerColors && AiLyricsSettings.isHexColor(speakerColor)) {
+            String value = speakerColor.trim();
+            try {
+                return Color.parseColor(value.startsWith("#") ? value : "#" + value);
+            } catch (IllegalArgumentException ignored) {
+                // Invalid creator colors use the sync creator's selected fallback.
+            }
+        }
+        return speakerActiveColor(fallbackCustomSpeakerKey(key, speakerFallback));
+    }
+
+    private boolean isCustomSpeakerKey(String key) {
+        return "custom".equals(key)
+                || "speaker-custom".equals(key)
+                || "male-custom".equals(key)
+                || "speaker-male-custom".equals(key)
+                || "female-custom".equals(key)
+                || "speaker-female-custom".equals(key)
+                || "duet-custom".equals(key)
+                || "speaker-duet-custom".equals(key);
+    }
+
+    private String fallbackCustomSpeakerKey(String key, String speakerFallback) {
+        if ("custom".equals(key) || "speaker-custom".equals(key)) {
+            String fallback = normalizeSpeakerKey(speakerFallback);
+            if ("male-1".equals(fallback) || "female-1".equals(fallback) || "duet-1".equals(fallback)) {
+                return fallback;
+            }
+            return "male-1";
+        }
+        if ("male-custom".equals(key) || "speaker-male-custom".equals(key)) {
+            return "male-1";
+        }
+        if ("female-custom".equals(key) || "speaker-female-custom".equals(key)) {
+            return "female-1";
+        }
+        if ("duet-custom".equals(key) || "speaker-duet-custom".equals(key)) {
+            return "duet-1";
+        }
+        return key;
+    }
+
+    private int speakerActiveColor(String key) {
+        if (key.isEmpty()) {
+            return 0;
+        }
+        if ("speaker-b".equals(key) || "b".equals(key)) {
+            return SPEAKER_B_COLOR;
+        }
+        if ("speaker-c".equals(key) || "c".equals(key)) {
+            return SPEAKER_C_COLOR;
+        }
+        if ("speaker-d".equals(key) || "d".equals(key)) {
+            return SPEAKER_D_COLOR;
+        }
+        if ("speaker-sfx".equals(key) || "sfx".equals(key)) {
+            return SPEAKER_SFX_COLOR;
+        }
+
+        int color = numberedSpeakerColor(key, "male");
+        if (color != 0) {
+            return color;
+        }
+        color = numberedSpeakerColor(key, "female");
+        if (color != 0) {
+            return color;
+        }
+        color = numberedSpeakerColor(key, "duet");
+        return color;
+    }
+
+    private float speakerInactiveAlpha(String key) {
+        if ("speaker-b".equals(key) || "b".equals(key) || "speaker-sfx".equals(key) || "sfx".equals(key)) {
+            return 0.46f;
+        }
+        if ("speaker-c".equals(key) || "c".equals(key) || "speaker-d".equals(key) || "d".equals(key)) {
+            return 0.48f;
+        }
+        int maleIndex = speakerIndex(key, "male");
+        if (maleIndex >= 0) {
+            return maleIndex == 0 ? 0.52f : 0.50f;
+        }
+        int femaleIndex = speakerIndex(key, "female");
+        if (femaleIndex >= 0) {
+            return femaleIndex == 0 ? 0.52f : 0.50f;
+        }
+        int duetIndex = speakerIndex(key, "duet");
+        if (duetIndex >= 0) {
+            return duetIndex == 0 ? 0.52f : 0.50f;
+        }
+        return 0.50f;
+    }
+
+    private String normalizeSpeakerKey(String speaker) {
+        if (speaker == null) {
+            return "";
+        }
+        String cached = normalizedSpeakerKeys.get(speaker);
+        if (cached != null) {
+            return cached;
+        }
+        String value = speaker.trim().toLowerCase(Locale.ROOT);
+        if (value.isEmpty()) {
+            return cacheNormalizedSpeakerKey(speaker, "");
+        }
+        StringBuilder normalized = new StringBuilder(value.length());
+        boolean lastDash = false;
+        for (int index = 0; index < value.length(); index++) {
+            char c = value.charAt(index);
+            if (c == '_' || Character.isWhitespace(c)) {
+                if (!lastDash && normalized.length() > 0) {
+                    normalized.append('-');
+                    lastDash = true;
+                }
+            } else if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-') {
+                if (c == '-' && (lastDash || normalized.length() == 0)) {
+                    continue;
+                }
+                normalized.append(c);
+                lastDash = c == '-';
+            }
+        }
+        int length = normalized.length();
+        if (length > 0 && normalized.charAt(length - 1) == '-') {
+            normalized.deleteCharAt(length - 1);
+        }
+        return cacheNormalizedSpeakerKey(speaker, normalized.toString());
+    }
+
+    private String cacheNormalizedSpeakerKey(String speaker, String normalized) {
+        if (normalizedSpeakerKeys.size() >= SPEAKER_KEY_CACHE_LIMIT) {
+            normalizedSpeakerKeys.clear();
+        }
+        normalizedSpeakerKeys.put(speaker, normalized);
+        return normalized;
+    }
+
+    private int numberedSpeakerColor(String key, String prefix) {
+        int index = speakerIndex(key, prefix);
+        if (index < 0 || index >= 5) {
+            return 0;
+        }
+        int group = "male".equals(prefix) ? 0 : ("female".equals(prefix) ? 1 : 2);
+        int color = numberedSpeakerColors[group][index];
+        if (color == 0) {
+            color = speakerColorSettings.color(prefix + (index + 1));
+            numberedSpeakerColors[group][index] = color;
+        }
+        return color;
+    }
+
+    private int speakerIndex(String key, String prefix) {
+        if (key.equals(prefix) || key.equals("speaker-" + prefix)) {
+            return 0;
+        }
+        if (key.startsWith(prefix + "-")) {
+            return parseSpeakerIndex(key.substring(prefix.length() + 1));
+        }
+        if (key.startsWith(prefix) && key.length() > prefix.length()) {
+            return parseSpeakerIndex(key.substring(prefix.length()));
+        }
+        String speakerPrefix = "speaker-" + prefix + "-";
+        if (key.startsWith(speakerPrefix)) {
+            return parseSpeakerIndex(key.substring(speakerPrefix.length()));
+        }
+        String compactSpeakerPrefix = "speaker-" + prefix;
+        if (key.startsWith(compactSpeakerPrefix) && key.length() > compactSpeakerPrefix.length()) {
+            return parseSpeakerIndex(key.substring(compactSpeakerPrefix.length()));
+        }
+        return -1;
+    }
+
+    private int parseSpeakerIndex(String value) {
+        if (value == null || value.isEmpty()) {
+            return -1;
+        }
+        try {
+            int number = Integer.parseInt(value);
+            return number - 1;
+        } catch (NumberFormatException ignored) {
+            return -1;
+        }
+    }
+
+    private float contentLeft() {
+        return sp(sidePaddingSp);
+    }
+
+    private float contentWidth() {
+        return Math.max(sp(80f), getWidth() - sp(sidePaddingSp * 2f));
+    }
+
+    private float sp(float value) {
+        return TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_SP,
+                value,
+                getResources().getDisplayMetrics()
+        );
+    }
+
+    private float dp(float value) {
+        return TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP,
+                value,
+                getResources().getDisplayMetrics()
+        );
+    }
+
+    private static List<String> splitChars(String value) {
+        List<String> chars = new ArrayList<>();
+        if (value == null || value.isEmpty()) {
+            return chars;
+        }
+        value.codePoints().forEach(codePoint -> chars.add(new String(Character.toChars(codePoint))));
+        return chars;
+    }
+
+    private boolean isWhitespace(String value) {
+        if (value == null || value.isEmpty()) {
+            return false;
+        }
+        for (int offset = 0; offset < value.length(); ) {
+            int codePoint = value.codePointAt(offset);
+            if (!Character.isWhitespace(codePoint)) {
+                return false;
+            }
+            offset += Character.charCount(codePoint);
+        }
+        return true;
+    }
+
+    private int withAlpha(int color, int alpha) {
+        return Color.argb(Math.max(0, Math.min(255, alpha)), Color.red(color), Color.green(color), Color.blue(color));
+    }
+
+    private int scaleAlpha(int color, float amount) {
+        return withAlpha(color, Math.round(Color.alpha(color) * clamp(amount)));
+    }
+
+    private int blendColor(int from, int to, float progress) {
+        float amount = clamp(progress);
+        float inverse = 1f - amount;
+        return Color.argb(
+                Math.round(Color.alpha(from) * inverse + Color.alpha(to) * amount),
+                Math.round(Color.red(from) * inverse + Color.red(to) * amount),
+                Math.round(Color.green(from) * inverse + Color.green(to) * amount),
+                Math.round(Color.blue(from) * inverse + Color.blue(to) * amount)
+        );
+    }
+
+    private float clamp(float value) {
+        return Math.max(0f, Math.min(1f, value));
+    }
+
+    private float clampCenterIndex(float value) {
+        int count = Math.max(currentDisplayLineCount, lines.size());
+        if (count <= 0) {
+            return 0f;
+        }
+        return Math.max(0f, Math.min(count - 1f, value));
+    }
+
+    private float sin(long now, long periodMs) {
+        return (float) Math.sin((now % periodMs) / (double) periodMs * Math.PI * 2.0);
+    }
+
+    private float positiveSin(long now, long periodMs) {
+        return (sin(now, periodMs) + 1f) * 0.5f;
+    }
+
+    /** Maps view coordinates through inserted/removed rows without changing their easing. */
+    static final class DisplayIndexMapping {
+        private final int[] previousToNext;
+        private final int nextCount;
+
+        DisplayIndexMapping(int[] previousToNext, int nextCount) {
+            this.previousToNext = previousToNext;
+            this.nextCount = Math.max(0, nextCount);
+        }
+
+        float map(float previousPosition) {
+            int before = -1;
+            int after = -1;
+            for (int index = 0; index < previousToNext.length; index++) {
+                if (previousToNext[index] < 0) continue;
+                if (index <= previousPosition) before = index;
+                if (index >= previousPosition) {
+                    after = index;
+                    break;
+                }
+            }
+            float mapped;
+            if (before >= 0 && after >= 0 && before != after) {
+                float fraction = (previousPosition - before) / (after - before);
+                mapped = previousToNext[before]
+                        + fraction * (previousToNext[after] - previousToNext[before]);
+            } else if (before >= 0) {
+                mapped = previousPosition + previousToNext[before] - before;
+            } else if (after >= 0) {
+                mapped = previousPosition + previousToNext[after] - after;
+            } else {
+                mapped = previousPosition;
+            }
+            return Math.max(0f, Math.min(Math.max(0, nextCount - 1), mapped));
+        }
+
+        int mapTarget(int previousIndex) {
+            return previousIndex >= 0 && previousIndex < previousToNext.length
+                    && previousToNext[previousIndex] >= 0
+                    ? previousToNext[previousIndex] : Integer.MIN_VALUE;
+        }
+
+        float mapTransitionStart(float previousStart, int previousTarget,
+                float previousCurrent, float easedProgress) {
+            float mappedStart = map(previousStart);
+            int mappedTarget = mapTarget(previousTarget);
+            float progress = Math.max(0f, Math.min(1f, easedProgress));
+            if (mappedTarget == Integer.MIN_VALUE || progress >= 0.9999f) {
+                return mappedStart;
+            }
+            float mappedCurrent = map(previousCurrent);
+            float expectedCurrent = mappedStart + (mappedTarget - mappedStart) * progress;
+            // Mapping across more than one interval is piecewise linear. Keep a
+            // smooth seek at its current point without restarting its easing clock.
+            return Math.abs(expectedCurrent - mappedCurrent) > 0.002f
+                    ? (mappedCurrent - mappedTarget * progress) / (1f - progress)
+                    : mappedStart;
+        }
+    }
+
+    static final class RowReflow {
+        private final float previousBaseline;
+        private final boolean entering;
+        private float offset = Float.NaN;
+
+        RowReflow(float previousBaseline, boolean entering) {
+            this.previousBaseline = previousBaseline;
+            this.entering = entering;
+        }
+
+        float offset(float baseline, float remaining) {
+            if (Float.isNaN(offset)) {
+                offset = Float.isNaN(previousBaseline) ? 0f : previousBaseline - baseline;
+            }
+            return offset * remaining;
+        }
+
+        float opacity(float remaining) {
+            return entering ? 1f - remaining : 1f;
+        }
+    }
+
+    private static final class DisplayLine {
+        final LyricsLine line;
+        final int sourceIndex;
+        final int displayIndex;
+        final InterludeInfo interludeInfo;
+        // LyricsLine and VocalPart copy their lists and expose final values.
+        // Display rows are replaced on every result/display-list invalidation;
+        // only source-derived metadata is retained, never visual frame state.
+        String cachedAccessibilityLabel;
+        long cachedContentEndTimeMs = Long.MIN_VALUE;
+        RowReflow reflow;
+
+        static DisplayLine real(LyricsLine line, int sourceIndex, int displayIndex, InterludeInfo interludeInfo) {
+            return new DisplayLine(line, sourceIndex, displayIndex, interludeInfo);
+        }
+
+        static DisplayLine virtual(int sourceIndex, int displayIndex, InterludeInfo interludeInfo) {
+            return new DisplayLine(null, sourceIndex, displayIndex, interludeInfo);
+        }
+
+        DisplayLine(LyricsLine line, int sourceIndex, int displayIndex, InterludeInfo interludeInfo) {
+            this.line = line;
+            this.sourceIndex = sourceIndex;
+            this.displayIndex = displayIndex;
+            this.interludeInfo = interludeInfo == null ? InterludeInfo.none() : interludeInfo;
+        }
+
+        boolean isInterlude() {
+            return interludeInfo != null && interludeInfo.isInterlude;
+        }
+
+        boolean isTimed() {
+            return isInterlude() || (line != null && line.isTimed());
+        }
+
+        long startTimeMs() {
+            return isInterlude() ? interludeInfo.startTimeMs : (line == null ? 0L : line.startTimeMs);
+        }
+
+        long endTimeMs() {
+            return isInterlude() ? interludeInfo.endTimeMs : (line == null ? 0L : line.endTimeMs);
+        }
+
+        long seekTimeMs() {
+            return startTimeMs();
+        }
+    }
+
+    private static final class LineVisualState {
+        static final LineVisualState ACTIVE = new LineVisualState(true, true, 1f);
+        static final LineVisualState INACTIVE = new LineVisualState(false, false, 0f);
+
+        final boolean highlighted;
+        final boolean animating;
+        final float completedColorOpacity;
+
+        LineVisualState(boolean highlighted, boolean animating, float completedColorOpacity) {
+            this.highlighted = highlighted;
+            this.animating = animating;
+            this.completedColorOpacity = Math.max(0f, Math.min(1f, completedColorOpacity));
+        }
+    }
+
+    private static final class InterludeInfo {
+        private static final InterludeInfo NONE = new InterludeInfo(false, 0L, 0L, "break", false);
+
+        final boolean isInterlude;
+        final long startTimeMs;
+        final long endTimeMs;
+        final String kind;
+        final boolean virtual;
+
+        static InterludeInfo none() {
+            return NONE;
+        }
+
+        InterludeInfo(boolean isInterlude, long startTimeMs, long endTimeMs, String kind, boolean virtual) {
+            this.isInterlude = isInterlude;
+            this.startTimeMs = Math.max(0L, startTimeMs);
+            this.endTimeMs = Math.max(this.startTimeMs, endTimeMs);
+            this.kind = kind == null || kind.trim().isEmpty() ? "break" : kind.trim();
+            this.virtual = virtual;
+        }
+    }
+
+    private static final class DrawGroup {
+        final List<TextRow> rows;
+        final float textSize;
+        final int inactiveColor;
+        final int activeColor;
+        final String kind;
+        final boolean active;
+        final float completedColorOpacity;
+        final boolean timingStarted;
+        final int rowSeed;
+        final String bounceKeyPrefix;
+        final InterludeInfo interludeInfo;
+        final Typeface typeface;
+        final boolean supplement;
+        /** The timed line or vocal part this group draws, for the expressive pending pose. */
+        long lineStartTimeMs, lineEndTimeMs;
+
+        DrawGroup(
+                List<TextRow> rows,
+                float textSize,
+                int inactiveColor,
+                int activeColor,
+                String kind,
+                boolean active,
+                float completedColorOpacity,
+                boolean timingStarted,
+                int rowSeed,
+                String bounceKeyPrefix,
+                Typeface typeface,
+                boolean supplement
+        ) {
+            this.rows = rows == null || rows.isEmpty() ? Collections.emptyList() : rows;
+            this.textSize = textSize;
+            this.inactiveColor = inactiveColor;
+            this.activeColor = activeColor;
+            this.kind = kind;
+            this.active = active;
+            this.completedColorOpacity = completedColorOpacity;
+            this.timingStarted = timingStarted;
+            this.rowSeed = rowSeed;
+            this.bounceKeyPrefix = bounceKeyPrefix == null ? "" : bounceKeyPrefix;
+            this.interludeInfo = InterludeInfo.none();
+            this.typeface = typeface;
+            this.supplement = supplement;
+        }
+
+        static DrawGroup interlude(float textSize, int inactiveColor, int activeColor, boolean active, InterludeInfo info, Typeface typeface) {
+            return new DrawGroup(
+                    Collections.emptyList(),
+                    textSize,
+                    inactiveColor,
+                    activeColor,
+                    "vocal",
+                    active,
+                    active ? 1f : 0f,
+                    false,
+                    0,
+                    "",
+                    info == null ? InterludeInfo.none() : info,
+                    typeface,
+                    false
+            );
+        }
+
+        private DrawGroup(
+                List<TextRow> rows,
+                float textSize,
+                int inactiveColor,
+                int activeColor,
+                String kind,
+                boolean active,
+                float completedColorOpacity,
+                boolean timingStarted,
+                int rowSeed,
+                String bounceKeyPrefix,
+                InterludeInfo interludeInfo,
+                Typeface typeface,
+                boolean supplement
+        ) {
+            this.rows = rows == null || rows.isEmpty() ? Collections.emptyList() : rows;
+            this.textSize = textSize;
+            this.inactiveColor = inactiveColor;
+            this.activeColor = activeColor;
+            this.kind = kind;
+            this.active = active;
+            this.completedColorOpacity = completedColorOpacity;
+            this.timingStarted = timingStarted;
+            this.rowSeed = rowSeed;
+            this.bounceKeyPrefix = bounceKeyPrefix == null ? "" : bounceKeyPrefix;
+            this.interludeInfo = interludeInfo == null ? InterludeInfo.none() : interludeInfo;
+            this.typeface = typeface;
+            this.supplement = supplement;
+        }
+
+        boolean rendersTimedFill() {
+            return active || timingStarted;
+        }
+
+        float rowHeight(TextRow row) {
+            return textSize * LINE_HEIGHT_MULTIPLIER + rubyExtraHeight(row);
+        }
+
+        float baselineOffset(TextRow row) {
+            return textSize + rubyExtraHeight(row);
+        }
+
+        float rubyExtraHeight(TextRow row) {
+            if (row == null || !row.hasRuby()) {
+                return 0f;
+            }
+            return textSize * FURIGANA_EXTRA_HEIGHT_RATIO;
+        }
+
+        float height() {
+            if (isInterlude()) {
+                return textSize * 2.2f;
+            }
+            if (rows.isEmpty()) {
+                return textSize * LINE_HEIGHT_MULTIPLIER;
+            }
+            float total = 0f;
+            for (TextRow row : rows) {
+                total += rowHeight(row);
+            }
+            return total;
+        }
+
+        boolean isInterlude() {
+            return interludeInfo != null && interludeInfo.isInterlude;
+        }
+
+        boolean hasRuby() {
+            for (TextRow row : rows) {
+                if (row.hasRuby()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        boolean firstRowHasRuby() {
+            return !rows.isEmpty() && rows.get(0).hasRuby();
+        }
+    }
+
+    private static final class LineLayout {
+        int index;
+        DisplayLine displayLine;
+        boolean active;
+        boolean animationActive;
+        float distance;
+        List<DrawGroup> groups = Collections.emptyList();
+        float height;
+        float anchorOffset;
+        float baselineCenter = Float.NaN;
+
+        LineLayout() {
+        }
+
+        void set(
+                int index,
+                DisplayLine displayLine,
+                boolean active,
+                boolean animationActive,
+                float distance,
+                List<DrawGroup> groups,
+                float height
+        ) {
+            this.index = index;
+            this.displayLine = displayLine;
+            this.active = active;
+            this.animationActive = animationActive;
+            this.distance = distance;
+            this.groups = groups == null ? Collections.emptyList() : groups;
+            this.height = Math.max(1f, height);
+            this.anchorOffset = 0f;
+            this.baselineCenter = Float.NaN;
+        }
+
+        void clearReferences() {
+            displayLine = null;
+            groups = Collections.emptyList();
+        }
+    }
+
+    private static final class FrameLineLayouts extends ArrayList<LineLayout> {
+        private LineLayout[] entries = new LineLayout[VISIBLE_RADIUS * 2 + 6];
+
+        FrameLineLayouts() {
+            super(VISIBLE_RADIUS * 2 + 6);
+        }
+
+        void beginFrame() {
+            clear();
+        }
+
+        void addValues(
+                int index,
+                DisplayLine displayLine,
+                boolean active,
+                boolean animationActive,
+                float distance,
+                List<DrawGroup> groups,
+                float height
+        ) {
+            int activeSize = size();
+            // Sustained vocals can extend the frame beyond its usual visible radius.
+            if (activeSize >= entries.length) {
+                entries = Arrays.copyOf(entries, Math.max(activeSize + 1, entries.length * 2));
+            }
+            LineLayout entry;
+            if (entries[activeSize] == null) {
+                entry = new LineLayout();
+                entries[activeSize] = entry;
+            } else {
+                entry = entries[activeSize];
+            }
+            entry.set(index, displayLine, active, animationActive, distance, groups, height);
+            add(entry);
+        }
+
+        void finishFrame() {
+            for (int index = size(); index < entries.length; index++) {
+                if (entries[index] != null) {
+                    entries[index].clearReferences();
+                }
+            }
+        }
+
+        void clearReferences() {
+            for (LineLayout entry : entries) {
+                if (entry != null) {
+                    entry.clearReferences();
+                }
+            }
+            clear();
+        }
+    }
+
+    private static final class LineHitTarget {
+        float top;
+        float bottom;
+        float centerY;
+        long seekTimeMs;
+        String label = "";
+        boolean active;
+        int virtualId;
+
+        void set(LineHitTarget source) {
+            set(source.top, source.bottom, source.centerY, source.seekTimeMs, source.label, source.active, source.virtualId);
+        }
+
+        void set(float top, float bottom, float centerY, long seekTimeMs, String label, boolean active, int virtualId) {
+            this.top = top;
+            this.bottom = bottom;
+            this.centerY = centerY;
+            this.seekTimeMs = Math.max(0L, seekTimeMs);
+            this.label = label == null ? "" : label;
+            this.active = active;
+            this.virtualId = Math.max(1, virtualId);
+        }
+    }
+
+    private static final class TextRow {
+        final List<TextSegment> segments;
+        final String text;
+        float width;
+        final boolean hasRuby;
+        final boolean continuousShaping;
+        final boolean hasInlineStyles;
+        final boolean hasInlineEffects;
+
+        TextRow(List<TextSegment> segments) {
+            this.segments = segments == null ? Collections.emptyList() : segments;
+            StringBuilder builder = new StringBuilder();
+            float totalWidth = 0f;
+            boolean nextHasRuby = false;
+            boolean nextHasInlineStyles = false;
+            boolean nextHasInlineEffects = false;
+            for (TextSegment segment : this.segments) {
+                builder.append(segment.text);
+                totalWidth += segment.width;
+                if (segment.rubyText != null && !segment.rubyText.trim().isEmpty()) {
+                    nextHasRuby = true;
+                }
+                nextHasInlineStyles |= segment.inlineStyle;
+                nextHasInlineEffects |= segment.inlineStyle && isInlineEffectKind(segment.styleKind);
+            }
+            this.text = builder.toString();
+            this.width = Math.max(0f, totalWidth);
+            this.hasRuby = nextHasRuby;
+            this.continuousShaping = TimedSyllableNormalizer.requiresContinuousShaping(this.text);
+            this.hasInlineStyles = nextHasInlineStyles;
+            this.hasInlineEffects = nextHasInlineEffects;
+        }
+
+        boolean hasRuby() {
+            return hasRuby;
+        }
+    }
+
+    private static final class WrapUnit {
+        final List<TextSegment> segments;
+        final float width;
+
+        WrapUnit(List<TextSegment> segments, float width) {
+            this.segments = segments == null ? Collections.emptyList() : segments;
+            this.width = Math.max(0f, width);
+        }
+    }
+
+    private static final class TextSegment {
+        final String text;
+        final float textWidth;
+        final float width;
+        final float textInset;
+        final long startTimeMs;
+        final long endTimeMs;
+        final long fillStartTimeMs;
+        final long fillEndTimeMs;
+        final int sourceIndex;
+        final int sourceLength;
+        final String rubyText;
+        final boolean inlineStyle;
+        final String styleKind;
+        final String styleSpeaker;
+        final String styleSpeakerColor;
+        final String styleSpeakerFallback;
+        KaraokeMotion.Profile motionProfile;
+        KaraokeExpressiveMotion.Unit expressiveUnit;
+        float cachedRubyWidth = Float.NaN;
+        String cachedBounceKeyPrefix;
+        String cachedBounceKey;
+
+        TextSegment(String text, float width, long startTimeMs, long endTimeMs, int sourceIndex, int sourceLength) {
+            this(text, width, width, startTimeMs, endTimeMs, sourceIndex, sourceLength, "");
+        }
+
+        TextSegment(String text, float width, long startTimeMs, long endTimeMs, int sourceIndex, int sourceLength, String rubyText) {
+            this(text, width, width, startTimeMs, endTimeMs, sourceIndex, sourceLength, rubyText);
+        }
+
+        TextSegment(String text, float textWidth, float width, long startTimeMs, long endTimeMs, int sourceIndex, int sourceLength, String rubyText) {
+            this(text, textWidth, width, startTimeMs, endTimeMs, startTimeMs, endTimeMs, sourceIndex, sourceLength, rubyText);
+        }
+
+        TextSegment(
+                String text,
+                float textWidth,
+                float width,
+                long startTimeMs,
+                long endTimeMs,
+                long fillStartTimeMs,
+                long fillEndTimeMs,
+                int sourceIndex,
+                int sourceLength,
+                String rubyText
+        ) {
+            this(
+                    text, textWidth, width, startTimeMs, endTimeMs,
+                    fillStartTimeMs, fillEndTimeMs, sourceIndex, sourceLength, rubyText,
+                    false, "", "", "", ""
+            );
+        }
+
+        TextSegment(
+                String text,
+                float textWidth,
+                float width,
+                long startTimeMs,
+                long endTimeMs,
+                int sourceIndex,
+                int sourceLength,
+                String rubyText,
+                boolean inlineStyle,
+                String styleKind,
+                String styleSpeaker,
+                String styleSpeakerColor,
+                String styleSpeakerFallback
+        ) {
+            this(
+                    text, textWidth, width, startTimeMs, endTimeMs,
+                    startTimeMs, endTimeMs, sourceIndex, sourceLength, rubyText,
+                    inlineStyle, styleKind, styleSpeaker, styleSpeakerColor, styleSpeakerFallback
+            );
+        }
+
+        TextSegment(
+                String text,
+                float textWidth,
+                float width,
+                long startTimeMs,
+                long endTimeMs,
+                long fillStartTimeMs,
+                long fillEndTimeMs,
+                int sourceIndex,
+                int sourceLength,
+                String rubyText,
+                boolean inlineStyle,
+                String styleKind,
+                String styleSpeaker,
+                String styleSpeakerColor,
+                String styleSpeakerFallback
+        ) {
+            this.text = text == null ? "" : text;
+            this.textWidth = Math.max(0f, textWidth);
+            this.width = Math.max(0f, width);
+            this.textInset = Math.max(0f, (this.width - this.textWidth) * 0.5f);
+            this.startTimeMs = Math.max(0L, startTimeMs);
+            this.endTimeMs = Math.max(this.startTimeMs, endTimeMs);
+            this.fillStartTimeMs = Math.max(0L, fillStartTimeMs);
+            this.fillEndTimeMs = Math.max(this.fillStartTimeMs, fillEndTimeMs);
+            this.sourceIndex = Math.max(0, sourceIndex);
+            this.sourceLength = Math.max(1, sourceLength);
+            this.rubyText = rubyText == null ? "" : rubyText;
+            this.inlineStyle = inlineStyle;
+            this.styleKind = styleKind == null ? "" : styleKind;
+            this.styleSpeaker = styleSpeaker == null ? "" : styleSpeaker;
+            this.styleSpeakerColor = styleSpeakerColor == null ? "" : styleSpeakerColor;
+            this.styleSpeakerFallback = styleSpeakerFallback == null ? "" : styleSpeakerFallback;
+        }
+
+        TextSegment withFillTiming(long fillStartTimeMs, long fillEndTimeMs) {
+            return new TextSegment(
+                    text,
+                    textWidth,
+                    width,
+                    startTimeMs,
+                    endTimeMs,
+                    fillStartTimeMs,
+                    fillEndTimeMs,
+                    sourceIndex,
+                    sourceLength,
+                    rubyText,
+                    inlineStyle,
+                    styleKind,
+                    styleSpeaker,
+                    styleSpeakerColor,
+                    styleSpeakerFallback
+            );
+        }
+
+        LyricsLine.Syllable styleSyllable() {
+            return new LyricsLine.Syllable(
+                    text,
+                    startTimeMs,
+                    endTimeMs,
+                    false,
+                    inlineStyle,
+                    styleKind,
+                    styleSpeaker,
+                    styleSpeakerColor,
+                    styleSpeakerFallback
+            );
+        }
+
+        String bounceKey(String prefix) {
+            String safePrefix = prefix == null ? "" : prefix;
+            if (cachedBounceKey == null || !safePrefix.equals(cachedBounceKeyPrefix)) {
+                cachedBounceKeyPrefix = safePrefix;
+                cachedBounceKey = safePrefix + ':' + sourceIndex;
+            }
+            return cachedBounceKey;
+        }
+
+        int centerSourceIndex() {
+            return sourceIndex + Math.max(0, sourceLength - 1) / 2;
+        }
+    }
+
+    private static final class RubyAnnotation {
+        final int start;
+        final int length;
+        final String reading;
+        final List<String> readingChars;
+
+        RubyAnnotation(int start, int length, String reading) {
+            this.start = Math.max(0, start);
+            this.length = Math.max(1, length);
+            this.reading = reading == null ? "" : reading;
+            this.readingChars = splitChars(this.reading);
+        }
+
+        int end() {
+            return start + length;
+        }
+
+        String readingForRange(int overlapStart, int overlapEnd) {
+            int safeStart = Math.max(start, overlapStart);
+            int safeEnd = Math.min(end(), overlapEnd);
+            if (safeStart >= safeEnd || reading.isEmpty()) {
+                return "";
+            }
+            if (safeStart == start && safeEnd == end()) {
+                return reading;
+            }
+            if (length <= 1 || readingChars.isEmpty()) {
+                return reading;
+            }
+            int charsPerKanji = Math.max(1, readingChars.size() / length);
+            StringBuilder builder = new StringBuilder();
+            for (int sourceIndex = safeStart; sourceIndex < safeEnd; sourceIndex++) {
+                int relative = sourceIndex - start;
+                int readStart = Math.min(readingChars.size(), relative * charsPerKanji);
+                int readEnd = relative == length - 1
+                        ? readingChars.size()
+                        : Math.min(readingChars.size(), (relative + 1) * charsPerKanji);
+                for (int index = readStart; index < readEnd; index++) {
+                    builder.append(readingChars.get(index));
+                }
+            }
+            return builder.toString();
+        }
+    }
+
+    interface OnSeekListener {
+        void onSeekRequested(long positionMs);
+    }
+}

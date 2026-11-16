@@ -68,6 +68,8 @@ internal fun RomanizationTranslationContent(state: PlayerUiState, viewModel: Ext
         ToggleRow("Human romanizations", state.humanRomanizations, viewModel::setHumanRomanizations,
             description = "Use matching romanizations from Genius, or NetEase while it's on.", icon = Icons.Rounded.People,
             searchDescription = "Use a romanization written by people on Genius, or on NetEase while it's on as a source, where it lines up with the lyrics, for readings no romanizer can guess. Asks Genius.")
+        ToggleRow("Furigana", settings.furigana, { settings.furigana = it },
+            description = "Japanese lines read in kana from ivLyrics' furigana instead of romaji.", icon = Icons.Rounded.Translate)
     }
     SettingsSection("Translation") {
         SettingRow("Target language", description = "Translate lyrics into this language.", icon = Icons.Rounded.Language) {
