@@ -56,6 +56,7 @@ Modified by Behnoud.
 - Motion lyrics take their colours from the album cover, have a **shade** setting (Lyrics → Motion lyrics shade), and an **ivLyrics** Quick Settings tile turns them on and off.
 - **Word by word** (Settings → Lyrics, on by default): songs timed only by the line light word by word on worked-out word timing (motion lyrics leave these songs to Spicy's lyrics).
 - **ivLyrics** built in (from ivLyrics Android's own code, Android 8+): **motion lyrics** (Settings → Lyrics; word-synced songs as moving type on the lyrics screen, wallpaper, overlay and always-on display, other songs keep the usual lyrics), **vinyl mode** (Now Playing), the song's **music video** behind the lyrics (Background), **furigana** for Japanese (Romanization & Translation) and the **ivLyrics source** with its community syncs (Sources).
+- Vinyl mode has a close button and closes with Back, so it can't trap the screen.
 - Motion lyrics can be turned off in each place on its own (app, wallpaper, overlay, always-on display), and with Merge with Spicy's lyrics on, the lyrics screen keeps Spicy's lines above the controls instead of under them.
 - The SuperShade Plus live activity was removed.
 - **Follow your Spotify account**: with a Spotify sign-in (Settings → Sources), the app shows what the account plays even when Spotify is not open on the phone, such as on another device, with play, pause, skip and seek.
