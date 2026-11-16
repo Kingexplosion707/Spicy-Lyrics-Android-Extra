@@ -117,3 +117,4 @@ Modified by Behnoud.
 ## Updates from Spicy Lyrics Mobile
 
 - 2026-11-15: Spicy Lyrics Mobile 0.20.0 merged in, with every Plus change kept.
+- **Follow your Spotify account**: with a Spotify sign-in (Settings → Sources), the app shows what the account plays even when Spotify is not open on the phone, such as on another device, with play, pause, skip and seek.

@@ -53,6 +53,7 @@ import com.tx24.spicyplayer.ui.background.LEGACY_BLUR_DP
 import com.tx24.spicyplayer.ui.components.ChromeTheme
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.ClosedCaption
+import androidx.compose.material.icons.rounded.Devices
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.BatterySaver
@@ -1441,7 +1442,7 @@ internal fun FloatingLyricsContent(settings: AppSettings) {
 }
 
 @Composable
-internal fun SourcesContent(state: PlayerUiState, viewModel: ExternalPlaybackViewModel) {
+internal fun SourcesContent(state: PlayerUiState, viewModel: ExternalPlaybackViewModel, settings: AppSettings) {
     var clientKey by remember { mutableStateOf("") }
     val ranking = state.sourceRanking
     val names = state.sourceDescriptors.associate { it.id to it.displayName }
@@ -1462,6 +1463,20 @@ internal fun SourcesContent(state: PlayerUiState, viewModel: ExternalPlaybackVie
             checked = state.liveCaptions,
             onCheckedChange = viewModel::setLiveCaptions,
             icon = Icons.Rounded.ClosedCaption,
+        )
+    }
+    SettingsSection("Spotify account") {
+        val context = androidx.compose.ui.platform.LocalContext.current
+        SpotifyAccountRows()
+        ToggleRow(
+            label = "Follow your Spotify account",
+            description = "Shows what your account plays when Spotify isn't open on this phone, such as on another device.",
+            checked = settings.followSpotifyAccount,
+            onCheckedChange = {
+                settings.followSpotifyAccount = it
+                com.tx24.spicyplayer.spotify.SpotifyConnectSession.sync(context)
+            },
+            icon = Icons.Rounded.Devices,
         )
     }
     MoreOptions("Custom sources, background vocals in brackets, keeping lyrics longer, your own Spicy Lyrics key") {
