@@ -96,14 +96,47 @@ internal fun rememberFurigana(enabled: Boolean, lines: List<Line>, documentId: S
 
 /** Whether [lines] play as motion lyrics; otherwise the usual lyrics are shown. */
 internal fun motionLyricsFit(enabled: Boolean, lines: List<Line>, type: LyricsType): Boolean {
-    // Line-timed songs play too, on made-up word timing ([GeneratedWordTiming]).
-    if (!enabled || (type != LyricsType.Syllable && type != LyricsType.Line) || !SpicyBridge.supported()) return false
+    // Only real word timing plays as motion; line-timed songs keep Spicy's lyrics (word by word on
+    // made-up timing where that's on).
+    if (!enabled || type != LyricsType.Syllable || !SpicyBridge.supported()) return false
     // Asked on every recomposition of the lyrics: answered once per set of lines.
     lastFit?.let { (seen, fits) -> if (seen === lines) return fits }
-    return SpicyBridge.motionCanPlay(GeneratedWordTiming.fillIn(lines).toIvLyrics()).also { lastFit = lines to it }
+    return SpicyBridge.motionCanPlay(lines.toIvLyrics()).also { lastFit = lines to it }
 }
 
 @Volatile private var lastFit: Pair<List<Line>, Boolean>? = null
+
+/** A line longer than this reads better in Spicy's lyrics than as moving type. */
+private const val MOTION_MAX_CHARS = 45
+/** Spicy's lyrics take over this long before such a line, so it's there to be read from its start. */
+private const val SWITCH_LEAD_MS = 300L
+
+/** Whether [line] plays as moving type: it has its own word timing and isn't long. */
+internal fun motionFriendly(line: Line): Boolean =
+    !GeneratedWordTiming.needsTiming(line) && line.words.sumOf { it.text.length } <= MOTION_MAX_CHARS
+
+/**
+ * How much of the motion lyrics shows now (1) against Spicy's lyrics (0): motion while the line
+ * being sung is [motionFriendly], Spicy's lyrics for a long line or one with no word timing of
+ * its own, crossfading between them.
+ */
+@Composable
+internal fun rememberMotionShown(lines: List<Line>, currentTimeMs: () -> Long): androidx.compose.runtime.State<Float> {
+    val spans = remember(lines) {
+        lines.filter { it.role == LineRole.LEAD && it.words.isNotEmpty() }.map { Triple(it.startMs, it.endMs, motionFriendly(it)) }
+    }
+    var motion by remember(spans) { mutableStateOf(spans.firstOrNull()?.third ?: true) }
+    LaunchedEffect(spans) {
+        while (true) {
+            val at = currentTimeMs() + SWITCH_LEAD_MS
+            spans.lastOrNull { it.first <= at }?.let { motion = it.third }
+            delay(120L)
+        }
+    }
+    return androidx.compose.animation.core.animateFloatAsState(
+        if (motion) 1f else 0f, androidx.compose.animation.core.tween(380), label = "motionShown",
+    )
+}
 
 /** Holds an ivLyrics view and lets touches through to what's around it. */
 private class PassThrough(context: Context, val inner: View) : FrameLayout(context) {
@@ -134,7 +167,7 @@ internal fun MotionLyricsView(
     val holder = remember(context) { PassThrough(context, SpicyBridge.createMotion(context)) }
     DisposableEffect(holder) { onDispose { SpicyBridge.release(holder.inner) } }
     LaunchedEffect(holder, documentId, romanize) {
-        SpicyBridge.motionSong(holder.inner, spotifyId, documentId, title, artist, GeneratedWordTiming.fillIn(lines).toIvLyrics(romanize))
+        SpicyBridge.motionSong(holder.inner, spotifyId, documentId, title, artist, lines.toIvLyrics(romanize))
     }
     val playing by rememberUpdatedState(isPlaying)
     LaunchedEffect(holder) {

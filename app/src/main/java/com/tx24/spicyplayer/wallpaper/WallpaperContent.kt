@@ -438,19 +438,23 @@ internal fun WallpaperLyrics(
     // Romanized as on the lyrics screen: with Romanize on, where the lyrics have it.
     val romanize = settings.romanize && remember(lyrics) { lyrics.lines.any { line -> line.words.any { it.romanized != null } } }
     val textCredits = settings.textCredits
-    if (com.tx24.spicyplayer.ivlyrics.motionLyricsFit(settings.motionLyrics, originalLines, lyricsType)) {
+    // Motion lyrics for word-synced songs, giving way to these lyrics for long lines and lines with
+    // no word timing of their own.
+    val motionFits = com.tx24.spicyplayer.ivlyrics.motionLyricsFit(settings.motionLyrics, originalLines, lyrics.lyricsType)
+    val motionShown = if (motionFits) com.tx24.spicyplayer.ivlyrics.rememberMotionShown(originalLines, positionMs) else null
+    Box(modifier.lyricsTint(tint)) {
+    if (motionShown != null) {
         com.tx24.spicyplayer.ivlyrics.MotionLyricsView(
             lines = originalLines,
             documentId = remember(lyrics.lines) { lyrics.lines.hashCode().toString() },
             currentTimeMs = positionMs,
             isPlaying = isPlaying,
             romanize = romanize,
-            visible = visible,
+            visible = { visible() && motionShown.value > 0f },
             // Saving power, half the frames are plenty for type this big.
             maxFrameRate = if (reduced && maxFrameRate <= 0f) 30f else maxFrameRate,
-            modifier = modifier.lyricsTint(tint),
+            modifier = Modifier.fillMaxSize().graphicsLayer { alpha = motionShown.value },
         )
-        return
     }
     LyricsView(
         lines = rendererLines,
@@ -460,7 +464,7 @@ internal fun WallpaperLyrics(
         romanize = romanize,
         translation = presentation,
         isPlaying = isPlaying,
-        visible = visible,
+        visible = { visible() && (motionShown?.value ?: 0f) < 1f },
         maxFrameRate = maxFrameRate,
         focusAnchorFraction = focusAnchorFraction,
         lyricsType = lyricsType,
@@ -476,8 +480,9 @@ internal fun WallpaperLyrics(
                 uploader = lyrics.uploader?.let { LyricsCredit(it.username, it.profileUrl, it.avatarUrl) },
             )
         },
-        modifier = modifier.lyricsTint(tint),
+        modifier = Modifier.fillMaxSize().graphicsLayer { alpha = 1f - (motionShown?.value ?: 0f) },
     )
+    }
 }
 
 /**
