@@ -240,11 +240,44 @@ public final class SpicyBridge {
 
     /** [accent] (#rrggbb, from the cover) is what the page builds its two colours from. */
     public static void motionSong(View view, String spotifyId, String key, String title, String artist, String accent, List<Line> lines) {
+        motionSong(view, spotifyId, key, title, artist, accent, lines, "", "");
+    }
+
+    /**
+     * As above, in a theme: [themeId] names it and [themeJson] is what the page's director
+     * takes from it (see assets/motion/SpicyThemes.js); empty for ivLyrics' own direction.
+     */
+    public static void motionSong(View view, String spotifyId, String key, String title, String artist, String accent,
+                                  List<Line> lines, String themeId, String themeJson) {
         if (!(view instanceof MotionLyricsModeView)) return;
+        MotionLyricsModeView motion = (MotionLyricsModeView) view;
         LyricsResult result = result(lines, true);
-        String uri = MotionLyricsSong.uri(spotifyId, key);
+        boolean themed = themeId != null && !themeId.isEmpty() && themeJson != null && !themeJson.isEmpty();
+        // The page composes a song once per URI: a theme's own URI has it composed again in that theme.
+        String uri = themed
+                ? MotionLyricsSong.uri(null, (spotifyId == null ? "" : spotifyId) + "|" + key + "|" + themeId)
+                : MotionLyricsSong.uri(spotifyId, key);
         String colour = accent == null || accent.isEmpty() ? "" : accent;
-        ((MotionLyricsModeView) view).setSong(uri, MotionLyricsSong.json(uri, title, artist, colour, "", result), true);
+        motion.setPrelude(themeScript(view.getContext()) + ";window.spicyMotionTheme=" + (themed ? themeJson : "null") + ";");
+        motion.setSong(uri, MotionLyricsSong.json(uri, title, artist, colour, "", result), true);
+    }
+
+    private static volatile String themeScript;
+
+    private static String themeScript(Context context) {
+        String script = themeScript;
+        if (script != null) return script;
+        try (java.io.InputStream input = context.getAssets().open("motion/SpicyThemes.js")) {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = input.read(buffer)) > 0) out.write(buffer, 0, read);
+            script = out.toString("UTF-8");
+        } catch (java.io.IOException error) {
+            script = "";
+        }
+        themeScript = script;
+        return script;
     }
 
     /**

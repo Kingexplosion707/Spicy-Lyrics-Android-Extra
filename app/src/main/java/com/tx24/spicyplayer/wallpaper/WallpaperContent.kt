@@ -485,6 +485,7 @@ internal fun WallpaperLyrics(
             visible = visible,
             shade = settings.motionShade / 100f,
             merge = settings.motionMerge,
+            theme = settings.motionTheme,
             // Saving power, half the frames are plenty for type this big.
             maxFrameRate = if (reduced && maxFrameRate <= 0f) 30f else maxFrameRate,
             modifier = modifier,

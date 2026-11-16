@@ -691,6 +691,10 @@ private fun LyricsApp(
     val canvasBackground = settings.canvasBackground && !lowPerformance
     // Motion lyrics take their colours from the cover.
     LaunchedEffect(state.artwork) { com.tx24.spicyplayer.ivlyrics.MotionAccent.update(state.artwork) }
+    // Auto's theme follows the song's genre, looked up only while motion lyrics are on.
+    LaunchedEffect(state.title, state.artist, settings.motionLyrics) {
+        com.tx24.spicyplayer.ivlyrics.MotionGenre.update(state.title, state.artist, settings.motionLyrics)
+    }
     val canvasWanted = stageCanvas || portraitCanvas || canvasBackground
     LaunchedEffect(canvasWanted) { viewModel.setCanvasWanted(canvasWanted) }
     // The song's canvas, held while the next song's is looked up, so it gives way to the next one
@@ -1454,6 +1458,7 @@ private fun LyricsApp(
                             motionLyrics = settings.motionLyrics,
                             motionShade = settings.motionShade,
                             motionMerge = settings.motionMerge,
+                            motionTheme = settings.motionTheme,
                             furigana = settings.furigana,
                             wordByWord = settings.wordByWord,
                             translation = state.translation.takeIf { state.translationEnabled },
@@ -2027,6 +2032,7 @@ private fun PipLyrics(
             motionLyrics = settings.motionLyrics,
             motionShade = settings.motionShade,
             motionMerge = settings.motionMerge,
+            motionTheme = settings.motionTheme,
             furigana = settings.furigana,
             wordByWord = settings.wordByWord,
             translation = state.translation.takeIf { state.translationEnabled },
@@ -2406,6 +2412,8 @@ private fun LyricsPanel(
     motionShade: Int = 35,
     /** Spicy's lyrics show under the motion lyrics. */
     motionMerge: Boolean = false,
+    /** Motion lyrics' look. */
+    motionTheme: com.tx24.spicyplayer.ivlyrics.MotionTheme = com.tx24.spicyplayer.ivlyrics.MotionTheme.Classic,
     /** Japanese lines read from ivLyrics' furigana. */
     furigana: Boolean = false,
     /** Line-timed songs light word by word. */
@@ -2428,6 +2436,7 @@ private fun LyricsPanel(
                 maskScale = maskScale,
                 tint = tint,
                 motionMerge = motionMerge,
+                motionTheme = motionTheme,
                 translation = outgoing.translation,
                 translationMode = translationMode,
                 romanizationMode = romanizationMode,
@@ -2447,6 +2456,7 @@ private fun LyricsPanel(
             maskScale = maskScale,
             tint = tint,
             motionMerge = motionMerge,
+            motionTheme = motionTheme,
             translation = translation,
             translationMode = translationMode,
             romanizationMode = romanizationMode,
@@ -2509,6 +2519,8 @@ private fun LyricsPanelContent(
     motionShade: Int = 35,
     /** Spicy's lyrics show under the motion lyrics, not only its interlude dots. */
     motionMerge: Boolean = false,
+    /** Motion lyrics' look. */
+    motionTheme: com.tx24.spicyplayer.ivlyrics.MotionTheme = com.tx24.spicyplayer.ivlyrics.MotionTheme.Classic,
     /** The lyrics' colour; the motion page keeps its own (see [com.tx24.spicyplayer.ivlyrics.MotionWithSpicy]). */
     tint: com.tx24.spicyplayer.lyrics.LyricsInk = com.tx24.spicyplayer.lyrics.LyricsInk.White,
     /** Japanese lines read from ivLyrics' furigana. */
@@ -2620,6 +2632,7 @@ private fun LyricsPanelContent(
                     visible = visible,
                     shade = motionShade / 100f,
                     merge = motionMerge,
+                    theme = motionTheme,
                     modifier = modifier,
                 ) { lines, part, partModifier -> spicyLyrics(lines, part, partModifier) }
             } else {

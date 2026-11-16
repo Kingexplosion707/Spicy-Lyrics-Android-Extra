@@ -115,6 +115,9 @@ private class SessionCore(private val app: Context) {
 
     private fun onTrack(track: BackgroundSession.Track?) {
         com.tx24.spicyplayer.ivlyrics.MotionAccent.update(track?.cover)
+        // Auto's motion theme follows the song's genre, looked up only while motion lyrics are on.
+        val motion = app.getSharedPreferences("ui", Context.MODE_PRIVATE).getBoolean("motionLyrics", false)
+        com.tx24.spicyplayer.ivlyrics.MotionGenre.update(track?.title, track?.artist, motion)
         listeners.toList().forEach { it.deliverTrack(track) }
     }
     private fun onPlayingChanged(playing: Boolean) = listeners.toList().forEach { it.deliverPlaying(playing) }

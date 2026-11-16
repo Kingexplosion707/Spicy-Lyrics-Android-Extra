@@ -159,6 +159,8 @@ internal fun MotionWithSpicy(
     merge: Boolean,
     modifier: Modifier = Modifier,
     maxFrameRate: Float = 0f,
+    /** Motion lyrics' look; Auto picks one by the song's genre. */
+    theme: MotionTheme = MotionTheme.Classic,
     spicy: @Composable (lines: List<Line>, part: SpicyWithMotion, modifier: Modifier) -> Unit,
 ) {
     androidx.compose.foundation.layout.Box(modifier) {
@@ -173,6 +175,7 @@ internal fun MotionWithSpicy(
             shade = shade,
             maxFrameRate = maxFrameRate,
             fadeBottom = if (merge) MOTION_MERGE_FADE else 0f,
+            theme = theme,
             modifier = if (merge) Modifier.fillMaxWidth().fillMaxHeight(MOTION_MERGE_SHARE) else Modifier.fillMaxSize(),
         )
         if (merge) {
@@ -217,14 +220,21 @@ internal fun MotionLyricsView(
     shade: Float = 0.35f,
     /** How much of the page's lower edge fades out, as a share of its height (0 for the usual soft edge). */
     fadeBottom: Float = 0f,
+    /** Motion lyrics' look; Auto picks one by the song's genre ([MotionGenre]). */
+    theme: MotionTheme = MotionTheme.Classic,
 ) {
     val context = LocalContext.current
     val holder = remember(context) { PassThrough(context, SpicyBridge.createMotion(context)) }
     DisposableEffect(holder) { onDispose { SpicyBridge.release(holder.inner) } }
     val accent by MotionAccent.hex.collectAsState()
     val translations = remember(lines) { lines.map { it.translation }.hashCode() }
-    LaunchedEffect(holder, documentId, romanize, accent, translations) {
-        SpicyBridge.motionSong(holder.inner, spotifyId, documentId, title, artist, accent, lines.toIvLyrics(romanize))
+    val genre by MotionGenre.genre.collectAsState()
+    val shownTheme = theme.resolve(genre)
+    LaunchedEffect(holder, documentId, romanize, accent, translations, shownTheme) {
+        SpicyBridge.motionSong(
+            holder.inner, spotifyId, documentId, title, artist, accent, lines.toIvLyrics(romanize),
+            if (shownTheme.spec == null) "" else shownTheme.name, shownTheme.json(),
+        )
     }
     val playing by rememberUpdatedState(isPlaying)
     val shadeNow by rememberUpdatedState(shade)
