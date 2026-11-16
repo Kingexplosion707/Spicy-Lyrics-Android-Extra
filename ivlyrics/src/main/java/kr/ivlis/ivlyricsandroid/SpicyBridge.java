@@ -262,6 +262,13 @@ public final class SpicyBridge {
                 + "if(!s){s=document.createElement('style');s.id='spicy-look';document.head.appendChild(s);}s.textContent='" + css + "';})()", null);
     }
 
+    /** Runs [script] in the motion page (Spicy's styles and hooks); quietly does nothing before it is up. */
+    public static void motionEval(View view, String script) {
+        if (!(view instanceof ViewGroup) || ((ViewGroup) view).getChildCount() == 0) return;
+        View page = ((ViewGroup) view).getChildAt(0);
+        if (page instanceof WebView) ((WebView) page).evaluateJavascript(script, null);
+    }
+
     public static void motionPlayback(View view, long positionMs, boolean playing) {
         if (view instanceof MotionLyricsModeView) ((MotionLyricsModeView) view).setPlayback(positionMs, playing, 1f);
     }

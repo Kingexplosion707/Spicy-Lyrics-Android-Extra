@@ -6,6 +6,9 @@ import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
 import androidx.compose.runtime.Composable
+import com.tx24.spicyplayer.lyrics.motion.MotionTheme
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -122,9 +125,10 @@ internal fun motionFriendly(line: Line): Boolean =
  * its own, crossfading between them.
  */
 @Composable
-internal fun rememberMotionShown(lines: List<Line>, currentTimeMs: () -> Long): androidx.compose.runtime.State<Float> {
-    val spans = remember(lines) {
-        lines.filter { it.role == LineRole.LEAD && it.words.isNotEmpty() }.map { Triple(it.startMs, it.endMs, motionFriendly(it)) }
+internal fun rememberMotionShown(lines: List<Line>, currentTimeMs: () -> Long, longLines: Boolean = true): androidx.compose.runtime.State<Float> {
+    val spans = remember(lines, longLines) {
+        lines.filter { it.role == LineRole.LEAD && it.words.isNotEmpty() }
+            .map { Triple(it.startMs, it.endMs, if (longLines) motionFriendly(it) else !GeneratedWordTiming.needsTiming(it)) }
     }
     var motion by remember(spans) { mutableStateOf(spans.firstOrNull()?.third ?: true) }
     LaunchedEffect(spans) {
@@ -165,6 +169,10 @@ internal fun MotionLyricsView(
     spotifyId: String? = null,
     /** The page's dark scrim, 0 (none) to 1 (ivLyrics' own). */
     shade: Float = 0.35f,
+    /** Spicy's word fill and glow over the page's own animation. */
+    blend: Boolean = false,
+    /** A [MotionTheme] id, or [MotionTheme.AUTO] for one from the song's genre. */
+    theme: String = MotionTheme.AUTO,
 ) {
     val context = LocalContext.current
     val holder = remember(context) { PassThrough(context, SpicyBridge.createMotion(context)) }
@@ -173,20 +181,101 @@ internal fun MotionLyricsView(
     LaunchedEffect(holder, documentId, romanize, accent) {
         SpicyBridge.motionSong(holder.inner, spotifyId, documentId, title, artist, accent, lines.toIvLyrics(romanize))
     }
+    // The theme: the one picked, or Auto's from the artist's genre (looked up once per artist).
+    val song by MotionAccent.song.collectAsState()
+    var genreTheme by remember { mutableStateOf<MotionTheme?>(null) }
+    LaunchedEffect(theme, song) {
+        genreTheme = null
+        if (theme == MotionTheme.AUTO && song.second.isNotBlank()) {
+            genreTheme = MotionTheme.forGenres(MotionGenres.of(context, song.first, song.second))
+        }
+    }
+    val chosen = if (theme == MotionTheme.AUTO) genreTheme ?: MotionTheme.Original else MotionTheme.of(theme) ?: MotionTheme.Original
+    val look = remember(shade, blend, chosen) { MotionStyles.styleScript(MotionStyles.css(shade, blend, chosen)) }
+    val words = remember(lines) { MotionStyles.wordsScript(lines) }
     val playing by rememberUpdatedState(isPlaying)
-    val shadeNow by rememberUpdatedState(shade)
+    val lookNow by rememberUpdatedState(look)
+    val wordsNow by rememberUpdatedState(words)
+    val blendNow by rememberUpdatedState(blend)
+    var lookSent by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(holder) {
         // The page runs its own clock between reports; four a second keeps seeks prompt.
         var tick = 0
         while (true) {
-            if (visible()) SpicyBridge.motionPlayback(holder.inner, currentTimeMs(), playing)
-            // Spicy's look, laid over the page again now and then (it may have reloaded).
-            if (tick++ % 8 == 0) SpicyBridge.motionLook(holder.inner, shadeNow)
+            val position = currentTimeMs()
+            if (visible()) SpicyBridge.motionPlayback(holder.inner, position, playing)
+            if (blendNow) SpicyBridge.motionEval(holder.inner, MotionStyles.positionScript(position, playing))
+            // Spicy's look, laid over the page at once when it changes and again now and then
+            // (the page may have reloaded).
+            if (tick++ % 8 == 0 || lookSent != lookNow) {
+                lookSent = lookNow
+                SpicyBridge.motionEval(holder.inner, lookNow)
+                if (blendNow) {
+                    SpicyBridge.motionEval(holder.inner, MotionStyles.hookScript)
+                    SpicyBridge.motionEval(holder.inner, wordsNow)
+                }
+            }
             delay(250L)
         }
     }
-    AndroidView(factory = { holder }, modifier = modifier)
+    Box(modifier) {
+        AndroidView(factory = { holder }, modifier = Modifier.fillMaxSize())
+        MotionBreaths(lines, currentTimeMs, Modifier.fillMaxSize())
+    }
 }
+
+/** A break between sung lines this long or longer shows Spicy's three dots. */
+private const val BREATH_MIN_MS = 3_000L
+
+/**
+ * Spicy's three dots in the breaks between vocals: each dot lights in turn across the break, the
+ * three breathing, and they swell and fade as the singing comes back.
+ */
+@Composable
+private fun MotionBreaths(lines: List<Line>, currentTimeMs: () -> Long, modifier: Modifier) {
+    val breaks = remember(lines) {
+        val leads = lines.filter { it.role == LineRole.LEAD && it.words.isNotEmpty() }.sortedBy { it.startMs }
+        buildList {
+            leads.firstOrNull()?.let { if (it.startMs >= BREATH_MIN_MS) add(0L to it.startMs) }
+            var reached = leads.firstOrNull()?.endMs ?: 0L
+            for (line in leads.drop(1)) {
+                if (line.startMs - reached >= BREATH_MIN_MS) add(reached to line.startMs)
+                reached = maxOf(reached, line.endMs)
+            }
+        }
+    }
+    if (breaks.isEmpty()) return
+    var frame by remember { mutableStateOf(0L) }
+    LaunchedEffect(breaks) { while (true) withFrameNanos { frame = it } }
+    androidx.compose.foundation.Canvas(modifier) {
+        if (frame < 0L) return@Canvas
+        val now = currentTimeMs()
+        val (from, to) = breaks.lastOrNull { it.first <= now && now < it.second } ?: return@Canvas
+        val span = (to - from).toFloat()
+        val progress = ((now - from) / span).coerceIn(0f, 1f)
+        // In over the first 400 ms, out (swelling) over the last 450 ms.
+        val appear = ((now - from) / 400f).coerceIn(0f, 1f)
+        val leave = ((to - now) / 450f).coerceIn(0f, 1f)
+        val breathe = 1f + 0.06f * kotlin.math.sin(now / 520f)
+        val swell = 1f + (1f - leave) * 0.35f
+        val radius = size.minDimension * 0.016f * breathe * swell
+        val gap = radius * 3.4f
+        val centre = center
+        for (i in 0..2) {
+            val lit = (progress * 3f - i).coerceIn(0f, 1f)
+            val alpha = (0.28f + 0.72f * lit) * appear * leave
+            val at = androidx.compose.ui.geometry.Offset(centre.x + (i - 1) * gap, centre.y)
+            if (lit > 0f) drawCircle(androidx.compose.ui.graphics.Color.White.copy(alpha = alpha * 0.22f * lit), radius * 2.2f, at)
+            drawCircle(androidx.compose.ui.graphics.Color.White.copy(alpha = alpha), radius * (0.86f + 0.14f * lit), at)
+        }
+    }
+}
+
+/** [lines] with each one's translation from [translation] (by line), for motion lyrics' subtitle. */
+internal fun withTranslations(lines: List<Line>, translation: com.tx24.spicyplayer.translation.TranslationResult?): List<Line> =
+    if (translation == null) lines else lines.mapIndexed { index, line ->
+        translation.texts.getOrNull(index)?.takeIf { it.isNotBlank() }?.let { line.copy(translation = it) } ?: line
+    }
 
 /** ivLyrics' vinyl mode: the record, its tonearm and the line being sung. */
 @Composable

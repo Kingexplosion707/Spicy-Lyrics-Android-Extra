@@ -370,6 +370,26 @@ internal fun LyricsContent(state: PlayerUiState, viewModel: ExternalPlaybackView
                 unit = "%",
             )
         }
+        ToggleRow(
+            label = "Spicy style in motion lyrics",
+            checked = settings.motionSpicyBlend,
+            onCheckedChange = { settings.motionSpicyBlend = it },
+            description = "Words fill word by word with Spicy's glow while keeping motion lyrics' animations. Long lines stay in motion too.",
+            icon = Icons.Rounded.AutoAwesome,
+        )
+        SettingRow(
+            label = "Motion theme",
+            description = "Auto picks a look from the song's genre.",
+            icon = Icons.Rounded.Palette,
+        ) {
+            val themes = com.tx24.spicyplayer.lyrics.motion.MotionTheme.entries
+            SpicySelect(
+                settings.motionTheme,
+                listOf(com.tx24.spicyplayer.lyrics.motion.MotionTheme.AUTO) + themes.map { it.id },
+                { settings.motionTheme = it },
+                labels = listOf("Auto (by genre)") + themes.map { it.label },
+            )
+        }
     }
     ToggleRow(
         label = "Word by word",

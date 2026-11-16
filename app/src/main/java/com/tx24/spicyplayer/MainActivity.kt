@@ -691,6 +691,7 @@ private fun LyricsApp(
     val canvasBackground = settings.canvasBackground && !lowPerformance
     // Motion lyrics take their colours from the cover.
     LaunchedEffect(state.artwork) { com.tx24.spicyplayer.ivlyrics.MotionAccent.update(state.artwork) }
+    LaunchedEffect(state.title, state.artist) { com.tx24.spicyplayer.ivlyrics.MotionAccent.song(state.title, state.artist) }
     val canvasWanted = stageCanvas || portraitCanvas || canvasBackground
     LaunchedEffect(canvasWanted) { viewModel.setCanvasWanted(canvasWanted) }
     // The song's canvas, held while the next song's is looked up, so it gives way to the next one
@@ -1453,6 +1454,8 @@ private fun LyricsApp(
                             lyrics = state.lyrics,
                             motionLyrics = settings.motionLyrics,
                             motionShade = settings.motionShade,
+                            motionBlend = settings.motionSpicyBlend,
+                            motionTheme = settings.motionTheme,
                             furigana = settings.furigana,
                             wordByWord = settings.wordByWord,
                             translation = state.translation.takeIf { state.translationEnabled },
@@ -2025,6 +2028,8 @@ private fun PipLyrics(
             lyrics = state.lyrics,
             motionLyrics = settings.motionLyrics,
             motionShade = settings.motionShade,
+            motionBlend = settings.motionSpicyBlend,
+            motionTheme = settings.motionTheme,
             furigana = settings.furigana,
             wordByWord = settings.wordByWord,
             translation = state.translation.takeIf { state.translationEnabled },
@@ -2402,6 +2407,10 @@ private fun LyricsPanel(
     motionLyrics: Boolean = false,
     /** Motion lyrics' shade, 0-100. */
     motionShade: Int = 35,
+    /** Spicy's word fill over motion lyrics. */
+    motionBlend: Boolean = false,
+    /** Motion lyrics' theme id. */
+    motionTheme: String = "auto",
     /** Japanese lines read from ivLyrics' furigana. */
     furigana: Boolean = false,
     /** Line-timed songs light word by word. */
@@ -2428,6 +2437,8 @@ private fun LyricsPanel(
                 visible = visible,
                 motionLyrics = motionLyrics,
                 motionShade = motionShade,
+                motionBlend = motionBlend,
+                motionTheme = motionTheme,
                 furigana = furigana,
                 wordByWord = wordByWord,
             )
@@ -2447,6 +2458,8 @@ private fun LyricsPanel(
             visible = visible,
             motionLyrics = motionLyrics,
             motionShade = motionShade,
+            motionBlend = motionBlend,
+            motionTheme = motionTheme,
             furigana = furigana,
             wordByWord = wordByWord,
         )
@@ -2499,6 +2512,10 @@ private fun LyricsPanelContent(
     motionLyrics: Boolean = false,
     /** Motion lyrics' shade, 0-100. */
     motionShade: Int = 35,
+    /** Spicy's word fill over motion lyrics. */
+    motionBlend: Boolean = false,
+    /** Motion lyrics' theme id. */
+    motionTheme: String = "auto",
     /** Japanese lines read from ivLyrics' furigana. */
     furigana: Boolean = false,
     /** Line-timed songs light word by word. */
@@ -2555,17 +2572,20 @@ private fun LyricsPanelContent(
             // Motion lyrics for word-synced songs, giving way to these lyrics for long lines and
             // lines with no word timing of their own.
             val motionFits = com.tx24.spicyplayer.ivlyrics.motionLyricsFit(motionLyrics, furiganaLines, lyrics.lyricsType)
-            val motionShown = if (motionFits) com.tx24.spicyplayer.ivlyrics.rememberMotionShown(furiganaLines, currentTimeMs) else null
+            val motionShown = if (motionFits) com.tx24.spicyplayer.ivlyrics.rememberMotionShown(furiganaLines, currentTimeMs, longLines = !motionBlend) else null
+            val motionLines = remember(furiganaLines, translation) { com.tx24.spicyplayer.ivlyrics.withTranslations(furiganaLines, translation) }
             Box(modifier) {
             if (motionShown != null) {
                 com.tx24.spicyplayer.ivlyrics.MotionLyricsView(
-                    lines = furiganaLines,
+                    lines = motionLines,
                     documentId = remember(lyrics.lines) { lyrics.lines.hashCode().toString() },
                     currentTimeMs = currentTimeMs,
                     isPlaying = isPlaying,
                     romanize = romanize,
                     visible = { visible() && motionShown.value > 0f },
                     shade = motionShade / 100f,
+                    blend = motionBlend,
+                    theme = motionTheme,
                     modifier = Modifier.fillMaxSize().graphicsLayer { alpha = motionShown.value },
                 )
             }

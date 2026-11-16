@@ -115,6 +115,7 @@ private class SessionCore(private val app: Context) {
 
     private fun onTrack(track: BackgroundSession.Track?) {
         com.tx24.spicyplayer.ivlyrics.MotionAccent.update(track?.cover)
+        track?.let { com.tx24.spicyplayer.ivlyrics.MotionAccent.song(it.title, it.artist) }
         listeners.toList().forEach { it.deliverTrack(track) }
     }
     private fun onPlayingChanged(playing: Boolean) = listeners.toList().forEach { it.deliverPlaying(playing) }

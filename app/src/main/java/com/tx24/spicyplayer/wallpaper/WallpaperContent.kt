@@ -441,17 +441,20 @@ internal fun WallpaperLyrics(
     // Motion lyrics for word-synced songs, giving way to these lyrics for long lines and lines with
     // no word timing of their own.
     val motionFits = com.tx24.spicyplayer.ivlyrics.motionLyricsFit(settings.motionLyrics, originalLines, lyrics.lyricsType)
-    val motionShown = if (motionFits) com.tx24.spicyplayer.ivlyrics.rememberMotionShown(originalLines, positionMs) else null
+    val motionShown = if (motionFits) com.tx24.spicyplayer.ivlyrics.rememberMotionShown(originalLines, positionMs, longLines = !settings.motionSpicyBlend) else null
+    val motionLines = remember(originalLines, translation) { com.tx24.spicyplayer.ivlyrics.withTranslations(originalLines, translation) }
     Box(modifier.lyricsTint(tint)) {
     if (motionShown != null) {
         com.tx24.spicyplayer.ivlyrics.MotionLyricsView(
-            lines = originalLines,
+            lines = motionLines,
             documentId = remember(lyrics.lines) { lyrics.lines.hashCode().toString() },
             currentTimeMs = positionMs,
             isPlaying = isPlaying,
             romanize = romanize,
             visible = { visible() && motionShown.value > 0f },
             shade = settings.motionShade / 100f,
+            blend = settings.motionSpicyBlend,
+            theme = settings.motionTheme,
             // Saving power, half the frames are plenty for type this big.
             maxFrameRate = if (reduced && maxFrameRate <= 0f) 30f else maxFrameRate,
             modifier = Modifier.fillMaxSize().graphicsLayer { alpha = motionShown.value },

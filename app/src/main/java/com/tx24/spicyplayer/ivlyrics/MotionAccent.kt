@@ -12,6 +12,13 @@ import kotlinx.coroutines.flow.StateFlow
  */
 internal object MotionAccent {
     private val colour = MutableStateFlow<String?>(null)
+    private val playing = MutableStateFlow("" to "")
+    /** The playing song's title and artist, for the Auto theme's genre. */
+    val song: StateFlow<Pair<String, String>> = playing
+
+    fun song(title: String?, artist: String?) {
+        playing.value = title.orEmpty() to artist.orEmpty()
+    }
     val hex: StateFlow<String?> = colour
     private var lastCover: Bitmap? = null
 
