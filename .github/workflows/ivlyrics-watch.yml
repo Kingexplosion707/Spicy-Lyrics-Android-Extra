@@ -1,10 +1,9 @@
 name: ivLyrics updates
 
-# Watches ivLyrics Android (github.com/ivLis-Studio/ivLyrics-Android) for new releases. Its code
-# has no licence, so nothing is merged: a new release opens an issue labelled ivlyrics-update with
-# its release notes, and the features worth having are written into Spicy Lyrics Plus by hand
-# (the daily scheduled task picks the issue up). Once done, IVLYRICS_REF in .github/ivlyrics.env
-# moves to that release.
+# Watches ivLyrics Android (github.com/ivLis-Studio/ivLyrics-Android) for new releases. A new
+# release opens an issue labelled ivlyrics-update with its release notes; the daily scheduled task
+# picks it up, brings the new shared/ code into the ivlyrics module and wires up new features.
+# Once done, IVLYRICS_REF in .github/ivlyrics.env moves to that release.
 
 on:
   schedule:
@@ -50,8 +49,8 @@ jobs:
             echo
             echo "Compare: https://github.com/ivLis-Studio/ivLyrics-Android/compare/$IVLYRICS_REF...$latest"
             echo
-            echo "Write the new user-facing features that fit Spicy Lyrics Plus into its own code (ivLyrics' code"
-            echo "has no licence, so none of it is copied), then set IVLYRICS_REF in .github/ivlyrics.env to $latest."
+            echo "Bring ivLyrics' shared/ code at $latest into the ivlyrics module, wire up the new features that fit"
+            echo "Spicy Lyrics Plus, then set IVLYRICS_REF in .github/ivlyrics.env to $latest."
             echo
             # Newest first, down to the release already looked over.
             gh api "repos/ivLis-Studio/ivLyrics-Android/releases?per_page=30" 2>/dev/null \
