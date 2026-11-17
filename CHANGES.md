@@ -39,6 +39,12 @@ Modified by Behnoud.
 - **Hide what notifications say until unlocked** (on by default): the list shows only each app until face unlock (or the fingerprint) unlocks the phone, then what they say, though the lock screen is still up.
 - **Add to playlist button** with the controls (Spotify): adds the song to the playlist it's playing from (one Smart Shuffle slipped in, say), unless it's there already. Signs in with your own Spotify app's Client ID (PKCE, no secret), asking only to read what's playing and to add to playlists; Spotify allows it for your own and shared playlists (`spotify/SpotifyAccount.kt`).
 
+- Turned sideways (a tablet, a kiosk, a phone on its side), the always-on display puts the clock and song on the left and the lyrics on the right.
+- Other apps can open it as a screensaver (`com.behnoud.spicylyrics.action.SHOW_AOD`); opened that way it keeps the screen's own brightness. Kiosk Satellite Plus uses it.
+
+### Now playing for other apps (`kiosk/NowPlayingProvider.kt`)
+- A content provider (`com.behnoud.spicylyrics.nowplaying`, behind the `READ_NOW_PLAYING` permission) gives the song, where it is, its timed lyrics, its animated cover and its Canvas, so Kiosk Satellite Plus can show them. It follows the player only while something reads it.
+
 ### Haptics (`haptics/`)
 - Pulses snapped to measured drum onsets, downbeats and sung onsets; lyric pulses for line-timed lyrics laid out word by word; unsynced lyrics and interludes give none.
 - Precise last-millisecond timing in the haptics loop; drops land where the score puts them.

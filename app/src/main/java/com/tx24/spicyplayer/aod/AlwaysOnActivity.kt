@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -83,6 +84,9 @@ class AlwaysOnActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         current = WeakReference(this)
+        // Opened by another app as its screensaver (Kiosk Satellite Plus): the screen keeps its
+        // own brightness instead of dimming to the always-on level.
+        screensaver = intent?.action == ACTION_SHOW_AOD
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
@@ -102,7 +106,7 @@ class AlwaysOnActivity : ComponentActivity() {
         }
         fingerprintUnlock = prefs.getBoolean(AodFingerprint.PREF, true) && AodFingerprint.supported(this)
         window.attributes = window.attributes.apply {
-            screenBrightness = AodBrightness.windowBrightness(levelState.floatValue)
+            screenBrightness = if (screensaver) WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE else AodBrightness.windowBrightness(levelState.floatValue)
             // The lowest refresh rate the screen offers at its size: dim lyrics drifting by don't
             // need 120 Hz, and an always-on screen runs for hours.
             lowestRefreshRateMode()?.let { preferredDisplayModeId = it }
@@ -146,7 +150,7 @@ class AlwaysOnActivity : ComponentActivity() {
                 levelState.floatValue, androidx.compose.animation.core.tween(BRIGHTNESS_EASE_MS), label = "aodLevel",
             )
             LaunchedEffect(level) { setWindowBrightness(AodBrightness.windowBrightness(level)) }
-            Box(Modifier.fillMaxSize().background(Color.Black).graphicsLayer { alpha = AodBrightness.contentAlpha(level) }) {
+            Box(Modifier.fillMaxSize().background(Color.Black).graphicsLayer { alpha = if (screensaver) 1f else AodBrightness.contentAlpha(level) }) {
                 AlwaysOnContent(live, settings, canvas, controls, extras, onDismiss = ::tapToLeave)
             }
         }
@@ -158,8 +162,16 @@ class AlwaysOnActivity : ComponentActivity() {
     private var bias = 0
     private val light by lazy { AodBrightness.LightFollower(this) { lux -> levelState.floatValue = AodBrightness.levelForLux(lux, bias) } }
 
+    private var screensaver = false
+
     private fun setWindowBrightness(value: Float) {
         val attrs = window.attributes
+        if (screensaver) {
+            if (attrs.screenBrightness != WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE) {
+                window.attributes = attrs.apply { screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE }
+            }
+            return
+        }
         if (kotlin.math.abs(attrs.screenBrightness - value) < 0.0005f) return
         window.attributes = attrs.apply { screenBrightness = value }
     }
@@ -394,6 +406,8 @@ class AlwaysOnActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display else windowManager.defaultDisplay
 
     companion object {
+        /** Another app opening this as its screensaver ([screensaver]). */
+        const val ACTION_SHOW_AOD = "com.behnoud.spicylyrics.action.SHOW_AOD"
         /** Compose state, so the lyrics rest while it's paused and pick up when it's back. Main thread. */
         private val shownState = mutableStateOf(false)
         /** Whether it's on screen now: the screen turning off then means the power button on it. */
@@ -477,10 +491,14 @@ private fun AlwaysOnContent(live: LiveLyrics, settings: AppSettings, canvas: Boo
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = CANVAS_VEIL)))
         }
         val track = live.track
+        val wide = androidx.compose.ui.platform.LocalConfiguration.current.let { it.screenWidthDp > it.screenHeightDp }
         if (settings.aodStyle == AodStyle.Player && track != null) {
             // The cover, blurred and darkened, when there's no Canvas.
             if (canvasUrl == null) BlurredCover(track.cover, shift)
-            PlayerLayout(live, settings, controls, extras, now, shift)
+            if (wide) LandscapeLayout(live, settings, controls, extras, now, shift, player = true)
+            else PlayerLayout(live, settings, controls, extras, now, shift)
+        } else if (wide) {
+            LandscapeLayout(live, settings, controls, extras, now, shift, player = false)
         } else {
             ClassicLayout(live, settings, controls, extras, now, shift)
         }
@@ -576,6 +594,60 @@ private fun PlayerLayout(live: LiveLyrics, settings: AppSettings, controls: Bool
         AodLyrics(live, settings, Modifier.fillMaxWidth().weight(1f), 1f)
         if (settings.aodProgress && track.durationMs > 0L) ProgressBar(live, track.durationMs)
         if (controls) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { Controls(live, extras.addToPlaylist) }
+    }
+}
+
+/**
+ * Turned sideways (a tablet, a kiosk, a phone on its side): the clock, what's around it, the song
+ * and its controls on the left, the lyrics filling the right.
+ */
+@Composable
+private fun LandscapeLayout(
+    live: LiveLyrics, settings: AppSettings, controls: Boolean, extras: AodExtras, now: Long, shift: IntOffset, player: Boolean,
+) {
+    val track = live.track
+    val dateFormat = remember { DateFormat.getDateInstance(DateFormat.FULL) }
+    Row(
+        Modifier.fillMaxSize().offset { shift }.padding(horizontal = 40.dp, vertical = 28.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(0.4f).fillMaxHeight(), verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {
+            AodClock(now, extras.clockStyle, clockSize(56.sp, extras.clockSize), alpha = 0.9f, align = Alignment.Start)
+            Text(dateFormat.format(Date(now)), color = Color.White.copy(alpha = 0.6f), fontSize = 15.sp)
+            AodStatusLine(extras, alpha = 0.6f, modifier = Modifier.padding(top = 8.dp), size = 13.sp)
+            if (extras.notifications) {
+                AodNotificationIcons(
+                    alpha = 0.6f, modifier = Modifier.padding(top = 8.dp), onOpen = extras.openNotification, align = Alignment.Start,
+                    hideTextUntilUnlocked = extras.hideTextUntilUnlocked, onReveal = extras.revealNotifications,
+                )
+            }
+            if (track != null) {
+                Spacer(Modifier.height(24.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val cover = remember(track.cover) { track.cover?.asImageBitmap() }
+                    if (player && cover != null) {
+                        AodCover(cover, track, settings)
+                        Spacer(Modifier.width(14.dp))
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            track.title, color = Color.White.copy(alpha = 0.9f), fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            track.artist, color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                if (player && settings.aodProgress && track.durationMs > 0L) ProgressBar(live, track.durationMs)
+                if (controls) Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) { Controls(live, extras.addToPlaylist) }
+            }
+        }
+        Spacer(Modifier.width(32.dp))
+        Column(Modifier.weight(0.6f).fillMaxHeight()) {
+            AodLyrics(live, settings, Modifier.fillMaxWidth().weight(1f), if (player) 1f else LYRICS_ALPHA)
+        }
     }
 }
 
