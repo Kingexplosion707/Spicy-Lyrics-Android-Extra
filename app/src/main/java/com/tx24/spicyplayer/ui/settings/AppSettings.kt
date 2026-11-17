@@ -280,6 +280,10 @@ class AppSettings(private val prefs: SharedPreferences) {
     var aodPlaylistButton by boolean("aodPlaylistButton", true)
     /** Follows what the signed-in Spotify account plays when Spotify's app here isn't playing ([com.tx24.spicyplayer.spotify.SpotifyConnectSession]). */
     var followSpotifyAccount by boolean("followSpotifyAccount", true)
+    /** Music Assistant's Spotify songs play through the account signed in here ([com.tx24.spicyplayer.spotify.SpotifyPlayRoute]). */
+    var maSpotifyRoute by boolean("maSpotifyRoute", true)
+    /** The Music Assistant button among the lyrics screen's controls. */
+    var musicAssistantButton by boolean("musicAssistantButton", true)
     /** The notification list shows only each app until the phone is unlocked (face unlock, say). */
     var aodHideNotificationText by boolean("aodHideNotificationText", true)
     /** A notification coming in on the always-on display: light round the edge and a pill with its app. */

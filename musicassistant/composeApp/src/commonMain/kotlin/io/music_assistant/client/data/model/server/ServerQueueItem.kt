@@ -1,0 +1,102 @@
+package io.music_assistant.client.data.model.server
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class ServerQueueItem(
+    @SerialName("queue_item_id") val queueItemId: String,
+    @SerialName("media_item") val mediaItem: ServerMediaItem? = null,
+    // @SerialName("queue_id") val queueId: String,
+    @SerialName("name") val name: String? = null,
+    @SerialName("duration") val duration: Double? = null,
+    // @SerialName("sort_index") val sortIndex: Int,
+    @SerialName("streamdetails") val streamDetails: StreamDetails? = null,
+    @SerialName("image") val image: ServerMediaItemImage? = null,
+    // @SerialName("index") val index: Int
+    // Server 2.11 (schema 90) and newer; null for a lone track or a live stream.
+    @SerialName("origin") val origin: ServerQueueItemOrigin? = null,
+)
+
+@Serializable
+data class ServerQueueItemOrigin(
+    // The ItemMapping of the album, playlist, folder or other container that the item was played from.
+    @SerialName("container") val container: ServerMediaItem? = null,
+    // The pin (the copy of the item in the container listing):
+    // @SerialName("provider_instance") val providerInstance: String? = null,
+    // @SerialName("item_id") val itemId: String? = null,
+)
+
+@Serializable
+data class StreamDetails(
+    @SerialName("provider") val provider: String? = null,
+    // Provider-native id of the item that streams; `audio_analysis` data is stored under it.
+    @SerialName("item_id") val itemId: String? = null,
+    @SerialName("audio_format") val audioFormat: AudioFormat,
+//    @SerialName("media_type") val mediaType: String,
+//    @SerialName("stream_type") val streamType: String,
+//    @SerialName("duration") val duration: Double? = null,
+//    @SerialName("size") val size: Int? = null,
+//    @SerialName("stream_title") val streamTitle: String? = null,
+//    @SerialName("loudness") val loudness: Double? = null,
+//    @SerialName("loudness_album") val loudnessAlbum: Double? = null,
+//    @SerialName("prefer_album_loudness") val preferAlbumLoudness: Boolean,
+//    @SerialName("volume_normalization_mode") val volumeNormalizationMode: String,
+//    @SerialName("volume_normalization_gain_correct") val volumeNormalizationGainCorrect: Double? = null,
+//    @SerialName("target_loudness") val targetLoudness: Double,
+//    @SerialName("strip_silence_begin") val stripSilenceBegin: Boolean,
+//    @SerialName("strip_silence_end") val stripSilenceEnd: Boolean,
+    @SerialName("dsp") val dsp: Map<String, DSPSettings>? = null,
+    @SerialName("stream_metadata") val streamMetadata: ServerStreamMetadata? = null,
+    @SerialName("audio_processing") val audioProcessingChain: AudioProcessingChain? = null,
+)
+
+@Serializable
+data class AudioProcessingChain(
+    @SerialName("input_fidelity") val inputFidelity: AudioFidelity? = null,
+    @SerialName("outputs") val outputs: List<AudioOutputDetails>? = null,
+)
+
+@Serializable
+data class AudioFidelity(
+    @SerialName("quality") val quality: String? = null,
+) {
+    companion object {
+        const val QUALITY_UNKNOWN = "unknown"
+        const val QUALITY_LOW = "low"
+        const val QUALITY_STANDARD = "standard"
+        const val QUALITY_LOSSLESS = "lossless"
+        const val QUALITY_HI_RES = "hi_res"
+    }
+}
+
+@Serializable
+data class AudioOutputDetails(
+    @SerialName("player_ids") val playerIds: List<String>? = null,
+    @SerialName("output_format") val format: AudioFormat? = null,
+    @SerialName("fidelity") val fidelity: AudioFidelity? = null,
+
+)
+
+/**
+ * Metadata of a live broadcast, describing the track a radio station plays right now.
+ * The queue item itself is the station, so its artwork is the station logo — this is the
+ * only source for the current song's artwork.
+ */
+@Serializable
+data class ServerStreamMetadata(
+//    @SerialName("title") val title: String,
+//    @SerialName("artist") val artist: String? = null,
+//    @SerialName("album") val album: String? = null,
+    @SerialName("image_url") val imageUrl: String? = null,
+)
+
+@Serializable
+data class DSPSettings(
+//    @SerialName("state") val state: String,
+//    @SerialName("input_gain") val inputGain: Double,
+//    @SerialName("filters") val filters: List<String>,
+//    @SerialName("output_gain") val outputGain: Double,
+//    @SerialName("output_limiter") val outputLimiter: Boolean,
+    @SerialName("output_format") val outputFormat: AudioFormat? = null,
+)

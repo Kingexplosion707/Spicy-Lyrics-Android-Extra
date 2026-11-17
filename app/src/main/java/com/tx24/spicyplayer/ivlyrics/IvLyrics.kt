@@ -238,7 +238,7 @@ internal fun MotionLyricsView(
     val accent by MotionAccent.hex.collectAsState()
     val translations = remember(lines) { lines.map { it.translation }.hashCode() }
     val genre by MotionGenre.genre.collectAsState()
-    val shownTheme = theme.resolve(genre)
+    val shownTheme = theme.resolve(genre, documentId)
     LaunchedEffect(holder, documentId, romanize, accent, translations, shownTheme) {
         SpicyBridge.motionSong(
             holder.inner, spotifyId, documentId, title, artist, accent, lines.toIvLyrics(romanize),

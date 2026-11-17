@@ -1,0 +1,25 @@
+package io.music_assistant.client.data.model.client.items
+
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Podcasts
+import io.music_assistant.client.data.model.client.ImageInfo
+import io.music_assistant.client.data.model.client.ImageType
+import io.music_assistant.client.data.model.client.MediaType
+import io.music_assistant.client.data.model.client.Metadata
+import io.music_assistant.client.data.model.server.ProviderMapping
+
+data class Podcast(
+    override val itemId: String,
+    override val provider: String,
+    override val name: String,
+    override val providerMappings: List<ProviderMapping>?,
+    override val metadata: Metadata?,
+    override val favorite: Boolean?,
+    override val sortName: String? = null,
+    override val uri: String?,
+    override val images: Map<ImageType, ImageInfo>,
+) : AppMediaItem() {
+    override fun withFavorite(favorite: Boolean?) = copy(favorite = favorite)
+    override val mediaType: MediaType = MediaType.PODCAST
+    override val defaultIcon = Icons.Default.Podcasts
+}

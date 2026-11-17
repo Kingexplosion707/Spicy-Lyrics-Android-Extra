@@ -54,6 +54,7 @@ import com.tx24.spicyplayer.ui.components.ChromeTheme
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.ClosedCaption
 import androidx.compose.material.icons.rounded.Devices
+import androidx.compose.material.icons.rounded.Speaker
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.BatterySaver
@@ -1555,6 +1556,31 @@ internal fun SourcesContent(state: PlayerUiState, viewModel: ExternalPlaybackVie
                 com.tx24.spicyplayer.spotify.SpotifyConnectSession.sync(context)
             },
             icon = Icons.Rounded.Devices,
+        )
+    }
+    if (com.tx24.spicyplayer.musicassistant.SpicyMusicAssistant.supported()) SettingsSection("Music Assistant") {
+        val context = androidx.compose.ui.platform.LocalContext.current
+        SettingRow(
+            label = "Music Assistant",
+            description = "Your Music Assistant server's library, search, players and queue, inside Spicy. Sign in to the server the first time.",
+            icon = Icons.Rounded.Speaker,
+        ) {
+            com.tx24.spicyplayer.ui.components.SpicyButton("Open", onClick = { com.tx24.spicyplayer.musicassistant.SpicyMusicAssistant.open(context) })
+        }
+        ToggleRow(
+            label = "Play Spotify songs through your account",
+            description = "On this phone, Music Assistant's Spotify songs play in the Spotify app here instead of streaming through the server. " +
+                "On another player, they play on its Spotify Connect device, so Music Assistant still shows them. Needs the Spotify account above.",
+            checked = settings.maSpotifyRoute,
+            onCheckedChange = { settings.maSpotifyRoute = it },
+            icon = Icons.Rounded.Devices,
+        )
+        ToggleRow(
+            label = "Music Assistant button",
+            description = "A button among the lyrics screen's controls that opens Music Assistant.",
+            checked = settings.musicAssistantButton,
+            onCheckedChange = { settings.musicAssistantButton = it },
+            icon = Icons.Rounded.Speaker,
         )
     }
     MoreOptions("Custom sources, background vocals in brackets, keeping lyrics longer, your own Spicy Lyrics key") {

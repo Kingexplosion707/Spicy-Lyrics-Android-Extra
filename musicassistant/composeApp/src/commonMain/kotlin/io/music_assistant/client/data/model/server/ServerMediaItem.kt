@@ -1,0 +1,199 @@
+package io.music_assistant.client.data.model.server
+
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.intOrNull
+
+@Serializable
+data class ServerMediaItem(
+    @SerialName("item_id") val itemId: String,
+    @SerialName("provider") val provider: String,
+    @SerialName("name") val name: String,
+    @SerialName("provider_mappings") val providerMappings: List<ProviderMapping>? = null,
+    @SerialName("metadata") val metadata: ServerMetadata? = null,
+    @SerialName("favorite") val favorite: Boolean? = null,
+    @SerialName("media_type") val mediaType: String,
+    @SerialName("sort_name") val sortName: String? = null,
+    @SerialName("uri") val uri: String? = null,
+    @SerialName("image") val image: ServerMediaItemImage? = null,
+    @SerialName("is_playable") val isPlayable: Boolean? = null,
+    // @SerialName("timestamp_added") val timestampAdded: Long? = null,
+    // @SerialName("timestamp_modified") val timestampModified: Long? = null,
+    // various subtypes
+    // @SerialName("musicbrainz_id") val musicbrainzId: String? = null,
+    // Album
+    @SerialName("version") val version: String? = null,
+    // @SerialName("external_ids") val externalIds: List<List<String>>? = null,
+    @SerialName("position") val position: Long? = null,
+    @SerialName("year") val year: Int? = null,
+    @SerialName("artists") val artists: List<ServerMediaItem>? = null,
+    // Artist only: the server's `ArtistType`; a value the app does not know maps to null.
+    @SerialName("artist_type") val artistType: String? = null,
+    // The server's `AlbumType`; a value the app does not know maps to null in `AlbumType.fromServer`.
+    @SerialName("album_type") val albumType: String? = null,
+    // Playlist only
+    // The display name of the owner, as the provider reports it.
+    @SerialName("owner") val owner: String? = null,
+    @SerialName("is_editable") val isEditable: Boolean? = null,
+    @SerialName("is_dynamic") val isDynamic: Boolean? = null,
+    @SerialName("is_endless") val isEndless: Boolean = true,
+    @SerialName("supported_mediatypes") val supportedMediatypes: List<String>? = null,
+    // Server 2.11: who a Music Assistant playlist serves. Absent on an older server.
+    @SerialName("access") val access: ServerPlaylistAccess? = null,
+    // Track only
+    @SerialName("duration") val duration: Double? = null,
+    // @SerialName("isrc") val isrc: String? = null,
+    // album track only
+    @SerialName("album") val album: ServerMediaItem? = null,
+    @SerialName("disc_number") val discNumber: Int? = null,
+    @SerialName("track_number") val trackNumber: Int? = null,
+    // podcast episode only
+    @SerialName("podcast") val podcast: ServerMediaItem? = null,
+    // The publisher's numbering; server 2.11 (schema 85) and newer, null when not numbered.
+    @SerialName("episode_number") val episodeNumber: Int? = null,
+    @SerialName("season") val season: Int? = null,
+    // Audiobook only
+    // Server sends plain strings (legacy) or Artist/ItemMapping objects
+    // either shape decodes to the display name.
+    @SerialName("authors") val authors: List<@Serializable(NameOrStringSerializer::class) String>? = null,
+    @SerialName("narrators") val narrators: List<@Serializable(NameOrStringSerializer::class) String>? = null,
+    @SerialName("publisher") val publisher: String? = null,
+    // Progress tracking (audiobooks, podcast episodes)
+    // Server sends Boolean for audiobooks and Int 0/1 for podcast episodes
+    @Serializable(with = FlexibleBooleanSerializer::class)
+    @SerialName("fully_played") val fullyPlayed: Boolean? = null,
+    @SerialName("resume_position_ms") val resumePositionMs: Long? = null,
+    // Folder only
+    @SerialName("items") val items: List<ServerMediaItem>? = null,
+    // BrowseFolder only: the server browse path to descend into (distinct from `uri`).
+    @SerialName("path") val path: String? = null,
+    // AudioSource only
+    @SerialName("can_play_pause") val canPlayPause: Boolean? = null,
+) {
+    companion object {
+        const val LIBRARY_PROVIDER = "library"
+
+        /**
+         * The provider of an item that the server knows only by an external id, such as a
+         * MusicBrainz id (server 2.11). Its `item_id` is `<id type>:<id>`.
+         */
+        const val EXTERNAL_PROVIDER = "external"
+    }
+}
+
+@Serializable
+data class ServerMetadata(
+    @SerialName("description") val description: String? = null,
+    @SerialName("review") val review: String? = null,
+    @SerialName("explicit") val explicit: Boolean? = null,
+    @SerialName("images") val images: List<ServerMediaItemImage>? = null,
+    @SerialName("genres") val genres: List<String>? = null,
+    @SerialName("mood") val mood: String? = null,
+    @SerialName("style") val style: String? = null,
+    @SerialName("copyright") val copyright: String? = null,
+    @SerialName("lyrics") val lyrics: String? = null,
+    @SerialName("lrc_lyrics") val lrcLyrics: String? = null,
+    /** Whether a transcript can be fetched; null when the provider cannot tell (server 2.11). */
+    @SerialName("has_transcript") val hasTranscript: Boolean? = null,
+    @SerialName("label") val label: String? = null,
+    // @SerialName("links") val links: List<String>? = null,
+    // @SerialName("performers") val performers: List<String>? = null,
+    @SerialName("preview") val preview: String? = null,
+    @SerialName("popularity") val popularity: Int? = null,
+    @SerialName("release_date") val releaseDate: String? = null,
+    // @SerialName("languages") val languages: List<String>? = null,
+    @SerialName("chapters") val chapters: List<ServerMediaItemChapter>? = null,
+    @SerialName("last_refresh") val lastRefresh: Long? = null,
+)
+
+/**
+ * The access record of a Music Assistant playlist (`music_assistant_models.access.PlaylistAccess`).
+ * [owner] is a user id. [sharing] is a `ProviderSharing` value.
+ */
+@Serializable
+data class ServerPlaylistAccess(
+    @SerialName("owner") val owner: String? = null,
+    @SerialName("sharing") val sharing: String,
+    @SerialName("shared_users") val sharedUsers: List<String> = emptyList(),
+    @SerialName("collaborative") val collaborative: Boolean = false,
+)
+
+@Serializable
+data class ServerMediaItemImage(
+    @SerialName("type") val type: String,
+    @SerialName("path") val path: String,
+    @SerialName("provider") val provider: String,
+    @SerialName("remotely_accessible") val remotelyAccessible: Boolean = false,
+    @SerialName("proxy_id") val proxyId: String? = null,
+)
+
+@Serializable
+data class ProviderMapping(
+    @SerialName("item_id") val itemId: String,
+    @SerialName("provider_domain") val providerDomain: String,
+    @SerialName("provider_instance") val providerInstance: String,
+    @SerialName("available") val available: Boolean = true,
+    @SerialName("in_library") val inLibrary: Boolean? = null,
+//    @SerialName("audio_format") val audioFormat: AudioFormat? = null,
+//    @SerialName("url") val url: String? = null,
+//    @SerialName("details") val details: String?
+)
+
+@Serializable
+data class ServerMediaItemChapter(
+    @SerialName("position") val position: Int,
+    @SerialName("name") val name: String,
+    @SerialName("start") val start: Double,
+    @SerialName("end") val end: Double? = null,
+)
+
+// Audiobook authors/narrators changed server-side from `list[str]` to
+// `list[Artist | ItemMapping | str]`. Accept a JSON string as-is, or take the
+// `name` field of an object; the app only needs the display name.
+private object NameOrStringSerializer : KSerializer<String> {
+    override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("NameOrString", PrimitiveKind.STRING)
+
+    override fun deserialize(decoder: Decoder): String =
+        (decoder as? JsonDecoder)?.decodeJsonElement()?.let { element ->
+            when (element) {
+                is JsonPrimitive -> element.content
+                is JsonObject -> (element["name"] as? JsonPrimitive)?.content ?: ""
+                else -> ""
+            }
+        } ?: decoder.decodeString()
+
+    override fun serialize(encoder: Encoder, value: String) = encoder.encodeString(value)
+}
+
+// Server inconsistency: audiobooks send Boolean, podcast episodes send Int 0/1
+private object FlexibleBooleanSerializer : KSerializer<Boolean> {
+    override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("FlexibleBoolean", PrimitiveKind.BOOLEAN)
+
+    override fun deserialize(decoder: Decoder): Boolean =
+        (decoder as? JsonDecoder)?.decodeJsonElement()?.let { element ->
+            (element as? JsonPrimitive)?.let { it.booleanOrNull ?: it.intOrNull?.let { n -> n != 0 } } ?: false
+        } ?: decoder.decodeBoolean()
+
+    override fun serialize(encoder: Encoder, value: Boolean) = encoder.encodeBoolean(value)
+}
+
+@Serializable
+data class AudioFormat(
+    @SerialName("content_type") val contentType: String? = null,
+    @SerialName("codec_type") val codecType: String? = null,
+    @SerialName("sample_rate") val sampleRate: Int? = null,
+    @SerialName("bit_depth") val bitDepth: Int? = null,
+    @SerialName("channels") val channels: Int? = null,
+    @SerialName("output_format_str") val outputFormatStr: String? = null,
+    @SerialName("bit_rate") val bitRate: Int? = null,
+)

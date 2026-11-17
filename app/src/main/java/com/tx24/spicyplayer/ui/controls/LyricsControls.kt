@@ -87,6 +87,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.IosShare
+import androidx.compose.material.icons.rounded.Speaker
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.BedtimeOff
 import androidx.compose.material3.Icon
@@ -212,6 +213,8 @@ class PlaybackControlsState(
     val onSleepTimer: (() -> Unit)? = null,
     /** A sleep timer is running: its button says so. */
     val sleepTimerOn: Boolean = false,
+    /** Opens Music Assistant ([com.tx24.spicyplayer.musicassistant.SpicyMusicAssistant]); null hides the button. */
+    val onMusicAssistant: (() -> Unit)? = null,
 )
 
 /**
@@ -624,6 +627,11 @@ private fun floatingActions(
     controls.onShareLyrics?.let { share ->
         add(FloatingAction("Share lyrics", keep = 15, share) { icon ->
             Icon(Icons.Rounded.IosShare, null, Modifier.size(icon(22f)), tint = Color.White)
+        })
+    }
+    controls.onMusicAssistant?.let { open ->
+        add(FloatingAction("Music Assistant", keep = 35, open) { icon ->
+            Icon(Icons.Rounded.Speaker, null, Modifier.size(icon(22f)), tint = Color.White)
         })
     }
     controls.onSleepTimer?.let { open ->
