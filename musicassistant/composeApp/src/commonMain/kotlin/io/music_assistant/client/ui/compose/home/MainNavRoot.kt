@@ -1,0 +1,969 @@
+package io.music_assistant.client.ui.compose.home
+
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.NavEntry
+import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.runtime.rememberDecoratedNavEntries
+import androidx.navigation3.runtime.rememberNavBackStack
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.scene.Scene
+import androidx.navigation3.ui.defaultPopTransitionSpec
+import androidx.navigation3.ui.defaultTransitionSpec
+import androidx.savedstate.serialization.SavedStateConfiguration
+import io.music_assistant.client.api.DeepLinkBus
+import io.music_assistant.client.api.DeepLinkDestination
+import io.music_assistant.client.api.ErrorMessageBus
+import io.music_assistant.client.data.model.client.ClickContext
+import io.music_assistant.client.data.model.client.MediaType
+import io.music_assistant.client.data.model.client.items.Album
+import io.music_assistant.client.data.model.client.items.Artist
+import io.music_assistant.client.data.model.client.items.Audiobook
+import io.music_assistant.client.data.model.client.items.Genre
+import io.music_assistant.client.data.model.client.items.MediaCollection
+import io.music_assistant.client.data.model.client.items.Playlist
+import io.music_assistant.client.data.model.client.items.Podcast
+import io.music_assistant.client.data.model.client.items.PodcastEpisode
+import io.music_assistant.client.data.model.client.items.RecommendationFolder
+import io.music_assistant.client.data.model.client.items.Track
+import io.music_assistant.client.input.VolumeButtonService
+import io.music_assistant.client.input.VolumeKeyRefusal
+import io.music_assistant.client.nav.AdaptiveNavigationBarLayout
+import io.music_assistant.client.nav.BackHandler
+import io.music_assistant.client.nav.MultiBackStack
+import io.music_assistant.client.nav.NavigationItem
+import io.music_assistant.client.nav.NoSequentialDuplicatesBackstackAdder
+import io.music_assistant.client.nav.PlaybackItem
+import io.music_assistant.client.nav.ScreenState
+import io.music_assistant.client.nav.Section
+import io.music_assistant.client.nav.createNavigationItem
+import io.music_assistant.client.ui.compose.common.ToastDuration
+import io.music_assistant.client.ui.compose.common.ToastHost
+import io.music_assistant.client.ui.compose.common.action.PlayerAction
+import io.music_assistant.client.ui.compose.common.icons.SkipForwardIcon
+import io.music_assistant.client.ui.compose.common.providers.providerIconFetcher
+import io.music_assistant.client.ui.compose.common.rememberToastState
+import io.music_assistant.client.ui.compose.common.viewmodel.ActionsViewModel
+import io.music_assistant.client.ui.compose.home.players.DspSettingsViewModel
+import io.music_assistant.client.ui.compose.home.players.PlayerSheetStart
+import io.music_assistant.client.ui.compose.home.players.PlayersPager
+import io.music_assistant.client.ui.compose.home.players.QueueDjViewModel
+import io.music_assistant.client.ui.compose.home.players.RemoteVolumeOverlay
+import io.music_assistant.client.ui.compose.home.players.SelectPlayerSheet
+import io.music_assistant.client.ui.compose.home.players.contentDescription
+import io.music_assistant.client.ui.compose.home.players.iconRes
+import io.music_assistant.client.ui.compose.home.players.mainTransport
+import io.music_assistant.client.ui.compose.home.players.overflowLabel
+import io.music_assistant.client.ui.compose.home.players.rememberHideUnavailablePlayers
+import io.music_assistant.client.ui.compose.home.players.rememberToggleHideUnavailablePlayers
+import io.music_assistant.client.ui.compose.home.players.statusDotColor
+import io.music_assistant.client.ui.compose.home.players.transportState
+import io.music_assistant.client.ui.compose.item.ItemDetailsScreen
+import io.music_assistant.client.ui.compose.item.ItemDetailsViewModel
+import io.music_assistant.client.ui.compose.item.ItemListScreen
+import io.music_assistant.client.ui.compose.item.ItemListViewModel
+import io.music_assistant.client.ui.compose.item.ViewModeViewModel
+import io.music_assistant.client.ui.compose.library.AiRadioScreen
+import io.music_assistant.client.ui.compose.library.AiRadioViewModel
+import io.music_assistant.client.ui.compose.library.BrowseScreen
+import io.music_assistant.client.ui.compose.library.BrowseViewModel
+import io.music_assistant.client.ui.compose.library.LibraryCategoriesViewModel
+import io.music_assistant.client.ui.compose.library.LibraryCategory
+import io.music_assistant.client.ui.compose.library.LibraryListScreen
+import io.music_assistant.client.ui.compose.library.LibraryListViewModel
+import io.music_assistant.client.ui.compose.library.icon
+import io.music_assistant.client.ui.compose.library.stringResource
+import io.music_assistant.client.ui.compose.nav.ConditionalBackNavDisplay
+import io.music_assistant.client.ui.compose.party.PartyInviteSheet
+import io.music_assistant.client.ui.compose.party.PartyViewModel
+import io.music_assistant.client.ui.compose.provider.ProviderViewModel
+import io.music_assistant.client.ui.compose.search.GlobalSearchRequest
+import io.music_assistant.client.ui.compose.search.SearchScreen
+import io.music_assistant.client.ui.compose.search.SearchScreenState
+import io.music_assistant.client.ui.compose.search.SearchViewModel
+import io.music_assistant.client.utils.DataConnectionState
+import io.music_assistant.client.utils.SessionState
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.modules.polymorphic
+import musicassistantclient.composeapp.generated.resources.Res
+import musicassistantclient.composeapp.generated.resources.app_name
+import musicassistantclient.composeapp.generated.resources.cd_more
+import musicassistantclient.composeapp.generated.resources.media_action_next
+import musicassistantclient.composeapp.generated.resources.nav_discover
+import musicassistantclient.composeapp.generated.resources.nav_explore
+import musicassistantclient.composeapp.generated.resources.nav_library
+import musicassistantclient.composeapp.generated.resources.nav_menu
+import musicassistantclient.composeapp.generated.resources.nav_search
+import musicassistantclient.composeapp.generated.resources.nav_settings
+import musicassistantclient.composeapp.generated.resources.nav_system
+import musicassistantclient.composeapp.generated.resources.not_connected_retry
+import musicassistantclient.composeapp.generated.resources.players_remote_volume_hint
+import musicassistantclient.composeapp.generated.resources.volume_keys_no_volume_control
+import musicassistantclient.composeapp.generated.resources.volume_keys_player_off
+import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.resources.vectorResource
+import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
+import org.koin.core.parameter.parametersOf
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
+
+@Composable
+fun MainNavigationRoot(
+    homeScreenViewModel: HomeScreenViewModel = koinViewModel(),
+    actionsViewModel: ActionsViewModel = koinViewModel(),
+    viewModeViewModel: ViewModeViewModel = koinViewModel(),
+    dspSettingsViewModel: DspSettingsViewModel = koinViewModel(),
+    providerViewModel: ProviderViewModel = koinViewModel(),
+    queueDjViewModel: QueueDjViewModel = koinViewModel(),
+    libraryCategoriesViewModel: LibraryCategoriesViewModel = koinViewModel(),
+    partyViewModel: PartyViewModel = koinViewModel(),
+    goToSettings: () -> Unit,
+) {
+    val toastState = rememberToastState()
+    val playerActionsViewModel: ActionsViewModel = koinViewModel(key = "player-actions")
+    val errorBus: ErrorMessageBus = koinInject()
+    val deepLinkBus: DeepLinkBus = koinInject()
+    val volumeButtonService: VolumeButtonService = koinInject()
+
+    // Surface server-side RPC errors as toasts on top of whichever screen is active.
+    // (Per-screen ToastHosts handle ActionsViewModel toasts.)
+    LaunchedEffect(Unit) {
+        errorBus.messages.collect { msg ->
+            val truncated = if (msg.length > 150) msg.take(150) + "…" else msg
+            toastState.showToast(truncated, ToastDuration.LONG)
+        }
+    }
+
+    val playersState by homeScreenViewModel.playersState.collectAsStateWithLifecycle()
+    // Single pager state used across all views
+    val data = playersState as? HomeScreenViewModel.PlayersState.Data
+    val playerPagerState = rememberPagerState(
+        initialPage = data?.selectedPlayerIndex ?: 0,
+        pageCount = { data?.playerData?.size ?: 0 },
+    )
+
+    // Bidirectional pager <-> selection sync
+    // Selection→pager runs first (data layer priority), then pager→selection watches user swipes
+    LaunchedEffect(playerPagerState, playersState) {
+        val currentData = playersState as? HomeScreenViewModel.PlayersState.Data
+            ?: return@LaunchedEffect
+        val target = currentData.selectedPlayerIndex ?: return@LaunchedEffect
+        if (!playerPagerState.isScrollInProgress) {
+            playerPagerState.animateScrollToPage(target)
+        }
+
+        snapshotFlow { playerPagerState.settledPage }.collect { currentPage ->
+            currentData.playerData.getOrNull(currentPage)
+                // Only a swipe to another player is a user choice. Re-writing the page the
+                // scroll above just landed on would persist the resolver's fallback (first
+                // player while the chosen one is briefly missing) as the user's selection.
+                ?.takeIf { it.playerId != currentData.selectedPlayer?.playerId }
+                ?.let { playerData -> homeScreenViewModel.selectPlayer(playerData.player) }
+        }
+    }
+
+    var playerExpanded by remember { mutableStateOf(false) }
+
+    val onExpandPlayer = remember { { expanded: Boolean -> playerExpanded = expanded } }
+
+    val backStacks = listOf(
+        rememberMainNavBackStack(MainNav.Landing),
+        rememberMainNavBackStack(MainNav.Search),
+    )
+    val multiBackStack = remember {
+        MultiBackStack(backStacks, backstackAdder = NoSequentialDuplicatesBackstackAdder())
+    }
+
+    // Apply a pending navigation deep link (musicassistant://app/<page> or the
+    // https App/Universal Link). The destination is retained upstream, and we
+    // gate on Authenticated + re-key on connectionState so that the transient
+    // pre-auth MainNavigationRoot instance — torn down during the cold-launch
+    // Main→Settings→Main churn — never consumes it; only the authenticated
+    // instance that stays on screen applies and clears it.
+    val connectionState by homeScreenViewModel.connectionState.collectAsStateWithLifecycle()
+    val pendingDeepLink by deepLinkBus.pending.collectAsStateWithLifecycle()
+    LaunchedEffect(pendingDeepLink, connectionState) {
+        val dest = pendingDeepLink ?: return@LaunchedEffect
+        val authenticated = (connectionState as? SessionState.Connected)
+            ?.dataConnectionState is DataConnectionState.Authenticated
+        if (!authenticated) return@LaunchedEffect
+        when (dest) {
+            DeepLinkDestination.Home -> {
+                multiBackStack.currentBackStack = 0
+                multiBackStack.resetCurrentBackStack()
+            }
+
+            is DeepLinkDestination.Library -> {
+                multiBackStack.currentBackStack = 0
+                multiBackStack.resetCurrentBackStack()
+                // /library/<category> → push the category list onto the Library tab.
+                dest.mediaType?.let { multiBackStack.add(MainNav.LibraryList(it)) }
+            }
+
+            DeepLinkDestination.Search -> {
+                multiBackStack.currentBackStack = 1
+                multiBackStack.resetCurrentBackStack()
+            }
+
+            is DeepLinkDestination.Players -> {
+                // Expand the now-playing layout over the current tab (the
+                // FloatingBar is global, so no tab switch needed). The pager
+                // renders its own empty state if no player is present. A named
+                // player is selected in the ViewModel scope: consume() below
+                // restarts this effect, which would cancel the lookup.
+                playerExpanded = true
+                dest.playerIdOrName?.let(homeScreenViewModel::selectPlayerByIdOrName)
+            }
+        }
+        deepLinkBus.consume(dest)
+    }
+
+    // Each root screen's scroll/collapsing-top-bar state is owned by its NavEntry
+    // (published here while composed) so its lifetime matches the ViewModel it
+    // mirrors. The nav bar reads these to scroll the active tab to top on re-tap;
+    // a tab switch disposes the entry, so re-entry starts fresh instead of stranding
+    // a collapsed top bar.
+    val homeScreenState = remember { mutableStateOf<HomeScreenState?>(null) }
+    val searchScreenState = remember { mutableStateOf<SearchScreenState?>(null) }
+
+    val remoteVolumeHint = stringResource(Res.string.players_remote_volume_hint)
+    val viewingRemote = data?.selectedPlayer?.isLocal == false
+    val currentHint by rememberUpdatedState(remoteVolumeHint)
+    val observingRemote by rememberUpdatedState(viewingRemote)
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner, volumeButtonService) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            volumeButtonService.buttonPresses.collect {
+                if (observingRemote) {
+                    toastState.showToast(currentHint, ToastDuration.SHORT)
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(volumeButtonService) {
+        volumeButtonService.refusals.collect { refusal ->
+            val text = when (refusal.reason) {
+                VolumeKeyRefusal.Reason.NOT_CONNECTED -> getString(Res.string.not_connected_retry)
+                VolumeKeyRefusal.Reason.POWERED_OFF ->
+                    getString(Res.string.volume_keys_player_off, refusal.playerName)
+                VolumeKeyRefusal.Reason.NO_VOLUME_CONTROL ->
+                    getString(Res.string.volume_keys_no_volume_control, refusal.playerName)
+            }
+            toastState.showToast(text, ToastDuration.SHORT)
+        }
+    }
+
+    // The player whose volume the hardware keys change, while the overlay shows. Each press
+    // restarts the timer, so the overlay hides after the last press.
+    var volumeOverlayPlayerId by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(volumeButtonService) {
+        volumeButtonService.remoteAdjust.collectLatest { playerId ->
+            volumeOverlayPlayerId = playerId
+            delay(REMOTE_VOLUME_OVERLAY_MS)
+            volumeOverlayPlayerId = null
+        }
+    }
+
+    // A root screen in edit mode hides the collapsed bar so it does not cover drag targets.
+    // An expanded player (for example from a deep link) always stays visible.
+    val rootScreenEditing = homeScreenState.value?.editMode == true
+
+    var playerSheet by remember { mutableStateOf<PlayerSheetStart?>(null) }
+    playersState.let {
+        if (it is HomeScreenViewModel.PlayersState.Data) {
+            val selectedPlayer = it.selectedPlayer
+            if (selectedPlayer != null) {
+                playerSheet?.let { start ->
+                    val leaderLeaveSupported by homeScreenViewModel.leaderLeaveSupported
+                        .collectAsStateWithLifecycle()
+                    val playerDelays by homeScreenViewModel.playerDelays.collectAsStateWithLifecycle()
+
+                    SelectPlayerSheet(
+                        selectedPlayer = selectedPlayer,
+                        players = it.playerData,
+                        onDismissRequest = { playerSheet = null },
+                        onMoveToPlayer = { id: String ->
+                            it.playerData.find { playerData -> playerData.player.id == id }?.player?.let { player ->
+                                homeScreenViewModel.selectPlayer(player)
+                            }
+                        },
+                        onReorder = homeScreenViewModel::onPlayersSortChanged,
+                        onPlayerAction = homeScreenViewModel::playerAction,
+                        onTransportAction = homeScreenViewModel::playerAction,
+                        hideUnavailable = rememberHideUnavailablePlayers(),
+                        onToggleHideUnavailable = rememberToggleHideUnavailablePlayers(),
+                        playerDelays = playerDelays,
+                        onLoadPlayerDelays = homeScreenViewModel::loadPlayerDelays,
+                        onAdjustPlayerDelay = homeScreenViewModel::adjustPlayerDelay,
+                        canLeaveGroup = leaderLeaveSupported,
+                        start = start,
+                    )
+                }
+            }
+        }
+    }
+
+    var partySheetOpen by remember { mutableStateOf(false) }
+    if (partySheetOpen) {
+        val partyState by partyViewModel.state.collectAsStateWithLifecycle()
+        DisposableEffect(partyViewModel) {
+            partyViewModel.open()
+            onDispose { partyViewModel.close() }
+        }
+        PartyInviteSheet(state = partyState, actions = partyViewModel, onDismiss = { partySheetOpen = false })
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        val libraryCategories by libraryCategoriesViewModel.state.collectAsStateWithLifecycle()
+        // The player lies over the screens, so picking a destination has to close it first.
+        val closePlayerFirst: (NavigationItem) -> NavigationItem = { item ->
+            item.copy(onClick = {
+                playerExpanded = false
+                item.onClick()
+            })
+        }
+        val navigationItems = navigationItems(
+            multiBackStack = multiBackStack,
+            homeScreenState = homeScreenState,
+            searchScreenState = searchScreenState,
+            categories = libraryCategories.categories,
+            goToLibraryCategory = { category ->
+                val toAdd = when (category) {
+                    LibraryCategory.BROWSE -> MainNav.Browse(path = null, title = null)
+                    LibraryCategory.AI_RADIO -> MainNav.AiRadio
+                    LibraryCategory.PARTY -> {
+                        partySheetOpen = true
+                        null
+                    }
+                    else -> category.mediaType?.let { MainNav.LibraryList(it) }
+                }
+
+                if (toAdd != null) {
+                    multiBackStack.add(toAdd)
+                }
+            },
+            goToSettings = goToSettings,
+        ).map { section -> section.copy(items = section.items.map(closePlayerFirst)) }
+
+        val playSelectionItem: NavigationItem? = playersState.let { state ->
+            if (state is HomeScreenViewModel.PlayersState.Data) {
+                val selectedPlayer = state.selectedPlayer
+                if (selectedPlayer != null) {
+                    NavigationItem(
+                        selected = false,
+                        onClick = { playerSheet = PlayerSheetStart.Players },
+                        icon = vectorResource(selectedPlayer.iconRes()),
+                        badgeColor = selectedPlayer.statusDotColor(state.sendspinState),
+                        label = selectedPlayer.player.name,
+                        overflowLabel = selectedPlayer.overflowLabel(),
+                        marqueeLabel = true,
+                        contentDescription = selectedPlayer.contentDescription(),
+                    )
+                } else {
+                    null
+                }
+            } else {
+                null
+            }
+        }
+
+        val playingPlayer = (playersState as? HomeScreenViewModel.PlayersState.Data)?.selectedPlayer
+            ?.takeIf { it.player.currentMedia != null }
+        val chapterProgressEnabled by homeScreenViewModel.chapterProgressEnabled.collectAsStateWithLifecycle()
+        val playbackItems = playingPlayer?.let { player ->
+            // The same rules as the buttons in the player: Stop for streams that cannot pause,
+            // dimmed buttons when the queue cannot play or skip, and a cancel while play is pending.
+            val transport = player.transportState(chapterProgressEnabled)
+            val main = player.mainTransport()
+            listOf(
+                PlaybackItem(
+                    enabled = main.enabled,
+                    onClick = { homeScreenViewModel.playerAction(player, main.action) },
+                    icon = main.button.icon,
+                    label = stringResource(main.button.label),
+                ),
+                PlaybackItem(
+                    enabled = transport.playerEnabled && transport.buttonsEnabled && transport.skipForwardEnabled,
+                    onClick = { homeScreenViewModel.playerAction(player, PlayerAction.Next) },
+                    icon = SkipForwardIcon,
+                    label = stringResource(Res.string.media_action_next),
+                ),
+            )
+        }.orEmpty()
+
+        AdaptiveNavigationBarLayout(
+            appName = stringResource(Res.string.app_name),
+            sections = navigationItems,
+            // The full player has its own transport and player chip, so the bar keeps to navigation.
+            trailingItem = playSelectionItem.takeUnless { playerExpanded },
+            playbackItems = if (playerExpanded) emptyList() else playbackItems,
+            showNavigation = !playerExpanded,
+            menuLabel = stringResource(Res.string.nav_menu),
+            moreLabel = stringResource(Res.string.cd_more),
+            onEdited = libraryCategoriesViewModel::onSidebarEdited,
+            content = { scaffoldContentPadding, drawerOpen ->
+                FloatingBarLayout(
+                    modifier = Modifier.padding(scaffoldContentPadding),
+                    floatingBar = {
+                        // The bar is bottom-anchored, so shrinking towards its top slides it down
+                        // while the content padding follows the animated height.
+                        AnimatedVisibility(
+                            visible = playerExpanded || !rootScreenEditing,
+                            enter = expandVertically(expandFrom = Alignment.Top),
+                            exit = shrinkVertically(shrinkTowards = Alignment.Top),
+                        ) {
+                            FloatingBar(
+                                expanded = playerExpanded,
+                                onExpand = onExpandPlayer,
+                                content = { expanded, contentPadding ->
+                                    PlayersPager(
+                                        playerPagerState = playerPagerState,
+                                        state = playersState,
+                                        homeScreenViewModel = homeScreenViewModel,
+                                        actionsViewModel = playerActionsViewModel,
+                                        dspSettingsViewModel = dspSettingsViewModel,
+                                        providerViewModel = providerViewModel,
+                                        queueDjViewModel = queueDjViewModel,
+                                        expanded = expanded,
+                                        onClose = { playerExpanded = false },
+                                        contentPadding = contentPadding,
+                                        toastState = toastState,
+                                        navigateToItem = { item ->
+                                            multiBackStack.add(
+                                                MainNav.ItemDetails(
+                                                    itemId = item.itemId,
+                                                    mediaType = item.mediaType,
+                                                    providerId = item.provider,
+                                                ),
+                                            )
+                                        },
+                                        onSelectPlayer = { playerSheet = PlayerSheetStart.Players },
+                                        onGroupPlayer = { playerSheet = PlayerSheetStart.Group(it) },
+                                    )
+                                },
+                            )
+                        }
+                    },
+                ) { floatingBarContentPadding ->
+                    BackHandler(playerExpanded) {
+                        playerExpanded = !playerExpanded
+                    }
+
+                    val entryProvider = mainNavEntryProvider(
+                        floatingBarContentPadding,
+                        multiBackStack,
+                        homeScreenViewModel,
+                        actionsViewModel,
+                        viewModeViewModel,
+                        providerViewModel,
+                        homeScreenState,
+                        searchScreenState,
+                        goToSettings,
+                    )
+                    val tabRootKeys = backStacks.map { entryProvider(it.first()).contentKey }
+                    ConditionalBackNavDisplay(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.background),
+                        entries = rememberDecoratedNavEntries(
+                            entryDecorators = listOf(
+                                rememberSaveableStateHolderNavEntryDecorator(),
+                                rememberViewModelStoreNavEntryDecorator(),
+                            ),
+                            entries = multiBackStack.toEntries(entryProvider),
+                        ),
+                        transitionSpec = tabAwareTransitionSpec(
+                            tabRootKeys,
+                            defaultTransitionSpec(),
+                        ),
+                        popTransitionSpec = tabAwareTransitionSpec(
+                            tabRootKeys,
+                            defaultPopTransitionSpec(),
+                        ),
+                        onBack = {
+                            multiBackStack.removeLastOrNull()
+                        },
+                        backEnabled = !playerExpanded && !drawerOpen,
+                    )
+                }
+            },
+        )
+        // The expanded player shows the name and the volume itself.
+        RemoteVolumeOverlay(
+            player = volumeOverlayPlayerId?.takeUnless { playerExpanded }?.let { id ->
+                data?.allPlayerData?.firstOrNull { it.playerId == id }?.player
+            },
+        )
+        ToastHost(toastState = toastState)
+    }
+}
+
+private const val REMOTE_VOLUME_OVERLAY_MS = 1500L
+
+@Composable
+private fun navigationItems(
+    multiBackStack: MultiBackStack<NavKey>,
+    homeScreenState: MutableState<HomeScreenState?>,
+    searchScreenState: MutableState<SearchScreenState?>,
+    categories: List<LibraryCategoriesViewModel.CategoryState>,
+    goToLibraryCategory: (LibraryCategory) -> Unit,
+    goToSettings: () -> Unit,
+): List<Section> {
+    val categoryItems = categories.map {
+        NavigationItem(
+            selected = false,
+            onClick = { goToLibraryCategory(it.libraryCategory) },
+            icon = it.libraryCategory.icon(),
+            label = stringResource(it.libraryCategory.stringResource()),
+            id = it.libraryCategory.name,
+            editable = true,
+            enabled = it.enabled,
+        )
+    }
+    // Browse sits in Explore, like in the web frontend. It can be hidden, but it keeps its place.
+    // Party sits in System, because the app has no plugin section. It can be hidden too.
+    val (browse, others) = categoryItems.partition { it.id == LibraryCategory.BROWSE.name }
+    val (party, libraryItems) = others.partition { it.id == LibraryCategory.PARTY.name }
+
+    val explore = Section(
+        title = stringResource(Res.string.nav_explore),
+        items = listOf(
+            multiBackStack.createNavigationItem(
+                backStack = 0,
+                icon = Icons.Default.Explore,
+                label = stringResource(Res.string.nav_discover),
+                screenState = homeScreenState.value,
+            ),
+            multiBackStack.createNavigationItem(
+                backStack = 1,
+                icon = Icons.Default.Search,
+                label = stringResource(Res.string.nav_search),
+                screenState = searchScreenState.value,
+            ),
+        ) + browse,
+    )
+
+    val library = Section(
+        title = stringResource(Res.string.nav_library),
+        items = libraryItems,
+        reorderable = true,
+    )
+
+    val system = Section(
+        title = stringResource(Res.string.nav_system),
+        items = party + NavigationItem(
+            selected = false,
+            onClick = goToSettings,
+            icon = Icons.Default.Settings,
+            label = stringResource(Res.string.nav_settings),
+        ),
+    )
+
+    return listOf(explore, library, system)
+}
+
+/**
+ * Switches tabs without animation and uses [inTab] inside one tab. A tab switch is not a push or a
+ * pop, and a quick tab tap that interrupts a slide can leave NavDisplay on a half-drawn scene.
+ */
+private fun tabAwareTransitionSpec(
+    tabRootKeys: List<Any>,
+    inTab: AnimatedContentTransitionScope<Scene<NavKey>>.() -> ContentTransform,
+): AnimatedContentTransitionScope<Scene<NavKey>>.() -> ContentTransform = {
+    when (initialState.tabIndex(tabRootKeys)) {
+        targetState.tabIndex(tabRootKeys) -> inTab()
+        else -> EnterTransition.None togetherWith ExitTransition.None
+    }
+}
+
+/** The last tab whose root is in this scene's stack, because [MultiBackStack] puts Home first. */
+private fun Scene<NavKey>.tabIndex(tabRootKeys: List<Any>): Int {
+    val stackKeys = (previousEntries + entries).mapTo(HashSet()) { it.contentKey }
+    return tabRootKeys.indexOfLast { it in stackKeys }
+}
+
+@Composable
+private fun mainNavEntryProvider(
+    contentPadding: PaddingValues,
+    multiBackStack: MultiBackStack<NavKey>,
+    homeScreenViewModel: HomeScreenViewModel,
+    actionsViewModel: ActionsViewModel,
+    viewModeViewModel: ViewModeViewModel,
+    providerViewModel: ProviderViewModel,
+    homeScreenState: MutableState<HomeScreenState?>,
+    searchScreenState: MutableState<SearchScreenState?>,
+    goToSettings: () -> Unit,
+): (NavKey) -> NavEntry<NavKey> {
+    // Hoisted here (outlives the per-NavEntry SearchViewModel) to carry an empty-quick-search
+    // escalation from the library tab to the Search tab. Set by ItemList, consumed by SearchScreen.
+    var pendingSearch by remember { mutableStateOf<GlobalSearchRequest?>(null) }
+    return entryProvider {
+        entry<MainNav.Landing> {
+            val screenState = rememberPublishedScreenState(homeScreenState) {
+                HomeScreenState.create()
+            }
+            HomeScreen(
+                homeScreenViewModel,
+                contentPadding = contentPadding,
+                onNavigateClick = { item ->
+                    when (item) {
+                        is Artist,
+                        is Album,
+                        is Playlist,
+                        is Podcast,
+                        is Audiobook,
+                        is MediaCollection,
+                        is Genre,
+                        is Track,
+                        is PodcastEpisode,
+                            -> {
+                            multiBackStack.add(
+                                MainNav.ItemDetails(
+                                    itemId = item.itemId,
+                                    mediaType = item.mediaType,
+                                    providerId = item.provider,
+                                ),
+                            )
+                        }
+
+                        else -> Unit
+                    }
+                },
+                providerIconFetcher = providerViewModel.providerIconFetcher(),
+                actionsViewModel = actionsViewModel,
+                state = screenState,
+                onOpenSettings = goToSettings,
+            )
+        }
+
+        entry<MainNav.AiRadio> {
+            AiRadioScreen(
+                viewModel = koinViewModel<AiRadioViewModel>(),
+                contentPadding = contentPadding,
+                onBack = { multiBackStack.removeLastOrNull() },
+            )
+        }
+
+        entry<MainNav.LibraryList> {
+            val libraryListViewModel = koinViewModel<LibraryListViewModel> {
+                parametersOf(it.mediaType)
+            }
+
+            LibraryListScreen(
+                libraryListViewModel = libraryListViewModel,
+                viewModeViewModel = viewModeViewModel,
+                contentPadding = contentPadding,
+                actionsViewModel = actionsViewModel,
+                onBack = { multiBackStack.removeLastOrNull() },
+                onGlobalSearch = { query ->
+                    pendingSearch = GlobalSearchRequest(query, it.mediaType)
+                    multiBackStack.currentBackStack = 1
+                    multiBackStack.resetCurrentBackStack()
+                },
+                onNavigateClick = { item ->
+                    when (item) {
+                        is Artist,
+                        is Album,
+                        is Playlist,
+                        is Podcast,
+                        is Audiobook,
+                        is MediaCollection,
+                        is Genre,
+                        is Track,
+                        is PodcastEpisode,
+                            -> {
+                            multiBackStack.add(
+                                MainNav.ItemDetails(
+                                    itemId = item.itemId,
+                                    mediaType = item.mediaType,
+                                    providerId = item.provider,
+                                ),
+                            )
+                        }
+
+                        else -> Unit
+                    }
+                },
+            )
+        }
+
+        entry<MainNav.Browse> { browse ->
+            val browseViewModel = koinViewModel<BrowseViewModel> {
+                parametersOf(browse.path)
+            }
+
+            BrowseScreen(
+                browseViewModel = browseViewModel,
+                title = browse.title,
+                contentPadding = contentPadding,
+                actionsViewModel = actionsViewModel,
+                onBack = { multiBackStack.removeLastOrNull() },
+                onNavigateClick = { item ->
+                    when (item) {
+                        is RecommendationFolder ->
+                            if (item.isParentLink) {
+                                // The server's ".." entry maps to our own back navigation.
+                                multiBackStack.removeLastOrNull()
+                            } else {
+                                // BrowseFolder carries an explicit `path`; `uri` is only a fallback.
+                                multiBackStack.add(
+                                    MainNav.Browse(
+                                        path = item.path ?: item.uri,
+                                        title = item.displayName,
+                                    ),
+                                )
+                            }
+
+                        is Artist,
+                        is Album,
+                        is Playlist,
+                        is Podcast,
+                        is Audiobook,
+                        is MediaCollection,
+                        is Genre,
+                        is Track,
+                        is PodcastEpisode,
+                            -> multiBackStack.add(
+                            MainNav.ItemDetails(
+                                itemId = item.itemId,
+                                mediaType = item.mediaType,
+                                providerId = item.provider,
+                            ),
+                        )
+
+                        else -> Unit
+                    }
+                },
+            )
+        }
+
+        entry<MainNav.ItemList> {
+            val itemListViewModel = koinViewModel<ItemListViewModel> {
+                parametersOf(it.itemList)
+            }
+
+            ItemListScreen(
+                title = it.title,
+                mediaType = it.itemList.mediaType,
+                sortContext = it.itemList.sortContext,
+                itemListViewModel = itemListViewModel,
+                viewModeViewModel = viewModeViewModel,
+                actionsViewModel = actionsViewModel,
+                onNavigateClick = { item ->
+                    when (item) {
+                        is Artist,
+                        is Album,
+                        is Playlist,
+                        is Podcast,
+                        is Audiobook,
+                        is MediaCollection,
+                        is Genre,
+                        is Track,
+                        is PodcastEpisode,
+                            -> {
+                            multiBackStack.add(
+                                MainNav.ItemDetails(
+                                    itemId = item.itemId,
+                                    mediaType = item.mediaType,
+                                    providerId = item.provider,
+                                ),
+                            )
+                        }
+
+                        else -> Unit
+                    }
+                },
+                onBack = { multiBackStack.removeLastOrNull() },
+                contentPadding = contentPadding,
+                clickContext = it.clickContext,
+            )
+        }
+
+        entry<MainNav.ItemDetails> {
+            val itemDetailsViewModel = koinViewModel<ItemDetailsViewModel> {
+                parametersOf(it.itemId, it.mediaType, it.providerId)
+            }
+
+            ItemDetailsScreen(
+                itemDetailsViewModel = itemDetailsViewModel,
+                viewModeViewModel = viewModeViewModel,
+                actionsViewModel = actionsViewModel,
+                providerViewModel = providerViewModel,
+                onBack = { multiBackStack.removeLastOrNull() },
+                onNavigateToItem = { itemId, mediaType, providerId ->
+                    multiBackStack.add(
+                        MainNav.ItemDetails(
+                            itemId = itemId,
+                            mediaType = mediaType,
+                            providerId = providerId,
+                        ),
+                    )
+                },
+                onNavigateToList = { title, itemList, clickContext ->
+                    multiBackStack.add(MainNav.ItemList(title, itemList, clickContext))
+                },
+                contentPadding = contentPadding,
+            )
+        }
+
+        entry<MainNav.Search> {
+            val searchViewModel = koinViewModel<SearchViewModel>()
+            val screenState = rememberPublishedScreenState(searchScreenState) {
+                SearchScreenState.create()
+            }
+
+            SearchScreen(
+                searchViewModel = searchViewModel,
+                onNavigateToItem = { itemId, mediaType, providerId ->
+                    multiBackStack.add(
+                        MainNav.ItemDetails(
+                            itemId = itemId,
+                            mediaType = mediaType,
+                            providerId = providerId,
+                        ),
+                    )
+                },
+                contentPadding = contentPadding,
+                actionsViewModel = actionsViewModel,
+                providerViewModel = providerViewModel,
+                state = screenState,
+                pendingSearch = pendingSearch,
+                onSearchConsumed = { pendingSearch = null },
+            )
+        }
+    }
+}
+
+/**
+ * Creates a root screen's [ScreenState] scoped to the calling NavEntry and publishes it to a
+ * root-level [holder] while composed, so the navigation bar can drive scroll-to-top on re-tap
+ * without hoisting the state above the entry (which would desync it from the entry's ViewModel).
+ */
+@Composable
+private fun <S : ScreenState> rememberPublishedScreenState(
+    holder: MutableState<S?>,
+    create: @Composable () -> S,
+): S {
+    val screenState = create()
+    DisposableEffect(screenState) {
+        holder.value = screenState
+        onDispose { holder.value = null }
+    }
+    return screenState
+}
+
+private sealed interface MainNav : NavKey {
+    @Serializable
+    data object Landing : MainNav
+
+    @Serializable
+    data object Library : MainNav
+
+    @Serializable
+    data class LibraryList(val mediaType: MediaType) : MainNav
+
+    /** Stations of the optional `ai_radio` plugin. Not a media type, hence its own route. */
+    @Serializable
+    data object AiRadio : MainNav
+
+    /**
+     * One level of the folder-style Browse tree. [path] is the server browse path (null = root);
+     * [stackingId] keeps stacked levels distinct in the back stack (mirrors [ItemDetails]).
+     */
+    @OptIn(ExperimentalUuidApi::class)
+    @Serializable
+    data class Browse(
+        val path: String?,
+        val title: String?,
+        val stackingId: String = Uuid.generateV4().toString(),
+    ) : MainNav
+
+    /**
+     * Multiple instances of the same item can appear in a back stack - [stackingId] ensures they
+     * are treated as different entries.
+     */
+    @OptIn(ExperimentalUuidApi::class)
+    @Serializable
+    data class ItemDetails(
+        val itemId: String,
+        val mediaType: MediaType,
+        val providerId: String,
+        val stackingId: String = Uuid.generateV4().toString(),
+    ) : MainNav
+
+    @Serializable
+    data object Search : MainNav
+
+    @Serializable
+    data class ItemList(
+        val title: String,
+        val itemList: io.music_assistant.client.ui.compose.item.ItemList,
+        val clickContext: ClickContext,
+    ) : MainNav
+}
+
+@Composable
+private fun rememberMainNavBackStack(bottom: MainNav) = rememberNavBackStack(
+    SavedStateConfiguration(
+        from = SavedStateConfiguration.DEFAULT,
+        builderAction = {
+            serializersModule = SerializersModule {
+                polymorphic(NavKey::class) {
+                    subclass(MainNav.Landing::class, MainNav.Landing.serializer())
+                    subclass(MainNav.Library::class, MainNav.Library.serializer())
+                    subclass(MainNav.LibraryList::class, MainNav.LibraryList.serializer())
+                    subclass(MainNav.AiRadio::class, MainNav.AiRadio.serializer())
+                    subclass(MainNav.Browse::class, MainNav.Browse.serializer())
+                    subclass(
+                        MainNav.ItemDetails::class,
+                        MainNav.ItemDetails.serializer(),
+                    )
+                    subclass(MainNav.Search::class, MainNav.Search.serializer())
+                    subclass(MainNav.ItemList::class, MainNav.ItemList.serializer())
+                }
+            }
+        },
+    ),
+    bottom,
+)

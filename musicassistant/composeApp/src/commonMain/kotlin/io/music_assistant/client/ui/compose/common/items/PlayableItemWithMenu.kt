@@ -1,0 +1,409 @@
+package io.music_assistant.client.ui.compose.common.items
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
+import io.music_assistant.client.data.model.client.itemKind
+import io.music_assistant.client.data.model.client.items.AppMediaItem
+import io.music_assistant.client.data.model.client.items.PlayableItem
+import io.music_assistant.client.data.model.client.items.PodcastEpisode
+import io.music_assistant.client.data.model.client.items.RadioStation
+import io.music_assistant.client.data.model.client.items.Track
+import io.music_assistant.client.data.play.PlayMode
+import io.music_assistant.client.settings.ViewMode
+import io.music_assistant.client.ui.compose.common.ConfirmationDialog
+import io.music_assistant.client.ui.compose.common.LocalDislikeSupported
+import io.music_assistant.client.ui.compose.common.LocalGrantedScopes
+import io.music_assistant.client.ui.compose.common.MenuItem
+import io.music_assistant.client.ui.compose.common.RemoveFromLibraryConfirmationDialog
+import io.music_assistant.client.ui.compose.common.providers.ProviderIconFetcher
+import musicassistantclient.composeapp.generated.resources.Res
+import musicassistantclient.composeapp.generated.resources.action_remove
+import musicassistantclient.composeapp.generated.resources.action_select_multiple
+import musicassistantclient.composeapp.generated.resources.dialog_remove_from_playlist_message
+import musicassistantclient.composeapp.generated.resources.dialog_remove_from_playlist_title
+import org.jetbrains.compose.resources.stringResource
+
+typealias PlayHandler<T> = (item: T, mode: PlayMode) -> Unit
+
+@Composable
+fun TrackWithMenu(
+    item: Track,
+    viewMode: ViewMode = ViewMode.GRID,
+    titleMaxLines: Int = 2,
+    showTrackNumber: Boolean = false,
+    navigateToItem: (AppMediaItem) -> Unit,
+    containerItem: AppMediaItem? = null,
+    onPlayOption: PlayHandler<Track>,
+    playlistActions: PlaylistActions? = null,
+    onRemoveFromPlaylist: (() -> Unit)? = null,
+    libraryActions: LibraryActions,
+    providerIconFetcher: ProviderIconFetcher?,
+) {
+    PlayableItemWithMenu(
+        modifier = when (viewMode) {
+            ViewMode.GRID -> Modifier
+            ViewMode.LIST -> Modifier.fillMaxWidth()
+        },
+        item = item,
+        navigateToItem = navigateToItem,
+        containerItem = containerItem,
+        onPlayOption = onPlayOption,
+        playlistActions = playlistActions,
+        onRemoveFromPlaylist = onRemoveFromPlaylist,
+        libraryActions = libraryActions,
+        itemComposable = { mod, onClick, onLongClick ->
+            when (viewMode) {
+                ViewMode.LIST -> TrackRowItem(
+                    modifier = mod,
+                    item = item,
+                    showTrackNumber = showTrackNumber,
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                    providerIconFetcher = providerIconFetcher,
+                    titleMaxLines = titleMaxLines,
+                )
+
+                ViewMode.GRID -> TrackGridItem(
+                    modifier = mod,
+                    item = item,
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                    providerIconFetcher = providerIconFetcher,
+                )
+            }
+        },
+    )
+}
+
+@Composable
+fun PodcastEpisodeWithMenu(
+    item: PodcastEpisode,
+    viewMode: ViewMode = ViewMode.GRID,
+    titleMaxLines: Int = 2,
+    navigateToItem: ((AppMediaItem) -> Unit)? = null,
+    containerItem: AppMediaItem? = null,
+    onPlayOption: PlayHandler<PodcastEpisode>,
+    playlistActions: PlaylistActions? = null,
+    onRemoveFromPlaylist: (() -> Unit)? = null,
+    libraryActions: LibraryActions,
+    progressActions: ProgressActions? = null,
+    providerIconFetcher: ProviderIconFetcher?,
+) {
+    PlayableItemWithMenu(
+        modifier = when (viewMode) {
+            ViewMode.GRID -> Modifier
+            ViewMode.LIST -> Modifier.fillMaxWidth()
+        },
+        item = item,
+        navigateToItem = navigateToItem,
+        containerItem = containerItem,
+        onPlayOption = onPlayOption,
+        playlistActions = playlistActions,
+        onRemoveFromPlaylist = onRemoveFromPlaylist,
+        libraryActions = libraryActions,
+        progressActions = progressActions,
+        itemComposable = { mod, onClick, onLongClick ->
+            when (viewMode) {
+                ViewMode.LIST -> PodcastEpisodeRowItem(
+                    modifier = mod,
+                    item = item,
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                    providerIconFetcher = providerIconFetcher,
+                    titleMaxLines = titleMaxLines,
+                )
+
+                ViewMode.GRID -> PodcastEpisodeGridItem(
+                    modifier = mod,
+                    item = item,
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                    providerIconFetcher = providerIconFetcher,
+                )
+            }
+        },
+    )
+}
+
+@Composable
+fun RadioWithMenu(
+    item: RadioStation,
+    viewMode: ViewMode = ViewMode.GRID,
+    navigateToItem: ((AppMediaItem) -> Unit)? = null,
+    titleMaxLines: Int = 2,
+    onPlayOption: PlayHandler<RadioStation>,
+    playlistActions: PlaylistActions? = null,
+    onRemoveFromPlaylist: (() -> Unit)? = null,
+    libraryActions: LibraryActions,
+    providerIconFetcher: ProviderIconFetcher?,
+) {
+    PlayableItemWithMenu(
+        modifier = when (viewMode) {
+            ViewMode.GRID -> Modifier
+            ViewMode.LIST -> Modifier.fillMaxWidth()
+        },
+        item = item,
+        navigateToItem = navigateToItem,
+        onPlayOption = onPlayOption,
+        playlistActions = playlistActions,
+        onRemoveFromPlaylist = onRemoveFromPlaylist,
+        libraryActions = libraryActions,
+        itemComposable = { mod, onClick, onLongClick ->
+            when (viewMode) {
+                ViewMode.LIST -> LiveStreamRowItem(
+                    modifier = mod,
+                    item = item,
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                    providerIconFetcher = providerIconFetcher,
+                    titleMaxLines = titleMaxLines,
+                )
+
+                ViewMode.GRID -> LiveStreamGridItem(
+                    modifier = mod,
+                    item = item,
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                    providerIconFetcher = providerIconFetcher,
+                )
+            }
+        },
+    )
+}
+
+@Composable
+fun <T> LiveStreamWithMenu(
+    item: T,
+    viewMode: ViewMode = ViewMode.GRID,
+    onPlayOption: PlayHandler<T>,
+    libraryActions: LibraryActions,
+    providerIconFetcher: ProviderIconFetcher?,
+) where T : AppMediaItem, T : PlayableItem {
+    PlayableItemWithMenu(
+        modifier = when (viewMode) {
+            ViewMode.GRID -> Modifier
+            ViewMode.LIST -> Modifier.fillMaxWidth()
+        },
+        item = item,
+        onPlayOption = onPlayOption,
+        libraryActions = libraryActions,
+        itemComposable = { mod, onClick, onLongClick ->
+            when (viewMode) {
+                ViewMode.LIST -> LiveStreamRowItem(
+                    modifier = mod,
+                    item = item,
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                    providerIconFetcher = providerIconFetcher,
+                )
+
+                ViewMode.GRID -> LiveStreamGridItem(
+                    modifier = mod,
+                    item = item,
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                    providerIconFetcher = providerIconFetcher,
+                )
+            }
+        },
+    )
+}
+
+/** The state of a row while its screen is in multi-select mode. */
+private class SelectionMark(val selected: Boolean, val onToggle: () -> Unit)
+
+/**
+ * Playable item with a long-press dropdown menu. Default click plays the item now.
+ * Where the screen provides an [ItemSelection] that can select the item, the menu starts with
+ * "Select multiple". While the selection is active, a tap toggles the item and a long press does
+ * nothing.
+ */
+@Composable
+private fun <T> PlayableItemWithMenu(
+    modifier: Modifier = Modifier,
+    item: T,
+    navigateToItem: ((AppMediaItem) -> Unit)? = null,
+    containerItem: AppMediaItem? = null,
+    onPlayOption: PlayHandler<T>,
+    playlistActions: PlaylistActions? = null,
+    onRemoveFromPlaylist: (() -> Unit)? = null,
+    libraryActions: LibraryActions,
+    progressActions: ProgressActions? = null,
+    itemComposable: @Composable (
+        modifier: Modifier,
+        onClick: (T) -> Unit,
+        onLongClick: (T) -> Unit,
+    ) -> Unit,
+) where T : PlayableItem, T : AppMediaItem {
+    var expandedItemId by remember { mutableStateOf<String?>(null) }
+    var showPlaylistDialog by rememberSaveable { mutableStateOf(false) }
+    var showCustomizeDialog by rememberSaveable { mutableStateOf(false) }
+    var showRemoveConfirmation by remember { mutableStateOf(false) }
+    var showRemovePlaylistConfirmation by remember { mutableStateOf(false) }
+
+    // The tap action for this item's (kind, context) pair (PLAY_NOW outside customizable
+    // screens). Null when the item isn't playable — then a tap opens the menu instead.
+    val clickActionConfig = LocalClickActionConfig.current
+    val effectiveDefault = clickActionConfig.effectiveActionFor(item)
+
+    // While a selection is active, a row that it cannot select ignores taps and long presses too.
+    val selection = LocalItemSelection.current
+    val onSelectMultiple = selection?.takeIf { it.canSelect(item) }?.let { { it.start(item) } }
+    val selectionMark = selection?.takeIf { it.isActive }?.let {
+        SelectionMark(selected = it.isSelected(item), onToggle = { it.toggle(item) })
+    }
+
+    val actions = resolveLongClickActions(
+        item = item,
+        clickContext = clickActionConfig.context,
+        canEditLibrary = LocalGrantedScopes.current.canEditLibrary,
+        dislikeSupported = LocalDislikeSupported.current,
+        librarySupported = true,
+        canAddToPlaylist = playlistActions != null && item.supportsAddToPlaylist,
+        canRemoveFromPlaylist = onRemoveFromPlaylist != null,
+        progressSupported = progressActions != null && item is PodcastEpisode,
+        playMediaSupport = clickActionConfig.playMediaSupport,
+        defaultAction = effectiveDefault,
+        customizationAllowed = true,
+    )
+
+    // Built outside the DropdownMenu so the multi-artist chooser dialog survives its dismissal.
+    val navOptions = navigateToItem
+        ?.let { item.navigationOptions(it, containerItem) }
+        ?: emptyList()
+
+    val runPlayAction: (ItemAction) -> Unit = { action ->
+        action.toPlayMode()?.let { onPlayOption(item, it) }
+    }
+
+    // Non-playable items keep the long-press menu (favorite, library, …) but can't be played:
+    // dim them and route a tap to the menu instead of starting playback.
+    val playable = item.isPlayable
+    val selectedBackground = MaterialTheme.colorScheme.secondaryContainer
+    Box(
+        modifier = modifier.then(
+            selectionMark?.let { mark ->
+                Modifier
+                    .semantics { selected = mark.selected }
+                    .then(
+                        if (mark.selected) {
+                            Modifier.background(selectedBackground, RoundedCornerShape(SELECTED_CORNER))
+                        } else {
+                            Modifier
+                        },
+                    )
+            } ?: Modifier,
+        ),
+    ) {
+        itemComposable(
+            Modifier.align(Alignment.Center)
+                .then(if (playable) Modifier else Modifier.alpha(DISABLED_ITEM_ALPHA)),
+            selectionMark?.let { mark -> { _: T -> mark.onToggle() } }
+                ?: { effectiveDefault?.let(runPlayAction) ?: run { expandedItemId = item.itemId } },
+            selectionMark?.let { { _: T -> } } ?: { expandedItemId = item.itemId },
+        )
+        DropdownMenu(
+            modifier = Modifier.semantics {
+                role = Role.DropdownList
+            },
+            expanded = expandedItemId == item.itemId,
+            onDismissRequest = { expandedItemId = null },
+        ) {
+            onSelectMultiple?.let { select ->
+                val title = stringResource(Res.string.action_select_multiple)
+                DropdownMenuItem(
+                    text = { Text(title) },
+                    onClick = {
+                        expandedItemId = null
+                        select()
+                    },
+                    leadingIcon = { Icon(Icons.Default.Checklist, contentDescription = title) },
+                )
+                HorizontalDivider()
+            }
+            ItemActionMenuItems(clickActionConfig.context, actions, defaultAction = effectiveDefault) { action ->
+                expandedItemId = null
+                when (action) {
+                    is ItemAction.Play,
+                    ItemAction.StartEndlessMix,
+                    ItemAction.PlayFromHere,
+                    ItemAction.PlayShuffled,
+                    ItemAction.PlayFromBeginning,
+                    -> runPlayAction(action)
+                    ItemAction.AddToLibrary -> libraryActions.onLibraryClick(item)
+                    ItemAction.RemoveFromLibrary -> showRemoveConfirmation = true
+
+                    is ItemAction.SetFavorite -> libraryActions.onFavoriteChange(item, action.favorite)
+
+                    ItemAction.AddToPlaylist -> showPlaylistDialog = true
+                    ItemAction.RemoveFromPlaylist -> showRemovePlaylistConfirmation = true
+                    ItemAction.MarkPlayed -> progressActions?.onMarkPlayed(item)
+                    ItemAction.MarkUnplayed -> progressActions?.onMarkUnplayed(item)
+                    ItemAction.Customize -> showCustomizeDialog = true
+                }
+            }
+            navOptions.forEach { it.MenuItem(onClose = { expandedItemId = null }) }
+        }
+
+        if (showPlaylistDialog && playlistActions != null) {
+            AddToPlaylistDialog(
+                item = item,
+                playlistActions = playlistActions,
+                onDismiss = { showPlaylistDialog = false },
+            )
+        }
+
+        if (showCustomizeDialog) {
+            item.itemKind()?.let { kind ->
+                DefaultClickActionsDialog(
+                    itemKind = kind,
+                    onDismiss = { showCustomizeDialog = false },
+                )
+            }
+        }
+
+        if (showRemoveConfirmation) {
+            RemoveFromLibraryConfirmationDialog(
+                item = item,
+                onConfirm = { libraryActions.onLibraryClick(item) },
+                onDismiss = { showRemoveConfirmation = false },
+            )
+        }
+
+        if (showRemovePlaylistConfirmation && onRemoveFromPlaylist != null) {
+            ConfirmationDialog(
+                title = stringResource(Res.string.dialog_remove_from_playlist_title),
+                message = stringResource(Res.string.dialog_remove_from_playlist_message, item.displayName),
+                confirmLabel = stringResource(Res.string.action_remove),
+                onConfirm = { onRemoveFromPlaylist.invoke() },
+                onDismiss = { showRemovePlaylistConfirmation = false },
+            )
+        }
+    }
+}
+
+private val SELECTED_CORNER = 8.dp

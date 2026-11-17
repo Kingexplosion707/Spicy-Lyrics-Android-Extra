@@ -41,6 +41,10 @@ The MIT-licensed projects above are used under these terms:
 >
 > THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+## Music Assistant
+
+The `musicassistant/` modules are the Music Assistant mobile app (https://github.com/music-assistant/mobile-app, through the fork https://github.com/Kingexplosion707/mobile-app-balls) by the Music Assistant project and contributors, licensed under the Apache License 2.0 (`musicassistant/LICENSE`). Changes: its Android app is built as a library opened from Spicy (no launcher entry, App Links or voice entry, started on first use), its file provider has its own class, and its play requests can go through a `PlayInterceptor` that Spicy fills with its Spotify play route.
+
 ## ivLyrics Android
 
 The `ivlyrics/` module is ivLyrics Android's shared library (https://github.com/ivLis-Studio/ivLyrics-Android) by ivLis Studio and contributors, included for personal use. Its own font and library notices are in `ivlyrics/src/main/assets/` and its resources.

@@ -45,7 +45,7 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <!-- Gemini Nano (on-device translation) needs Android 8; it is only reached there (OnDeviceModel). -->
     <!-- Shizuku needs Android 7: its provider is off before that and the clock swap isn't offered. -->
-    <uses-sdk tools:overrideLibrary="com.google.mlkit.genai.prompt,com.google.mlkit.genai.common,rikka.shizuku.api,rikka.shizuku.provider,rikka.shizuku.shared,rikka.shizuku.aidl,kr.ivlis.ivlyricsandroid" />
+    <uses-sdk tools:overrideLibrary="com.google.mlkit.genai.prompt,com.google.mlkit.genai.common,rikka.shizuku.api,rikka.shizuku.provider,rikka.shizuku.shared,rikka.shizuku.aidl,kr.ivlis.ivlyricsandroid,io.music_assistant.client,io.music_assistant.client.shared,io.music_assistant.client.nav,io.music_assistant.sendspin,io.music_assistant.client.sharedicons,io.music_assistant.client.ui.utils,io.ktor.client.webrtc,io.github.alexzhirkevich.qroseencodermatrix,io.github.alexzhirkevich.qroseencodercore" />
 
     <!-- Makes media players visible (Android 11+) so their custom-action icons can be loaded. -->
     <queries>
@@ -82,7 +82,8 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:banner="@drawable/tv_banner"
-        android:theme="@style/Theme.SpicyLyricsMobile">
+        android:theme="@style/Theme.SpicyLyricsMobile"
+        android:networkSecurityConfig="@xml/network_security_config">
         <activity
             android:name="com.tx24.spicyplayer.LyricsActivity"
             android:launchMode="singleTask"

@@ -1,0 +1,218 @@
+package io.music_assistant.client.ui.compose.common.viewmodel
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import co.touchlab.kermit.Logger
+import io.music_assistant.client.api.Request
+import io.music_assistant.client.api.ServiceClient
+import io.music_assistant.client.api.fetchAllPages
+import io.music_assistant.client.data.MainDataSource
+import io.music_assistant.client.data.model.client.PlayerData
+import io.music_assistant.client.data.model.client.items.AppMediaItem
+import io.music_assistant.client.data.model.client.items.Genre
+import io.music_assistant.client.data.model.client.items.MarkableItem
+import io.music_assistant.client.data.model.client.items.Playlist
+import io.music_assistant.client.data.model.server.supportsFavoriteCurrentlyPlaying
+import io.music_assistant.client.data.play.PlayDispatcher
+import io.music_assistant.client.data.play.PlayMode
+import io.music_assistant.client.data.play.PlayRequest
+import io.music_assistant.client.data.repository.MediaItemChange
+import io.music_assistant.client.data.repository.MediaItemRepository
+import io.music_assistant.client.ui.compose.common.items.LibraryActions
+import io.music_assistant.client.ui.compose.common.items.PlaylistActions
+import io.music_assistant.client.ui.compose.common.items.ProgressActions
+import io.music_assistant.client.utils.HasConnectionData
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import musicassistantclient.composeapp.generated.resources.Res
+import musicassistantclient.composeapp.generated.resources.toast_added_to_playlist
+import musicassistantclient.composeapp.generated.resources.toast_error_add_playlist
+import musicassistantclient.composeapp.generated.resources.toast_error_create_playlist
+import musicassistantclient.composeapp.generated.resources.toast_error_favorite_stream_track
+import musicassistantclient.composeapp.generated.resources.toast_error_mark_played
+import musicassistantclient.composeapp.generated.resources.toast_error_mark_unplayed
+import musicassistantclient.composeapp.generated.resources.toast_favorited_stream_track
+import musicassistantclient.composeapp.generated.resources.toast_marked_played
+import musicassistantclient.composeapp.generated.resources.toast_marked_unplayed
+import musicassistantclient.composeapp.generated.resources.toast_no_uri
+import org.jetbrains.compose.resources.getString
+
+/**
+ * VM that provides library and favorites actions for media items.
+ * Can be used by any view that needs to add/remove items from library or favorites.
+ */
+class ActionsViewModel(
+    private val apiClient: ServiceClient,
+    private val dataSource: MainDataSource,
+    private val mediaItemRepository: MediaItemRepository,
+    private val playDispatcher: PlayDispatcher,
+) : ViewModel(), PlaylistActions, LibraryActions, ProgressActions {
+    private val _toasts = MutableSharedFlow<String>()
+    val toasts = _toasts.asSharedFlow()
+
+    /**
+     * Toggles library status of the item.
+     * Adds to library if not in library, removes if already in library.
+     */
+    override fun onLibraryClick(item: AppMediaItem) {
+        viewModelScope.launch {
+            if (item.isInLibrary) {
+                apiClient.sendRequest(
+                    Request.Library.remove(item.itemId, item.mediaType),
+                )
+            } else {
+                item.uri?.let {
+                    apiClient.sendRequest(Request.Library.add(it))
+                }
+            }
+        }
+    }
+
+    override fun onFavoriteChange(item: AppMediaItem, favorite: Boolean?) =
+        dataSource.setFavorite(item, favorite)
+
+    /** Favourites the on-air song for a radio stream. See [MainDataSource.favoriteCurrentlyPlaying]. */
+    fun onFavoriteStreamClick(playerData: PlayerData) {
+        viewModelScope.launch {
+            dataSource.favoriteCurrentlyPlaying(playerData)
+                .onSuccess { _toasts.emit(getString(Res.string.toast_favorited_stream_track)) }
+                .onFailure { _toasts.emit(getString(Res.string.toast_error_favorite_stream_track)) }
+        }
+    }
+
+    /** Session-scoped support; the player's current stream title is observed separately. */
+    val streamFavoriteSupported: StateFlow<Boolean> =
+        apiClient.sessionState
+            .map { supportsFavoriteCurrentlyPlaying((it as? HasConnectionData)?.serverInfo?.schemaVersion) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), false)
+
+    override suspend fun getEditablePlaylists(): List<Playlist> =
+        Request.Playlist.listLibrary()
+            .fetchAllPages { mediaItemRepository.fetchMediaItems(it).getOrNull() }
+            ?.filterIsInstance<Playlist>()
+            // Smart/dynamic playlists are rule-generated; tracks can't be added manually.
+            ?.filter { it.isEditable && !it.isDynamic }
+            ?: emptyList()
+
+    override suspend fun createPlaylist(name: String): Playlist? =
+        createPlaylistAwaitingConfirmation(
+            name = name,
+            itemChanges = mediaItemRepository.itemChanges,
+            timeoutMs = CREATE_CONFIRM_TIMEOUT_MS,
+            sendCreate = { apiClient.sendRequest(Request.Playlist.create(name)) },
+            onError = { _toasts.emit(getString(Res.string.toast_error_create_playlist)) },
+        )
+
+    override fun addToPlaylist(
+        itemUris: List<String>,
+        playlist: Playlist,
+    ) {
+        viewModelScope.launch {
+            if (itemUris.isEmpty()) {
+                _toasts.emit(getString(Res.string.toast_no_uri))
+                return@launch
+            }
+            apiClient.sendRequest(
+                Request.Playlist.addTracks(
+                    playlistId = playlist.itemId,
+                    trackUris = itemUris,
+                ),
+            )
+                .onSuccess {
+                    _toasts.emit(getString(Res.string.toast_added_to_playlist, playlist.displayName))
+                }
+                .onFailure {
+                    _toasts.emit(getString(Res.string.toast_error_add_playlist))
+                }
+        }
+    }
+
+    /**
+     * [positions] are the items' `PlayableItem.position` exactly as the server emitted them for this
+     * playlist (providers number from 1 and delete `items[position - 1]`), so the displayed order
+     * or an active filter never affects which item is removed. The server removes them in one
+     * request, from the highest position down.
+     */
+    fun removeFromPlaylist(
+        playlistId: String,
+        positions: List<Int>,
+        onSuccess: () -> Unit,
+    ) {
+        viewModelScope.launch {
+            apiClient.sendRequest(
+                Request.Playlist.removeTracks(
+                    playlistId = playlistId,
+                    positions = positions,
+                ),
+            ).onSuccess {
+                onSuccess()
+            }
+        }
+    }
+
+    /**
+     * Mark an audiobook or podcast episode as fully played.
+     */
+    override fun onMarkPlayed(item: AppMediaItem) {
+        val markable = item as? MarkableItem ?: return
+        viewModelScope.launch {
+            apiClient.sendRequest(Request.Library.markPlayed(markable))
+                .onSuccess {
+                    // Server only writes the playlog and emits no update event, so
+                    // optimistically patch lists; reverts on next refetch if wrong.
+                    mediaItemRepository.publishLocalChange(
+                        MediaItemChange.Updated(markable.withPlayed(true), carriesFavorite = false),
+                    )
+                    _toasts.emit(getString(Res.string.toast_marked_played))
+                }
+                .onFailure { _toasts.emit(getString(Res.string.toast_error_mark_played)) }
+        }
+    }
+
+    /**
+     * Mark an audiobook or podcast episode as unplayed (resets progress).
+     */
+    override fun onMarkUnplayed(item: AppMediaItem) {
+        val markable = item as? MarkableItem ?: return
+        viewModelScope.launch {
+            apiClient.sendRequest(Request.Library.markUnplayed(markable))
+                .onSuccess {
+                    mediaItemRepository.publishLocalChange(
+                        MediaItemChange.Updated(markable.withPlayed(false), carriesFavorite = false),
+                    )
+                    _toasts.emit(getString(Res.string.toast_marked_unplayed))
+                }
+                .onFailure { _toasts.emit(getString(Res.string.toast_error_mark_unplayed)) }
+        }
+    }
+
+    fun onPlayClick(item: AppMediaItem, mode: PlayMode) = onPlayItemsClick(listOf(item), mode)
+
+    /** Plays [items] as one `play_media` request, in the given order. */
+    fun onPlayItemsClick(items: List<AppMediaItem>, mode: PlayMode) {
+        val queueId = dataSource.selectedPlayer?.queueOrPlayerId ?: return
+        val media = items.mapNotNull { it.mediaUri }.takeIf { it.isNotEmpty() } ?: return
+        Logger.withTag("Session.PlayDispatch")
+            .i { "ActionsViewModel: uri=${media.first()} count=${media.size} mode=$mode queue=$queueId" }
+        playDispatcher.play(
+            PlayRequest(
+                queueOrPlayerId = queueId,
+                media = media,
+                option = mode.option,
+                endlessMixMode = mode.endlessMix && items.none { it is Genre },
+                shuffle = mode.shuffle,
+                startFromBeginning = mode.startFromBeginning,
+            ),
+        )
+    }
+
+    private companion object {
+        // Upper bound for awaiting the server's "playlist added" confirmation.
+        private const val CREATE_CONFIRM_TIMEOUT_MS = 5000L
+    }
+}

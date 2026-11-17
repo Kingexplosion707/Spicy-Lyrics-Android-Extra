@@ -1222,11 +1222,14 @@ private fun LyricsApp(
                 // Once faded out, the controls stop blurring: the shade's progressive blur and each
                 // glass button would otherwise re-blur the whole page every frame, unseen.
                 val controlsGone by remember { derivedStateOf { controlsShown == 0f } }
+                val maContext = LocalContext.current
                 val playbackControls = PlaybackControlsState(
                     credit = lyricsViewState.shownFooter?.miniCredit()?.takeIf { pinnedFooter != PinnedFooterMode.Off },
                     onShareLyrics = { whenUnlocked { showShareLyrics = true } }.takeIf { settings.shareButton && state.lyrics is LyricsState.Ready },
                     onSleepTimer = { showSleepTimer = true }.takeIf { settings.sleepTimerButton && state.sourcePackage != null },
                     sleepTimerOn = SleepTimerService.state.value != null,
+                    onMusicAssistant = { com.tx24.spicyplayer.musicassistant.SpicyMusicAssistant.open(maContext) }
+                        .takeIf { settings.musicAssistantButton && com.tx24.spicyplayer.musicassistant.SpicyMusicAssistant.supported() },
                     hideSettings = settingsPeeking,
                     // Hidden on a screen that's landscape on its own: there's nothing to turn.
                     onRotate = { rotated = !rotated }.takeIf { settings.rotateButton && (rotated || !landscape) },

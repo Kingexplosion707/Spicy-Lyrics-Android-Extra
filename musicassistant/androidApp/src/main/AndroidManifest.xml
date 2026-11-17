@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- Hold-to-talk announcements. Not required, so devices without a microphone still install the app. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false"/>
+
+    <!-- Inside Spicy Lyrics Plus: the app's own <application> attributes, launcher entry, App
+         Links, car app category and voice entry stay out; Spicy opens MainActivity itself. -->
+    <application>
+        <activity
+            android:name=".MainActivity"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar"
+            android:label="Music Assistant"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
+            android:launchMode="singleTask"
+            android:exported="true">
+            <!-- OAuth callback: musicassistant://auth/callback?code=... -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="musicassistant"
+                    android:host="auth"
+                    android:path="/callback" />
+            </intent-filter>
+            <!-- In-app page deep links: musicassistant://app/home|library|search|players[?player=<id|name>] -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="musicassistant"
+                    android:host="app" />
+            </intent-filter>
+        </activity>
+        <service
+            android:name="io.music_assistant.client.services.AndroidAutoPlaybackService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.media.browse.MediaBrowserService" />
+                <category android:name="android.media.browse.MediaBrowserService" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
+            </intent-filter>
+            <meta-data
+                android:name="android.media.browse.service"
+                android:resource="@xml/automotive_app_desc" />
+        </service>
+        <service
+            android:name=".services.MainMediaPlaybackService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+        <provider
+            android:name=".MaFileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+        <!-- Serves browse-row artwork to media hosts as opaque content:// URIs, fetched in
+             this process. Not exported: readable only through the prefix grant that
+             AndroidAutoPlaybackService.onGetRoot hands to a verified, media-trusted caller. -->
+        <provider
+            android:name=".auto.AndroidAutoArtworkProvider"
+            android:authorities="${applicationId}.autoartwork"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+    </application>
+
+</manifest>

@@ -1,0 +1,188 @@
+package io.music_assistant.client.ui.compose.common.items
+
+import io.music_assistant.client.data.model.client.ClickContext
+import io.music_assistant.client.data.model.client.QueueOption
+import io.music_assistant.client.data.model.client.items.Album
+import io.music_assistant.client.data.model.client.items.AppMediaItem
+import io.music_assistant.client.data.model.client.items.Artist
+import io.music_assistant.client.data.model.client.items.AudioSource
+import io.music_assistant.client.data.model.client.items.Audiobook
+import io.music_assistant.client.data.model.client.items.Genre
+import io.music_assistant.client.data.model.client.items.MediaCollection
+import io.music_assistant.client.data.model.client.items.Playlist
+import io.music_assistant.client.data.model.client.items.PodcastEpisode
+import io.music_assistant.client.data.model.client.items.RadioStation
+import io.music_assistant.client.data.model.client.items.RecommendationFolder
+import io.music_assistant.client.data.model.client.items.SoundEffect
+import io.music_assistant.client.data.model.client.items.Track
+import io.music_assistant.client.data.model.server.PlayMediaSupport
+
+/**
+ * Item types accepted by playlist edits (server contract, not a UI choice). An external item goes
+ * into a playlist once the server has found it.
+ */
+val AppMediaItem.supportsAddToPlaylist: Boolean
+    get() = !isExternalItem &&
+        (this is Track || this is Album || this is RadioStation || this is PodcastEpisode || this is Audiobook)
+
+/**
+ * Containers with an order worth shuffling, the same set as the web app. A podcast and an
+ * audiobook are heard in order, and a single track has nothing to shuffle.
+ */
+val AppMediaItem.canPlayShuffled: Boolean
+    get() = this is Album || this is Artist || this is Playlist || this is Genre ||
+            this is MediaCollection || this is RecommendationFolder
+
+/** A started or finished episode, which "Play from beginning" restarts. */
+private val PodcastEpisode.hasProgress: Boolean
+    get() = fullyPlayed == true || (resumePositionMs ?: 0L) > 0L
+
+/**
+ * Long-click menu shows the union: the playback block ([addPlaybackActions]) followed by library,
+ * favorite, playlist and progress entries. Each of the latter writes the library, so
+ * [canEditLibrary] (`library.write`) gates them all. [playMediaSupport] gates the entries whose
+ * `play_media` flag an older server ignores.
+ */
+fun resolveLongClickActions(
+    item: AppMediaItem,
+    clickContext: ClickContext? = null,
+    canEditLibrary: Boolean,
+    dislikeSupported: Boolean,
+    librarySupported: Boolean,
+    canAddToPlaylist: Boolean,
+    canRemoveFromPlaylist: Boolean,
+    progressSupported: Boolean,
+    playMediaSupport: PlayMediaSupport,
+    defaultAction: ItemAction? = null,
+    customizationAllowed: Boolean = false,
+): List<ItemAction> = buildList {
+    // A live input never ends, so nothing queued behind it is reached: starting it is the only action.
+    if (item is AudioSource) {
+        if (item.isPlayable) add(ItemAction.Play(QueueOption.REPLACE))
+        return@buildList
+    }
+    if (item.isPlayable) addPlaybackActions(item, clickContext, playMediaSupport)
+    // Provider sounds can be played from Browse, but have no library or per-kind tap settings.
+    if (item is SoundEffect) return@buildList
+    if (customizationAllowed) add(ItemAction.Customize)
+    if (!canEditLibrary) return@buildList
+    if (librarySupported) {
+        add(if (item.isInLibrary) ItemAction.RemoveFromLibrary else ItemAction.AddToLibrary)
+        if (item.isInLibrary) addAll(favoriteActions(item.favorite, dislikeSupported))
+    }
+    if (canAddToPlaylist) add(ItemAction.AddToPlaylist)
+    if (canRemoveFromPlaylist) add(ItemAction.RemoveFromPlaylist)
+    if (progressSupported && item.isFullyPlayed()) {
+        add(ItemAction.MarkUnplayed)
+    } else if (progressSupported) {
+        add(ItemAction.MarkPlayed)
+    }
+    // The action a click performs is hoisted to the top (and labeled "Default" by the menu).
+}.let { actions ->
+    if (defaultAction == null) {
+        actions
+    } else {
+        listOf(defaultAction) + actions.filterNot { it == defaultAction }
+    }
+}
+
+/**
+ * The actions menu of a track selection: the five queue options, which send all tracks in one
+ * `play_media` request, then Add to playlist and Remove from playlist. [canEditLibrary]
+ * (`library.write`) gates both playlist entries, [canAddToPlaylist] is false while the selection
+ * holds an item that goes into no playlist, and [canRemoveFromPlaylist] is true on an editable
+ * playlist only.
+ */
+fun resolveSelectionActions(
+    canEditLibrary: Boolean,
+    canRemoveFromPlaylist: Boolean = false,
+    canAddToPlaylist: Boolean = true,
+): List<ItemAction> = buildList {
+    addAll(QUEUE_ACTIONS)
+    if (!canEditLibrary) return@buildList
+    if (canAddToPlaylist) add(ItemAction.AddToPlaylist)
+    if (canRemoveFromPlaylist) add(ItemAction.RemoveFromPlaylist)
+}
+
+/**
+ * Item detail screen play-button split-button overflow — every applicable play action
+ * except [default] (which the leading button performs).
+ */
+fun resolvePlayButtonActions(
+    item: AppMediaItem,
+    default: ItemAction?,
+    playMediaSupport: PlayMediaSupport,
+    customizationAllowed: Boolean = false,
+): List<ItemAction> =
+    buildList {
+        if (item.isPlayable) addPlaybackActions(item, support = playMediaSupport)
+        if (customizationAllowed) add(ItemAction.Customize)
+    }.filterNot { it == default }
+
+/** The five queue options of `play_media`, in menu order. */
+private val QUEUE_ACTIONS = listOf(
+    QueueOption.REPLACE,
+    QueueOption.PLAY,
+    QueueOption.NEXT,
+    QueueOption.ADD,
+    QueueOption.REPLACE_NEXT,
+).map { ItemAction.Play(it) }
+
+/** The contexts whose list is a container that plays on from the long-pressed item. */
+private val FROM_HERE_CONTEXTS = setOf(ClickContext.ALBUM, ClickContext.PLAYLIST, ClickContext.PODCAST)
+
+/**
+ * The playback block: the five queue options, then Play from here, Play shuffled, Play from
+ * beginning and Start endless mix, each when it applies.
+ */
+private fun MutableList<ItemAction>.addPlaybackActions(
+    item: AppMediaItem,
+    context: ClickContext? = null,
+    support: PlayMediaSupport,
+) {
+    addAll(QUEUE_ACTIONS)
+
+    if (context in FROM_HERE_CONTEXTS) add(ItemAction.PlayFromHere)
+    if (support.shuffle && item.canPlayShuffled) add(ItemAction.PlayShuffled)
+    if (support.startFromBeginning && item is PodcastEpisode && item.hasProgress) {
+        add(ItemAction.PlayFromBeginning)
+    }
+
+    if (item.canStartEndlessMix) add(ItemAction.StartEndlessMix)
+}
+
+/**
+ * Item detail screen three-dot overflow — library/favorite/playlist, all gated by
+ * [canEditLibrary]. Navigation entries (Go to album / artist) are appended separately at the
+ * call site via [navigationOptions].
+ */
+fun resolveDetailOverflowActions(
+    item: AppMediaItem,
+    canEditLibrary: Boolean,
+    dislikeSupported: Boolean,
+    librarySupported: Boolean,
+    canAddToPlaylist: Boolean,
+): List<ItemAction> = buildList {
+    if (!canEditLibrary) return@buildList
+    if (librarySupported) {
+        add(if (item.isInLibrary) ItemAction.RemoveFromLibrary else ItemAction.AddToLibrary)
+        if (item.isInLibrary) addAll(favoriteActions(item.favorite, dislikeSupported))
+    }
+    if (canAddToPlaylist) add(ItemAction.AddToPlaylist)
+}
+
+/**
+ * The favorite menu entries for the [favorite] state. With [dislikeSupported] (server 2.11), a
+ * dislike gets its own pair of entries, because the heart says "liked" only, like the web app.
+ * Without it, a false is "not a favorite".
+ */
+fun favoriteActions(favorite: Boolean?, dislikeSupported: Boolean): List<ItemAction.SetFavorite> = buildList {
+    add(if (favorite == true) ItemAction.Unfavorite else ItemAction.Favorite)
+    if (dislikeSupported) add(if (favorite == false) ItemAction.RemoveDislike else ItemAction.Dislike)
+}
+
+private fun AppMediaItem.isFullyPlayed(): Boolean = when (this) {
+    is PodcastEpisode -> fullyPlayed == true
+    is Audiobook -> fullyPlayed == true
+    else -> false
+}

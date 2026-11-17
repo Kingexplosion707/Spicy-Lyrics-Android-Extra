@@ -231,32 +231,159 @@ enum class MotionTheme(val label: String, internal val spec: MotionThemeSpec?) {
         accents = listOf("glow", "outline"),
         types = listOf("impact", "round"), motifs = listOf("snow", "sparkle", "star"),
         tilt = 0.5f,
+    )),
+    // Hip-hop's other sides.
+    TrapHouse("Trap House", MotionThemeSpec(
+        mood = "intense", palette = listOf("#b026ff", "#ff2e63"),
+        layouts = listOf("poster", "wordwall", "split", "stairs", "slot"),
+        enters = listOf("cut", "drop", "whip", "push"),
+        fx = listOf("slam", "glitch", "stretch", "zoom", "flicker"),
+        accents = listOf("extrude", "glow", "stamp", "giant"),
+        types = listOf("impact"), motifs = listOf("crown", "bolt", "cross", "burst"),
+        upper = true, bars = true, tilt = 1.1f,
+    )),
+    CloudRap("Cloud Rap", MotionThemeSpec(
+        mood = "dreamy", palette = listOf("#c3b1ff", "#ffc6e0"),
+        layouts = listOf("swell", "column", "crawl", "hero", "spiral"),
+        enters = listOf("fade", "rise", "orbit", "pull"),
+        fx = listOf("blur", "wave", "rise", "flicker"),
+        accents = listOf("glow", "gradient", "script", "trail"),
+        types = listOf("round", "serif"), motifs = listOf("moon", "star", "sparkle", "heart", "halo"),
+        upper = false, tilt = 0.5f,
+    )),
+    Drill("Drill", MotionThemeSpec(
+        mood = "dark", palette = listOf("#d6e2ff", "#5c7cfa"),
+        layouts = listOf("poster", "pillar", "wall", "split", "strip"),
+        enters = listOf("cut", "panel", "push", "whip"),
+        fx = listOf("slam", "type", "track", "glitch"),
+        accents = listOf("stamp", "bracket", "outline", "underline"),
+        types = listOf("impact"), motifs = listOf("cross", "square", "bars", "arrow"),
+        upper = true, bars = true, rule = true, tilt = 0.6f,
+    )),
+    Phonk("Phonk", MotionThemeSpec(
+        mood = "dark", palette = listOf("#ff1f3d", "#3a0a12"),
+        layouts = listOf("tunnel", "hero", "poster", "reel", "wordwall"),
+        enters = listOf("through", "cut", "pull", "drop"),
+        fx = listOf("blur", "flicker", "glitch", "zoom", "slam"),
+        accents = listOf("extrude", "glow", "trail", "outline"),
+        types = listOf("impact"), motifs = listOf("eye", "cross", "triangle", "zigzag"),
+        upper = true, bars = true, tilt = 0.9f,
+    )),
+    // R&B after dark, and its softer side.
+    AfterHours("After Hours", MotionThemeSpec(
+        mood = "dark", palette = listOf("#ff1744", "#ffd1dc"),
+        layouts = listOf("hero", "column", "tunnel", "crawl", "pillar"),
+        enters = listOf("fade", "pull", "through", "rise"),
+        fx = listOf("blur", "wipe", "flicker", "rise"),
+        accents = listOf("glow", "outline", "trail", "underline"),
+        types = listOf("serif", "impact"), motifs = listOf("moon", "eye", "frame", "ring"),
+        bars = true, tilt = 0.4f,
+    )),
+    Blonde("Blonde", MotionThemeSpec(
+        mood = "calm", palette = listOf("#ffb26b", "#fff4e0"),
+        layouts = listOf("hero", "column", "swell", "arch"),
+        enters = listOf("fade", "rise", "pan"),
+        fx = listOf("wipe", "rise", "wave", "blur"),
+        accents = listOf("underline", "script", "gradient"),
+        types = listOf("serif"), motifs = listOf("sun", "wave", "flower", "dot"),
+        upper = false, serif = true, tilt = 0.2f,
+    )),
+    // Indie and psychedelic.
+    Psychedelia("Psychedelia", MotionThemeSpec(
+        mood = "dreamy", palette = listOf("#ff5ec4", "#3dfcff"),
+        layouts = listOf("spiral", "radial", "swell", "carousel", "tunnel"),
+        enters = listOf("orbit", "spin", "roll", "through"),
+        fx = listOf("wave", "spin", "blur", "zoom", "stretch"),
+        accents = listOf("gradient", "glow", "trail", "extrude"),
+        types = listOf("round"), motifs = listOf("spiral", "sun", "ring", "flower", "wave"),
+        upper = false, tilt = 1.2f,
+    )),
+    BedroomTape("Bedroom Tape", MotionThemeSpec(
+        mood = "warm", palette = listOf("#ff9eb5", "#fff0d6"),
+        layouts = listOf("cards", "collage", "column", "hero", "strip"),
+        enters = listOf("fade", "drop", "panel", "flip"),
+        fx = listOf("type", "flicker", "wipe", "pop"),
+        accents = listOf("script", "circle", "underline", "sticker"),
+        types = listOf("serif", "round"), motifs = listOf("heart", "star", "flower", "scribble"),
+        upper = false, tilt = 0.8f,
+    )),
+    WitchHouse("Witch House", MotionThemeSpec(
+        mood = "dark", palette = listOf("#e0e0e0", "#7a00ff"),
+        layouts = listOf("pillar", "hero", "tunnel", "column"),
+        enters = listOf("fade", "cut", "through", "pull"),
+        fx = listOf("flicker", "glitch", "blur", "type"),
+        accents = listOf("outline", "glow", "bracket"),
+        types = listOf("serif", "impact"), motifs = listOf("triangle", "cross", "eye", "moon"),
+        upper = true, rule = true, tilt = 0.3f,
+    )),
+    // Ambient, scores and game music.
+    Blocky("Blocky", MotionThemeSpec(
+        mood = "calm", palette = listOf("#7ccf5c", "#9b7653"),
+        layouts = listOf("wall", "cards", "strip", "column", "slot"),
+        enters = listOf("drop", "fade", "panel"),
+        fx = listOf("drop", "type", "pop", "slide"),
+        accents = listOf("outline", "color", "bracket"),
+        types = listOf("impact", "round"), motifs = listOf("square", "plus", "dot", "sun"),
+        upper = false, tilt = 0f,
+    )),
+    Nocturne("Nocturne", MotionThemeSpec(
+        mood = "calm", palette = listOf("#a8c0ff", "#3f2b96"),
+        layouts = listOf("hero", "column", "arch", "swell"),
+        enters = listOf("fade", "rise", "pan"),
+        fx = listOf("blur", "wipe", "rise"),
+        accents = listOf("glow", "underline", "script"),
+        types = listOf("serif"), motifs = listOf("moon", "star", "halo", "snow"),
+        upper = false, serif = true, tilt = 0.2f,
+    )),
+    // Rock and pop's odder corners.
+    GrungeTape("Grunge Tape", MotionThemeSpec(
+        mood = "intense", palette = listOf("#c9b458", "#6b705c"),
+        layouts = listOf("poster", "collage", "wordwall", "stairs"),
+        enters = listOf("cut", "drop", "whip", "panel"),
+        fx = listOf("glitch", "slam", "stretch", "type"),
+        accents = listOf("scribble", "stamp", "extrude", "bracket"),
+        types = listOf("impact"), motifs = listOf("scribble", "cross", "zigzag", "bolt"),
+        upper = true, tilt = 1.3f,
+    )),
+    Oddball("Oddball", MotionThemeSpec(
+        mood = "playful", palette = listOf("#ffd60a", "#00f5d4"),
+        layouts = listOf("zigzag", "cards", "spread", "carousel", "collage"),
+        enters = listOf("roll", "flip", "spin", "drop"),
+        fx = listOf("bounce", "stretch", "spin", "pop", "wave"),
+        accents = listOf("sticker", "giant", "circle", "extrude"),
+        types = listOf("impact", "round"), motifs = listOf("star", "burst", "dots", "arrow"),
+        upper = true, tilt = 1.5f,
     ));
 
     companion object {
-        /** The theme Auto picks for a song of [genre]. */
-        fun forGenre(genre: SongGenre?): MotionTheme = when (genre) {
-            SongGenre.Pop -> Bubblegum
-            SongGenre.HipHop -> Street
-            SongGenre.RnB -> Velvet
-            SongGenre.Rock -> Stadium
-            SongGenre.Metal -> Inferno
-            SongGenre.Alternative -> Daydream
-            SongGenre.Electronic -> NeonNight
-            SongGenre.Country -> Campfire
-            SongGenre.Latin -> Fiesta
-            SongGenre.AsianPop -> Idol
-            SongGenre.Jazz -> SmokyClub
-            SongGenre.Classical -> Cinematic
-            SongGenre.Reggae -> Island
-            SongGenre.Gospel -> Heavenly
-            null -> Classic
+        /** The themes Auto picks among for each genre; a song keeps the same one ([forGenre]). */
+        private val byGenre: Map<SongGenre, List<MotionTheme>> = mapOf(
+            SongGenre.Pop to listOf(Bubblegum, Oddball),
+            SongGenre.HipHop to listOf(Street, TrapHouse, CloudRap, Drill, Phonk),
+            SongGenre.RnB to listOf(Velvet, AfterHours, Blonde),
+            SongGenre.Rock to listOf(Stadium, GrungeTape),
+            SongGenre.Metal to listOf(Inferno),
+            SongGenre.Alternative to listOf(Daydream, Psychedelia, BedroomTape, WitchHouse),
+            SongGenre.Electronic to listOf(NeonNight, SunsetDrive, RetroArcade),
+            SongGenre.Country to listOf(Campfire),
+            SongGenre.Latin to listOf(Fiesta),
+            SongGenre.AsianPop to listOf(Idol),
+            SongGenre.Jazz to listOf(SmokyClub),
+            SongGenre.Classical to listOf(Cinematic, Blocky, Nocturne),
+            SongGenre.Reggae to listOf(Island),
+            SongGenre.Gospel to listOf(Heavenly),
+        )
+
+        /** The theme Auto picks for a song of [genre]: one of its genre's, chosen by [song] so it stays put. */
+        fun forGenre(genre: SongGenre?, song: String = ""): MotionTheme {
+            val pool = genre?.let { byGenre[it] }.orEmpty().ifEmpty { return Classic }
+            return pool[Math.floorMod(song.hashCode(), pool.size)]
         }
     }
 }
 
 /** [this] as the theme that plays: Auto resolves by [genre]. */
-internal fun MotionTheme.resolve(genre: SongGenre?): MotionTheme = if (this == MotionTheme.Auto) MotionTheme.forGenre(genre) else this
+internal fun MotionTheme.resolve(genre: SongGenre?, song: String = ""): MotionTheme = if (this == MotionTheme.Auto) MotionTheme.forGenre(genre, song) else this
 
 /** The theme as the page's director takes it (window.spicyMotionTheme); empty for none. */
 internal fun MotionTheme.json(): String {

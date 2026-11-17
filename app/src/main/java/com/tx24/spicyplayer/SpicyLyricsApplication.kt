@@ -15,6 +15,7 @@ class SpicyLyricsApplication : Application() {
         super.onCreate()
         CrashLog.install(this)
         runCatching { kr.ivlis.ivlyricsandroid.SpicyBridge.init(this) }
+        com.tx24.spicyplayer.musicassistant.SpicyMusicAssistant.install(this)
         UpdateNotification.cancelStale(this)
         runCatching { com.tx24.spicyplayer.stats.ListeningTracker.sync(this) }
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {

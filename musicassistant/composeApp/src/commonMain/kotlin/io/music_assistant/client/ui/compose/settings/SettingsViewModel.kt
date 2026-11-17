@@ -1,0 +1,254 @@
+package io.music_assistant.client.ui.compose.settings
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import io.music_assistant.client.api.ConnectionInfo
+import io.music_assistant.client.api.ServiceClient
+import io.music_assistant.client.discovery.DiscoveredServer
+import io.music_assistant.client.discovery.MdnsBrowser
+import io.music_assistant.client.discovery.musicAssistantServers
+import io.music_assistant.client.logging.InMemoryLogWriter
+import io.music_assistant.client.logging.LogSharer
+import io.music_assistant.client.settings.ConnectionHistoryEntry
+import io.music_assistant.client.settings.ConnectionType
+import io.music_assistant.client.settings.SettingsRepository
+import io.music_assistant.client.utils.AppVersion
+import io.music_assistant.client.utils.FileSharer
+import io.music_assistant.client.utils.LocalNetworkOnboardingResources
+import io.music_assistant.client.utils.LocalNetworkPermissionGate
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.jetbrains.compose.resources.StringResource
+
+// Grants/denials resolve immediately; users reading the prompt and mDNS-blocked
+// networks are the contenders to actually hit this
+private const val CONNECT_PROBE_TIMEOUT_MS = 15_000L
+private const val LOG_MIME_TYPE = "text/plain"
+private const val DISCOVERY_STOP_TIMEOUT_MS = 5_000L
+
+class SettingsViewModel(
+    private val apiClient: ServiceClient,
+    private val settings: SettingsRepository,
+    private val logSharer: LogSharer,
+    private val fileSharer: FileSharer,
+    private val localNetworkPermissionGate: LocalNetworkPermissionGate,
+    mdnsBrowser: MdnsBrowser,
+    val appVersion: AppVersion,
+) : ViewModel() {
+    val savedConnectionInfo = settings.connectionInfo
+    val sessionState = apiClient.sessionState
+    val localNetworkOnboardingResources: LocalNetworkOnboardingResources? =
+        localNetworkPermissionGate.onboardingResources
+
+    private val _hasCrashLog = MutableStateFlow(logSharer.hasCrashLog())
+    val hasCrashLog: StateFlow<Boolean> = _hasCrashLog
+
+    private val _isPreparingShare = MutableStateFlow(false)
+    val isPreparingShare: StateFlow<Boolean> = _isPreparingShare
+
+    // Local Network preflight: true when the last probe reported the permission denied.
+    private val _localNetworkBlocked = MutableStateFlow(false)
+    val localNetworkBlocked: StateFlow<Boolean> = _localNetworkBlocked
+
+    // Outcome of the last preflight probe; null when it never ran or was inconclusive.
+    private val _lastLocalNetworkProbeGranted = MutableStateFlow<Boolean?>(null)
+    val lastLocalNetworkProbeGranted: StateFlow<Boolean?> = _lastLocalNetworkProbeGranted
+
+    private var attemptJob: Job? = null
+
+    // True while a connect attempt (probe + connect) is in flight; gates the Connect button.
+    private val _connectAttemptInFlight = MutableStateFlow(false)
+    val connectAttemptInFlight: StateFlow<Boolean> = _connectAttemptInFlight
+
+    fun shareLogs(chooserTitle: String) {
+        if (_isPreparingShare.value) return
+        viewModelScope.launch {
+            _isPreparingShare.value = true
+            try {
+                val path = withContext(Dispatchers.Default) {
+                    logSharer.prepareLogShareFile(InMemoryLogWriter.getLogText())
+                }
+                fileSharer.share(path, LOG_MIME_TYPE, chooserTitle)
+            } finally {
+                _isPreparingShare.value = false
+            }
+        }
+    }
+
+    fun shareCrashLog(chooserTitle: String) {
+        if (_isPreparingShare.value) return
+        viewModelScope.launch {
+            _isPreparingShare.value = true
+            try {
+                val path = withContext(Dispatchers.Default) {
+                    logSharer.prepareCrashLogShareFile()
+                }
+                if (path != null) fileSharer.share(path, LOG_MIME_TYPE, chooserTitle)
+            } finally {
+                _isPreparingShare.value = false
+            }
+        }
+    }
+
+    fun deleteCrashLog() {
+        logSharer.deleteCrashLog()
+        _hasCrashLog.value = false
+    }
+
+    fun attemptConnection(host: String, port: String, isTls: Boolean, basePath: String) {
+        // Single-flight: a second tap (or the auto-retry) cancels any in-flight probe
+        // instead of racing it for the blocked/granted state flows.
+        attemptJob?.cancel()
+        attemptJob = viewModelScope.launch {
+            _connectAttemptInFlight.value = true
+            try {
+                _localNetworkBlocked.value = false
+                _lastLocalNetworkProbeGranted.value = null
+                val portNum = port.toIntOrNull() ?: return@launch
+                // Credentials for this address prove a prior direct connect succeeded, which
+                // requires the permission — probe only when they are absent.
+                val knownServer = hasCredentialsForDirect(host, portNum, isTls, basePath)
+                if (localNetworkPermissionGate.isAvailable && !knownServer) {
+                    // Raises the permission prompt when not yet determined and waits out
+                    // the answer; denied is reported distinctly from "offline".
+                    val granted = localNetworkPermissionGate.probe(CONNECT_PROBE_TIMEOUT_MS)
+                    _lastLocalNetworkProbeGranted.value = granted
+                    if (granted == false) {
+                        _localNetworkBlocked.value = true
+                        return@launch
+                    }
+                } else if (knownServer) {
+                    _lastLocalNetworkProbeGranted.value = true
+                }
+                apiClient.connect(
+                    connection = ConnectionInfo(
+                        host = host,
+                        port = portNum,
+                        isTls = isTls,
+                        basePath = ConnectionInfo.normalizeBasePath(basePath),
+                    ),
+                )
+            } finally {
+                _connectAttemptInFlight.value = false
+            }
+        }
+    }
+
+    /**
+     * Servers on the local network, while the screen collects. On iOS a browse raises the Local
+     * Network prompt, so discovery waits until the onboarding card that announces it is gone.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val discoveredServers: StateFlow<List<DiscoveredServer>> =
+        combine(settings.localNetworkOnboardingShown, settings.connectionHistory) { shown, history ->
+            !isLocalNetworkOnboardingVisible(history, shown)
+        }
+            .distinctUntilChanged()
+            .flatMapLatest { allowed -> if (allowed) mdnsBrowser.musicAssistantServers() else flowOf(emptyList()) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(DISCOVERY_STOP_TIMEOUT_MS), emptyList())
+
+    fun isLocalNetworkOnboardingVisible(history: List<ConnectionHistoryEntry>, shown: Boolean): Boolean =
+        localNetworkOnboardingResources != null && history.isEmpty() && !shown
+
+    fun disconnect() {
+        attemptJob?.cancel()
+        attemptJob = null
+        apiClient.disconnectByUser()
+    }
+
+    fun isLikelyLocalNetworkBlocked(error: Throwable): Boolean =
+        localNetworkPermissionGate.isLikelyLocalNetworkBlocked(error)
+
+    fun localNetworkErrorGuidance(
+        error: Throwable?,
+        probeGranted: Boolean?,
+        locallyBlocked: Boolean,
+    ): StringResource? = localNetworkPermissionGate.guidanceFor(
+        error = error,
+        probeGranted = probeGranted,
+        locallyBlocked = locallyBlocked,
+    )
+
+    fun attemptWebRTCConnection(remoteId: String) {
+        // Clear direct-connect probe state so a stale blocked message can't render
+        // under a WebRTC failure.
+        _localNetworkBlocked.value = false
+        _lastLocalNetworkProbeGranted.value = null
+        val parsed = io.music_assistant.client.webrtc.model.RemoteId.parse(remoteId)
+        if (parsed != null) {
+            apiClient.connectWebRTC(parsed)
+        }
+    }
+
+    fun logout() {
+        viewModelScope.launch {
+            // Logout on server and clear token locally
+            // MainDataSource will handle Sendspin lifecycle based on session state
+            apiClient.logout()
+        }
+    }
+
+    // Misc settings
+    val allowLandscapeOnAllDevices = settings.allowLandscapeOnAllDevices
+
+    fun setAllowLandscapeOnAllDevices(enabled: Boolean) =
+        settings.setAllowLandscapeOnAllDevices(enabled)
+
+    val volumeKeysControlSelectedPlayer = settings.volumeKeysControlSelectedPlayer
+
+    fun setVolumeKeysControlSelectedPlayer(enabled: Boolean) =
+        settings.setVolumeKeysControlSelectedPlayer(enabled)
+
+    // Connection method preference
+    val preferredConnectionMethod = settings.preferredConnectionMethod
+
+    fun setPreferredConnectionMethod(method: String) = settings.setPreferredConnectionMethod(method)
+
+    val clientCertificateAlias = settings.clientCertificateAlias
+
+    fun setClientCertificateAlias(alias: String?) = settings.setClientCertificateAlias(alias)
+
+    // WebRTC settings
+    val webrtcRemoteId = settings.webrtcRemoteId
+
+    fun setWebrtcRemoteId(remoteId: String) = settings.setWebrtcRemoteId(remoteId)
+
+    val connectionHistory = settings.connectionHistory
+
+    fun hasCredentialsForDirect(host: String, port: Int, isTls: Boolean, basePath: String): Boolean =
+        settings.hasCredentialsForAddress(
+            ConnectionHistoryEntry(
+                type = ConnectionType.DIRECT,
+                host = host,
+                port = port,
+                isTls = isTls,
+                basePath = ConnectionInfo.normalizeBasePath(basePath),
+            ).serverIdentifier,
+        )
+
+    fun hasCredentialsForWebRTC(remoteId: String): Boolean =
+        settings.hasCredentialsForAddress(
+            ConnectionHistoryEntry(type = ConnectionType.WEBRTC, remoteId = remoteId).serverIdentifier,
+        )
+
+    fun removeFromHistory(entry: ConnectionHistoryEntry) {
+        settings.removeHistoryEntry(entry.historyKey)
+        entry.serverId?.let { settings.setTokenForServer(it, null) }
+    }
+
+    // Local Network onboarding
+    val localNetworkOnboardingShown = settings.localNetworkOnboardingShown
+
+    fun dismissLocalNetworkOnboarding() = settings.setLocalNetworkOnboardingShown()
+}

@@ -1,0 +1,145 @@
+package io.music_assistant.client.services
+
+import android.os.SystemClock
+import io.music_assistant.client.data.model.client.MediaType
+import io.music_assistant.client.data.model.client.PlayerData
+import io.music_assistant.client.data.model.client.RepeatMode
+import io.music_assistant.client.data.model.client.ResolvedChapter
+import io.music_assistant.client.data.model.client.items.AppMediaItem
+import io.music_assistant.client.data.model.client.items.Audiobook
+import io.music_assistant.client.data.model.client.items.canBeFavorited
+import io.music_assistant.client.data.model.client.items.isLongFormSpokenContent
+
+// Elapsed time can drift up to 1s before we treat it as a real position change.
+// Lower tolerance keeps OEM surfaces that don't extrapolate (OneUI/MIUI/etc.)
+// in lockstep with the in-app slider; debounce(200ms) bounds write churn.
+private const val ELAPSED_TIME_DRIFT_TOLERANCE_MS = 1_000
+
+data class MediaNotificationData(
+    val multiplePlayers: Boolean,
+    val longItemId: Long?,
+    // Session queue row to highlight: the active chapter row when chapter mode applies, else the slot.
+    val activeQueueItemId: Long?,
+    val name: String?,
+    val artist: String?,
+    val album: String?,
+    val repeatMode: RepeatMode?,
+    val shuffleEnabled: Boolean?,
+    // Audiobook / podcast episode: notification swaps shuffle & repeat for seek controls.
+    val isLongFormContent: Boolean,
+    // Current item is a favoritable track: gates the favorite toggle action
+    // (see sessionActions for the render-order priority).
+    val isFavoritableTrack: Boolean,
+    // Current item is a radio stream with a real song on air: same slot competition
+    // as isFavoritableTrack, but the action always adds (see getFavoriteIcon).
+    val isFavoritableStream: Boolean,
+    val isFavorite: Boolean,
+    val isPlaying: Boolean,
+    val imageUrl: String?,
+    // Active audiobook chapter; elapsed/duration are chapter-relative and the artist line shows its name.
+    val chapterName: String?,
+    val elapsedTime: Long?,
+    // SystemClock.elapsedRealtime() captured when [elapsedTime] was sampled.
+    // Paired with elapsedTime when writing PlaybackStateCompat so Android's
+    // extrapolation re-anchors at the correct wall clock — not 200ms later
+    // when the debounced collector finally calls setState.
+    val elapsedUpdateTimeMs: Long?,
+    val playerName: String?,
+    val duration: Long?,
+    // Name of the current radio queue item. This remains stable while the server's
+    // currentMedia title and artist change with the song currently on air.
+    val stationName: String? = null,
+    // A radio stream cannot seek, not even in a song whose length it reports.
+    val isSeekable: Boolean = true,
+) {
+    companion object {
+        /**
+         * Builds the snapshot pushed to MediaSession. [effectiveElapsedSec]
+         * is the freshly-extrapolated position at write-time (computed by the
+         * data layer from anchor + elapsed wall clock). We use it directly
+         * instead of `playerData.queueInfo.elapsedTime` because the latter is
+         * only refreshed on `QueueAdded/UpdatedEvent` — not on the more
+         * frequent `QueueTimeUpdatedEvent` — and would freeze the AA /
+         * notification progress bar at a stale anchor on pause.
+         *
+         * [currentChapter] maps this snapshot's position/duration to chapter space;
+         * the domain remains absolute.
+         */
+        fun from(
+            playerData: PlayerData,
+            multiplePlayers: Boolean,
+            effectiveElapsedSec: Double?,
+            currentChapter: ResolvedChapter? = null,
+            // `library.write`: without it neither favorite slot is offered.
+            canEditLibrary: Boolean,
+            // Real on-air stream song AND the connected server can resolve it — see
+            // MainDataSource.canFavoriteCurrentlyPlaying, the single source for this.
+            isFavoritableStream: Boolean = false,
+        ) = run {
+            val streamFavorite = canEditLibrary && isFavoritableStream
+            val longItemId = playerData.player.currentMedia?.queueItemId?.let(::sessionQueueItemId)
+            val currentQueueTrack = playerData.queueInfo?.currentItem?.track
+            val currentTrack = currentQueueTrack as? AppMediaItem
+            MediaNotificationData(
+            multiplePlayers = multiplePlayers,
+            longItemId = longItemId,
+            activeQueueItemId = playerData.queueInfo?.currentItem?.let { slot ->
+                (slot.track as? Audiobook)?.chapters?.indexOf(currentChapter?.chapter)
+                    ?.takeIf { it >= 0 }
+                    ?.let { sessionChapterItemId(slot.id, it) }
+            } ?: longItemId,
+            name = playerData.player.currentMedia?.title,
+            artist = playerData.player.currentMedia?.artist,
+            album = playerData.player.currentMedia?.album,
+            repeatMode = playerData.queueInfo?.repeatMode
+                ?.takeIf { playerData.queueInfo?.isDynamicPlaylist != true },
+            shuffleEnabled = playerData.queueInfo?.shuffleEnabled
+                ?.takeIf { playerData.queueInfo?.isDynamicPlaylist != true },
+            isLongFormContent = playerData.queueInfo?.currentItem?.track.isLongFormSpokenContent,
+            isFavoritableTrack = canEditLibrary && currentTrack
+                ?.let { it.mediaType == MediaType.TRACK && it.canBeFavorited } == true,
+            isFavoritableStream = streamFavorite,
+            // The station's own favorite flag would show a filled heart for an already-
+            // favorited station even though nothing has been favorited for the on-air song,
+            // so the stream case always renders un-filled.
+            isFavorite = currentTrack?.favorite == true && !streamFavorite,
+            isPlaying = playerData.player.isPlaying,
+            imageUrl = playerData.player.currentMedia?.imageUrl,
+            chapterName = currentChapter?.displayName,
+            elapsedTime = effectiveElapsedSec
+                ?.let { currentChapter?.relativeSec(it) ?: it }
+                ?.toLong()?.let { it * 1000 },
+            elapsedUpdateTimeMs = effectiveElapsedSec?.let { SystemClock.elapsedRealtime() },
+            playerName = playerData.player.nameAndSuffix.takeIf { !playerData.isLocal },
+            duration = (currentChapter?.duration ?: playerData.player.currentMedia?.duration)
+                ?.toLong()?.let { it * 1000 },
+            stationName = currentQueueTrack
+                ?.takeIf { it.mediaType == MediaType.RADIO }
+                ?.displayName
+                ?.takeIf { it.isNotBlank() },
+            isSeekable = currentQueueTrack?.mediaType != MediaType.RADIO,
+            )
+        }
+
+        fun areTooSimilarToUpdate(old: MediaNotificationData, new: MediaNotificationData): Boolean {
+            if (old.copy(elapsedTime = null, elapsedUpdateTimeMs = null) !=
+                new.copy(elapsedTime = null, elapsedUpdateTimeMs = null)
+            ) {
+                return false
+            }
+            if (old.elapsedTime == null) {
+                return new.elapsedTime == null
+            }
+            if (new.elapsedTime == null) {
+                return false
+            }
+            if (old.elapsedTime > new.elapsedTime) {
+                return false
+            }
+            if (new.elapsedTime - old.elapsedTime > ELAPSED_TIME_DRIFT_TOLERANCE_MS) {
+                return false
+            }
+            return true
+        }
+    }
+}

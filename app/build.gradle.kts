@@ -140,6 +140,8 @@ android {
 dependencies {
     implementation(project(":core"))
     implementation(project(":ivlyrics"))
+    // Music Assistant (musicassistant/), opened from the lyrics screen and Settings.
+    implementation(project(":musicassistant"))
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.activity:activity-compose:1.13.0")

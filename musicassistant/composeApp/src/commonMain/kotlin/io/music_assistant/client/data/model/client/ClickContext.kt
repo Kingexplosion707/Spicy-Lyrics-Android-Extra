@@ -1,0 +1,26 @@
+package io.music_assistant.client.data.model.client
+
+/**
+ * Screen a playable item is clicked in. Keys the per-context default click action
+ * (see DefaultClickAction). Only screens listed here are customizable; everywhere
+ * else falls back to PLAY_NOW.
+ */
+enum class ClickContext { HOME, LIBRARY, BROWSE, ALBUM, PLAYLIST, ARTIST, SEARCH, DETAIL, PODCAST }
+
+/** Detail-screen tabs already carry a SubItemContext; map it to a customizable context. */
+fun SubItemContext.toClickContext(): ClickContext? = when (this) {
+    SubItemContext.ALBUM_TRACKS -> ClickContext.ALBUM
+    SubItemContext.PLAYLIST_ITEMS -> ClickContext.PLAYLIST
+    SubItemContext.ARTIST_TRACKS -> ClickContext.ARTIST
+    SubItemContext.PODCAST_EPISODES -> ClickContext.PODCAST
+    SubItemContext.ARTIST_ALBUMS, SubItemContext.COLLECTION_ITEMS, SubItemContext.RADIO_TRACKS -> null
+
+    // Artist View all lists get ClickContext.ARTIST from their route, never from here.
+    SubItemContext.ARTIST_TOP_TRACKS,
+    SubItemContext.ARTIST_ALL_ALBUMS,
+    SubItemContext.ARTIST_LIBRARY_ALBUMS,
+    SubItemContext.ARTIST_APPEARS_ON,
+    SubItemContext.ARTIST_DISCOGRAPHY,
+    SubItemContext.ARTIST_AUDIOBOOKS,
+    -> null
+}
