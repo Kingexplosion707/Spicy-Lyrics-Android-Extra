@@ -125,6 +125,8 @@ internal class LiveLyrics(context: Context) {
             lyrics = found?.lyrics
             settled = true
             onChange()
+            // The next songs in the queue, found and rendered while this one plays.
+            lookup.prepareAhead(session.upcoming(AHEAD), romanize)
             if (found == null) return@launch
             val translated = withContext(Dispatchers.IO) {
                 translations.translate(found.lyrics, next.title, next.artist, found.sourceId) { target ->
@@ -133,5 +135,10 @@ internal class LiveLyrics(context: Context) {
             }
             if (key == next.key && lyrics === found.lyrics) translation = translated
         }
+    }
+
+    private companion object {
+        /** How many queued songs get ready ahead. */
+        const val AHEAD = 2
     }
 }

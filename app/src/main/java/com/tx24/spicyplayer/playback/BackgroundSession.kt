@@ -49,6 +49,8 @@ internal class BackgroundSession(context: Context) {
     /** The player's own buttons (like, shuffle, ...) as it publishes them now. */
     val customActions: List<android.media.session.PlaybackState.CustomAction> get() = core?.customActions.orEmpty()
     fun sendCustomAction(action: String) { core?.sendCustomAction(action) }
+    /** The next few songs in the player's queue, as lyrics lookups (no album: queues don't say). */
+    fun upcoming(count: Int): List<com.tx24.spicyplayer.network.data.LyricsLookupRequest> = core?.upcoming(count).orEmpty()
 
     /** The player's position, held back by every delay, as the lyrics screen reads it. Any thread. */
     fun positionMs(): Long = core?.positionMs() ?: 0L
@@ -161,6 +163,25 @@ private class SessionCore(private val app: Context) {
         private set
 
     val playerPackage: String? get() = controller?.packageName
+
+    /** The next [count] songs in the followed player's queue, as lyrics lookups. */
+    fun upcoming(count: Int): List<com.tx24.spicyplayer.network.data.LyricsLookupRequest> {
+        val session = controller ?: return emptyList()
+        val queue = runCatching { session.queue }.getOrNull().orEmpty()
+        val at = queue.indexOfFirst { it.queueId == session.playbackState?.activeQueueItemId }
+        if (at < 0) return emptyList()
+        return queue.drop(at + 1).take(count).mapNotNull { item ->
+            val d = item.description
+            val names = com.tx24.spicyplayer.network.data.TrackNameCleaner.clean(d.title?.toString().orEmpty(), d.subtitle?.toString().orEmpty())
+            if (names.title.isBlank() || names.artist.isBlank()) return@mapNotNull null
+            com.tx24.spicyplayer.network.data.LyricsLookupRequest(
+                artist = names.artist,
+                title = names.title,
+                album = "",
+                durationSeconds = ((d.extras?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L) / 1_000L).toInt(),
+            )
+        }
+    }
 
     /** Play or pause the followed player. */
     fun playPause() {

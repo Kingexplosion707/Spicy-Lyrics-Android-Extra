@@ -313,6 +313,18 @@ public final class SpicyBridge {
     /** How much of the page's left and right fades out. */
     private static final float SIDE_FADE = 0.12f;
 
+    /**
+     * Whether the page is on screen. Off screen its WebView is paused (no animation frames, no
+     * script timers), so a hidden wallpaper, overlay or always-on display costs nothing; back on
+     * screen it picks up where the song is.
+     */
+    public static void motionActive(View view, boolean active) {
+        if (!(view instanceof ViewGroup) || ((ViewGroup) view).getChildCount() == 0) return;
+        View page = ((ViewGroup) view).getChildAt(0);
+        if (!(page instanceof WebView)) return;
+        if (active) ((WebView) page).onResume(); else ((WebView) page).onPause();
+    }
+
     public static void motionPlayback(View view, long positionMs, boolean playing) {
         if (view instanceof MotionLyricsModeView) ((MotionLyricsModeView) view).setPlayback(positionMs, playing, 1f);
     }

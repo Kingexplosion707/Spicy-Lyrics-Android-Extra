@@ -64,6 +64,12 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
     </queries>
+    <!-- Lets another app (Kiosk Satellite Plus) read what plays now and its lyrics (kiosk/NowPlayingProvider). -->
+    <permission
+        android:name="com.behnoud.spicylyrics.permission.READ_NOW_PLAYING"
+        android:label="Read Spicy Lyrics' now playing"
+        android:protectionLevel="normal" />
+
     <application
         android:name="com.tx24.spicyplayer.SpicyLyricsApplication"
         android:allowBackup="false"
@@ -162,13 +168,25 @@
         <!-- The always-on display: dim lyrics on black over the lock screen. -->
         <activity
             android:name="com.tx24.spicyplayer.aod.AlwaysOnActivity"
-            android:exported="false"
+            android:exported="true"
             android:excludeFromRecents="true"
             android:launchMode="singleInstance"
             android:taskAffinity=".aod"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
-            android:theme="@style/Theme.SpicyLyricsMobile" />
+            android:theme="@style/Theme.SpicyLyricsMobile">
+            <!-- Other apps (Kiosk Satellite Plus as its screensaver) can open it. -->
+            <intent-filter>
+                <action android:name="com.behnoud.spicylyrics.action.SHOW_AOD" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <provider
+            android:name="com.tx24.spicyplayer.kiosk.NowPlayingProvider"
+            android:authorities="${applicationId}.nowplaying"
+            android:exported="true"
+            android:readPermission="com.behnoud.spicylyrics.permission.READ_NOW_PLAYING" />
 
         <!-- The lyrics on the Essentials island. Essentials binds it only after the user allows it
              in its Island settings, and the service answers only Essentials (signature-pinned). -->

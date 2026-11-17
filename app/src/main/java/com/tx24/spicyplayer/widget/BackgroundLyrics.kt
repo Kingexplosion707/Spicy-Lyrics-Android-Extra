@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
@@ -44,6 +45,12 @@ internal class BackgroundLyrics(context: Context) {
      * [manualSpotifyId]: the Spotify ID the user set for the song, whose picks are stored apart.
      */
     suspend fun lookUp(request: LyricsLookupRequest, romanize: Boolean, manualSpotifyId: String? = null): Result {
+        // Found and rendered ahead from the queue ([prepareAhead]): up at once, with no work at the song change.
+        if (manualSpotifyId == null) {
+            synchronized(shared) { shared.ahead[aheadKey(request, romanize)] }
+                ?.takeIf { (_, seconds) -> seconds == 0 || request.durationSeconds == 0 || kotlin.math.abs(seconds - request.durationSeconds) <= 3 }
+                ?.let { return it.first }
+        }
         // The wallpaper, overlay, always-on display, notification, haptics and widget often ask
         // for the same song at once: they share one lookup, and its answer for a few minutes.
         val key = "${request.title}\u0000${request.artist}\u0000${request.album}\u0000${request.durationSeconds}\u0000$romanize\u0000$manualSpotifyId"
@@ -66,6 +73,36 @@ internal class BackgroundLyrics(context: Context) {
         }
         return job.await()
     }
+
+    /**
+     * Finds and renders the songs coming up next ([upcoming], from the player's queue) one at a
+     * time while the current song plays, so each is ready the moment it starts: the song change
+     * then costs no lookup and no parsing on the phone. A new call stops the last one.
+     */
+    fun prepareAhead(upcoming: List<LyricsLookupRequest>, romanize: Boolean) {
+        synchronized(shared) {
+            shared.aheadJob?.cancel()
+            if (upcoming.isEmpty()) return
+            shared.aheadJob = shared.scope.launch {
+                // Out of the current song's way: its lookup and first frames come first.
+                delay(AHEAD_START_DELAY_MS)
+                for (request in upcoming) {
+                    val key = aheadKey(request, romanize)
+                    if (synchronized(shared) { shared.ahead.containsKey(key) }) continue
+                    val result = runCatching { lookUpNow(request, romanize, null) }
+                        .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+                        .getOrNull() as? Result.Found ?: continue
+                    synchronized(shared) {
+                        shared.ahead[key] = result to request.durationSeconds
+                        while (shared.ahead.size > AHEAD_MAX) shared.ahead.remove(shared.ahead.keys.first())
+                    }
+                }
+            }
+        }
+    }
+
+    private fun aheadKey(request: LyricsLookupRequest, romanize: Boolean) =
+        "${request.title.trim().lowercase()}\u0000${request.artist.trim().lowercase()}\u0000$romanize"
 
     private suspend fun lookUpNow(request: LyricsLookupRequest, romanize: Boolean, manualSpotifyId: String?): Result = withContext(Dispatchers.IO) {
         val folder = LyricsFolder(context, File(context.filesDir, "lyrics-folder-index.json"))
@@ -116,6 +153,9 @@ internal class BackgroundLyrics(context: Context) {
         val recent = LinkedHashMap<String, kotlinx.coroutines.Deferred<Result>>()
         val at = HashMap<String, Long>()
         val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+        /** Songs from the queue, found and rendered ahead, with their length in seconds. */
+        val ahead = LinkedHashMap<String, Pair<Result.Found, Int>>()
+        var aheadJob: kotlinx.coroutines.Job? = null
     }
 
     private companion object {
@@ -123,5 +163,7 @@ internal class BackgroundLyrics(context: Context) {
         /** A finished lookup is shared this long, then asked afresh. */
         const val SHARED_FOR_MS = 5 * 60_000L
         const val SHARED_MAX = 12
+        const val AHEAD_MAX = 4
+        const val AHEAD_START_DELAY_MS = 8_000L
     }
 }

@@ -251,8 +251,14 @@ internal fun MotionLyricsView(
     LaunchedEffect(holder, fadeBottom) {
         // The page runs its own clock between reports; four a second keeps seeks prompt.
         var tick = 0
+        var active = true
         while (true) {
-            if (visible()) SpicyBridge.motionPlayback(holder.inner, currentTimeMs(), playing)
+            val shown = visible()
+            if (shown != active) {
+                active = shown
+                SpicyBridge.motionActive(holder.inner, shown)
+            }
+            if (shown) SpicyBridge.motionPlayback(holder.inner, currentTimeMs(), playing)
             // Spicy's look, laid over the page again now and then (it may have reloaded).
             if (tick < 16 || tick % 8 == 0) SpicyBridge.motionLook(holder.inner, shadeNow, fadeNow)
             tick++
