@@ -94,6 +94,9 @@ Modified by Behnoud.
 - Keep the screen on **only while charging**.
 - **Scrobble to ListenBrainz** (off until switched on with your own token): each song heard half of, or four minutes of, from any player, sent when it ends; what can't be sent waits and goes with the next (`stats/Scrobbler.kt`, `ListenBrainz` in `:core`).
 
+- **Ready before it plays**: while a song plays, the next two in the player's queue are found and rendered in the background, so the wallpaper, overlay, always-on display and island show their lyrics the moment they start, with no lookup or parsing at the song change.
+- Motion lyrics pause their page (no frames, no timers) whenever they're off screen: a hidden wallpaper, overlay or always-on display costs nothing.
+
 ### Lyrics sources
 - **Live captions** (off by default): when no lyrics source has the song, the captions of its YouTube video, word-timed from YouTube's automatic captions and re-cut at sentence ends (`network/data/providers/YouTubeLiveCaptions.kt`). Turned on in Settings → Sources or from the no-lyrics notice, after a disclosure of what is sent.
 
