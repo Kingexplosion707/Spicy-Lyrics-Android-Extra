@@ -11,7 +11,7 @@
 
 # Source file / line numbers — keep stack traces useful after obfuscation.
 -keepattributes SourceFile,LineNumberTable,*Annotation*,Signature,InnerClasses,EnclosingMethod
--renamesourcefileattribute SourceFile
+# (-renamesourcefileattribute is a whole-app option, left to the app inside Spicy.)
 
 # ---------------------------------------------------------------------------
 # Kotlinx serialization
