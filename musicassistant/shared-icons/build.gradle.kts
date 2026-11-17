@@ -84,3 +84,9 @@ kotlin {
         }
     }
 }
+
+compose.resources {
+    publicResClass = true
+    // The package Music Assistant's own build gives it (from its root project's name).
+    packageOfResClass = "musicassistantclient.shared_icons.generated.resources"
+}
