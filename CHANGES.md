@@ -99,6 +99,9 @@ Modified by Behnoud.
 - **Ready before it plays**: while a song plays, the next two in the player's queue are found and rendered in the background, so the wallpaper, overlay, always-on display and island show their lyrics the moment they start, with no lookup or parsing at the song change.
 - Motion lyrics pause their page (no frames, no timers) whenever they're off screen: a hidden wallpaper, overlay or always-on display costs nothing.
 
+### Spotify desktop (`desktop/spicetify/`)
+- Spicy Lyrics Plus for the Spotify desktop app, as a Spicetify custom app with a Windows installer (`desktop-v*` releases): motion lyrics with every theme and Auto by genre, or word-by-word Spicy lyrics with background vocals and duets, from RMM Revival, Spotify's own lyrics and LRCLIB.
+
 ### Music Assistant (`musicassistant/`, `musicassistant/SpicyMusicAssistant.kt`)
 - The Music Assistant app inside Spicy: its library, search, players and queue, opened from a button among the lyrics screen's controls or Settings → Sources → Music Assistant. It starts only when first opened.
 - Its Spotify songs play through the Spotify account signed in here (`spotify/SpotifyPlayRoute.kt`, on by default): on this phone, straight in the Spotify app (started if needed) instead of streaming through the server; on another player, on the Spotify Connect device Music Assistant made for it, so Music Assistant still shows them playing. Anything else plays through Music Assistant as usual.
