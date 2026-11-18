@@ -30,7 +30,7 @@ internal val IN_BETWEEN_STATES = setOf(
 )
 
 /**
- * The session to follow among [sessions]: the one followed now ([currentToken]) while [stickiness]
+ * The session to follow among [sessions]: a searched song while it is up ([searched]), else the one followed now ([currentToken]) while [stickiness]
  * keeps it, else a playing local player over a playing remote mirror, else the one followed now,
  * else a local player, else any. The caller resets [stickiness] when the pick changes.
  */
@@ -39,7 +39,10 @@ internal fun bestSession(
     currentToken: MediaSession.Token?,
     stickiness: SessionStickiness,
     nowMs: Long,
+    /** A searched song's session ([SearchedSong]): while it is up it is followed, whatever plays. */
+    searched: MediaSession.Token? = SearchedSong.token,
 ): MediaController? {
+    searched?.let { token -> sessions.firstOrNull { it.sessionToken == token } }?.let { return it }
     val current = sessions.firstOrNull { it.sessionToken == currentToken }
     val kept = current?.takeIf {
         val state = it.playbackState?.state
