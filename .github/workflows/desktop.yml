@@ -1,0 +1,54 @@
+name: Desktop (Spicetify)
+
+# Builds the Spotify desktop app (desktop/spicetify) and its Windows installer, and publishes them
+# as a desktop-v* prerelease whenever the app, the motion page or the motion themes change on main.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "desktop/spicetify/**"
+      - "ivlyrics/src/main/assets/motion/**"
+      - "app/src/main/java/com/tx24/spicyplayer/ivlyrics/MotionThemes.kt"
+      - ".github/workflows/desktop.yml"
+  pull_request:
+    paths:
+      - "desktop/spicetify/**"
+      - ".github/workflows/desktop.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the app
+        working-directory: desktop/spicetify
+        run: |
+          python3 build.py
+          node --check dist/spicy-lyrics-plus/index.js
+      - name: Build the installer
+        working-directory: desktop/spicetify
+        run: |
+          sudo apt-get install -y -q nsis
+          VERSION="1.${GITHUB_RUN_NUMBER}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          (cd installer && makensis -V2 -DVERSION="$VERSION" setup.nsi)
+          (cd dist && zip -qr "spicy-lyrics-plus-$VERSION.zip" spicy-lyrics-plus)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spicy-lyrics-plus-desktop
+          path: desktop/spicetify/dist/*.*
+      - name: Publish
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: desktop/spicetify/dist
+        run: |
+          gh release create "desktop-v$VERSION" "SpicyLyricsPlus-Setup-$VERSION.exe" "spicy-lyrics-plus-$VERSION.zip" \
+            --target "$GITHUB_SHA" --prerelease --latest=false \
+            --title "Spicy Lyrics Plus for Spotify desktop $VERSION" \
+            --notes "Run SpicyLyricsPlus-Setup-$VERSION.exe with Spotify closed. It installs Spicetify if needed and adds Spicy Lyrics Plus to Spotify's sidebar. See desktop/spicetify/README.md."
