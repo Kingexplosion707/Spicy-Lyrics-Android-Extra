@@ -301,9 +301,36 @@ const SLP = (() => {
 		let id = choice;
 		if (choice === "Auto") {
 			const pool = (genre && SLP_GENRE_POOLS[genre]) || [];
-			id = pool.length ? pool[hash(uri) % pool.length] : "Classic";
+			// No genre found: still a different look per song, not Classic every time.
+			const all = SLP_THEMES.filter((theme) => theme.id !== "Auto" && theme.spec).map((theme) => theme.id);
+			const from = pool.length ? pool : all;
+			id = from.length ? from[hash(uri) % from.length] : "Classic";
 		}
 		return SLP_THEMES.find((theme) => theme.id === id) || SLP_THEMES.find((theme) => theme.id === "Classic");
+	}
+
+	/**
+	 * The song's genre when Apple Music doesn't have the song: the artist's genres on Spotify,
+	 * then the artist's main genre on Apple Music.
+	 */
+	async function artistGenre(track) {
+		if (track.artistId) {
+			try {
+				const artist = await getJson(`https://api.spotify.com/v1/artists/${track.artistId}`);
+				const genre = genreOf((artist?.genres || []).join(" "));
+				if (genre) return genre;
+			} catch {
+				// Next.
+			}
+		}
+		try {
+			const term = encodeURIComponent(track.artist);
+			const found = await getJson(`https://itunes.apple.com/search?entity=musicArtist&limit=5&term=${term}`);
+			const artist = (found?.results || []).find((item) => loose(item.artistName, track.artist));
+			return genreOf(artist?.primaryGenreName);
+		} catch {
+			return null;
+		}
 	}
 
 	// -------------------------------------------------------------------------------------
@@ -318,6 +345,7 @@ const SLP = (() => {
 		return {
 			uri: item.uri,
 			id: item.uri.startsWith("spotify:track:") ? item.uri.split(":")[2] : "",
+			artistId: (item.artists?.[0]?.uri || meta.artist_uri || "").split(":")[2] || "",
 			title: item.name || meta.title || "",
 			artist: (artists?.length ? artists[0] : meta.artist_name) || "",
 			artists: artists?.length ? artists.join(", ") : meta.artist_name || "",
@@ -407,7 +435,7 @@ const SLP = (() => {
 		return raw;
 	};
 
-	return { settings, lyricsFor, itunesSong, genreOf, themeFor, currentTrack, accentOf, coverUrl, joinWords, translate };
+	return { settings, lyricsFor, itunesSong, genreOf, artistGenre, themeFor, currentTrack, accentOf, coverUrl, joinWords, translate };
 })();
 
 // -----------------------------------------------------------------------------------------
@@ -744,14 +772,16 @@ function SpicyLyricsPlus() {
 		if (!track) return undefined;
 		(async () => {
 			let apple = null;
+			let genre = null;
 			try {
 				const found = await SLP.itunesSong(track);
 				apple = found.song;
-				const name = found.song?.primaryGenreName || found.artistSongs[0]?.primaryGenreName;
-				if (alive) setGenre(SLP.genreOf(name));
+				genre = SLP.genreOf(found.song?.primaryGenreName || found.artistSongs[0]?.primaryGenreName);
 			} catch {
-				// No genre: Auto plays Classic.
+				// Ask about the artist instead.
 			}
+			if (!genre) genre = await SLP.artistGenre(track);
+			if (alive) setGenre(genre);
 			SLP.accentOf(track.uri, SLP.coverUrl(track.cover)).then((hex) => alive && setAccent(hex));
 			const found = await SLP.lyricsFor(track, apple);
 			if (alive) setLyrics(found);
