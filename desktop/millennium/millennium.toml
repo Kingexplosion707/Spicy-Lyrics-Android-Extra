@@ -1,7 +1,7 @@
 [plugin]
 id = "spicy-lyrics-plus"
 name = "Spicy Lyrics Plus"
-version = "1.1.0"
+version = "1.2.0"
 author = "Spicy Lyrics Plus"
 description = "Spicy-style word-by-word lyrics for what plays on your PC (Spotify first), in a panel inside Steam."
 

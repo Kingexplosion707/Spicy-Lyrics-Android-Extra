@@ -14,7 +14,21 @@ const nowPlaying = () => call(() => backend.now_playing(), 8000);
 const control = (command: string) => call(() => backend.control(command));
 const fetchText = (url: string) => call(() => backend.fetch_text(url), 20000);
 
+/**
+ * A lyrics host's answer: straight from Steam's window (the hosts allow it), else through the
+ * backend, so a busy backend never holds lyrics up.
+ */
 const fetcher = async (url: string) => {
+	try {
+		const controller = new AbortController();
+		const timer = setTimeout(() => controller.abort(), 10000);
+		const response = await fetch(url, { signal: controller.signal });
+		clearTimeout(timer);
+		if (response.ok) return await response.text();
+		if (response.status === 404) return '';
+	} catch {
+		// Blocked or offline here: try the backend.
+	}
 	try {
 		return (await fetchText(url)) || '';
 	} catch {

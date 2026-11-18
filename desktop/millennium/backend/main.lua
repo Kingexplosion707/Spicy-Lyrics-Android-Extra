@@ -16,6 +16,7 @@ local STATE_FILE = TEMP .. "\\spicy-steam-nowplaying.json"
 local COMMAND_FILE = TEMP .. "\\spicy-steam-command.txt"
 local HELPER_FILE = TEMP .. "\\spicy-steam-helper.ps1"
 local ONESHOT_FILE = TEMP .. "\\spicy-steam-read.ps1"
+local LAUNCHER_FILE = TEMP .. "\\spicy-steam-start.ps1"
 
 -- The part both scripts share: load Windows' media API and read the session playing.
 local COMMON = [==[
@@ -93,9 +94,9 @@ local HELPER = [==[
 $created = $false
 $mutex = New-Object System.Threading.Mutex($true, 'Local\SpicyLyricsSteamHelper2', [ref]$created)
 if (-not $created) { exit }
-$script:stateFile = Join-Path $env:TEMP 'spicy-steam-nowplaying.json'
+$script:stateFile = Join-Path $PSScriptRoot 'spicy-steam-nowplaying.json'
 ]==] .. COMMON .. [==[
-$command = Join-Path $env:TEMP 'spicy-steam-command.txt'
+$command = Join-Path $PSScriptRoot 'spicy-steam-command.txt'
 $tick = 0
 while ($true) {
   $tick++
@@ -132,17 +133,29 @@ local ALLOWED_HOSTS = {
 local helper_started_at = 0
 
 local function start_helper()
+    helper_started_at = utils.time()
     local ok = utils.write_file(HELPER_FILE, HELPER)
     if not ok then
         logger:error("Couldn't write the now-playing helper")
         return
     end
-    -- Start-Process (ShellExecute) leaves the helper detached, so this returns at once.
-    local launch = string.format(
-        'powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "Start-Process powershell.exe -WindowStyle Hidden -ArgumentList \'-NoProfile\',\'-ExecutionPolicy\',\'Bypass\',\'-WindowStyle\',\'Hidden\',\'-File\',\'%s\'"',
-        HELPER_FILE)
-    utils.exec(launch)
-    helper_started_at = utils.time()
+    -- Started through WMI, so it runs on its own (outside this backend's process tree, which may
+    -- be ended or limited), with Start-Process as a second try; a mutex keeps one running.
+    local launcher = [==[
+$helper = Join-Path $env:TEMP 'spicy-steam-helper.ps1'
+$line = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $helper + '"'
+try {
+  $si = New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ ShowWindow = [uint16]0 }
+  $null = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $line; ProcessStartupInformation = $si }
+} catch {}
+Start-Sleep -Milliseconds 1500
+$running = Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*spicy-steam-helper*' }
+if (-not $running) {
+  Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', ('"' + $helper + '"'))
+}
+]==]
+    utils.write_file(LAUNCHER_FILE, launcher)
+    utils.exec(string.format('powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%s"', LAUNCHER_FILE))
 end
 
 local last_oneshot_at = 0
