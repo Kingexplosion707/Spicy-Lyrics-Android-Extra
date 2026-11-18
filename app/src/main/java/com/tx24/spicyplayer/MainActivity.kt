@@ -16,6 +16,7 @@ import com.tx24.spicyplayer.ui.share.ShareLyricsModal
 import com.tx24.spicyplayer.ui.sleep.SleepTimerModal
 import com.tx24.spicyplayer.playback.SleepTimerService
 import com.tx24.spicyplayer.lyrics.rememberLyricsTint
+import com.tx24.spicyplayer.ui.spotifysearch.LyricsSearchModal
 import com.tx24.spicyplayer.ui.spotifysearch.SpotifySearchModal
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.drawBehind
@@ -832,6 +833,7 @@ private fun LyricsApp(
     var showQuickSettings by remember { mutableStateOf(false) }
     var quickStart by remember { mutableStateOf(QuickScreen.Main) }
     var showSpotifySearch by remember { mutableStateOf(false) }
+    var showLyricsSearch by remember { mutableStateOf(false) }
     var showShareLyrics by remember { mutableStateOf(false) }
     var showSleepTimer by remember { mutableStateOf(false) }
     // Over the lock screen the lyrics can be read and played without unlocking. Anything opened
@@ -862,6 +864,7 @@ private fun LyricsApp(
                 showLyricsManager = false
                 showQuickSettings = false
                 showSpotifySearch = false
+                showLyricsSearch = false
                 showShareLyrics = false
                 showSleepTimer = false
             }
@@ -875,6 +878,7 @@ private fun LyricsApp(
             report = { debugReport(context, viewModel.state.value) },
             onSearchSpotify = { whenUnlocked { showSpotifySearch = true } },
             onLiveCaptions = { viewModel.setLiveCaptions(true) }.takeIf { !state.liveCaptions },
+            onSearchLyrics = { whenUnlocked { showLyricsSearch = true } },
         )
     }
     // Leaving the app only shrinks the lyrics when nothing else is half done in front of them.
@@ -888,6 +892,7 @@ private fun LyricsApp(
             showLyricsManager = false
             showQuickSettings = false
             showSpotifySearch = false
+            showLyricsSearch = false
             showShareLyrics = false
             showSleepTimer = false
         }
@@ -916,14 +921,14 @@ private fun LyricsApp(
         (headerExpanded && !landscape && shownPortrait !is StagePicture.Canvas) || !settings.autoHideControls
     val idleMs = settings.controlsHideDelay.millis
     // A key (remote, keyboard, gamepad) counts as a touch; a screen over the lyrics counts as shown.
-    SideEffect { keyInput.controlsShown = { controlsVisible || showSettings || showQuickSettings || showSpotifySearch } }
+    SideEffect { keyInput.controlsShown = { controlsVisible || showSettings || showQuickSettings || showSpotifySearch || showLyricsSearch } }
     // While something is open over the lyrics screen, a remote's arrows stay in it: the screen
     // underneath takes no focus, and gives up what it had as the overlay opens.
-    val overSettings = showSpotifySearch || showLyricsManager
+    val overSettings = showSpotifySearch || showLyricsManager || showLyricsSearch
     val overlayOpen = showSettings || showQuickSettings || overSettings || showShareLyrics || showSleepTimer ||
         lyricsViewState.profileRequest != null || state.limitNotice != null
     // Whichever is on top: one opened from settings takes the focus from them too.
-    val topOverlay = listOf(showSpotifySearch, showLyricsManager, showQuickSettings, showSettings, overlayOpen).indexOf(true)
+    val topOverlay = listOf(showSpotifySearch || showLyricsSearch, showLyricsManager, showQuickSettings, showSettings, overlayOpen).indexOf(true)
     val focusManager = LocalFocusManager.current
     LaunchedEffect(topOverlay) { if (topOverlay >= 0) focusManager.clearFocus(force = true) }
     LaunchedEffect(keyInput) {
@@ -1841,6 +1846,7 @@ private fun LyricsApp(
             backdrop = backdrop,
             startOn = quickStart,
             onDismiss = { showQuickSettings = false },
+            onSearchLyrics = { showQuickSettings = false; whenUnlocked { showLyricsSearch = true } },
         )
 
         // Kept through the closing animation, after the view model has cleared it.
@@ -1905,6 +1911,15 @@ private fun LyricsApp(
             viewModel = viewModel,
             backdrop = backdrop,
             onDismissRequest = { showSpotifySearch = false },
+        )
+
+        // Lyrics search: a song followed with no player, from the waiting notice or quick settings.
+        LyricsSearchModal(
+            visible = showLyricsSearch,
+            title = if (state.lyrics is LyricsState.Idle) "" else state.title,
+            artist = if (state.lyrics is LyricsState.Idle) "" else state.artist,
+            backdrop = backdrop,
+            onDismissRequest = { showLyricsSearch = false },
         )
 
         // Over settings, where sources are switched on. Kept through the closing animation.
@@ -2532,7 +2547,14 @@ private fun LyricsPanelContent(
     wordByWord: Boolean = false,
 ) {
     when (lyrics) {
-        LyricsState.Idle -> LyricsNotice("Waiting for a song", modifier.lyricsTint(tint), bottomPx = noticeBottomPx, compact = noticeActions == null)
+        LyricsState.Idle -> LyricsNotice(
+            "Waiting for a song",
+            modifier.lyricsTint(tint),
+            body = if (noticeActions?.onSearchLyrics != null) "Play something, or search for a song's lyrics to follow them with nothing playing." else null,
+            actions = noticeActions,
+            bottomPx = noticeBottomPx,
+            compact = noticeActions == null,
+        )
         LyricsState.Loading -> Unit
         is LyricsState.Error -> LyricsNotice(lyrics, noticeActions, noticeBottomPx, modifier.lyricsTint(tint))
         is LyricsState.Ready -> {

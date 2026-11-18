@@ -86,6 +86,8 @@ internal class NoticeActions(
     val onSearchSpotify: () -> Unit,
     /** Switches live captions on; null while they're on already. */
     val onLiveCaptions: (() -> Unit)? = null,
+    /** Opens lyrics search, offered while nothing is playing; null where it can't open. */
+    val onSearchLyrics: (() -> Unit)? = null,
 )
 
 /** [error]'s notice; compact (title and a short detail, no buttons) without [actions]. */
@@ -209,6 +211,13 @@ internal fun LyricsNotice(
                     }
                     if (kind != null && actions != null) {
                         NoticeButtons(kind, code, detail, actions, bodySp, em, narrow)
+                    }
+                    // Nothing playing: a song's lyrics can be followed without a player.
+                    val searchLyrics = actions?.onSearchLyrics
+                    if (kind == null && searchLyrics != null) {
+                        Box(Modifier.padding(top = em * 1.6f)) {
+                            NoticeButton("Search lyrics", Icons.Rounded.Search, searchLyrics, primary = true, bodySp)
+                        }
                     }
                     if (kind != null && kind.report) {
                         Text(

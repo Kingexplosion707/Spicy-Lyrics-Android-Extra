@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -51,6 +52,8 @@ fun QuickSettingsModal(
     /** The screen it opens on: the queue's and the source's own floating buttons open theirs. */
     startOn: QuickScreen = QuickScreen.Main,
     onDismiss: () -> Unit,
+    /** Opens lyrics search (a song followed with no player); null leaves its row out. */
+    onSearchLyrics: (() -> Unit)? = null,
 ) {
     var screen by remember { mutableStateOf(QuickScreen.Main) }
     var uploading by remember { mutableStateOf(false) }
@@ -100,7 +103,7 @@ fun QuickSettingsModal(
         ) { shown ->
             Column(verticalArrangement = Arrangement.spacedBy(SpicySpacing.S3)) {
                 when (shown) {
-                    QuickScreen.Main -> MainScreen(state, viewModel, settings.quickDelays, ::open, settings.quickVolume)
+                    QuickScreen.Main -> MainScreen(state, viewModel, settings.quickDelays, ::open, settings.quickVolume, onSearchLyrics)
                     // Its own height: the list scrolls inside the pop-up's body.
                     QuickScreen.Queue -> QueueList(state, viewModel, onJumped = onDismiss, modifier = Modifier.height(QUEUE_HEIGHT))
                     QuickScreen.LyricsManager -> LyricsManagerContent(state, viewModel, settings, uploading, { uploading = it }, onDismiss)
@@ -112,7 +115,14 @@ fun QuickSettingsModal(
 }
 
 @Composable
-private fun MainScreen(state: PlayerUiState, viewModel: ExternalPlaybackViewModel, delays: Set<DelayKind>, open: (QuickScreen) -> Unit, volume: Boolean) {
+private fun MainScreen(
+    state: PlayerUiState,
+    viewModel: ExternalPlaybackViewModel,
+    delays: Set<DelayKind>,
+    open: (QuickScreen) -> Unit,
+    volume: Boolean,
+    onSearchLyrics: (() -> Unit)?,
+) {
     // The screens this opens share one compact card, so the settings tuned right here keep the room.
     Column(Modifier.fillMaxWidth().outlinedCard()) {
         if (state.queue.isNotEmpty()) {
@@ -136,6 +146,10 @@ private fun MainScreen(state: PlayerUiState, viewModel: ExternalPlaybackViewMode
             GroupDivider()
         }
         GroupRow(SpicyGlyphs.LyricsManager, "Lyrics Manager", "Save or upload lyrics, link a folder") { open(QuickScreen.LyricsManager) }
+        if (onSearchLyrics != null) {
+            GroupDivider()
+            GroupRow(Icons.Rounded.Search, "Search lyrics", "Find a song by title and artist, with no player", onClick = onSearchLyrics)
+        }
     }
     LyricsLanguageRow(state, viewModel)
     if (volume) QuickVolumeRow()
