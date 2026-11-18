@@ -25,7 +25,7 @@ BrandingText "Spicy Lyrics Plus ${VERSION}"
 !define MUI_ICON "${NSISDIR}\Contrib\Graphics\Icons\modern-install.ico"
 !define MUI_UNICON "${NSISDIR}\Contrib\Graphics\Icons\modern-uninstall.ico"
 !define MUI_WELCOMEPAGE_TITLE "Spicy Lyrics Plus for Spotify"
-!define MUI_WELCOMEPAGE_TEXT "This puts Spicy Lyrics Plus inside the Spotify desktop app: motion lyrics with all their themes, and word-by-word Spicy lyrics.$\r$\n$\r$\nIt uses Spicetify. If Spicetify isn't installed, a window opens to install it: answer its questions there (the Marketplace is optional).$\r$\n$\r$\nSpotify must be the version from spotify.com, not the Microsoft Store one. Close Spotify before going on."
+!define MUI_WELCOMEPAGE_TEXT "This puts Spicy Lyrics Plus inside the Spotify desktop app (motion lyrics with all their themes, word-by-word lyrics, translations), and the official Spicy Lyrics extension with it.$\r$\n$\r$\nIt uses Spicetify. If Spicetify isn't installed, a window opens to install it: answer its questions there (the Marketplace is optional).$\r$\n$\r$\nSpotify must be the version from spotify.com, not the Microsoft Store one. Close Spotify before going on."
 !define MUI_FINISHPAGE_TITLE "Done"
 !define MUI_FINISHPAGE_TEXT "Open Spotify: Spicy Lyrics Plus is in the left sidebar (or the top bar).$\r$\n$\r$\nAfter a Spotify update, run this installer again (or run: spicetify backup apply)."
 !insertmacro MUI_PAGE_WELCOME
@@ -66,8 +66,17 @@ Section "Install"
   File "${APPDIR}\manifest.json"
   WriteUninstaller "$INSTDIR\Uninstall Spicy Lyrics Plus.exe"
 
+  ; The official Spicy Lyrics extension too (github.com/Spikerko/spicy-lyrics, AGPL-3.0): its
+  ; loader, which always fetches its latest release. Spicy Lyrics Plus opens it from its toolbar.
+  DetailPrint "Adding the official Spicy Lyrics extension..."
+  SetOutPath "$APPDATA\spicetify\Extensions"
+  File "spicy-lyrics.mjs"
+  SetOutPath "$INSTDIR"
+
   DetailPrint "Adding it to Spotify..."
   nsExec::ExecToLog '"$Spicetify" config custom_apps spicy-lyrics-plus'
+  Pop $1
+  nsExec::ExecToLog '"$Spicetify" config extensions spicy-lyrics.mjs'
   Pop $1
   nsExec::ExecToLog '"$Spicetify" backup apply'
   Pop $0

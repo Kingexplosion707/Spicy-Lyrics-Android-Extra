@@ -4,6 +4,9 @@ A [Spicetify](https://spicetify.app) custom app: Spicy Lyrics Plus inside the Sp
 
 - **Motion**: the phone app's motion lyrics page, with every motion theme; Auto picks one by the song's genre (iTunes), the same one every time for a song. The shade slider sets its dark scrim.
 - **Spicy**: word-by-word lyrics, each word filling in as it's sung, background vocals under their line, duet lines on the other side. Click a line to jump there.
+- **Translations** into a dozen languages (Google Translate), under each line and in motion lyrics.
+- A lyrics offset, text size, full screen, and the cover (moved by the motion camera) or the cover's colours behind everything.
+- The installer adds the official [Spicy Lyrics](https://github.com/Spikerko/spicy-lyrics) extension (AGPL-3.0) too; the toolbar's "Spicy Lyrics ↗" opens it.
 - Lyrics from RMM Revival (Apple Music and Spicy Lyrics syncs, word by word), Spotify's own lyrics, then LRCLIB. Line-timed lyrics get word timing spread over each line.
 
 ## Install
