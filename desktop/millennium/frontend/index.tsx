@@ -1,16 +1,34 @@
 // Spicy Lyrics Plus for Steam: Spicy-style word-by-word lyrics for whatever plays on the PC
 // (Spotify first), in a floating panel inside the Steam window.
 
-import { definePlugin, ffi, Millennium } from 'millennium';
+import { definePlugin, Millennium } from 'millennium';
 import { useState } from 'react';
 import { leadArtist, Lyrics, lyricsFor, translate } from './lyrics';
 import { NowPlaying, Panel, settings } from './panel';
 
-const nowPlaying = ffi<[], string>('now_playing');
-const control = ffi<[string], boolean>('control');
-const fetchText = ffi<[string], string>('fetch_text');
+// Calls into backend/main.lua (its ---@ffi functions), each given up after a while so a stuck
+// backend shows up as a message instead of a panel that never changes.
+const call = <T,>(run: () => Promise<T>, ms = 15000): Promise<T> =>
+	Promise.race([run(), new Promise<T>((_, reject) => setTimeout(() => reject(new Error('the plugin backend did not answer')), ms))]);
+const nowPlaying = () => call(() => backend.now_playing(), 8000);
+const control = (command: string) => call(() => backend.control(command));
+const fetchText = (url: string) => call(() => backend.fetch_text(url), 20000);
 
+/**
+ * A lyrics host's answer: straight from Steam's window (the hosts allow it), else through the
+ * backend, so a busy backend never holds lyrics up.
+ */
 const fetcher = async (url: string) => {
+	try {
+		const controller = new AbortController();
+		const timer = setTimeout(() => controller.abort(), 10000);
+		const response = await fetch(url, { signal: controller.signal });
+		clearTimeout(timer);
+		if (response.ok) return await response.text();
+		if (response.status === 404) return '';
+	} catch {
+		// Blocked or offline here: try the backend.
+	}
 	try {
 		return (await fetchText(url)) || '';
 	} catch {
@@ -36,6 +54,7 @@ let songKey = '';
 let lyrics: Lyrics | null = null;
 let translation: string[] | null = null;
 let polling = 0;
+let lastMessage = '';
 
 const each = (fn: (panel: Panel) => void) => {
 	for (const panel of Array.from(panels)) {
@@ -80,20 +99,30 @@ async function loadLyrics(key: string, state: State) {
 }
 
 async function poll() {
-	let state: State = {};
+	let state: State & { error?: string; sessions?: number } = {};
+	let problem = '';
 	try {
-		state = JSON.parse((await nowPlaying()) || '{}');
-	} catch {
-		state = {};
+		const text = await nowPlaying();
+		state = typeof text === 'string' ? JSON.parse(text || '{}') : (text as any) || {};
+	} catch (error) {
+		problem = `Couldn't get what's playing: ${(error as Error)?.message || error}`;
 	}
+	if (state.error) problem = state.error;
 	if (!state.title) {
-		if (now) {
+		const message =
+			problem ||
+			(state.sessions === 0
+				? 'Nothing is playing. Play something in Spotify (or any player that shows in Windows’ media controls).'
+				: 'Play something in Spotify and its lyrics show here.');
+		if (now || message !== lastMessage) {
 			now = null;
 			songKey = '';
-			each((panel) => panel.setNowPlaying(null));
+			lastMessage = message;
+			each((panel) => panel.setNowPlaying(null, message));
 		}
 		return;
 	}
+	lastMessage = '';
 	const anchor = state.positionMs || 0;
 	const at = state.updatedAt && state.updatedAt > 0 ? state.updatedAt : state.now || Date.now();
 	const duration = state.durationMs || 0;
@@ -146,7 +175,7 @@ function attach(popup: any) {
 			setTranslation: (target) => applyTranslation(target),
 		});
 		panels.add(panel);
-		panel.setNowPlaying(now);
+		panel.setNowPlaying(now, lastMessage);
 		if (lyrics) panel.setLyrics(lyrics, translation);
 		startPolling();
 	} catch (error) {

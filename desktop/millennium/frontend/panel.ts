@@ -42,58 +42,90 @@ export const settings = {
 };
 
 const CSS = `
-#slp-root{position:fixed;z-index:99999;right:24px;bottom:24px;width:420px;height:540px;min-width:300px;min-height:260px;display:none;flex-direction:column;overflow:hidden;color:#fff;border-radius:18px;background:#0b0b10;box-shadow:0 24px 64px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.08);resize:both;font-family:"Motiva Sans","Segoe UI",Arial,sans-serif;user-select:none}
+#slp-root{--slp-accent:#8b8bff;position:fixed;z-index:99999;right:24px;bottom:24px;width:400px;height:560px;min-width:300px;min-height:300px;display:none;flex-direction:column;overflow:hidden;color:#fff;border-radius:22px;background:rgba(16,16,22,.78);backdrop-filter:blur(28px) saturate(1.4);box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 0 0 1px rgba(255,255,255,.09);resize:both;font-family:"Motiva Sans","Segoe UI",Arial,sans-serif;user-select:none;animation:slp-in .28s cubic-bezier(.2,.8,.2,1)}
 #slp-root.slp-open{display:flex}
-#slp-root.slp-expanded{inset:40px 24px 24px 24px!important;width:auto!important;height:auto!important;resize:none;border-radius:14px}
-#slp-root .slp-bgimg{position:absolute;inset:-30%;background-size:cover;background-position:center;filter:blur(60px) saturate(1.6) brightness(.55);transform:scale(1.2);animation:slp-drift 40s ease-in-out infinite alternate;transition:background-image .8s}
-#slp-root .slp-tint{position:absolute;inset:0;background:radial-gradient(120% 90% at 20% 10%,var(--slp-accent,#3a3a48) 0%,transparent 60%),linear-gradient(rgba(8,8,12,.25),rgba(8,8,12,.55));opacity:.6}
-@keyframes slp-drift{from{transform:scale(1.2) rotate(0deg)}to{transform:scale(1.35) rotate(12deg)}}
-#slp-root .slp-head{position:relative;z-index:2;display:flex;align-items:center;gap:10px;padding:12px 12px 8px 14px;cursor:grab}
-#slp-root.slp-expanded .slp-head{cursor:default}
-#slp-root .slp-cover{width:42px;height:42px;border-radius:8px;background:#222 center/cover;flex:none;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+@keyframes slp-in{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
+#slp-root.slp-expanded{inset:44px 28px 28px 28px!important;width:auto!important;height:auto!important;resize:none;border-radius:18px}
+#slp-root .slp-bgimg{position:absolute;inset:-35%;background-size:cover;background-position:center;filter:blur(70px) saturate(1.7) brightness(.62);opacity:0;transform:scale(1.2);animation:slp-drift 38s ease-in-out infinite alternate;transition:opacity 1s,background-image .8s}
+#slp-root.slp-hascover .slp-bgimg{opacity:1}
+#slp-root .slp-tint{position:absolute;inset:0;background:radial-gradient(110% 70% at 15% 0%,color-mix(in srgb,var(--slp-accent) 45%,transparent) 0%,transparent 60%),radial-gradient(90% 60% at 100% 100%,color-mix(in srgb,var(--slp-accent) 25%,transparent) 0%,transparent 70%),linear-gradient(rgba(10,10,14,.15),rgba(10,10,14,.6))}
+@keyframes slp-drift{from{transform:scale(1.2) rotate(0deg)}to{transform:scale(1.4) rotate(14deg)}}
+#slp-root .slp-head{position:relative;z-index:2;display:flex;align-items:center;gap:12px;padding:14px 14px 10px 16px;cursor:grab}
+#slp-root.slp-expanded .slp-head{cursor:default;padding:18px 20px 12px 22px}
+#slp-root .slp-cover{position:relative;width:50px;height:50px;border-radius:12px;flex:none;background:linear-gradient(135deg,color-mix(in srgb,var(--slp-accent) 70%,#222),#1a1a24) center/cover;box-shadow:0 8px 22px rgba(0,0,0,.45),inset 0 0 0 1px rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center}
+#slp-root .slp-cover svg{width:22px;height:22px;opacity:.8}
+#slp-root.slp-hascover .slp-cover svg{display:none}
 #slp-root .slp-meta{flex:1;min-width:0}
-#slp-root .slp-title{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#slp-root .slp-artist{font-size:12px;opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#slp-root .slp-btn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#fff;border-radius:999px;height:28px;min-width:28px;padding:0 9px;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:4px}
-#slp-root .slp-btn:hover{background:rgba(255,255,255,.18)}
+#slp-root .slp-title{font-weight:700;font-size:15px;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#slp-root .slp-artist{font-size:12.5px;color:rgba(255,255,255,.62);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+#slp-root .slp-btn{background:rgba(255,255,255,.07);border:0;color:#fff;border-radius:999px;height:30px;min-width:30px;padding:0 10px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:4px;transition:background .15s,transform .1s}
+#slp-root .slp-btn:hover{background:rgba(255,255,255,.16)}
+#slp-root .slp-btn:active{transform:scale(.94)}
+#slp-root .slp-btn svg{width:16px;height:16px;fill:currentColor}
+#slp-root .slp-head .slp-btn{padding:0;width:30px}
 #slp-root .slp-btn.slp-on{background:#fff;color:#000}
-#slp-root .slp-tools{position:relative;z-index:2;display:none;flex-wrap:wrap;gap:6px;padding:0 12px 8px 14px;align-items:center;font-size:11px}
+#slp-root .slp-tools{position:relative;z-index:2;display:none;flex-wrap:wrap;gap:6px;margin:0 14px 6px 16px;padding:8px;border-radius:14px;background:rgba(0,0,0,.25);align-items:center;font-size:11.5px}
 #slp-root.slp-showtools .slp-tools{display:flex}
-#slp-root .slp-tools select{background:rgba(0,0,0,.35);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:999px;height:26px;padding:0 8px;font-size:12px}
+#slp-root .slp-tools select{background:rgba(255,255,255,.07);color:#fff;border:0;border-radius:999px;height:30px;padding:0 10px;font-size:12px;font-weight:600}
 #slp-root .slp-tools select option{color:#000}
-#slp-root .slp-tools .slp-label{opacity:.7;margin-left:4px}
-#slp-root .slp-lyrics{position:relative;z-index:1;flex:1;overflow-y:auto;padding:38% 22px;scrollbar-width:none;-webkit-mask-image:linear-gradient(transparent,#000 16%,#000 84%,transparent)}
-#slp-root.slp-expanded .slp-lyrics{padding:30vh 7vw}
+#slp-root .slp-tools .slp-label{color:rgba(255,255,255,.55);margin-left:6px}
+#slp-root .slp-tools [data-el=offset]{min-width:44px;text-align:center;font-variant-numeric:tabular-nums}
+#slp-root .slp-lyrics{position:relative;z-index:1;flex:1;overflow-y:auto;padding:40% 24px;scrollbar-width:none;-webkit-mask-image:linear-gradient(transparent,#000 15%,#000 82%,transparent)}
+#slp-root.slp-expanded .slp-lyrics{padding:32vh 8vw}
 #slp-root .slp-lyrics::-webkit-scrollbar{display:none}
-#slp-root .slp-line{font-weight:800;line-height:1.2;letter-spacing:-.015em;margin:0 0 .6em;color:rgba(255,255,255,.38);cursor:pointer;transition:color .4s,filter .5s,transform .5s,opacity .5s;filter:blur(1.6px);transform-origin:left center;opacity:.85}
-#slp-root .slp-line:hover{filter:none;color:rgba(255,255,255,.7)}
-#slp-root .slp-line.slp-past{color:rgba(255,255,255,.55);filter:blur(1px)}
-#slp-root .slp-line.slp-active{filter:none;opacity:1;transform:scale(1.04)}
+#slp-root .slp-line{font-weight:800;line-height:1.18;letter-spacing:-.02em;margin:0 0 .62em;color:rgba(255,255,255,.34);cursor:pointer;transition:color .45s,filter .55s,transform .55s cubic-bezier(.2,.8,.2,1),opacity .5s;filter:blur(1.4px);transform-origin:left center}
+#slp-root .slp-line:hover{filter:none;color:rgba(255,255,255,.75)}
+#slp-root .slp-line.slp-past{color:rgba(255,255,255,.5);filter:blur(.9px)}
+#slp-root .slp-line.slp-active{filter:none;opacity:1;transform:scale(1.045)}
 #slp-root .slp-line.slp-opposite{text-align:right;transform-origin:right center}
-#slp-root .slp-word{display:inline-block;white-space:pre;background:linear-gradient(90deg,#fff var(--p,0%),rgba(255,255,255,.38) calc(var(--p,0%) + 12%));-webkit-background-clip:text;background-clip:text;color:transparent;transition:transform .12s linear}
+#slp-root .slp-word{display:inline-block;background:linear-gradient(90deg,#fff var(--p,0%),rgba(255,255,255,.34) calc(var(--p,0%) + 12%));-webkit-background-clip:text;background-clip:text;color:transparent;transition:transform .12s linear}
 #slp-root .slp-line:not(.slp-active) .slp-word{background:none;color:inherit}
-#slp-root .slp-word.slp-singing{filter:drop-shadow(0 0 calc(var(--slp-size) * .18) rgba(255,255,255,.45))}
-#slp-root .slp-word.slp-long{filter:drop-shadow(0 0 calc(var(--slp-size) * .3) var(--slp-glow,#fff))}
+#slp-root .slp-word.slp-singing{filter:drop-shadow(0 0 calc(var(--slp-size) * .2) rgba(255,255,255,.5))}
+#slp-root .slp-word.slp-long{filter:drop-shadow(0 0 calc(var(--slp-size) * .32) color-mix(in srgb,var(--slp-accent) 60%,#fff))}
 #slp-root .slp-bgv{font-size:.58em;font-weight:700;opacity:.85;margin-top:.15em}
 #slp-root .slp-tr{font-size:.5em;font-weight:600;color:rgba(255,255,255,.66);margin-top:.22em}
 #slp-root .slp-interlude{display:flex;gap:.35em;cursor:default;padding:.15em 0}
 #slp-root .slp-dot{width:.3em;height:.3em;border-radius:50%;background:#fff;box-shadow:0 0 12px rgba(255,255,255,.5);opacity:.35;transition:opacity .2s}
-#slp-root .slp-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 24px;font-size:15px;color:rgba(255,255,255,.75);z-index:1;pointer-events:none}
-#slp-root .slp-foot{position:relative;z-index:2;padding:6px 14px 12px}
-#slp-root .slp-bar{height:4px;border-radius:2px;background:rgba(255,255,255,.18);cursor:pointer;overflow:hidden}
-#slp-root .slp-fill{height:100%;width:0;background:#fff;border-radius:2px}
-#slp-root .slp-ctl{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:8px}
-#slp-root .slp-ctl .slp-btn{height:34px;min-width:34px;font-size:14px}
-#slp-root .slp-ctl .slp-play{height:40px;min-width:40px;background:#fff;color:#000;font-size:16px}
-#slp-root .slp-time{font-size:11px;opacity:.6;font-variant-numeric:tabular-nums;width:40px}
-#slp-root .slp-credit{font-size:10px;opacity:.45;text-align:center;margin-top:6px}
-#slp-pill{position:fixed;z-index:99998;right:24px;bottom:24px;display:none;align-items:center;gap:8px;max-width:320px;padding:7px 14px 7px 7px;border-radius:999px;background:rgba(18,18,24,.82);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.14);color:#fff;font:600 12px "Motiva Sans","Segoe UI",Arial,sans-serif;cursor:pointer;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+#slp-root .slp-empty{position:absolute;inset:80px 0 120px;display:flex;flex-direction:column;gap:18px;align-items:center;justify-content:center;text-align:center;padding:0 32px;font-size:14.5px;line-height:1.5;color:rgba(255,255,255,.78);z-index:1;pointer-events:none}
+#slp-root .slp-eq{display:flex;gap:5px;align-items:flex-end;height:34px}
+#slp-root .slp-eq i{display:block;width:6px;border-radius:3px;background:linear-gradient(#fff,color-mix(in srgb,var(--slp-accent) 70%,#fff));animation:slp-eq 1.1s ease-in-out infinite}
+#slp-root .slp-eq i:nth-child(2){animation-delay:-.3s}#slp-root .slp-eq i:nth-child(3){animation-delay:-.6s}#slp-root .slp-eq i:nth-child(4){animation-delay:-.15s}
+@keyframes slp-eq{0%,100%{height:8px}50%{height:34px}}
+#slp-root .slp-empty small{font-size:11.5px;color:rgba(255,255,255,.45)}
+#slp-root .slp-foot{position:relative;z-index:2;padding:8px 18px 14px}
+#slp-root .slp-bar{position:relative;height:5px;border-radius:3px;background:rgba(255,255,255,.16);cursor:pointer}
+#slp-root .slp-bar:hover{height:7px;margin-top:-1px;margin-bottom:-1px}
+#slp-root .slp-fill{position:relative;height:100%;width:0;border-radius:3px;background:linear-gradient(90deg,color-mix(in srgb,var(--slp-accent) 70%,#fff),#fff)}
+#slp-root .slp-fill::after{content:"";position:absolute;right:-6px;top:50%;width:12px;height:12px;margin-top:-6px;border-radius:50%;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.4);opacity:0;transition:opacity .15s}
+#slp-root .slp-bar:hover .slp-fill::after{opacity:1}
+#slp-root .slp-times{display:flex;justify-content:space-between;margin-top:7px;font-size:11px;color:rgba(255,255,255,.55);font-variant-numeric:tabular-nums}
+#slp-root .slp-ctl{display:flex;align-items:center;justify-content:center;gap:18px;margin-top:2px}
+#slp-root .slp-ctl .slp-btn{background:transparent;width:40px;height:40px;padding:0}
+#slp-root .slp-ctl .slp-btn:hover{background:rgba(255,255,255,.1)}
+#slp-root .slp-ctl .slp-btn svg{width:22px;height:22px}
+#slp-root .slp-ctl .slp-play{width:52px;height:52px;background:#fff;color:#0b0b10;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+#slp-root .slp-ctl .slp-play:hover{background:#fff;transform:scale(1.05)}
+#slp-root .slp-ctl .slp-play svg{width:24px;height:24px}
+#slp-root .slp-credit{font-size:10.5px;color:rgba(255,255,255,.4);text-align:center;margin-top:8px;min-height:13px}
+#slp-pill{position:fixed;z-index:99998;right:24px;bottom:24px;display:none;align-items:center;gap:10px;max-width:340px;padding:6px 16px 6px 6px;border-radius:999px;background:rgba(18,18,24,.8);backdrop-filter:blur(18px);box-shadow:0 12px 34px rgba(0,0,0,.5),inset 0 0 0 1px rgba(255,255,255,.1);color:#fff;font:600 12.5px "Motiva Sans","Segoe UI",Arial,sans-serif;cursor:pointer;transition:transform .15s}
+#slp-pill:hover{transform:translateY(-2px)}
 #slp-pill.slp-show{display:flex}
-#slp-pill .slp-cover{width:26px;height:26px;border-radius:50%;background:#333 center/cover;animation:slp-spin 8s linear infinite;flex:none}
+#slp-pill .slp-cover{width:30px;height:30px;border-radius:50%;background:#333 center/cover;animation:slp-spin 8s linear infinite;flex:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.15)}
 #slp-pill.slp-paused .slp-cover{animation-play-state:paused}
 #slp-pill span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 @keyframes slp-spin{to{transform:rotate(360deg)}}
 `;
+
+const ICON = {
+	note: '<svg viewBox="0 0 24 24" fill="#fff"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>',
+	more: '<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
+	expand: '<svg viewBox="0 0 24 24"><path d="M4 4h6v2H7.4l4.3 4.3-1.4 1.4L6 7.4V10H4V4zm16 16h-6v-2h2.6l-4.3-4.3 1.4-1.4 4.3 4.3V14h2v6z"/></svg>',
+	close: '<svg viewBox="0 0 24 24"><path d="M6.4 5 12 10.6 17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6 10.6 12 5 6.4z"/></svg>',
+	prev: '<svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM20 5v14L9.5 12z"/></svg>',
+	next: '<svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5l10.5 7L4 19z"/></svg>',
+	play: '<svg viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.6-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>',
+	pause: '<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></svg>',
+};
 
 const LANGS: [string, string][] = [
 	['', 'Off'],
@@ -190,30 +222,29 @@ export class Panel {
 		this.root.innerHTML = `
 			<div class="slp-bgimg"></div><div class="slp-tint"></div>
 			<div class="slp-head">
-				<div class="slp-cover"></div>
-				<div class="slp-meta"><div class="slp-title">Spicy Lyrics</div><div class="slp-artist">Play something in Spotify</div></div>
-				<button class="slp-btn" data-act="tools" title="Options">⋯</button>
-				<button class="slp-btn" data-act="expand" title="Expand (Ctrl+Shift+L to hide)">⤢</button>
-				<button class="slp-btn" data-act="close" title="Hide">✕</button>
+				<div class="slp-cover">${ICON.note}</div>
+				<div class="slp-meta"><div class="slp-title">Spicy Lyrics</div><div class="slp-artist">Waiting for music</div></div>
+				<button class="slp-btn" data-act="tools" title="Options">${ICON.more}</button>
+				<button class="slp-btn" data-act="expand" title="Fill the window">${ICON.expand}</button>
+				<button class="slp-btn" data-act="close" title="Hide (Ctrl+Shift+L)">${ICON.close}</button>
 			</div>
 			<div class="slp-tools">
 				<select data-act="translate" title="Translate"></select>
 				<span class="slp-label">Size</span>
 				<button class="slp-btn" data-act="smaller">A−</button><button class="slp-btn" data-act="bigger">A+</button>
 				<span class="slp-label">Sync</span>
-				<button class="slp-btn" data-act="earlier" title="Lyrics earlier">−</button><span data-el="offset">0.0s</span><button class="slp-btn" data-act="later" title="Lyrics later">+</button>
-				<button class="slp-btn" data-act="pill" title="Show the mini player when hidden">Mini</button>
+				<button class="slp-btn" data-act="earlier" title="Lyrics earlier">−</button><span data-el="offset">0.00s</span><button class="slp-btn" data-act="later" title="Lyrics later">+</button>
+				<button class="slp-btn" data-act="pill" title="Show a mini player when hidden">Mini player</button>
 			</div>
 			<div class="slp-lyrics"></div>
-			<div class="slp-empty"></div>
+			<div class="slp-empty"><div class="slp-eq"><i></i><i></i><i></i><i></i></div><div data-el="message"></div><small>Ctrl+Shift+L shows or hides this panel</small></div>
 			<div class="slp-foot">
 				<div class="slp-bar"><div class="slp-fill"></div></div>
+				<div class="slp-times"><span data-el="pos">0:00</span><span data-el="dur">0:00</span></div>
 				<div class="slp-ctl">
-					<span class="slp-time" data-el="pos">0:00</span>
-					<button class="slp-btn" data-act="previous">⏮</button>
-					<button class="slp-btn slp-play" data-act="toggle">▶</button>
-					<button class="slp-btn" data-act="next">⏭</button>
-					<span class="slp-time" data-el="dur" style="text-align:right">0:00</span>
+					<button class="slp-btn" data-act="previous" title="Previous">${ICON.prev}</button>
+					<button class="slp-btn slp-play" data-act="toggle" title="Play/pause">${ICON.play}</button>
+					<button class="slp-btn" data-act="next" title="Next">${ICON.next}</button>
 				</div>
 				<div class="slp-credit"></div>
 			</div>`;
@@ -391,20 +422,21 @@ export class Panel {
 	}
 
 	setStatus(text: string) {
-		this.els.empty.textContent = text;
+		this.els.message.textContent = text;
 		this.els.empty.style.display = text ? 'flex' : 'none';
 	}
 
-	setNowPlaying(now: NowPlaying | null) {
+	setNowPlaying(now: NowPlaying | null, message = '') {
 		this.now = now;
 		this.els.title.textContent = now?.title || 'Spicy Lyrics';
-		this.els.artist.textContent = now?.title ? now.artist : 'Play something in Spotify';
-		this.els.play.textContent = now?.playing ? '⏸' : '▶';
+		this.els.artist.textContent = now?.title ? now.artist : 'Waiting for music';
+		this.els.play.innerHTML = now?.playing ? ICON.pause : ICON.play;
 		this.els.dur.textContent = time(now?.durationMs || 0);
 		(this.pill.querySelector('span') as HTMLElement).textContent = now?.title ? `♪ ${now.title} · ${now.artist}` : '♪ Lyrics';
 		if (!now?.title) {
 			this.setLyrics(null);
-			this.setStatus('Play something in Spotify (or any player) and its lyrics show here.');
+			this.setStatus(message || 'Play something in Spotify and its lyrics show here.');
+			this.setCover('', '');
 		}
 		this.refreshPill();
 	}
@@ -417,6 +449,7 @@ export class Panel {
 			const css = src ? `url("${src}")` : '';
 			this.els.cover.style.backgroundImage = css;
 			this.els.bgimg.style.backgroundImage = css;
+			this.root.classList.toggle('slp-hascover', !!src);
 			(this.pill.querySelector('.slp-cover') as HTMLElement).style.backgroundImage = css;
 			accentOf(this.doc, src, (color) => {
 				this.root.style.setProperty('--slp-accent', color);
