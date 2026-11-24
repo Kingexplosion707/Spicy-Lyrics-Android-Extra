@@ -245,6 +245,25 @@ internal fun MotionLyricsView(
             if (shownTheme.spec == null) "" else shownTheme.name, shownTheme.json(),
         )
     }
+    // The viewer's comfort (Settings → Lyrics → Motion lyrics), followed as it changes.
+    val prefs = remember(context) { context.getSharedPreferences("ui", Context.MODE_PRIVATE) }
+    var comfort by remember(prefs) { mutableStateOf(MotionComfort.read(prefs)) }
+    DisposableEffect(prefs) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { changed, key ->
+            if (key == null || key in MotionComfort.KEYS) comfort = MotionComfort.read(changed)
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+    LaunchedEffect(holder, comfort) {
+        SpicyBridge.motionComfort(holder.inner, comfort.intensity.id, comfort.rotation.id, comfort.safe)
+    }
+    // "Direct again" asked for after this page was made.
+    val redirectsBefore = remember(holder) { MotionRedirect.requests.value }
+    val redirects by MotionRedirect.requests.collectAsState()
+    LaunchedEffect(holder, redirects) {
+        if (redirects != redirectsBefore) SpicyBridge.motionRedirect(holder.inner)
+    }
     val playing by rememberUpdatedState(isPlaying)
     val shadeNow by rememberUpdatedState(shade)
     val fadeNow by rememberUpdatedState(fadeBottom)

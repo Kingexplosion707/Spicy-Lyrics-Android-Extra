@@ -45,6 +45,14 @@ final class MotionLyricsSong {
     static String json(
             String uri, String title, String artist, String accentHex, String language, LyricsResult lyrics
     ) {
+        return json(uri, title, artist, accentHex, language, lyrics, "");
+    }
+
+    /** As above, with the album art's address (an http(s) image; its colours go to the AI director). */
+    static String json(
+            String uri, String title, String artist, String accentHex, String language, LyricsResult lyrics,
+            String coverUrl
+    ) {
         StringBuilder out = new StringBuilder(8192);
         out.append("{\"uri\":");
         string(out, uri);
@@ -56,6 +64,11 @@ final class MotionLyricsSong {
         string(out, accentHex);
         out.append(",\"language\":");
         string(out, language);
+        String cover = coverUrl == null ? "" : coverUrl.trim();
+        if (cover.startsWith("https://") || cover.startsWith("http://")) {
+            out.append(",\"cover\":");
+            string(out, cover);
+        }
         out.append(",\"lyrics\":[");
         if (lyrics != null && lyrics.karaoke) {
             boolean first = true;
@@ -82,6 +95,7 @@ final class MotionLyricsSong {
             string(out, line.translationText);
         }
         // The first lead part leads the line; the others sing with it (a duet partner is another lead).
+        // Without a part marked lead (only other voices, or unmarked parts) the first one sung leads.
         List<LyricsLine.VocalPart> sung = new ArrayList<>();
         LyricsLine.VocalPart lead = null;
         for (LyricsLine.VocalPart part : line.vocalParts) {
@@ -93,6 +107,9 @@ final class MotionLyricsSong {
             } else {
                 sung.add(part);
             }
+        }
+        if (lead == null && !sung.isEmpty()) {
+            lead = sung.remove(0);
         }
         if (lead != null) {
             out.append(",\"vocals\":{\"lead\":");

@@ -154,6 +154,7 @@ import androidx.compose.material.icons.rounded.Nightlight
 import androidx.compose.material.icons.rounded.BrightnessLow
 import androidx.compose.material.icons.rounded.SmartDisplay
 import androidx.compose.material.icons.rounded.Movie
+import androidx.compose.material.icons.rounded.FlashOff
 import androidx.compose.material.icons.rounded.CallMerge
 import androidx.compose.material.icons.rounded.RecordVoiceOver
 import androidx.compose.material.icons.rounded.Key
@@ -356,50 +357,14 @@ internal fun LyricsContent(state: PlayerUiState, viewModel: ExternalPlaybackView
         icon = Icons.Rounded.Movie,
     )
     if (settings.motionLyrics) {
-        ToggleRow(label = "Motion lyrics in the app", checked = settings.motionOnApp, onCheckedChange = { settings.motionOnApp = it },
-            description = "On the lyrics screen.", icon = Icons.Rounded.Movie)
-        ToggleRow(label = "Motion lyrics on the wallpaper", checked = settings.motionOnWallpaper, onCheckedChange = { settings.motionOnWallpaper = it },
-            description = "On the live wallpaper.", icon = Icons.Rounded.Movie)
-        ToggleRow(label = "Motion lyrics in the overlay", checked = settings.motionOnOverlay, onCheckedChange = { settings.motionOnOverlay = it },
-            description = "In the floating lyrics window.", icon = Icons.Rounded.Movie)
-        ToggleRow(label = "Motion lyrics on the always-on display", checked = settings.motionOnAod, onCheckedChange = { settings.motionOnAod = it },
-            description = "On Spicy's always-on display.", icon = Icons.Rounded.Movie)
-    }
-    if (settings.motionLyrics) {
-        SettingRow(
-            label = "Motion lyrics shade",
-            description = "How dark the shade behind motion lyrics is. 0 shows the background as it is.",
-            icon = Icons.Rounded.Contrast,
-            stacked = true,
-        ) {
-            SpicyBipolarSlider(
-                value = settings.motionShade,
-                range = 0..100,
-                step = 5,
-                onValueChange = { settings.motionShade = it },
-                default = 35,
-                unit = "%",
+        SubPageCard {
+            SubPageRow(
+                SettingsPage.MotionLyrics,
+                Icons.Rounded.Movie,
+                "${settings.motionTheme.label} theme · ${settings.motionIntensity.label.lowercase()} motion" +
+                    if (settings.motionSafe) " · photosensitivity-safe" else "",
             )
         }
-        SettingRow(
-            label = "Motion lyrics theme",
-            description = "The look of the moving type. Auto picks one by the song's genre: Street for hip-hop, Inferno for metal, Neon Night for dance and more.",
-            icon = Icons.Rounded.Palette,
-        ) {
-            SpicySelect(
-                value = settings.motionTheme.name,
-                options = com.tx24.spicyplayer.ivlyrics.MotionTheme.entries.map { it.name },
-                labels = com.tx24.spicyplayer.ivlyrics.MotionTheme.entries.map { it.label },
-                onChange = { settings.motionTheme = com.tx24.spicyplayer.ivlyrics.MotionTheme.valueOf(it) },
-            )
-        }
-        ToggleRow(
-            label = "Merge with Spicy's lyrics",
-            checked = settings.motionMerge,
-            onCheckedChange = { settings.motionMerge = it },
-            description = "Spicy's word-by-word lyrics, glow and all, show under the motion lyrics, each in its own space.",
-            icon = Icons.Rounded.Layers,
-        )
     }
     ToggleRow(
         label = "Word by word",
@@ -2317,5 +2282,93 @@ private fun SettingsBackupRows(viewModel: ExternalPlaybackViewModel, settings: A
     ) {
         // Some file managers label .json as plain text or as nothing in particular.
         SpicyButton("Restore", onClick = { import.launch(arrayOf("application/json", "text/*", "application/octet-stream")) })
+    }
+}
+
+/** Motion lyrics' own page (Lyrics › Motion lyrics): where they show, their look and the viewer's comfort. */
+@Composable
+internal fun MotionLyricsContent(settings: AppSettings) {
+    ToggleRow(label = "Motion lyrics in the app", checked = settings.motionOnApp, onCheckedChange = { settings.motionOnApp = it },
+        description = "On the lyrics screen.", icon = Icons.Rounded.Movie)
+    ToggleRow(label = "Motion lyrics on the wallpaper", checked = settings.motionOnWallpaper, onCheckedChange = { settings.motionOnWallpaper = it },
+        description = "On the live wallpaper.", icon = Icons.Rounded.Movie)
+    ToggleRow(label = "Motion lyrics in the overlay", checked = settings.motionOnOverlay, onCheckedChange = { settings.motionOnOverlay = it },
+        description = "In the floating lyrics window.", icon = Icons.Rounded.Movie)
+    ToggleRow(label = "Motion lyrics on the always-on display", checked = settings.motionOnAod, onCheckedChange = { settings.motionOnAod = it },
+        description = "On Spicy's always-on display.", icon = Icons.Rounded.Movie)
+    SettingRow(
+        label = "Motion lyrics shade",
+        description = "How dark the shade behind motion lyrics is. 0 shows the background as it is.",
+        icon = Icons.Rounded.Contrast,
+        stacked = true,
+    ) {
+        SpicyBipolarSlider(
+            value = settings.motionShade,
+            range = 0..100,
+            step = 5,
+            onValueChange = { settings.motionShade = it },
+            default = 35,
+            unit = "%",
+        )
+    }
+    SettingRow(
+        label = "Motion lyrics theme",
+        description = "The look of the moving type. Auto picks one by the song's genre: Street for hip-hop, Inferno for metal, Neon Night for dance and more.",
+        icon = Icons.Rounded.Palette,
+    ) {
+        SpicySelect(
+            value = settings.motionTheme.name,
+            options = com.tx24.spicyplayer.ivlyrics.MotionTheme.entries.map { it.name },
+            labels = com.tx24.spicyplayer.ivlyrics.MotionTheme.entries.map { it.label },
+            onChange = { settings.motionTheme = com.tx24.spicyplayer.ivlyrics.MotionTheme.valueOf(it) },
+        )
+    }
+    ToggleRow(
+        label = "Merge with Spicy's lyrics",
+        checked = settings.motionMerge,
+        onCheckedChange = { settings.motionMerge = it },
+        description = "Spicy's word-by-word lyrics, glow and all, show under the motion lyrics, each in its own space.",
+        icon = Icons.Rounded.Layers,
+    )
+    SettingsSection("Comfort") {
+        SettingRow(
+            label = "Motion intensity",
+            description = "How much the moving type and its camera move.",
+            icon = Icons.Rounded.Speed,
+        ) {
+            SpicySelect(
+                value = settings.motionIntensity.name,
+                options = com.tx24.spicyplayer.ivlyrics.MotionIntensity.entries.map { it.name },
+                labels = com.tx24.spicyplayer.ivlyrics.MotionIntensity.entries.map { it.label },
+                onChange = { settings.motionIntensity = com.tx24.spicyplayer.ivlyrics.MotionIntensity.valueOf(it) },
+            )
+        }
+        SettingRow(
+            label = "Camera rotation",
+            description = "How far the camera turns and tilts. Off keeps the lyrics upright.",
+            icon = Icons.Rounded.ScreenRotation,
+            searchDescription = "Screen rotation of motion lyrics. Full, gentle or off.",
+        ) {
+            SpicySelect(
+                value = settings.motionRotation.name,
+                options = com.tx24.spicyplayer.ivlyrics.MotionRotation.entries.map { it.name },
+                labels = com.tx24.spicyplayer.ivlyrics.MotionRotation.entries.map { it.label },
+                onChange = { settings.motionRotation = com.tx24.spicyplayer.ivlyrics.MotionRotation.valueOf(it) },
+            )
+        }
+        ToggleRow(
+            label = "Photosensitivity-safe",
+            checked = settings.motionSafe,
+            onCheckedChange = { settings.motionSafe = it },
+            description = "No flashes, flicker or sudden bright cuts in motion lyrics.",
+            icon = Icons.Rounded.FlashOff,
+        )
+    }
+    SettingRow(
+        label = "Direct again",
+        description = "A new edit of the playing song's motion lyrics, with other shots and effects.",
+        icon = Icons.Rounded.Refresh,
+    ) {
+        SpicyButton("Direct again", onClick = { com.tx24.spicyplayer.ivlyrics.MotionRedirect.request() })
     }
 }

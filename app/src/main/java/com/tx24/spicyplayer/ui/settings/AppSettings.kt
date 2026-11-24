@@ -73,6 +73,12 @@ class AppSettings(private val prefs: SharedPreferences) {
     var motionMerge by boolean("motionMerge", false)
     /** Motion lyrics' look ([com.tx24.spicyplayer.ivlyrics.MotionTheme]); Auto picks one by the song's genre. */
     var motionTheme by enum("motionTheme", com.tx24.spicyplayer.ivlyrics.MotionTheme.Auto)
+    /** How much motion lyrics move ([com.tx24.spicyplayer.ivlyrics.MotionComfort], read by every surface). */
+    var motionIntensity by enum(com.tx24.spicyplayer.ivlyrics.MotionComfort.INTENSITY, com.tx24.spicyplayer.ivlyrics.MotionIntensity.Normal)
+    /** How far motion lyrics' camera turns. */
+    var motionRotation by enum(com.tx24.spicyplayer.ivlyrics.MotionComfort.ROTATION, com.tx24.spicyplayer.ivlyrics.MotionRotation.Full)
+    /** Motion lyrics without flashes or flicker. */
+    var motionSafe by boolean(com.tx24.spicyplayer.ivlyrics.MotionComfort.SAFE, false)
     /** Line-timed songs light word by word on made-up word timing ([com.tx24.spicyplayer.lyrics.spicy.models.GeneratedWordTiming]). */
     var wordByWord by boolean("wordByWord", true)
     /** ivLyrics' vinyl player over the lyrics screen ([com.tx24.spicyplayer.ivlyrics.VinylMode]). */

@@ -175,6 +175,7 @@ internal enum class SettingsPage(
     ThisSong("This song"),
     Lyrics("Lyrics"),
     Fonts("Fonts", parent = Lyrics),
+    MotionLyrics("Motion lyrics", parent = Lyrics),
     Translation("Romanization & Translation"),
     ScrollSync("Scroll & Sync"),
     Background("Background"),
@@ -567,6 +568,7 @@ private fun PageContent(
         SettingsPage.Device -> DeviceContent(settings)
         SettingsPage.FloatingLyrics -> FloatingLyricsContent(settings)
         SettingsPage.Fonts -> FontGalleryContent(settings)
+        SettingsPage.MotionLyrics -> MotionLyricsContent(settings)
         SettingsPage.Wallpaper -> WallpaperSection(settings, titled = false)
         SettingsPage.BatterySaver -> BatterySaverContent(settings)
         SettingsPage.AlwaysOn -> AlwaysOnContent(settings)
@@ -663,6 +665,7 @@ private fun PageSkeleton(page: SettingsPage) {
         SettingsPage.Device -> SettingsSkeleton(rows = 39)
         SettingsPage.FloatingLyrics -> SettingsSkeleton(rows = 8)
         SettingsPage.Fonts -> SettingsSkeleton(rows = 12)
+        SettingsPage.MotionLyrics -> SettingsSkeleton(rows = 11)
         SettingsPage.Wallpaper -> SettingsSkeleton(rows = 12)
         SettingsPage.BatterySaver -> SettingsSkeleton(rows = 9)
         SettingsPage.AlwaysOn -> SettingsSkeleton(rows = 12)
