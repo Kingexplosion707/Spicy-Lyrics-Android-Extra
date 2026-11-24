@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -103,7 +104,7 @@ fun QuickSettingsModal(
         ) { shown ->
             Column(verticalArrangement = Arrangement.spacedBy(SpicySpacing.S3)) {
                 when (shown) {
-                    QuickScreen.Main -> MainScreen(state, viewModel, settings.quickDelays, ::open, settings.quickVolume, onSearchLyrics)
+                    QuickScreen.Main -> MainScreen(state, viewModel, settings.quickDelays, ::open, settings.quickVolume, onSearchLyrics, settings.motionLyrics && settings.motionOnApp)
                     // Its own height: the list scrolls inside the pop-up's body.
                     QuickScreen.Queue -> QueueList(state, viewModel, onJumped = onDismiss, modifier = Modifier.height(QUEUE_HEIGHT))
                     QuickScreen.LyricsManager -> LyricsManagerContent(state, viewModel, settings, uploading, { uploading = it }, onDismiss)
@@ -122,6 +123,8 @@ private fun MainScreen(
     open: (QuickScreen) -> Unit,
     volume: Boolean,
     onSearchLyrics: (() -> Unit)?,
+    /** Motion lyrics may be showing: offers "Direct again" for them. */
+    motion: Boolean = false,
 ) {
     // The screens this opens share one compact card, so the settings tuned right here keep the room.
     Column(Modifier.fillMaxWidth().outlinedCard()) {
@@ -149,6 +152,15 @@ private fun MainScreen(
         if (onSearchLyrics != null) {
             GroupDivider()
             GroupRow(Icons.Rounded.Search, "Search lyrics", "Find a song by title and artist, with no player", onClick = onSearchLyrics)
+        }
+        if (motion) {
+            GroupDivider()
+            GroupRow(
+                Icons.Rounded.Refresh,
+                "Direct again",
+                "A new edit of this song's motion lyrics",
+                onClick = { com.tx24.spicyplayer.ivlyrics.MotionRedirect.request() },
+            )
         }
     }
     LyricsLanguageRow(state, viewModel)

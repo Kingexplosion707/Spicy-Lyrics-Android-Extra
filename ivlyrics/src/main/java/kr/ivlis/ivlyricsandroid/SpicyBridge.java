@@ -228,11 +228,11 @@ public final class SpicyBridge {
         });
         view.setUiText("Close", "This song has no word timing", "", "");
         view.setAiAvailable(false);
-        // Its own touch layer and close button belong to ivLyrics' full-screen mode; the host has its own.
-        // Children: the page, a touch layer, the notice, the close button.
-        if (view.getChildCount() >= 4) {
-            view.removeViewAt(3);
-            view.removeViewAt(1);
+        // Its own touch layer, close and options buttons and options panel belong to ivLyrics'
+        // full-screen mode; the host has its own controls and settings (motionComfort, motionRedirect).
+        // Children: the page, a touch layer, the notice, the close button, the options button, its panel.
+        for (int index = view.getChildCount() - 1; index >= 1; index--) {
+            if (index != 2) view.removeViewAt(index);
         }
         view.show(false);
         return view;
@@ -323,6 +323,24 @@ public final class SpicyBridge {
         View page = ((ViewGroup) view).getChildAt(0);
         if (!(page instanceof WebView)) return;
         if (active) ((WebView) page).onResume(); else ((WebView) page).onPause();
+    }
+
+    /**
+     * The viewer's comfort, as ivLyrics' motion options panel sets it: [intensity] calm, normal or
+     * wild; camera [rotation] full, gentle or off; [safe] for the photosensitivity-safe mode
+     * (no flashes or flicker). Sent with the page's options; safe to call again with the same.
+     */
+    public static void motionComfort(View view, String intensity, String rotation, boolean safe) {
+        if (view instanceof MotionLyricsModeView) ((MotionLyricsModeView) view).setComfortChoice(intensity, rotation, safe);
+    }
+
+    /** "Direct again": the page composes the current song anew, as another built-in take. */
+    public static void motionRedirect(View view) {
+        if (!(view instanceof ViewGroup) || ((ViewGroup) view).getChildCount() == 0) return;
+        View page = ((ViewGroup) view).getChildAt(0);
+        if (!(page instanceof WebView)) return;
+        ((WebView) page).evaluateJavascript(
+                "window.ivLyricsMotionHost&&window.ivLyricsMotionHost.redirect&&window.ivLyricsMotionHost.redirect()", null);
     }
 
     public static void motionPlayback(View view, long positionMs, boolean playing) {
