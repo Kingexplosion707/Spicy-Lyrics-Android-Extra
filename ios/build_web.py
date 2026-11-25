@@ -26,8 +26,8 @@ def main():
     for name in ("react.production.min.js", "react-dom.production.min.js", "spicy-lyrics-plus.js", "page.css", "icon.png"):
         shutil.copy(app / name, WEB / name)
     for name in ("host-ios.js", "page-ios.css"):
-        shutil.copy(HERE / "web" / name, WEB / name)
-    shutil.copy(HERE / "web/page-ios.html", WEB / "index.html")
+        shutil.copy(HERE / "web-src" / name, WEB / name)
+    shutil.copy(HERE / "web-src/page-ios.html", WEB / "index.html")
 
     from PIL import Image
 
