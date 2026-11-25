@@ -795,7 +795,11 @@ function LoopVideo({ src, className }) {
 		video.muted = true;
 		let player = null;
 		let alive = true;
-		if (/\.m3u8(\?|$)/.test(src)) {
+		if (/\.m3u8(\?|$)/.test(src) && video.canPlayType("application/vnd.apple.mpegurl")) {
+			// Safari and the iOS app play HLS themselves.
+			video.src = src;
+			video.play().catch(() => {});
+		} else if (/\.m3u8(\?|$)/.test(src)) {
 			SLP.hls()
 				.then((Hls) => {
 					if (!alive) return;

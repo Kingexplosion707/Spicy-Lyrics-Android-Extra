@@ -60,7 +60,7 @@ def main():
     with tempfile.TemporaryDirectory() as tmp:
         npm_extract("ws@8.18.3", "package/", stage / "relay" / "node_modules" / "ws", tmp)
         npm_extract(f"node-win-x64@{NODE_VERSION}", "package/bin/node.exe", stage / "node" / "node.exe", tmp)
-    for f in ["start-relay.vbs", "setup.ps1", "stop-relay.ps1"]:
+    for f in ["start-relay.vbs", "setup.ps1", "stop-relay.ps1", "ensure-relay.ps1"]:
         shutil.copy(HERE / f, stage / f)
     shutil.copy(stage / "app" / "icon.ico", stage / "icon.ico")
 

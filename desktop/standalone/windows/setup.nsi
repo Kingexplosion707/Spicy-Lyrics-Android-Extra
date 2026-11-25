@@ -57,7 +57,7 @@ Section "Spicy Lyrics Plus app and relay (required)" SecApp
   CreateShortcut "$DESKTOP\Spicy Lyrics Plus.lnk" "$INSTDIR\Spicy Lyrics Plus.exe" "" "$INSTDIR\icon.ico"
   ; The relay starts with Windows so the wallpaper always knows what plays.
   CreateShortcut "$SMSTARTUP\Spicy Lyrics relay.lnk" "$SYSDIR\wscript.exe" '"$INSTDIR\start-relay.vbs"' "$INSTDIR\icon.ico"
-  Exec '"$SYSDIR\wscript.exe" "$INSTDIR\start-relay.vbs"'
+  nsExec::Exec 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\ensure-relay.ps1"'
 
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\SpicyLyricsPlusDesktop" "DisplayName" "Spicy Lyrics Plus"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\SpicyLyricsPlusDesktop" "DisplayVersion" "${VERSION}"

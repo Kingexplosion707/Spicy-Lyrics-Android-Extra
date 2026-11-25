@@ -16,9 +16,10 @@ VIAddVersionKey "FileVersion" "${VERSION}"
 VIAddVersionKey "LegalCopyright" "Spicy Lyrics Plus"
 
 Section
-  ; The relay tells the app (and the wallpaper) what plays; a second copy exits by itself.
-  Exec '"$SYSDIR\wscript.exe" "$EXEDIR\start-relay.vbs"'
-  Sleep 900
+  ; The relay tells the app (and the wallpaper) what plays. ensure-relay.ps1 starts it, and
+  ; replaces an older Live Lyrics relay that answers on the port without the app.
+  nsExec::Exec '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$EXEDIR\ensure-relay.ps1"'
+  Pop $1
   StrCpy $0 "$PROGRAMFILES32\Microsoft\Edge\Application\msedge.exe"
   IfFileExists $0 open
   StrCpy $0 "$PROGRAMFILES64\Microsoft\Edge\Application\msedge.exe"
