@@ -37,3 +37,7 @@ for (module in listOf("composeApp", "sendspin-kmp", "nav", "ui-utils", "shared-i
 }
 include(":musicassistant")
 project(":musicassistant").projectDir = file("musicassistant/androidApp")
+
+// The desktop app: the Android UI on Compose Multiplatform.
+include(":desktopApp")
+project(":desktopApp").projectDir = file("desktop/compose")

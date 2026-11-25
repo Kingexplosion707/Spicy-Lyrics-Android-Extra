@@ -1,0 +1,42 @@
+# Small desktop changes to shared :app files, applied when the desktop build copies them.
+# "## file" (under com/tx24/spicyplayer/), then pairs of "- text to find" and "+ its replacement".
+# A pair whose text is no longer found fails the build.
+
+## lyrics/spicy/canvas/kawarp/KawarpBackground.kt
+# A Skia runtime shader is rebuilt from its uniforms each frame.
+-     val shaderBrush = remember(shader) { ShaderBrush(shader) }
++
+-             drawRect(brush = shaderBrush)
++             drawRect(brush = ShaderBrush(shader.skia().asComposeShader()))
+- import androidx.compose.ui.graphics.ShaderBrush
++ import androidx.compose.ui.graphics.ShaderBrush\nimport androidx.compose.ui.graphics.asComposeShader
+
+# Android's Canvas over a Compose canvas: androidCanvas (a desktop helper) in place of nativeCanvas.
+## lyrics/spicy/canvas/DynamicBackgroundView.kt
+- import androidx.compose.ui.graphics.nativeCanvas
++ import androidx.compose.ui.graphics.androidCanvas
+- canvas.nativeCanvas
++ canvas.androidCanvas
+
+## ui/components/SpicyModal.kt
+- import androidx.compose.ui.graphics.nativeCanvas
++ import androidx.compose.ui.graphics.androidCanvas
+- canvas.nativeCanvas
++ canvas.androidCanvas
+
+## ui/nowplaying/CompactNowPlayingHeader.kt
+- import androidx.compose.ui.graphics.nativeCanvas
++ import androidx.compose.ui.graphics.androidCanvas
+- canvas.nativeCanvas
++ canvas.androidCanvas
+
+## wallpaper/WallpaperContent.kt
+- import androidx.compose.ui.graphics.nativeCanvas
++ import androidx.compose.ui.graphics.androidCanvas
+- c.nativeCanvas
++ c.androidCanvas
+
+## ui/nowplaying/SessionArtwork.kt
+# A resource the desktop doesn't have decodes to nothing: the fallback is a plain cover.
+-         SessionArtwork.of(bitmap).also { fallbacks[icon] = it }
++         SessionArtwork.of(bitmap ?: android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)).also { fallbacks[icon] = it }
