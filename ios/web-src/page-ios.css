@@ -11,6 +11,6 @@ html.slp-nothing #slp-empty { display: flex; }
 #slp-empty p { margin: 0; max-width: 300px; opacity: .7; font-size: 15px; line-height: 1.4; }
 #slp-empty button { margin-top: 18px; padding: 13px 22px; border: 0; border-radius: 999px; background: #fff; color: #111; font: 700 15px -apple-system, system-ui, sans-serif; }
 
-#slp-ios-gear { position: fixed; z-index: 45; top: calc(env(safe-area-inset-top) + 10px); right: calc(env(safe-area-inset-right) + 12px); width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 50%; color: #fff; background: rgba(255, 255, 255, .12); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); transition: opacity .3s; }
+#slp-ios-gear { position: fixed; z-index: 45; bottom: calc(env(safe-area-inset-bottom) + 10px); right: calc(env(safe-area-inset-right) + 12px); width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 50%; color: #fff; background: rgba(255, 255, 255, .12); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); transition: opacity .3s; }
 html.slp-nothing #slp-ios-gear, html:has(.slp-idle) #slp-ios-gear { opacity: 0; pointer-events: none; }
 html:has(.slp-idle) #slp-ios-gear { opacity: 0; }
