@@ -1,0 +1,16 @@
+{
+  "title": "Spicy Lyrics Plus",
+  "description": "Spicy Lyrics Plus as your wallpaper: motion lyrics with every theme, word-by-word lyrics, Spotify Canvas and animated covers, translation and romanization, the song beside the lyrics, playback controls.\n\nSettings: open the Spicy Lyrics Plus app (Start menu); every change shows here right away.\n\nInstall the app first: SpicyLyricsPlus-Desktop-Setup.exe from github.com/Kingexplosion707/Spicy-Lyrics-Android-Extra (it runs the relay that tells this wallpaper what plays, for Spotify and any other player).",
+  "type": "web",
+  "file": "index.html",
+  "preview": "preview.jpg",
+  "tags": ["Music"],
+  "visibility": "private",
+  "general": {
+    "supportsaudioprocessing": true,
+    "properties": {
+      "schemecolor": { "order": 0, "text": "ui_browse_properties_scheme_color", "type": "color", "value": "0.12 0.84 0.38" },
+      "settingsNote": { "order": 1, "text": "Settings live in the Spicy Lyrics Plus app (Start menu) and apply here instantly.", "type": "text" }
+    }
+  }
+}
