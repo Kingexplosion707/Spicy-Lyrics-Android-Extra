@@ -17,6 +17,7 @@ import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -53,10 +54,18 @@ import kotlinx.coroutines.flow.collect
  */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 fun main(args: Array<String>) {
-    // A second start hands its arguments (a Spotify sign-in's answer) to the running app and ends.
-    if (!SingleInstance.claim(args)) return
+    DesktopPlatform.detectWallpaper(args)
+    val wallpaper = DesktopPlatform.wallpaper
+    if (wallpaper) {
+        // Beside the app, not instead of it: the app keeps the settings and the single instance.
+        FilePreferences.readOnly = true
+        FilePreferences.watch()
+    } else {
+        // A second start hands its arguments (a Spotify sign-in's answer) to the running app and ends.
+        if (!SingleInstance.claim(args)) return
+        com.tx24.spicyplayer.desktop.platform.WindowsIntegration.register()
+    }
     System.setProperty("compose.interop.blending", "true")
-    com.tx24.spicyplayer.desktop.platform.WindowsIntegration.register()
     val app = DesktopPlatform.application
     com.tx24.spicyplayer.playback.CrashLog.install(app)
     val playback = ExternalPlaybackViewModel(app)
@@ -74,30 +83,42 @@ fun main(args: Array<String>) {
         val s = playback.state.value
         if (s.durationMs > 0) s.durationMs - playback.currentPositionMs() else null
     }
-    SingleInstance.onArguments = { DesktopLinks.handle(it) }
-    args.forEach(DesktopLinks::handle)
+    if (!wallpaper) {
+        SingleInstance.onArguments = { DesktopLinks.handle(it) }
+        args.forEach(DesktopLinks::handle)
+    }
 
     application(exitProcessOnExit = true) {
         val prefs = remember { app.getSharedPreferences("desktop", Context.MODE_PRIVATE) }
-        val windowState = rememberWindowState(
+        val windowState = if (wallpaper) {
+            // The whole main screen; Wallpaper Engine moves and sizes it from there.
+            val screen = java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().defaultScreenDevice.defaultConfiguration.bounds
+            rememberWindowState(
+                size = DpSize(screen.width.dp, screen.height.dp),
+                position = WindowPosition(screen.x.dp, screen.y.dp),
+            )
+        } else rememberWindowState(
             size = DpSize(prefs.getFloat("width", 1280f).dp, prefs.getFloat("height", 800f).dp),
             position = if (prefs.contains("x")) WindowPosition(prefs.getFloat("x", 0f).dp, prefs.getFloat("y", 0f).dp) else WindowPosition.PlatformDefault,
             placement = if (prefs.getBoolean("maximized", false)) WindowPlacement.Maximized else WindowPlacement.Floating,
         )
         var alwaysOnTop by remember { mutableStateOf(prefs.getBoolean("onTop", false)) }
         DesktopPlatform.onQuit = {
-            saveWindow(prefs, windowState)
+            if (!wallpaper) saveWindow(prefs, windowState)
             FilePreferences.flush()
             exitApplication()
         }
         Window(
             onCloseRequest = { DesktopPlatform.quit() },
             state = windowState,
-            title = "Spicy Lyrics Plus",
+            title = if (wallpaper) "Spicy Lyrics Plus Wallpaper" else "Spicy Lyrics Plus",
             icon = painterResource("icon.png"),
-            alwaysOnTop = alwaysOnTop,
+            undecorated = wallpaper,
+            resizable = !wallpaper,
+            alwaysOnTop = alwaysOnTop && !wallpaper,
             onPreviewKeyEvent = { event ->
                 when {
+                    wallpaper -> false
                     event.type == KeyEventType.KeyDown && event.key == Key.Escape -> BackDispatcher.back()
                     event.type == KeyEventType.KeyDown && event.key == Key.F11 -> {
                         windowState.placement = if (windowState.placement == WindowPlacement.Fullscreen) WindowPlacement.Floating else WindowPlacement.Fullscreen
@@ -115,8 +136,10 @@ fun main(args: Array<String>) {
         ) {
             LaunchedEffect(Unit) {
                 FilePicker.window = window
-                WindowsTheme.darkTitleBar(window)
-                window.minimumSize = java.awt.Dimension(420, 320)
+                if (!wallpaper) {
+                    WindowsTheme.darkTitleBar(window)
+                    window.minimumSize = java.awt.Dimension(420, 320)
+                }
             }
             val density = LocalDensity.current
             val size = windowState.size
@@ -136,7 +159,11 @@ fun main(args: Array<String>) {
                 onDispose { playback.setUiStarted(false) }
             }
             LaunchedEffect(Unit) { DesktopPlatform.toastMessages.collect { playback.showMessage(it) } }
-            LaunchedEffect(Unit) { updates.checkOnLaunch(includePrereleases = true) }
+            if (!wallpaper) LaunchedEffect(Unit) { updates.checkOnLaunch(includePrereleases = true) }
+            // Nobody is there to answer a pop-up on a wallpaper.
+            if (wallpaper) LaunchedEffect(Unit) {
+                playback.state.collect { if (it.limitNotice != null) playback.dismissLimitNotice() }
+            }
 
             val settings = remember { AppSettings(app.getSharedPreferences("ui", Context.MODE_PRIVATE)) }
             MaterialTheme(colorScheme = darkColorScheme()) {
@@ -150,7 +177,7 @@ fun main(args: Array<String>) {
                     ) {
                         // A moving mouse shows the controls, as a touch does on a phone.
                         androidx.compose.foundation.layout.Box(
-                            androidx.compose.ui.Modifier.onPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Move) {
+                            if (wallpaper) androidx.compose.ui.Modifier else androidx.compose.ui.Modifier.onPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Move) {
                                 keyInput.presses.value = android.os.SystemClock.uptimeMillis()
                             },
                         ) {
@@ -163,6 +190,12 @@ fun main(args: Array<String>) {
                             onEnterPip = null,
                             onPipAllowed = {},
                             keyInput = keyInput,
+                        )
+                        // A wallpaper is to look at: clicks passed on by the wallpaper app go nowhere.
+                        if (wallpaper) androidx.compose.foundation.layout.Box(
+                            androidx.compose.ui.Modifier.matchParentSize().pointerInput(Unit) {
+                                awaitPointerEventScope { while (true) awaitPointerEvent().changes.forEach { it.consume() } }
+                            },
                         )
                         }
                     }

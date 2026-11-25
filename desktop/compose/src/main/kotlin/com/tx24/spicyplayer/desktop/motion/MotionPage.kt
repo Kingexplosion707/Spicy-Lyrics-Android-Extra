@@ -108,7 +108,7 @@ object MotionEngine {
         }
         builder.cefSettings.windowless_rendering_enabled = true
         builder.cefSettings.log_severity = org.cef.CefSettings.LogSeverity.LOGSEVERITY_DISABLE
-        builder.cefSettings.cache_path = File(DesktopPlatform.dataDir("chromium"), "cache").path
+        builder.cefSettings.cache_path = File(DesktopPlatform.dataDir("chromium"), if (DesktopPlatform.wallpaper) "cache-wallpaper" else "cache").path
         builder.addJcefArgs("--autoplay-policy=no-user-gesture-required", "--no-first-run", "--no-default-browser-check", "--disable-gpu-compositing")
         builder.setAppHandler(object : me.friwi.jcefmaven.MavenCefAppHandlerAdapter() {})
         val app: CefApp = builder.build()

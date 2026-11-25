@@ -25,6 +25,20 @@ object DesktopPlatform {
     }
     fun dataDir(name: String): File = File(root, name).apply { mkdirs() }
 
+    /**
+     * Running as a desktop wallpaper: started with --wallpaper, or by Wallpaper Engine (which starts
+     * an application wallpaper's exe itself, without arguments).
+     */
+    var wallpaper = false
+        private set
+
+    fun detectWallpaper(args: Array<String>) {
+        wallpaper = "--wallpaper" in args || runCatching {
+            ProcessHandle.current().parent().flatMap { it.info().command() }.orElse("")
+                .substringAfterLast('\\').substringAfterLast('/').lowercase().startsWith("wallpaper")
+        }.getOrDefault(false)
+    }
+
     /** The desktop app's own version (its installer's), e.g. "1.0.12". */
     val version: String by lazy { System.getProperty("spicy.version") ?: DesktopPlatform::class.java.`package`?.implementationVersion ?: "1.0.0" }
 

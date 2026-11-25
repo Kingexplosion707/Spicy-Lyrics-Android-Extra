@@ -16,20 +16,32 @@ class FilePreferences private constructor(private val file: File) : SharedPrefer
     private val listeners = CopyOnWriteArrayList<SharedPreferences.OnSharedPreferenceChangeListener>()
 
     init {
-        runCatching {
-            val o = JsonParser.parseString(file.readText()).asJsonObject
-            o.entrySet().forEach { (k, v) ->
-                val obj = v.asJsonObject
-                values[k] = when (obj["t"].asString) {
-                    "s" -> obj["v"].asString
-                    "i" -> obj["v"].asInt
-                    "l" -> obj["v"].asLong
-                    "f" -> obj["v"].asFloat
-                    "b" -> obj["v"].asBoolean
-                    else -> obj["v"].asJsonArray.map { it.asString }.toSet()
-                }
+        values.putAll(read())
+    }
+
+    private fun read(): Map<String, Any> = runCatching {
+        val o = JsonParser.parseString(file.readText()).asJsonObject
+        o.entrySet().associate { (k, v) ->
+            val obj = v.asJsonObject
+            k to when (obj["t"].asString) {
+                "s" -> obj["v"].asString
+                "i" -> obj["v"].asInt
+                "l" -> obj["v"].asLong
+                "f" -> obj["v"].asFloat
+                "b" -> obj["v"].asBoolean
+                else -> obj["v"].asJsonArray.map { it.asString }.toSet()
             }
         }
+    }.getOrDefault(emptyMap())
+
+    /** Takes in what another process wrote to the file, telling the listeners what changed. */
+    internal fun reload() {
+        val fresh = read()
+        if (fresh.isEmpty() && file.exists()) return // caught mid-write
+        val changed = (values.keys + fresh.keys).filter { values[it] != fresh[it] }
+        if (changed.isEmpty()) return
+        changed.forEach { k -> fresh[k]?.let { values[k] = it } ?: values.remove(k) }
+        SwingUtilities.invokeLater { changed.forEach { k -> listeners.forEach { it.onSharedPreferenceChanged(this, k) } } }
     }
 
     override val all: Map<String, *> get() = HashMap(values)
@@ -67,6 +79,7 @@ class FilePreferences private constructor(private val file: File) : SharedPrefer
     }
 
     private fun save() {
+        if (readOnly) return
         val snapshot = HashMap(values)
         writer.execute {
             val o = JsonObject()
@@ -89,9 +102,32 @@ class FilePreferences private constructor(private val file: File) : SharedPrefer
     }
 
     companion object {
+        /**
+         * Set in the wallpaper: it shows the app's settings but leaves the files to the app, and
+         * follows the app's changes to them ([watch]).
+         */
+        @Volatile var readOnly = false
         private val writer = Executors.newSingleThreadExecutor { r -> Thread(r, "prefs").apply { isDaemon = false } }
         private val open = ConcurrentHashMap<String, FilePreferences>()
         fun named(name: String): FilePreferences = open.getOrPut(name) { FilePreferences(File(DesktopPlatform.dataDir("prefs"), "$name.json")) }
+        /** Re-reads a file whenever another process (the app, beside the wallpaper) rewrites it. */
+        fun watch() {
+            val dir = DesktopPlatform.dataDir("prefs").toPath()
+            Thread({
+                runCatching {
+                    val watcher = dir.fileSystem.newWatchService()
+                    dir.register(watcher, java.nio.file.StandardWatchEventKinds.ENTRY_CREATE, java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY)
+                    while (true) {
+                        val key = watcher.take()
+                        val names = key.pollEvents().mapNotNull { (it.context() as? java.nio.file.Path)?.toString() }
+                            .filter { it.endsWith(".json") }.map { it.removeSuffix(".json") }.toSet()
+                        key.reset()
+                        Thread.sleep(150)
+                        names.forEach { open[it]?.reload() }
+                    }
+                }
+            }, "prefs-watch").apply { isDaemon = true }.start()
+        }
         /** Waits for pending writes (on quit). */
         fun flush() { writer.submit {}.get() }
     }

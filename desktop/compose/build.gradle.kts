@@ -183,6 +183,8 @@ compose.desktop {
         mainClass = "com.tx24.spicyplayer.desktop.MainKt"
         jvmArgs += listOf("-Dspicy.version=${(findProperty("desktop.version") as String?) ?: "1.0.0"}")
         jvmArgs += listOf("-Xmx768m", "-Dsun.java2d.uiScale.enabled=true")
+        // `-Pdesktop.args="--wallpaper"` passes arguments to :desktopApp:run.
+        (findProperty("desktop.args") as String?)?.split(' ')?.filter { it.isNotBlank() }?.let { args += it }
         nativeDistributions {
             targetFormats(TargetFormat.Exe, TargetFormat.Msi)
             packageName = "Spicy Lyrics Plus"
@@ -202,3 +204,4 @@ compose.desktop {
 }
 tasks.named("processResources") { dependsOn(syncShared) }
 tasks.named("compileJava") { dependsOn(syncShared) }
+
