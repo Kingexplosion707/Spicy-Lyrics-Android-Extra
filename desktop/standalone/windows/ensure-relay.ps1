@@ -25,6 +25,15 @@ if ($text) {
   $pids | Select-Object -Unique | Where-Object { $_ -gt 4 } | ForEach-Object {
     $p = Get-Process -Id $_; if ($p -and "$($p.Path)" -notlike "$Root*") { Stop-Process -Id $_ -Force }
   }
+  # The old setup ran elevated and left its relay running as administrator: if it is still
+  # there, stop it from an elevated PowerShell (one Windows prompt).
+  Start-Sleep -Milliseconds 400
+  if ((Relay-Text) -and -not (Ours)) {
+    $list = ($pids | Select-Object -Unique | Where-Object { $_ -gt 4 }) -join ','
+    if ($list) {
+      Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait -ArgumentList "-NoProfile -Command Stop-Process -Id $list -Force; Unregister-ScheduledTask LyricMusicRelay -Confirm:`$false -EA 0"
+    }
+  }
   # The old setup's watchdog task restarts it: stop and remove it first.
   Get-ScheduledTask | Where-Object { $_.TaskName -match 'LyricMusic|Live.?Lyrics|lyrics-bridge' } |
     ForEach-Object { Stop-ScheduledTask -TaskName $_.TaskName -TaskPath $_.TaskPath; Unregister-ScheduledTask -TaskName $_.TaskName -TaskPath $_.TaskPath -Confirm:$false }
