@@ -1,0 +1,32 @@
+name: SpicyLyricsPlus
+options:
+  bundleIdPrefix: com.behnoud
+  deploymentTarget:
+    iOS: "16.0"
+targets:
+  SpicyLyricsPlus:
+    type: application
+    platform: iOS
+    sources:
+      - path: SpicyLyricsPlus
+        excludes:
+          - Info.plist
+      - path: Web
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.behnoud.spicylyrics.ios
+        PRODUCT_NAME: SpicyLyricsPlus
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        INFOPLIST_FILE: SpicyLyricsPlus/Info.plist
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: ""
+        ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+        GENERATE_INFOPLIST_FILE: "NO"
+        CODE_SIGNING_ALLOWED: "NO"
+        CODE_SIGNING_REQUIRED: "NO"
