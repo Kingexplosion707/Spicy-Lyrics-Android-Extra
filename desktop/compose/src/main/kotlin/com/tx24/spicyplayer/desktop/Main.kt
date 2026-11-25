@@ -16,6 +16,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -50,10 +51,12 @@ import kotlinx.coroutines.flow.collect
  * Spicy Lyrics Plus on the desktop: the Android app's lyrics screen (LyricsApp) in a window, following
  * whatever plays through Windows' media controls.
  */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 fun main(args: Array<String>) {
     // A second start hands its arguments (a Spotify sign-in's answer) to the running app and ends.
     if (!SingleInstance.claim(args)) return
     System.setProperty("compose.interop.blending", "true")
+    com.tx24.spicyplayer.desktop.platform.WindowsIntegration.register()
     val app = DesktopPlatform.application
     com.tx24.spicyplayer.playback.CrashLog.install(app)
     val playback = ExternalPlaybackViewModel(app)
@@ -145,6 +148,12 @@ fun main(args: Array<String>) {
                         LocalPopupPalette provides settings.popupTheme.palette,
                         LocalAppIcon provides settings.appIcon,
                     ) {
+                        // A moving mouse shows the controls, as a touch does on a phone.
+                        androidx.compose.foundation.layout.Box(
+                            androidx.compose.ui.Modifier.onPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Move) {
+                                keyInput.presses.value = android.os.SystemClock.uptimeMillis()
+                            },
+                        ) {
                         LyricsApp(
                             openNotificationAccess = {},
                             viewModel = playback,
@@ -155,6 +164,7 @@ fun main(args: Array<String>) {
                             onPipAllowed = {},
                             keyInput = keyInput,
                         )
+                        }
                     }
                 }
             }

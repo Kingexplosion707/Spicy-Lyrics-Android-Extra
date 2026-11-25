@@ -165,7 +165,9 @@ dependencies {
     // Video: Spotify Canvas MP4s and Apple Music's animated covers (HLS), decoded by FFmpeg.
     implementation("org.bytedeco:javacv:1.5.11")
     implementation("org.bytedeco:ffmpeg:7.1-1.5.11")
-    for (platform in listOf("windows-x86_64", "linux-x86_64")) {
+    // Natives for the platform being packaged (-Pdesktop.platform), or for Windows and this machine.
+    val platforms = (findProperty("desktop.platform") as String?)?.let { listOf(it) } ?: listOf("windows-x86_64", "linux-x86_64")
+    for (platform in platforms) {
         implementation("org.bytedeco:ffmpeg:7.1-1.5.11:$platform")
         implementation("org.bytedeco:javacpp:1.5.11:$platform")
     }
@@ -174,13 +176,14 @@ dependencies {
 compose.desktop {
     application {
         mainClass = "com.tx24.spicyplayer.desktop.MainKt"
+        jvmArgs += listOf("-Dspicy.version=${(findProperty("desktop.version") as String?) ?: "1.0.0"}")
         jvmArgs += listOf("-Xmx768m", "-Dsun.java2d.uiScale.enabled=true")
         nativeDistributions {
             targetFormats(TargetFormat.Exe, TargetFormat.Msi)
             packageName = "Spicy Lyrics Plus"
-            packageVersion = "1.0.0"
+            packageVersion = (findProperty("desktop.version") as String?) ?: "1.0.0"
             vendor = "Spicy Lyrics Plus"
-            modules("java.net.http", "java.sql", "jdk.unsupported", "java.naming")
+            includeAllModules = true
             windows {
                 menuGroup = "Spicy Lyrics Plus"
                 perUserInstall = true
