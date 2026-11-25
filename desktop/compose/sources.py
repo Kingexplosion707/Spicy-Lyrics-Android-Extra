@@ -37,10 +37,10 @@ def portable(text: str) -> bool:
             return False
     return True
 
-own = {str(p.relative_to(Path(__file__).parent / "src/main/kotlin")) for p in (Path(__file__).parent / "src/main/kotlin").rglob("*.kt")}
+own = {p.relative_to(Path(__file__).parent / "src/main/kotlin").as_posix() for p in (Path(__file__).parent / "src/main/kotlin").rglob("*.kt")}
 out = []
 for f in sorted(APP.rglob("*.kt")):
-    rel = str(f.relative_to(APP))
+    rel = f.relative_to(APP).as_posix()
     sub = rel[len(PKG):] if rel.startswith(PKG) else rel
     if not rel.startswith(PKG) or sub in EXCLUDE_FILES or rel in own or any(sub.startswith(d + "/") for d in NEVER_DIRS):
         continue

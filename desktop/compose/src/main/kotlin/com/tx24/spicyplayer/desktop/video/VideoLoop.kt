@@ -123,7 +123,7 @@ class VideoLoop(private val url: String, private val cacheDir: File) {
         due.forEach { it.last = now; it.onFrame(out, sw, sh, nanos) }
     }
 
-    private fun fail() = javax.swing.SwingUtilities.invokeLater { failures.forEach { it() } }
+    private fun fail() = javax.swing.SwingUtilities.invokeLater { failures.forEach { runCatching { it() } } }
 
     /** The stream in the cache, fetched (and for HLS, remuxed) the first time. */
     private fun local(): File {

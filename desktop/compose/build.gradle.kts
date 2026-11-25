@@ -60,6 +60,9 @@ val syncShared by tasks.registering {
             val rel = "kr/ivlis/ivlyricsandroid/$name.java"
             rootProject.file("ivlyrics/src/main/java/$rel").copyTo(File(javaOut, rel), overwrite = true)
         }
+        // Motion lyrics' page and Spicy's themes for it.
+        val motionOut = layout.buildDirectory.dir("generated/shared/resources/motion").get().asFile
+        rootProject.file("ivlyrics/src/main/assets/motion").listFiles()!!.forEach { it.copyTo(File(motionOut, it.name), overwrite = true) }
         val unknown = patches.keys - list.readLines().map { it.trim().removePrefix("com/tx24/spicyplayer/") }.toSet()
         require(unknown.isEmpty()) { "patches.txt names files that aren't shared: $unknown" }
     }
@@ -162,6 +165,8 @@ dependencies {
     implementation("com.google.code.gson:gson:2.14.0")
     implementation("org.json:json:20250517")
     implementation("net.java.dev.jna:jna-platform:5.17.0")
+    // Motion lyrics: ivLyrics' page in Chromium (its natives are fetched the first time they are needed).
+    implementation("me.friwi:jcefmaven:152.0.6")
     // Video: Spotify Canvas MP4s and Apple Music's animated covers (HLS), decoded by FFmpeg.
     implementation("org.bytedeco:javacv:1.5.11")
     implementation("org.bytedeco:ffmpeg:7.1-1.5.11")
