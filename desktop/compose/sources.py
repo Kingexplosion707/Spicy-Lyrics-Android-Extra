@@ -10,13 +10,13 @@ NEVER_DIRS = ["tiles", "island", "kiosk", "musicassistant"]
 EXCLUDE_DIRS = ["aod", "overlay", "wallpaper", "widget", "ivlyrics"]
 # Files from those that use no Android API (settings enums, line fitting...) still come along.
 ANDROID_IMPORT = __import__("re").compile(r"^import (android\.|androidx\.(activity|core|media3|glance|work|compose\.ui\.platform\.LocalContext|compose\.ui\.viewinterop)|kr\.ivlis)", __import__("re").M)
-EXCLUDE_FILES = [l.strip() for l in (Path(__file__).parent / "excluded-sources.txt").read_text().splitlines() if l.strip() and not l.startswith("#")]
+EXCLUDE_FILES = [l.strip() for l in (Path(__file__).parent / "excluded-sources.txt").read_text(encoding="utf-8").splitlines() if l.strip() and not l.startswith("#")]
 def shim_names():
     """Fully qualified names the stand-ins declare (android.*, androidx.* shims, coil...)."""
     import re
     names = set()
     for f in (Path(__file__).parent / "src/shim/kotlin").rglob("*.kt"):
-        t = f.read_text()
+        t = f.read_text(encoding="utf-8")
         pkg = re.search(r"^package ([\w.]+)", t, re.M).group(1)
         for m in re.finditer(r"^(?:@\w+(?:\([^)]*\))? )*(?:inline |internal |open |abstract |data |enum |sealed |fun interface |annotation )*(?:class|object|interface|fun|val|var|typealias) (?:<[^>]+> )?(?:[\w.]+\.)?(\w+)", t, re.M):
             names.add(pkg + "." + m.group(1))
@@ -44,8 +44,8 @@ for f in sorted(APP.rglob("*.kt")):
     sub = rel[len(PKG):] if rel.startswith(PKG) else rel
     if not rel.startswith(PKG) or sub in EXCLUDE_FILES or rel in own or any(sub.startswith(d + "/") for d in NEVER_DIRS):
         continue
-    if any(sub.startswith(d + "/") for d in EXCLUDE_DIRS) and not portable(f.read_text()):
+    if any(sub.startswith(d + "/") for d in EXCLUDE_DIRS) and not portable(f.read_text(encoding="utf-8")):
         continue
     out.append(rel)
-(Path(__file__).parent / "shared-sources.txt").write_text("\n".join(out) + "\n")
+(Path(__file__).parent / "shared-sources.txt").write_text("\n".join(out) + "\n", encoding="utf-8", newline="\n")
 print(len(out), "shared files")
