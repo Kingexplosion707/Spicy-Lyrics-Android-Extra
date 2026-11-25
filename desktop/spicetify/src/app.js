@@ -27,6 +27,8 @@ const SLP = (() => {
 			} catch {
 				// Storage full or off: the choice lasts for this session only.
 			}
+			// Outside Spotify (wallpaper, desktop app) the host shares the choice with the other copies.
+			if (!key.startsWith("motion-cache:")) window.SLP_HOST?.settingsChanged?.(key, value);
 		},
 	};
 
@@ -250,6 +252,22 @@ const SLP = (() => {
 		const cacheKey = track.uri + "|" + skip.join(",");
 		if (lyricsCache.has(cacheKey)) return lyricsCache.get(cacheKey);
 		let best = null;
+		// Outside Spotify, the host may have Spotify's own word-by-word lyrics (through Spicetify).
+		if (!skip.includes("spotify") && window.SLP_HOST?.lyrics) {
+			try {
+				const hosted = await window.SLP_HOST.lyrics(track);
+				if (hosted?.lines?.length) {
+					hosted.sourceId = "spotify";
+					if (hosted.synced === "word") {
+						lyricsCache.set(cacheKey, hosted);
+						return hosted;
+					}
+					best = hosted;
+				}
+			} catch {
+				// Ask the usual sources.
+			}
+		}
 		for (const name of SOURCE_NAMES.filter((n) => !skip.includes(n))) {
 			try {
 				const found = await sources[name](track, apple);
@@ -507,11 +525,17 @@ const SLP = (() => {
 	/** The song's Spotify Canvas video, or "". */
 	async function canvasFor(uri) {
 		try {
+			const hosted = await window.SLP_HOST?.canvas?.(uri);
+			if (hosted) return hosted;
+		} catch {
+			// Spotify's own lookup.
+		}
+		try {
 			const definition = Spicetify.GraphQL?.Definitions?.canvas;
 			if (!definition) return "";
 			const result = await Spicetify.GraphQL.Request(definition, { uri, trackUri: uri });
 			const url = result?.data?.trackUnion?.canvas?.url || "";
-			return /\.mp4(\?|$)/.test(url) ? url : "";
+			return /\.(mp4|webm)(\?|$)/.test(url) ? url : "";
 		} catch {
 			return "";
 		}
@@ -521,6 +545,12 @@ const SLP = (() => {
 
 	/** The album's animated cover on Apple Music (an HLS stream), or "". */
 	async function motionCoverFor(track) {
+		try {
+			const hosted = await window.SLP_HOST?.motionCover?.(track);
+			if (hosted !== undefined && hosted !== null) return hosted;
+		} catch {
+			// Look it up here.
+		}
 		const key = plain(track.artist) + "|" + plain(track.album || track.title);
 		if (motionCovers.has(key)) return motionCovers.get(key);
 		let url = "";
@@ -765,7 +795,11 @@ function LoopVideo({ src, className }) {
 		video.muted = true;
 		let player = null;
 		let alive = true;
-		if (/\.m3u8(\?|$)/.test(src)) {
+		if (/\.m3u8(\?|$)/.test(src) && video.canPlayType("application/vnd.apple.mpegurl")) {
+			// Safari and the iOS app play HLS themselves.
+			video.src = src;
+			video.play().catch(() => {});
+		} else if (/\.m3u8(\?|$)/.test(src)) {
 			SLP.hls()
 				.then((Hls) => {
 					if (!alive) return;
@@ -1367,6 +1401,19 @@ function SpicyLyricsPlus() {
 	const [playback, setPlayback] = React.useState({ position: 0, playing: false });
 	const apple = React.useRef(null);
 	const official = typeof window._spicy_lyrics === "object";
+	const wallpaper = window.SLP_HOST?.mode === "wallpaper";
+
+	// Settings changed by another copy (the desktop app changing the wallpaper, or back).
+	React.useEffect(() => {
+		const reload = () =>
+			setS(() => {
+				const out = {};
+				for (const key of Object.keys(DEFAULTS)) out[key] = SLP.settings.get(key, DEFAULTS[key]);
+				return out;
+			});
+		window.addEventListener("slp-settings", reload);
+		return () => window.removeEventListener("slp-settings", reload);
+	}, []);
 	useFont(s.font);
 
 	// Follow the player.
@@ -1493,7 +1540,7 @@ function SpicyLyricsPlus() {
 	// Full screen: the controls hide when the mouse rests; keys play, pause and seek.
 	const staged = s.stage || fullscreen;
 	React.useEffect(() => {
-		if (!staged) {
+		if (!staged && !wallpaper) {
 			setIdle(false);
 			return undefined;
 		}
@@ -1638,7 +1685,7 @@ function SpicyLyricsPlus() {
 		"div",
 		{
 			ref: root,
-			className: "slp-root" + (staged && track ? " slp-staged" : "") + (idle && !drawer ? " slp-idle" : ""),
+			className: "slp-root" + (staged && track ? " slp-staged" : "") + (idle && !drawer ? " slp-idle" : "") + (wallpaper ? " slp-wallpaper" : ""),
 			style: accent ? { "--slp-accent": accent } : null,
 		},
 		e("style", null, SLP_CSS),
