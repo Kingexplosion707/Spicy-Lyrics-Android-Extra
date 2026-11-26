@@ -1,7 +1,7 @@
 name: Desktop (Spicetify)
 
 # Builds the Spotify desktop app (desktop/spicetify) and its Windows installer, and publishes them
-# as a desktop-v* prerelease whenever the app, the motion page or the motion themes change on main.
+# as a spicetify-v* prerelease (desktop-v* is the desktop app's) whenever the app, the motion page or the motion themes change on main.
 
 on:
   push:
@@ -48,7 +48,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         working-directory: desktop/spicetify/dist
         run: |
-          gh release create "desktop-v$VERSION" "SpicyLyricsPlus-Setup-$VERSION.exe" "spicy-lyrics-plus-$VERSION.zip" \
+          gh release create "spicetify-v$VERSION" "SpicyLyricsPlus-Setup-$VERSION.exe" "spicy-lyrics-plus-$VERSION.zip" \
             --target "$GITHUB_SHA" --prerelease --latest=false \
             --title "Spicy Lyrics Plus for Spotify desktop $VERSION" \
             --notes "Run SpicyLyricsPlus-Setup-$VERSION.exe with Spotify closed. It installs Spicetify if needed and adds Spicy Lyrics Plus to Spotify's sidebar. See desktop/spicetify/README.md."
