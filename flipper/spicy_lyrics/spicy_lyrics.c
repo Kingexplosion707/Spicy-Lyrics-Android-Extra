@@ -26,6 +26,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Text is cut to fit the screen on purpose.
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+
 #define TAG "SpicyLyrics"
 
 #define TEXT_LEN      160
