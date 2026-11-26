@@ -202,7 +202,9 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
             val tag = release.get("tag_name")?.asString ?: return@mapNotNull null
             if (!tag.startsWith(DESKTOP_TAG)) return@mapNotNull null
             val assets = release.getAsJsonArray("assets")?.mapNotNull { it as? com.google.gson.JsonObject }.orEmpty()
-            val installer = assets.firstOrNull { a -> a.get("name")?.asString?.let { it.startsWith("SpicyLyricsPlus") && (it.endsWith(".msi") || it.endsWith(".exe")) } == true }
+            // This app's installers only: the Spicetify app's older desktop-v releases
+            // (SpicyLyricsPlus-Setup-*.exe) are another program.
+            val installer = assets.firstOrNull { a -> a.get("name")?.asString?.let { isInstaller(it) } == true }
                 ?: return@mapNotNull null
             val name = installer.get("name").asString
             AppRelease(
@@ -219,7 +221,12 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private companion object {
+    internal companion object {
+        /** This app's installer, as the desktop workflow names it (SpicyLyricsPlus-Desktop-1.0.12.msi). */
+        fun isInstaller(name: String): Boolean =
+            INSTALLER.matches(name)
+
+        private val INSTALLER = Regex("""SpicyLyricsPlus-Desktop-\d+(\.\d+)*\.(msi|exe)""")
         const val TAG = "SpicyUpdates"
         const val KEY_LAST_CHECK = "lastCheck"
         const val KEY_SKIPPED = "skipped"
