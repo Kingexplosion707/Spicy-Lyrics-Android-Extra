@@ -1,0 +1,27 @@
+# :app files (under com/tx24/spicyplayer/) the desktop app leaves out: Android-only.
+MainActivity.kt
+PictureInPicture.kt
+SpicyLyricsApplication.kt
+playback/LyricsNotificationService.kt
+playback/SleepTimerService.kt
+playback/SessionAccessService.kt
+spotify/SpotifyLoginActivity.kt
+ui/ComposeWindowOwner.kt
+update/UpdateInstallReceiver.kt
+update/UpdateNotification.kt
+haptics/BackgroundHapticsService.kt
+haptics/LiveHapticsService.kt
+haptics/CaptureConsentActivity.kt
+ui/nowplaying/MotionCover.kt
+ui/nowplaying/MotionCoverStream.kt
+ui/profile/ProfileModal.kt
+ui/settings/HapticsSettings.kt
+ui/settings/WallpaperSettings.kt
+lyrics/spicy/canvas/kawarp/KawarpSnapshot.kt
+translation/AiTranslators.kt
+translation/SystemLanguageDetector.kt
+spotify/SpotifyPlayRoute.kt
+ui/settings/AlwaysOnSettings.kt
+aod/AodFingerprint.kt
+overlay/StatusBarClock.kt
+update/UpdateViewModel.kt

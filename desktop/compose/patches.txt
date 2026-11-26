@@ -1,0 +1,94 @@
+# Small desktop changes to shared :app files, applied when the desktop build copies them.
+# "## file" (under com/tx24/spicyplayer/), then pairs of "- text to find" and "+ its replacement".
+# A pair whose text is no longer found fails the build.
+
+## lyrics/spicy/canvas/kawarp/KawarpBackground.kt
+# A Skia runtime shader is rebuilt from its uniforms each frame.
+-     val shaderBrush = remember(shader) { ShaderBrush(shader) }
++
+-             drawRect(brush = shaderBrush)
++             drawRect(brush = ShaderBrush(shader.skia().asComposeShader()))
+- import androidx.compose.ui.graphics.ShaderBrush
++ import androidx.compose.ui.graphics.ShaderBrush\nimport androidx.compose.ui.graphics.asComposeShader
+
+# Android's Canvas over a Compose canvas: androidCanvas (a desktop helper) in place of nativeCanvas.
+## lyrics/spicy/canvas/DynamicBackgroundView.kt
+- import androidx.compose.ui.graphics.nativeCanvas
++ import androidx.compose.ui.graphics.androidCanvas
+- canvas.nativeCanvas
++ canvas.androidCanvas
+
+## ui/components/SpicyModal.kt
+- import androidx.compose.ui.graphics.nativeCanvas
++ import androidx.compose.ui.graphics.androidCanvas
+- canvas.nativeCanvas
++ canvas.androidCanvas
+
+## ui/nowplaying/CompactNowPlayingHeader.kt
+- import androidx.compose.ui.graphics.nativeCanvas
++ import androidx.compose.ui.graphics.androidCanvas
+- canvas.nativeCanvas
++ canvas.androidCanvas
+
+## wallpaper/WallpaperContent.kt
+- import androidx.compose.ui.graphics.nativeCanvas
++ import androidx.compose.ui.graphics.androidCanvas
+- c.nativeCanvas
++ c.androidCanvas
+
+## ui/nowplaying/SessionArtwork.kt
+# A resource the desktop doesn't have decodes to nothing: the fallback is a plain cover.
+-         SessionArtwork.of(bitmap).also { fallbacks[icon] = it }
++         SessionArtwork.of(bitmap ?: android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)).also { fallbacks[icon] = it }
+
+# The desktop needs no notification access, and is driven by mouse and keys rather than touch.
+## ui/intro/IntroScreen.kt
+-         IntroStep.entries.filter { it != IntroStep.UsageStats || askUsageStats }
++         IntroStep.entries.filter { it != IntroStep.Access && (it != IntroStep.UsageStats || askUsageStats) }
+-             "Most of the screen is the lyrics, so a lot of it works by touch.",
++             "Most of the window is the lyrics, so a lot of it works with the mouse and keyboard.",
+-             Gesture(Icons.Rounded.TouchApp, "Tap a line", "Jumps the song to that line.")
++             Gesture(Icons.Rounded.TouchApp, "Click a line", "Jumps the song to that line.")
+-             Gesture(Icons.Rounded.SwipeVertical, "Drag the lyrics", "Looks ahead or back through the song.")
++             Gesture(Icons.Rounded.SwipeVertical, "Scroll the lyrics", "Looks ahead or back through the song.")
+-             Gesture(Icons.Rounded.Swipe, "Swipe the cover", "Skips to the next or previous song.")
++             Gesture(Icons.Rounded.Swipe, "Page Up / Page Down", "Skips to the previous or next song.")
+-             Gesture(Icons.Rounded.PlayCircle, "Double-tap the cover", "Plays or pauses.")
++             Gesture(Icons.Rounded.PlayCircle, "Space", "Plays or pauses.")
+-             Gesture(Icons.Rounded.Visibility, "Tap the screen", "Brings the controls back after they fade.")
++             Gesture(Icons.Rounded.Visibility, "Move the mouse", "Brings the controls back. F11 is full screen, Ctrl+T keeps the window on top.")
+# A window can be far wider than a phone: keep the intro's column at its phone width.
+-                     .widthIn(max = 480.dp)
++                     .requiredWidthIn(max = 560.dp)
+- import androidx.compose.foundation.layout.widthIn
++ import androidx.compose.foundation.layout.widthIn\nimport androidx.compose.foundation.layout.requiredWidthIn
+
+# On Windows, Spotify Free can seek and go back; a refused seek there is Spotify not answering.
+## LyricsApp.kt
+-         PlayerLimit.Seek -> "Seeking needs Spotify Premium" to
++         PlayerLimit.Seek -> "Spotify didn't move" to
+-             "Spotify Free doesn't let other apps move around in a song, so tapping a line or dragging " +
++             "Spotify didn't take the jump through Windows' media controls. Make sure Spotify's own window isn't busy, " +
+-             "the timeline can't jump there. Playback carries on as normal."
++             "then try again. Playback carries on as normal."
+-         PlayerLimit.Previous -> "Going back needs Spotify Premium" to
++         PlayerLimit.Previous -> "Spotify didn't go back" to
+-             "Spotify Free doesn't allow going back to the previous song from here."
++             "Spotify didn't take the previous-song command through Windows' media controls."
+
+# The Device page is mostly phone hardware; the desktop has its own (DesktopDeviceSettings.kt).
+## ui/settings/SettingsPages.kt
+- internal fun DeviceContent(settings: AppSettings) {
++ internal fun PhoneDeviceContent(settings: AppSettings) {
+
+## ui/settings/SettingsScreen.kt
+-                 if (settings.keepScreenOn) "Stays on while playing" else "Turns off as usual",
++                 "Window",
+-             if (settings.listeningStats) "Your top songs and artists, counted on this phone" else "Off",
++             if (settings.listeningStats) "Your top songs and artists, counted on this computer" else "Off",
+
+## playback/AudioOutputProfiles.kt
+-         val name = if (rawName.isBlank() || rawName.equals("Phone", ignoreCase = true)) "Phone speaker" else rawName
++         val name = if (rawName.isBlank() || rawName.equals("Phone", ignoreCase = true)) "this computer" else rawName
+-             AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> "Phone speaker"
++             AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> "this computer"
