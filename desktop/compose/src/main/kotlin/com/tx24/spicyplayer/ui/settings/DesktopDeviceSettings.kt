@@ -62,6 +62,7 @@ internal fun DeviceContent(settings: AppSettings) {
             onChange = { settings.ambientDelay = AmbientDelay.valueOf(it) },
         )
     }
+    com.tx24.spicyplayer.flipper.FlipperRow()
     com.tx24.spicyplayer.ui.components.SettingsSection("Performance") {
         com.tx24.spicyplayer.ui.components.ToggleRow(
             label = "Low performance mode",

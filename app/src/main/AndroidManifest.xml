@@ -34,6 +34,14 @@
     <!-- The always-on display's fallback without the overlay permission: a full-screen notification. -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- Lyrics on a Flipper Zero, over Bluetooth LE. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" tools:targetApi="s" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
     <!-- To bring the overlay, always-on display and lyrics notification back after a restart. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Granted only through Shizuku (a shell grant): hides the status bar clock behind the status bar lyrics. -->
@@ -204,6 +212,12 @@
             <meta-data android:name="com.sameerasw.island.provider.description" android:value="@string/island_description" />
             <meta-data android:name="com.sameerasw.island.provider.priority" android:value="29" />
         </service>
+
+        <!-- Lyrics on a Flipper Zero running the Spicy Lyrics app, over Bluetooth. -->
+        <service
+            android:name="com.tx24.spicyplayer.flipper.FlipperService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
 
         <service
             android:name="com.tx24.spicyplayer.overlay.LyricsOverlayService"

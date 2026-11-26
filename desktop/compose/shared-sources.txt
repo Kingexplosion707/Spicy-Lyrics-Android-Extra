@@ -5,6 +5,9 @@ com/tx24/spicyplayer/analytics/UsageStats.kt
 com/tx24/spicyplayer/aod/AodClock.kt
 com/tx24/spicyplayer/backup/SettingsBackup.kt
 com/tx24/spicyplayer/backup/SettingsBackupStore.kt
+com/tx24/spicyplayer/flipper/FlipperProtocol.kt
+com/tx24/spicyplayer/flipper/FlipperRelay.kt
+com/tx24/spicyplayer/flipper/FlipperSettings.kt
 com/tx24/spicyplayer/haptics/HapticBeat.kt
 com/tx24/spicyplayer/haptics/HapticPlayer.kt
 com/tx24/spicyplayer/haptics/HapticsPowerSaving.kt

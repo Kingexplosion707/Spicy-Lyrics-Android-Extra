@@ -230,9 +230,15 @@ static void draw_waiting(Canvas* canvas, const Model* m) {
     canvas_draw_str_aligned(canvas, 64, 12, AlignCenter, AlignBottom, "Spicy Lyrics");
     canvas_set_font(canvas, FontSecondary);
     canvas_draw_str_aligned(canvas, 64, 24, AlignCenter, AlignBottom, "Waiting for the app...");
-    canvas_draw_str(canvas, 2, 37, m->bt_ok ? "Phone: turn on Flipper Zero" : "Phone: turn on Bluetooth");
-    canvas_draw_str(canvas, 2, 46, m->bt_ok ? "in Settings > Connections" : "on the Flipper first");
-    canvas_draw_str(canvas, 2, 57, m->usb_connected ? "PC: USB plugged in, open app" : "PC: plug in USB, open app");
+    // Both apps: Settings > Device > Flipper Zero.
+    canvas_draw_str(canvas, 2, 36, "Turn on in Spicy Lyrics:");
+    canvas_draw_str(canvas, 2, 45, "Settings > Device > Flipper");
+    canvas_draw_str(canvas, 2, 57, m->bt_ok ? "Phone: Bluetooth  PC: USB" : "Phone: Flipper Bluetooth is off");
+}
+
+static void draw_dots(Canvas* canvas, uint8_t y) {
+    for(uint8_t i = 0; i < 3; i++)
+        canvas_draw_disc(canvas, 52 + i * 12, y, 3);
 }
 
 static void draw_progress(Canvas* canvas, const Model* m) {
@@ -266,6 +272,8 @@ static void draw_callback(Canvas* canvas, void* context) {
     }
 
     const char* line = m->cur[0] ? m->cur : (m->note[0] ? m->note : "...");
+    // A break in the singing: three dots, as the lyrics screen draws it.
+    bool interlude = strcmp(line, "* * *") == 0;
     char buf[TEXT_LEN + 4];
 
     if(m->layout == LayoutFull) {
@@ -276,16 +284,19 @@ static void draw_callback(Canvas* canvas, void* context) {
         } else {
             snprintf(buf, sizeof(buf), "%s", m->title);
         }
+        const char* via = m->link == LinkBt ? "BT" : "USB";
         char top[TEXT_LEN];
-        fit_text(canvas, buf, top, sizeof(top), 112);
+        fit_text(canvas, buf, top, sizeof(top), 124 - canvas_string_width(canvas, via) - 4);
         canvas_draw_str(canvas, 1, 8, top);
-        canvas_draw_str_aligned(canvas, 127, 8, AlignRight, AlignBottom, m->link == LinkBt ? "BT" : "USB");
+        canvas_draw_str_aligned(canvas, 127, 8, AlignRight, AlignBottom, via);
         canvas_draw_line(canvas, 0, 10, 127, 10);
 
         // The line, in bold when it fits two rows, else smaller.
         canvas_set_font(canvas, FontPrimary);
-        uint8_t rows = draw_wrapped(canvas, line, 2, 23, 11, 124, 2, true, false);
-        if(rows <= 2) {
+        uint8_t rows = interlude ? 0 : draw_wrapped(canvas, line, 2, 23, 11, 124, 2, true, false);
+        if(interlude) {
+            draw_dots(canvas, 26);
+        } else if(rows <= 2) {
             draw_wrapped(canvas, line, 2, 23, 11, 124, 2, true, true);
         } else {
             canvas_set_font(canvas, FontSecondary);
@@ -302,8 +313,10 @@ static void draw_callback(Canvas* canvas, void* context) {
     } else {
         // The line alone: bold up to four rows, otherwise smaller.
         canvas_set_font(canvas, FontPrimary);
-        uint8_t rows = draw_wrapped(canvas, line, 2, 14, 13, 124, 4, true, false);
-        if(rows <= 4) {
+        uint8_t rows = interlude ? 0 : draw_wrapped(canvas, line, 2, 14, 13, 124, 4, true, false);
+        if(interlude) {
+            draw_dots(canvas, 30);
+        } else if(rows <= 4) {
             uint8_t top = 14 + (4 - rows) * 13 / 2;
             draw_wrapped(canvas, line, 2, top, 13, 124, 4, true, true);
         } else {
@@ -361,6 +374,8 @@ static void handle_message(App* app, char* line, Link from) {
 
     if(f[0][0] == '?') {
         furi_mutex_acquire(app->mutex, FuriWaitForever);
+        if(from == LinkBt) app->model.bt_connected = true;
+        if(from == LinkUsb) app->model.usb_connected = true;
         app->model.link = from;
         app->model.last_rx_tick = furi_get_tick();
         furi_mutex_release(app->mutex);
@@ -372,6 +387,9 @@ static void handle_message(App* app, char* line, Link from) {
     Model* m = &app->model;
     m->link = from;
     m->last_rx_tick = furi_get_tick();
+    // Hearing from a link means it works, whatever its own signals said.
+    if(from == LinkBt) m->bt_connected = true;
+    if(from == LinkUsb) m->usb_connected = true;
     switch(f[0][0]) {
     case 'S':
         copy_field(m->title, n > 1 ? f[1] : "");

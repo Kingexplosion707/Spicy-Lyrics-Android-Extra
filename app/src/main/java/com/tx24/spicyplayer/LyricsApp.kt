@@ -769,6 +769,7 @@ internal fun LyricsApp(
         com.tx24.spicyplayer.playback.LyricsNotificationService.sync(context)
         com.tx24.spicyplayer.overlay.LyricsOverlayService.sync(context)
         com.tx24.spicyplayer.aod.AlwaysOnService.sync(context)
+        com.tx24.spicyplayer.flipper.FlipperService.sync(context)
     }
     LaunchedEffect(Unit) { updater.checkOnLaunch(settings.includePrereleases) }
     val update by updater.state.collectAsState()
