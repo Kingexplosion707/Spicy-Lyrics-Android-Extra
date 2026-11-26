@@ -1328,6 +1328,7 @@ internal fun DeviceContent(settings: AppSettings) {
     LyricsNotificationSection(settings)
     LyricsOverlaySection(settings)
     HapticsSection(settings)
+    com.tx24.spicyplayer.flipper.FlipperRow()
     MoreOptions("Keeping the screen on, system bars, low performance mode, interface animations") {
         ToggleRow(
             label = "Keep the screen on",

@@ -1,0 +1,13 @@
+App(
+    appid="spicy_lyrics",
+    name="Spicy Lyrics",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="spicy_lyrics_app",
+    requires=["gui", "bt", "notification"],
+    stack_size=3 * 1024,
+    fap_icon="spicy_10px.png",
+    fap_category="Media",
+    fap_version="1.0",
+    fap_description="Synced lyrics from Spicy Lyrics Plus on your phone (Bluetooth) or PC (USB), with playback buttons",
+    fap_author="Kingexplosion707",
+)

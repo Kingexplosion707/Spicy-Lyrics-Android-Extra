@@ -25,3 +25,5 @@ ui/settings/AlwaysOnSettings.kt
 aod/AodFingerprint.kt
 overlay/StatusBarClock.kt
 update/UpdateViewModel.kt
+flipper/FlipperService.kt
+flipper/FlipperBleLink.kt

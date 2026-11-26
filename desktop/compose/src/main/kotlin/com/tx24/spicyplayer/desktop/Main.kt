@@ -76,6 +76,7 @@ fun main(args: Array<String>) {
         onNext = playback::skipNext
         onResync = playback::resync
     }
+    com.tx24.spicyplayer.flipper.FlipperService.playback = playback
     SleepTimerService.pause = {
         if (playback.state.value.isPlaying) playback.playPause()
     }

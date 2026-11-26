@@ -1,0 +1,34 @@
+name: Flipper app
+
+on:
+  push:
+    paths: ["flipper/**", ".github/workflows/flipper.yml"]
+  pull_request:
+    paths: ["flipper/**", ".github/workflows/flipper.yml"]
+  workflow_dispatch:
+
+jobs:
+  roguemaster:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Built in RogueMaster's own tree, so the app's API matches the firmware it runs on.
+      - name: RogueMaster firmware
+        run: |
+          git clone --depth 1 --recurse-submodules --shallow-submodules \
+            https://github.com/RogueMaster/flipperzero-firmware-wPlugins.git fw
+          git -C fw log -1 --format='RogueMaster %h %cd'
+          grep '^Version' fw/targets/f7/api_symbols.csv
+      - name: Build
+        working-directory: fw
+        run: |
+          rm -rf applications_user/spicy_lyrics
+          cp -r ../flipper/spicy_lyrics applications_user/spicy_lyrics
+          ./fbt fap_spicy_lyrics
+          mkdir -p ../out
+          find build -name spicy_lyrics.fap -exec cp {} ../out/ \;
+          ls -la ../out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spicy_lyrics-fap
+          path: out/spicy_lyrics.fap
