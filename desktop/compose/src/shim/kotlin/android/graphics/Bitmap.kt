@@ -74,7 +74,7 @@ class Bitmap internal constructor(val skia: org.jetbrains.skia.Bitmap, val confi
 
     fun compress(format: CompressFormat, quality: Int, out: OutputStream): Boolean {
         val fmt = when (format) { CompressFormat.PNG -> EncodedImageFormat.PNG; CompressFormat.JPEG -> EncodedImageFormat.JPEG; else -> EncodedImageFormat.WEBP }
-        val data = Image.makeFromBitmap(skia).encodeToData(fmt, quality) ?: return false
+        val data = image().encodeToData(fmt, quality) ?: return false
         out.write(data.bytes); return true
     }
 
@@ -86,13 +86,22 @@ class Bitmap internal constructor(val skia: org.jetbrains.skia.Bitmap, val confi
         return ints
     }
     internal fun writePixels(ints: IntArray) {
-        val bb = java.nio.ByteBuffer.allocate(ints.size * 4).order(java.nio.ByteOrder.LITTLE_ENDIAN)
-        bb.asIntBuffer().put(ints)
-        val src = org.jetbrains.skia.Bitmap().apply { allocPixels(ImageInfo(width, height, ColorType.BGRA_8888, ColorAlphaType.UNPREMUL)); installPixels(bb.array()) }
-        org.jetbrains.skia.Canvas(skia).apply { clear(0); drawImage(Image.makeFromBitmap(src), 0f, 0f); close() }
+        // Exactly width × height ARGB ints, whatever was passed (Android would throw on too few).
+        val count = width * height
+        val bb = java.nio.ByteBuffer.allocate(count * 4).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        bb.asIntBuffer().put(ints, 0, minOf(ints.size, count))
+        val src = runCatching {
+            Image.makeRaster(ImageInfo(width, height, ColorType.BGRA_8888, ColorAlphaType.UNPREMUL), bb.array(), width * 4)
+        }.getOrNull() ?: return
+        org.jetbrains.skia.Canvas(skia).apply { clear(0); drawImage(src, 0f, 0f); close() }
+        src.close()
         skia.notifyPixelsChanged()
     }
-    internal fun image(): Image = Image.makeFromBitmap(skia)
+
+    /** The pixels as an image; a copy when Skia won't share them, and transparent when there are none. */
+    internal fun image(): Image = runCatching { Image.makeFromBitmap(skia) }.getOrNull()
+        ?: skia.readPixels()?.let { runCatching { Image.makeRaster(skia.imageInfo, it, skia.rowBytes) }.getOrNull() }
+        ?: Image.makeFromBitmap(org.jetbrains.skia.Bitmap().apply { allocN32Pixels(1, 1); erase(0) })
 
     companion object {
         @JvmStatic fun createBitmap(w: Int, h: Int, config: Config): Bitmap = Bitmap(org.jetbrains.skia.Bitmap().apply {

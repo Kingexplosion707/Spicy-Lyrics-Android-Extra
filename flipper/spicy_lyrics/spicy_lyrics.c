@@ -10,6 +10,8 @@
  *                  S\t<title>\t<artist>      the song
  *                  L\t<prev>\t<line>\t<next> the lyric lines around now
  *                  P\t<0|1>\t<pos ms>\t<duration ms>  playing state, about once a second
+ *                  W\t<line start ms>\t<word>...  the line's words, each "text\x1fstart\x1fend\x1fjoined"
+ *                                            (ms from the line's start; joined: no space before it)
  *                  N\t<text>                 a note in place of lyrics ("No lyrics", ...)
  *   to the app     C\t<play|next|prev>       a button
  */
@@ -22,6 +24,7 @@
 #include <notification/notification_messages.h>
 #include <bt/bt_service/bt.h>
 #include <profiles/serial_profile.h>
+#include <locale/locale.h>
 
 #include <stdlib.h>
 #include <string.h>
@@ -37,6 +40,11 @@
 #define CDC_IF        1
 #define LINK_TIMEOUT  6000
 #define RECLAIM_MS    400
+#define MAX_WORDS     32
+#define WORD_LEN      28
+#define SLIDE_MS      240
+#define FRAME_MS      40
+#define IDLE_MS       250
 
 typedef enum {
     LinkNone,
@@ -47,6 +55,7 @@ typedef enum {
 typedef enum {
     LayoutFull, // song, line, next line, progress
     LayoutLyrics, // the line alone, as large as it fits
+    LayoutWallpaper, // clock, visualizer, the line and the song: to leave up
     LayoutCount,
 } Layout;
 
@@ -62,6 +71,13 @@ typedef struct {
 } LineBuffer;
 
 typedef struct {
+    char text[WORD_LEN];
+    uint16_t start; // ms from the line's start
+    uint16_t end;
+    bool joined; // part of the word before (a syllable)
+} Word;
+
+typedef struct {
     // What the app sent.
     char title[TEXT_LEN];
     char artist[TEXT_LEN];
@@ -73,6 +89,13 @@ typedef struct {
     uint32_t pos_ms;
     uint32_t dur_ms;
     uint32_t pos_tick; // when pos_ms was true
+    // The current line's words, for the wipe as they're sung (word-synced lyrics only).
+    Word words[MAX_WORDS];
+    uint8_t word_count;
+    uint32_t line_start_ms;
+    // The line before, sliding out while the new one slides in.
+    char old_line[TEXT_LEN];
+    uint32_t line_tick;
     // The links.
     Link link; // the one the app last spoke on
     uint32_t last_rx_tick;
@@ -236,9 +259,212 @@ static void draw_waiting(Canvas* canvas, const Model* m) {
     canvas_draw_str(canvas, 2, 57, m->bt_ok ? "Phone: Bluetooth  PC: USB" : "Phone: Flipper Bluetooth is off");
 }
 
-static void draw_dots(Canvas* canvas, uint8_t y) {
-    for(uint8_t i = 0; i < 3; i++)
-        canvas_draw_disc(canvas, 52 + i * 12, y, 3);
+// ---------------------------------------------------------------------------------------------
+// Motion
+
+static uint8_t ease_out(uint32_t elapsed, uint32_t length, uint8_t distance) {
+    if(elapsed >= length) return distance;
+    uint32_t inv = length - elapsed; // (1 - t)^3, in length^3 units
+    uint64_t cube = (uint64_t)inv * inv * inv;
+    uint64_t full = (uint64_t)length * length * length;
+    return (uint8_t)(distance - (cube * distance) / full);
+}
+
+/** How far the new line still has to rise (0 when settled). */
+static uint8_t slide_offset(const Model* m, uint8_t distance) {
+    return distance - ease_out(furi_get_tick() - m->line_tick, SLIDE_MS, distance);
+}
+
+static bool sliding(const Model* m) {
+    return furi_get_tick() - m->line_tick < SLIDE_MS;
+}
+
+/** A break in the singing: three dots that swell in turn, as the lyrics screen fills them. */
+static void draw_dots(Canvas* canvas, uint8_t y, const Model* m) {
+    uint32_t t = m->playing ? furi_get_tick() / 120 : 0;
+    for(uint8_t i = 0; i < 3; i++) {
+        uint8_t phase = (t + 6 - i * 2) % 6; // 0..5
+        uint8_t r = 1 + (phase < 3 ? phase : 6 - phase); // 1..3..1
+        if(!m->playing) r = 2;
+        canvas_draw_disc(canvas, 52 + i * 12, y, r);
+    }
+}
+
+typedef struct {
+    int16_t x;
+    uint8_t row;
+    uint8_t w;
+} Placed;
+
+/** Lays the words out in centered rows [width] wide; returns the rows needed. */
+static uint8_t place_words(Canvas* canvas, const Model* m, Placed* out, uint8_t width) {
+    uint8_t space = canvas_string_width(canvas, "a a") - canvas_string_width(canvas, "aa");
+    if(space == 0 || space > 6) space = 3;
+    uint8_t row = 0;
+    int16_t x = 0;
+    int16_t row_width[8] = {0};
+    uint8_t first_in_row[8] = {0};
+    uint8_t i = 0;
+    while(i < m->word_count) {
+        // A word and the syllables joined to it go together.
+        uint8_t j = i + 1;
+        while(j < m->word_count && m->words[j].joined)
+            j++;
+        int16_t unit = 0;
+        for(uint8_t k = i; k < j; k++)
+            unit += canvas_string_width(canvas, m->words[k].text);
+        int16_t gap = x > 0 ? space : 0;
+        if(x > 0 && x + gap + unit > width && row < 7) {
+            row_width[row] = x;
+            row++;
+            first_in_row[row] = i;
+            x = 0;
+            gap = 0;
+        }
+        x += gap;
+        for(uint8_t k = i; k < j; k++) {
+            out[k].x = x;
+            out[k].row = row;
+            out[k].w = canvas_string_width(canvas, m->words[k].text);
+            x += out[k].w;
+        }
+        i = j;
+    }
+    row_width[row] = x;
+    // Center each row on the screen.
+    for(uint8_t k = 0; k < m->word_count; k++) {
+        out[k].x += (128 - row_width[out[k].row]) / 2;
+    }
+    UNUSED(first_in_row);
+    return m->word_count ? row + 1 : 0;
+}
+
+/**
+ * The line being sung, its words wiped in as they're sung (white on black), from baseline [y]
+ * every [step] px, bold when it fits [max_rows], else smaller. [lift] moves it down while it slides in.
+ */
+static void draw_karaoke(Canvas* canvas, const Model* m, uint8_t y, uint8_t step, uint8_t max_rows, uint8_t lift) {
+    Placed placed[MAX_WORDS];
+    canvas_set_font(canvas, FontPrimary);
+    uint8_t ascent = 9;
+    uint8_t rows = place_words(canvas, m, placed, 124);
+    if(rows > max_rows) {
+        canvas_set_font(canvas, FontSecondary);
+        ascent = 8;
+        step = step - 3;
+        max_rows = max_rows + 1;
+        rows = place_words(canvas, m, placed, 124);
+        y = y - 2;
+    } else if(rows < max_rows) {
+        y += (max_rows - rows) * step / 2;
+    }
+    int32_t pos = (int32_t)position_now(m) - (int32_t)m->line_start_ms;
+    for(uint8_t k = 0; k < m->word_count; k++) {
+        if(placed[k].row >= max_rows) break;
+        uint8_t base = y + placed[k].row * step + lift;
+        canvas_draw_str(canvas, placed[k].x, base, m->words[k].text);
+    }
+    // The sung part, inverted.
+    canvas_set_color(canvas, ColorXOR);
+    for(uint8_t k = 0; k < m->word_count; k++) {
+        if(placed[k].row >= max_rows) break;
+        const Word* w = &m->words[k];
+        if(pos <= w->start) continue;
+        uint8_t width = placed[k].w;
+        if(pos < w->end && w->end > w->start) width = (uint8_t)((uint32_t)width * (pos - w->start) / (w->end - w->start));
+        int16_t x = placed[k].x;
+        if(!w->joined) {
+            x -= 1;
+            width += 1;
+        }
+        // A sung word joins the next on its row once that one starts, so the wipe runs on.
+        bool done = pos >= w->end;
+        if(done && k + 1 < m->word_count && placed[k + 1].row == placed[k].row && pos > m->words[k + 1].start) {
+            width = placed[k + 1].x - x - (m->words[k + 1].joined ? 0 : 1);
+        } else if(done && !(k + 1 < m->word_count && m->words[k + 1].joined)) {
+            width += 1;
+        }
+        uint8_t base = y + placed[k].row * step + lift;
+        if(width) canvas_draw_box(canvas, x, base - ascent, width, ascent + 2);
+    }
+    canvas_set_color(canvas, ColorBlack);
+}
+
+/** The line being sung, at [y]: its words wiped as sung when there are timings, else as text. */
+static void draw_current(Canvas* canvas, const Model* m, const char* line, bool interlude, uint8_t y, uint8_t step, uint8_t max_rows, uint8_t dots_y) {
+    uint8_t lift = slide_offset(m, step + 4);
+    // The line before rises out of the way.
+    if(sliding(m) && m->old_line[0]) {
+        uint8_t up = ease_out(furi_get_tick() - m->line_tick, SLIDE_MS, step + 4);
+        canvas_set_font(canvas, FontPrimary);
+        if(strcmp(m->old_line, "* * *") != 0) {
+            draw_wrapped(canvas, m->old_line, 2, y - up, step, 124, max_rows, true, true);
+        }
+    }
+    if(interlude) {
+        draw_dots(canvas, dots_y + lift, m);
+    } else if(m->word_count) {
+        draw_karaoke(canvas, m, y, step, max_rows, lift);
+    } else {
+        canvas_set_font(canvas, FontPrimary);
+        uint8_t rows = draw_wrapped(canvas, line, 2, y, step, 124, max_rows, true, false);
+        if(rows <= max_rows) {
+            uint8_t top = y + (max_rows - rows) * step / 2;
+            draw_wrapped(canvas, line, 2, top + lift, step, 124, max_rows, true, true);
+        } else {
+            canvas_set_font(canvas, FontSecondary);
+            draw_wrapped(canvas, line, 2, y - 2 + lift, step - 3, 124, max_rows + 1, true, true);
+        }
+    }
+}
+
+/** Bars that move with the music, livelier as words start; flat while paused. */
+static void draw_bars(Canvas* canvas, const Model* m, bool live, uint8_t x0, uint8_t bottom, uint8_t height) {
+    uint32_t now = furi_get_tick();
+    uint32_t step = now / 110;
+    uint32_t frac = now % 110;
+    int32_t pos = (int32_t)position_now(m) - (int32_t)m->line_start_ms;
+    uint8_t boost = 0;
+    for(uint8_t k = 0; k < m->word_count; k++) {
+        int32_t since = pos - m->words[k].start;
+        if(since >= 0 && since < 140) boost = 5;
+    }
+    for(uint8_t i = 0; i < 8; i++) {
+        uint8_t h = 1;
+        if(live && m->playing) {
+            uint32_t a = (step * 2654435761u) ^ (i * 40503u + 7);
+            uint32_t b = ((step + 1) * 2654435761u) ^ (i * 40503u + 7);
+            a ^= a >> 15;
+            b ^= b >> 15;
+            uint32_t ha = 3 + (a * 2246822519u >> 24) % (height - 6);
+            uint32_t hb = 3 + (b * 2246822519u >> 24) % (height - 6);
+            h = (uint8_t)((ha * (110 - frac) + hb * frac) / 110) + boost;
+            if(h > height) h = height;
+        }
+        canvas_draw_box(canvas, x0 + i * 6, bottom - h, 4, h);
+    }
+}
+
+static void draw_clock(Canvas* canvas) {
+    DateTime now;
+    furi_hal_rtc_get_datetime(&now);
+    uint8_t hour = now.hour;
+    if(locale_get_time_format() == LocaleTimeFormat12h) {
+        hour = hour % 12;
+        if(hour == 0) hour = 12;
+    }
+    char text[8];
+    snprintf(text, sizeof(text), "%u:%02u", hour, now.minute);
+    canvas_set_font(canvas, FontBigNumbers);
+    canvas_draw_str(canvas, 1, 16, text);
+    static const char* const days[] = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+    static const char* const months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+    char date[20];
+    uint8_t wd = now.weekday >= 1 && now.weekday <= 7 ? now.weekday - 1 : 0;
+    uint8_t mo = now.month >= 1 && now.month <= 12 ? now.month - 1 : 0;
+    snprintf(date, sizeof(date), "%s %u %s", days[wd], now.day, months[mo]);
+    canvas_set_font(canvas, FontSecondary);
+    canvas_draw_str(canvas, 2, 25, date);
 }
 
 static void draw_progress(Canvas* canvas, const Model* m) {
@@ -257,6 +483,20 @@ static void draw_progress(Canvas* canvas, const Model* m) {
     }
 }
 
+static void song_text(const Model* m, char* buf, size_t len) {
+    if(m->artist[0]) {
+        snprintf(buf, len, "%s - %s", m->title, m->artist);
+    } else {
+        snprintf(buf, len, "%s", m->title);
+    }
+}
+
+static void clear_band(Canvas* canvas, uint8_t top, uint8_t bottom) {
+    canvas_set_color(canvas, ColorWhite);
+    canvas_draw_box(canvas, 0, top, 128, bottom - top);
+    canvas_set_color(canvas, ColorBlack);
+}
+
 static void draw_callback(Canvas* canvas, void* context) {
     App* app = context;
     furi_mutex_acquire(app->mutex, FuriWaitForever);
@@ -265,7 +505,7 @@ static void draw_callback(Canvas* canvas, void* context) {
     canvas_set_color(canvas, ColorBlack);
 
     bool live = m->link != LinkNone && (furi_get_tick() - m->last_rx_tick) < LINK_TIMEOUT;
-    if(!live) {
+    if(!live && m->layout != LayoutWallpaper) {
         draw_waiting(canvas, m);
         furi_mutex_release(app->mutex);
         return;
@@ -277,32 +517,18 @@ static void draw_callback(Canvas* canvas, void* context) {
     char buf[TEXT_LEN + 4];
 
     if(m->layout == LayoutFull) {
-        // Song and link.
+        draw_current(canvas, m, line, interlude, 23, 11, 2, 26);
+        // The lines slide under the song above and the next line below.
+        clear_band(canvas, 0, 11);
+        clear_band(canvas, 47, 64);
         canvas_set_font(canvas, FontSecondary);
-        if(m->artist[0]) {
-            snprintf(buf, sizeof(buf), "%s - %s", m->title, m->artist);
-        } else {
-            snprintf(buf, sizeof(buf), "%s", m->title);
-        }
+        song_text(m, buf, sizeof(buf));
         const char* via = m->link == LinkBt ? "BT" : "USB";
         char top[TEXT_LEN];
         fit_text(canvas, buf, top, sizeof(top), 124 - canvas_string_width(canvas, via) - 4);
         canvas_draw_str(canvas, 1, 8, top);
         canvas_draw_str_aligned(canvas, 127, 8, AlignRight, AlignBottom, via);
         canvas_draw_line(canvas, 0, 10, 127, 10);
-
-        // The line, in bold when it fits two rows, else smaller.
-        canvas_set_font(canvas, FontPrimary);
-        uint8_t rows = interlude ? 0 : draw_wrapped(canvas, line, 2, 23, 11, 124, 2, true, false);
-        if(interlude) {
-            draw_dots(canvas, 26);
-        } else if(rows <= 2) {
-            draw_wrapped(canvas, line, 2, 23, 11, 124, 2, true, true);
-        } else {
-            canvas_set_font(canvas, FontSecondary);
-            draw_wrapped(canvas, line, 2, 20, 9, 124, 3, true, true);
-        }
-        // What comes next.
         if(m->next[0]) {
             canvas_set_font(canvas, FontSecondary);
             char next[TEXT_LEN];
@@ -310,20 +536,30 @@ static void draw_callback(Canvas* canvas, void* context) {
             canvas_draw_str_aligned(canvas, 64, 56, AlignCenter, AlignBottom, next);
         }
         draw_progress(canvas, m);
-    } else {
-        // The line alone: bold up to four rows, otherwise smaller.
-        canvas_set_font(canvas, FontPrimary);
-        uint8_t rows = interlude ? 0 : draw_wrapped(canvas, line, 2, 14, 13, 124, 4, true, false);
-        if(interlude) {
-            draw_dots(canvas, 30);
-        } else if(rows <= 4) {
-            uint8_t top = 14 + (4 - rows) * 13 / 2;
-            draw_wrapped(canvas, line, 2, top, 13, 124, 4, true, true);
-        } else {
-            canvas_set_font(canvas, FontSecondary);
-            draw_wrapped(canvas, line, 2, 10, 9, 124, 6, true, true);
-        }
+    } else if(m->layout == LayoutLyrics) {
+        draw_current(canvas, m, line, interlude, 14, 13, 4, 30);
+        clear_band(canvas, 57, 64);
         draw_progress(canvas, m);
+    } else {
+        // Wallpaper: left up like a screensaver.
+        if(live) draw_current(canvas, m, line, interlude, 38, 12, 2, 41);
+        clear_band(canvas, 0, 27);
+        clear_band(canvas, 53, 64);
+        draw_clock(canvas);
+        draw_bars(canvas, m, live, 79, 22, 20);
+        canvas_set_font(canvas, FontSecondary);
+        if(live) {
+            song_text(m, buf, sizeof(buf));
+            char song[TEXT_LEN];
+            fit_text(canvas, buf, song, sizeof(song), 124);
+            canvas_draw_str_aligned(canvas, 64, 61, AlignCenter, AlignBottom, song);
+            if(m->dur_ms) {
+                uint8_t w = (uint8_t)((uint64_t)position_now(m) * 128 / m->dur_ms);
+                canvas_draw_line(canvas, 0, 63, w, 63);
+            }
+        } else {
+            canvas_draw_str_aligned(canvas, 64, 44, AlignCenter, AlignBottom, "Waiting for Spicy Lyrics...");
+        }
     }
 
     // A pressed button shows briefly.
@@ -337,6 +573,16 @@ static void draw_callback(Canvas* canvas, void* context) {
         canvas_draw_str_aligned(canvas, 64, 35, AlignCenter, AlignBottom, m->pressed);
     }
     furi_mutex_release(app->mutex);
+}
+
+/** Whether the screen is moving now: redraw every frame then, else a few times a second. */
+static bool needs_frames(App* app) {
+    furi_mutex_acquire(app->mutex, FuriWaitForever);
+    const Model* m = &app->model;
+    bool live = m->link != LinkNone && (furi_get_tick() - m->last_rx_tick) < LINK_TIMEOUT;
+    bool moving = live && (m->playing || sliding(m));
+    furi_mutex_release(app->mutex);
+    return moving;
 }
 
 static void input_callback(InputEvent* event, void* context) {
@@ -368,8 +614,8 @@ static void send_line(App* app, const char* text) {
 }
 
 static void handle_message(App* app, char* line, Link from) {
-    char* f[5] = {0};
-    size_t n = split_fields(line, f, 5);
+    char* f[MAX_WORDS + 3] = {0};
+    size_t n = split_fields(line, f, MAX_WORDS + 3);
     if(n == 0 || !f[0][0]) return;
 
     if(f[0][0] == '?') {
@@ -395,12 +641,45 @@ static void handle_message(App* app, char* line, Link from) {
         copy_field(m->title, n > 1 ? f[1] : "");
         copy_field(m->artist, n > 2 ? f[2] : "");
         m->prev[0] = m->cur[0] = m->next[0] = m->note[0] = '\0';
+        m->word_count = 0;
+        m->old_line[0] = '\0';
         break;
-    case 'L':
+    case 'L': {
+        const char* cur = n > 2 ? f[2] : "";
+        if(strcmp(cur, m->cur) != 0) {
+            // A new line: the old one slides out as this one comes in.
+            copy_field(m->old_line, m->cur[0] ? m->cur : "");
+            m->line_tick = furi_get_tick();
+            m->word_count = 0;
+        }
         copy_field(m->prev, n > 1 ? f[1] : "");
-        copy_field(m->cur, n > 2 ? f[2] : "");
+        copy_field(m->cur, cur);
         copy_field(m->next, n > 3 ? f[3] : "");
         m->note[0] = '\0';
+        break;
+    }
+    case 'W':
+        m->line_start_ms = n > 1 ? (uint32_t)strtoul(f[1], NULL, 10) : 0;
+        m->word_count = 0;
+        for(size_t i = 2; i < n && m->word_count < MAX_WORDS; i++) {
+            char* parts[4] = {0};
+            char* p = f[i];
+            size_t k = 0;
+            while(k < 4) {
+                parts[k++] = p;
+                char* sep = strchr(p, '\x1f');
+                if(!sep) break;
+                *sep = '\0';
+                p = sep + 1;
+            }
+            if(k < 3 || !parts[0][0]) continue;
+            Word* w = &m->words[m->word_count++];
+            strncpy(w->text, parts[0], WORD_LEN - 1);
+            w->text[WORD_LEN - 1] = '\0';
+            w->start = (uint16_t)strtoul(parts[1], NULL, 10);
+            w->end = (uint16_t)strtoul(parts[2], NULL, 10);
+            w->joined = k > 3 && parts[3][0] == '1';
+        }
         break;
     case 'P':
         m->playing = n > 1 && f[1][0] == '1';
@@ -411,6 +690,7 @@ static void handle_message(App* app, char* line, Link from) {
     case 'N':
         copy_field(m->note, n > 1 ? f[1] : "");
         m->prev[0] = m->cur[0] = m->next[0] = '\0';
+        m->word_count = 0;
         break;
     default:
         break;
@@ -613,7 +893,7 @@ int32_t spicy_lyrics_app(void* p) {
     InputEvent event;
     bool running = true;
     while(running) {
-        if(furi_message_queue_get(app->input, &event, 250) == FuriStatusOk) {
+        if(furi_message_queue_get(app->input, &event, needs_frames(app) ? FRAME_MS : IDLE_MS) == FuriStatusOk) {
             if(event.type == InputTypeShort) {
                 switch(event.key) {
                 case InputKeyOk:
@@ -627,8 +907,11 @@ int32_t spicy_lyrics_app(void* p) {
                     break;
                 case InputKeyUp:
                 case InputKeyDown:
+                    // Up and Down go through the screens: song, lyrics alone, wallpaper.
                     furi_mutex_acquire(app->mutex, FuriWaitForever);
-                    app->model.layout = (app->model.layout + 1) % LayoutCount;
+                    app->model.layout = event.key == InputKeyDown ?
+                                            (app->model.layout + 1) % LayoutCount :
+                                            (app->model.layout + LayoutCount - 1) % LayoutCount;
                     furi_mutex_release(app->mutex);
                     break;
                 case InputKeyBack:

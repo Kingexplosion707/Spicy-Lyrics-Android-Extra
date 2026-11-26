@@ -167,6 +167,8 @@ dependencies {
     implementation("net.java.dev.jna:jna-platform:5.17.0")
     // The Flipper Zero over USB.
     implementation("com.fazecast:jSerialComm:2.11.0")
+    testImplementation(kotlin("test"))
+    testImplementation("junit:junit:4.13.2")
     // Motion lyrics: ivLyrics' page in Chromium (its natives are fetched the first time they are needed).
     implementation("me.friwi:jcefmaven:152.0.6")
     // Video: Spotify Canvas MP4s and Apple Music's animated covers (HLS), decoded by FFmpeg.

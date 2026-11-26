@@ -4,6 +4,19 @@
 Spicy Lyrics Plus from the phone (Bluetooth) or the desktop app (USB), and turns the Flipper's
 buttons into playback controls.
 
+The lyrics move: each new line slides in, and with word-synced lyrics the words are wiped in
+(white on black) as they're sung, syllable by syllable. Breaks show three dots that swell in turn.
+
+## Screens
+
+Up and Down go through them:
+
+- **Song:** the song, the line being sung and the next one, and the progress.
+- **Lyrics:** the line alone, as large as it fits.
+- **Wallpaper:** the clock and date, bars that move with the music, the line and the song, to leave
+  up like a screensaver. (The Flipper's own desktop wallpaper is a fixed animation from the SD card,
+  which apps can't draw on, so this is the app's own.)
+
 ## Install
 
 1. Get `spicy_lyrics.fap` from the **Flipper app** workflow's artifact (built in RogueMaster's tree,
@@ -24,13 +37,15 @@ buttons into playback controls.
 | --- | --- |
 | OK | Play / pause |
 | Right / Left | Next / previous song |
-| Up / Down | Song and next line, or the line alone in large text |
+| Up / Down | Song, lyrics or wallpaper screen |
 | Back | Quit |
 
 ## Link
 
 Text lines, fields split by tabs. To the Flipper: `?` (hello), `S title artist`,
-`L before line after`, `P playing positionMs durationMs`, `N note`. From it: `SPICY 1` (answer to
+`L before line after`, `W lineStartMs word...` (each word `text␟start␟end␟joined`, times from the
+line's start), `P playing positionMs durationMs` (with each new line, on a jump of more than
+250 ms and every 2 s), `N note`. From it: `SPICY 1` (answer to
 hello) and `C play|next|prev`. Over Bluetooth it uses the Flipper's serial service, taking the
 channel from the Flipper's remote control while the app is open; the phone only sends once the
 Flipper reports its remote control off. Over USB it uses the Flipper's second serial port.
