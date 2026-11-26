@@ -9,6 +9,7 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.BluetoothStatusCodes
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
@@ -304,7 +305,7 @@ internal class FlipperBleLink(context: Context) : FlipperLink {
     @Suppress("DEPRECATION")
     private fun writeCharacteristic(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, bytes: ByteArray): Boolean =
         if (Build.VERSION.SDK_INT >= 33) {
-            g.writeCharacteristic(characteristic, bytes, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT) == BluetoothGatt.GATT_SUCCESS
+            g.writeCharacteristic(characteristic, bytes, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT) == BluetoothStatusCodes.SUCCESS
         } else {
             characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
             characteristic.value = bytes
@@ -314,7 +315,7 @@ internal class FlipperBleLink(context: Context) : FlipperLink {
     @Suppress("DEPRECATION")
     private fun writeDescriptor(g: BluetoothGatt, descriptor: BluetoothGattDescriptor, value: ByteArray) {
         val ok = if (Build.VERSION.SDK_INT >= 33) {
-            g.writeDescriptor(descriptor, value) == BluetoothGatt.GATT_SUCCESS
+            g.writeDescriptor(descriptor, value) == BluetoothStatusCodes.SUCCESS
         } else {
             descriptor.value = value
             g.writeDescriptor(descriptor)
