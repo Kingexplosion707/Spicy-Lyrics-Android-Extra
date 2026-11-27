@@ -35,7 +35,7 @@ Plus takes those lyrics out of the app and onto the rest of your phone.
 | **Share lyrics** | Pick a few lines and share them as a card with the song's cover, blurred behind big bold lyrics — or copy them as text. |
 | **Sleep timer** | Pause the music after 15 minutes to an hour and a half, or at the end of the song. It fades out first and puts the volume back after. |
 | **Lyrics colour and glow** | Colour the lyrics on the lyrics screen, wallpaper and always-on display (presets or taken from the cover), and turn the glow up to 300%. The overlay has its own colour, glow and text brightness. |
-| **Quick Settings tiles** | Turn the overlay and the always-on display on and off from the notification shade. They come back by themselves after a restart or an update. |
+| **Quick Settings tiles** | Turn the overlay, motion lyrics, the always-on display and music haptics on and off from the notification shade. They come back by themselves after a restart or an update. |
 | **Live captions** | When no lyrics source has the song (or you're watching a video), the captions of its YouTube video, word by word as YouTube's speech recognition heard them, so a word can be off. Off until you turn it on in Settings → Sources, or tap Live captions on the "no lyrics" screen. |
 | **Fonts and looks** | 42 fonts to download for the lyrics, their weight, line spacing and centring, gradient or custom colours, a one-tap Look, your own photo as the background and a dim over any background. |
 | **Listening stats and scrobbling** | Your top songs and artists, counted on your phone from any player once you switch it on; the stats never leave the phone. Optionally scrobble what you hear to your own ListenBrainz account. |

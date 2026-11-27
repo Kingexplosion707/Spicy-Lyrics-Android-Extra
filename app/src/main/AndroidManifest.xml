@@ -275,7 +275,7 @@
                 android:value="Pauses the music playing in another app when a sleep timer runs out" />
         </service>
 
-        <!-- Quick Settings tiles for the overlay and the always-on display. -->
+        <!-- Quick Settings tiles for the overlay, motion lyrics, the always-on display and music haptics. -->
         <service
             android:name="com.tx24.spicyplayer.tiles.OverlayTileService"
             android:exported="true"
@@ -309,6 +309,21 @@
             android:exported="true"
             android:icon="@drawable/ic_tile_aod"
             android:label="@string/tile_aod"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            tools:targetApi="n">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.TOGGLEABLE_TILE"
+                android:value="true" />
+        </service>
+
+        <service
+            android:name="com.tx24.spicyplayer.tiles.MusicHapticsTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_haptics"
+            android:label="@string/tile_haptics"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
             tools:targetApi="n">
             <intent-filter>

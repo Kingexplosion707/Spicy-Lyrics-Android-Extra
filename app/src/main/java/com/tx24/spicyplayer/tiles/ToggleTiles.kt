@@ -12,6 +12,7 @@ import androidx.annotation.RequiresApi
 import com.tx24.spicyplayer.LyricsActivity
 import com.tx24.spicyplayer.R
 import com.tx24.spicyplayer.aod.AlwaysOnService
+import com.tx24.spicyplayer.haptics.BackgroundHapticsService
 import com.tx24.spicyplayer.overlay.LyricsOverlayService
 
 /**
@@ -94,4 +95,15 @@ class MotionLyricsTileService : FeatureTileService() {
     override val pref = "motionLyrics"
     // The screens showing lyrics read the setting as it changes; nothing to start.
     override fun sync(context: Context) = true
+}
+
+/** Quick Settings: music haptics, the phone vibrating to the music. */
+@RequiresApi(Build.VERSION_CODES.N)
+class MusicHapticsTileService : FeatureTileService() {
+    override val pref = "musicHaptics"
+    // The lyrics screen reads the setting as it changes; away from it, the background service plays them.
+    override fun sync(context: Context): Boolean {
+        BackgroundHapticsService.sync(context)
+        return true
+    }
 }
